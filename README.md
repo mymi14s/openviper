@@ -26,7 +26,7 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 
 | | |
 |---|---|
-| 🔀 **Routing** | function-based and class-based (`View`) routes, path params, route groups |
+| 🔀 **Routing** | Function-based and class-based (`View`) routes, path params, route groups |
 | 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events |
 | 🔐 **Auth** | Session + JWT, password hashing, roles, permissions, `@login_required` |
 | 🖥️ **Admin UI** | Auto-discovered SPA — CRUD, bulk actions, change history, inlines |
@@ -34,7 +34,7 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 | ⚙️ **Background Tasks** | Task queue with retry, priorities, model-event hooks |
 | 🕐 **Scheduler** | Cron and interval periodic jobs built into the framework |
 | 🤖 **AI Registry** | Unified async API — OpenAI, Anthropic, Gemini, Ollama, Grok, custom |
-| 📦 **Serializers** | Pydantic-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware |
+| 📦 **Serializers** | `ModelSerializer`, `Serializer`, nested, partial updates, role-aware |
 | 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes |
 
 ---
@@ -61,9 +61,11 @@ app = OpenViper(title="My API")
 async def index(request: Request):
     return JSONResponse({"message": "Hello, OpenViper!"})
 
+
 @app.get("/users/{user_id}")
-async def get_user(request: Request, user_id: int) -> JSONResponse:
+async def get_user(request: Request, user_id: int):
     return JSONResponse({"id": user_id, "name": "Alice"})
+
 
 @app.post("/users")
 async def create_user(request: Request):
@@ -75,10 +77,11 @@ async def create_user(request: Request):
 openviper run app
 ```
 
-Open in your browser:
-- **API** → `http://localhost:8000`
-- **Swagger UI** → `http://localhost:8000/open-api/docs`
-- **ReDoc** → `http://localhost:8000/open-api/redoc`
+| URL | Description |
+|---|---|
+| `http://localhost:8000` | API root |
+| `http://localhost:8000/open-api/docs` | Swagger UI |
+| `http://localhost:8000/open-api/redoc` | ReDoc |
 
 ### Full project (with DB, auth, admin)
 
@@ -87,20 +90,16 @@ Open in your browser:
 openviper create-project myproject
 cd myproject
 openviper create-app blog
+```
 
+Add `"blog"` to `INSTALLED_APPS` in `myproject/settings.py`, then:
 
-add blog to INSTALLED_APPS in myproject/settings.py
-# Configure your myproject/settings.py
-
-
-# Run migrations and create an admin user
+```bash
 python viperctl.py makemigrations
 python viperctl.py migrate
 python viperctl.py createsuperuser
-
-# Start everything
-python viperctl.py runserver    # web server
-python viperctl.py runworker    # background task worker (separate terminal)
+python viperctl.py runserver    # start the web server
+python viperctl.py runworker    # start the task worker (separate terminal)
 ```
 
 ---
@@ -112,12 +111,11 @@ python viperctl.py runworker    # background task worker (separate terminal)
 ```python
 # blog/models.py
 from openviper.db import Model
-from openviper.db.fields import (
-    CharField, TextField, BooleanField, DateTimeField, ForeignKey,
-)
+from openviper.db.fields import BooleanField, CharField, DateTimeField, ForeignKey, TextField
 from openviper.auth import get_user_model
 
 User = get_user_model()
+
 
 class Post(Model):
     _app_name = "blog"
@@ -133,17 +131,13 @@ class Post(Model):
         table_name = "blog_posts"
 
     async def after_insert(self):
-        # Lifecycle hook — enqueue moderation task after every new post
-        print("Post created:", self.title)
         send_welcome_email.send_with_options(args=(self.id,), delay=5_000)
 
     async def on_update(self):
-        # Lifecycle hook — update timestamp before every update
-        print("Post updated:", self.title)
+        ...
 
     async def on_delete(self):
-        # Lifecycle hook — delete related comments after every post deletion
-        print("Post deleted:", self.title)
+        ...
 ```
 
 **QuerySet API:**
@@ -152,7 +146,7 @@ class Post(Model):
 # All published posts, newest first
 posts = await Post.objects.filter(published=True).order_by("-created_at").all()
 
-# Single record — returns None if not found
+# Single record (None if not found)
 post = await Post.objects.get_or_none(id=42)
 
 # Count
@@ -168,11 +162,12 @@ await Post.objects.filter(author_id=user.id).update(published=True)
 
 ### Admin Panel
 
-Register models in `blog/admin.py` — OpenViper discovers it automatically:
+Register models in `blog/admin.py` — OpenViper auto-discovers it from `INSTALLED_APPS`:
 
 ```python
-from openviper.admin import ModelAdmin, ActionResult, action, register
+from openviper.admin import ActionResult, ModelAdmin, action, register
 from .models import Post
+
 
 @register(Post)
 class PostAdmin(ModelAdmin):
@@ -187,13 +182,10 @@ class PostAdmin(ModelAdmin):
         return ActionResult(success=True, count=count, message=f"Published {count} posts.")
 ```
 
-start server
-
 ```bash
 python viperctl.py runserver
+# Admin: http://localhost:8000/admin
 ```
-
-Visit `http://localhost:8000/admin`
 
 ### Background Tasks
 
@@ -201,27 +193,30 @@ Visit `http://localhost:8000/admin`
 # blog/tasks.py
 from openviper.tasks import task
 
+
 @task()
 async def send_welcome_email(post_id: int):
-    """
-    Do something
-    """
+    post = await Post.objects.get_or_none(id=post_id)
+    # send email, push notification, etc.
 ```
 
+```bash
+python viperctl.py runworker
+```
 
 ### Periodic Scheduler
 
 ```python
 from openviper.tasks.scheduler import periodic
-from openviper.tasks.schedule import CronSchedule, IntervalSchedule
-from datetime import timedelta
+
 
 @periodic(every=60)
-async def morning_digest():
+async def refresh_feed():
     ...
 
+
 @periodic(every=300)
-async def refresh_cache():
+async def cleanup_old_sessions():
     ...
 ```
 
@@ -235,9 +230,10 @@ python viperctl.py runworker
 
 | Example | Description |
 |---|---|
+| [`examples/flexible/`](examples/flexible/) | Minimal decorator-based API — no DB, no auth |
 | [`examples/todoapp/`](examples/todoapp/) | Single-file app — auth, admin, SQLite, HTML templates |
-| [`examples/ai_moderation_platform/`](examples/ai_moderation_platform/) | Multi-app platform — AI moderation, Dramatiq tasks, Docker, PostgreSQL |
-| [`examples/custom_provider_demo/`](examples/custom_provider_demo/) | Writing and registering a custom AI provider plugin |
+| [`examples/ai_moderation_platform/`](examples/ai_moderation_platform/) | Multi-app platform — AI moderation, tasks, Docker, PostgreSQL |
+| [`examples/custom_provider_demo/`](examples/custom_provider_demo/) | Writing a custom AI provider plugin |
 
 ---
 
@@ -245,14 +241,12 @@ python viperctl.py runworker
 
 Full reference documentation lives in [`docs/0.0.1/`](docs/0.0.1/).
 
-
 ---
 
 ## ⚙️ Requirements
 
 - **Python** ≥ 3.14
-- **Supported DB driver** — PostgreSQL, MySQL/MariaDB, SQLite
-
+- **Supported databases** — PostgreSQL, MySQL/MariaDB, SQLite
 
 ---
 

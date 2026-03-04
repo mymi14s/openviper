@@ -2,11 +2,11 @@
 
 # 🐍 OpenViper
 
-**A production-ready, high-performance, async-first Python web framework.**
+**A production-ready, async-first Python web framework.**
 
 *The freedom of a minimal core. The power of a full stack.*
 
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.14%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.1-orange)](pyproject.toml)
 
@@ -14,7 +14,7 @@
 
 ---
 
-**OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when you want control, while also providing a rich, fully integrated stack when you want to move fast.
+**OpenViper** is a production-ready, async-first Python web framework designed to be both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when you want control, while also providing a rich, fully integrated stack when you want to move fast.
 
 Out of the box it includes a powerful ORM with model lifecycle and events, built-in authentication and authorization, an Admin UI, background task processing, a pluggable AI provider registry, and automatic OpenAPI documentation.
 
@@ -58,7 +58,7 @@ app = OpenViper(title="My API")
 
 
 @app.get("/")
-async def index(request: Request) -> JSONResponse:
+async def index(request: Request):
     return JSONResponse({"message": "Hello, OpenViper!"})
 
 @app.get("/users/{user_id}")
@@ -66,7 +66,7 @@ async def get_user(request: Request, user_id: int) -> JSONResponse:
     return JSONResponse({"id": user_id, "name": "Alice"})
 
 @app.post("/users")
-async def create_user(request: Request) -> JSONResponse:
+async def create_user(request: Request):
     body = await request.json()
     return JSONResponse({"created": True, **body}, status_code=201)
 ```
@@ -88,6 +88,8 @@ openviper create-project myproject
 cd myproject
 openviper create-app blog
 
+
+add blog to INSTALLED_APPS in myproject/settings.py
 # Configure your myproject/settings.py
 
 

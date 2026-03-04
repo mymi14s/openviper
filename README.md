@@ -2,7 +2,7 @@
 
 # 🐍 OpenViper
 
-**A production-ready, async-first Python web framework.**
+**A production-ready, high-performance, async-first Python web framework.**
 
 *The freedom of a minimal core. The power of a full stack.*
 
@@ -14,7 +14,7 @@
 
 ---
 
-**OpenViper** is a production-ready, async-first Python web framework designed to be both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when you want control, while also providing a rich, fully integrated stack when you want to move fast.
+**OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when you want control, while also providing a rich, fully integrated stack when you want to move fast.
 
 Out of the box it includes a powerful ORM with model lifecycle and events, built-in authentication and authorization, an Admin UI, background task processing, a pluggable AI provider registry, and automatic OpenAPI documentation.
 
@@ -26,7 +26,7 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 
 | | |
 |---|---|
-| 🔀 **Routing** | Function-based and class-based (`View`) routes, path params, route groups |
+| 🔀 **Routing** | function-based and class-based (`View`) routes, path params, route groups |
 | 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events |
 | 🔐 **Auth** | Session + JWT, password hashing, roles, permissions, `@login_required` |
 | 🖥️ **Admin UI** | Auto-discovered SPA — CRUD, bulk actions, change history, inlines |
@@ -34,7 +34,7 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 | ⚙️ **Background Tasks** | Task queue with retry, priorities, model-event hooks |
 | 🕐 **Scheduler** | Cron and interval periodic jobs built into the framework |
 | 🤖 **AI Registry** | Unified async API — OpenAI, Anthropic, Gemini, Ollama, Grok, custom |
-| 📦 **Serializers** | `ModelSerializer`, `Serializer`, nested, partial updates, role-aware |
+| 📦 **Serializers** | Pydantic-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware |
 | 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes |
 
 ---
@@ -58,17 +58,15 @@ app = OpenViper(title="My API")
 
 
 @app.get("/")
-async def index(request: Request):
+async def index(request: Request) -> JSONResponse:
     return JSONResponse({"message": "Hello, OpenViper!"})
 
-
 @app.get("/users/{user_id}")
-async def get_user(request: Request, user_id: int):
+async def get_user(request: Request, user_id: int) -> JSONResponse:
     return JSONResponse({"id": user_id, "name": "Alice"})
 
-
 @app.post("/users")
-async def create_user(request: Request):
+async def create_user(request: Request) -> JSONResponse:
     body = await request.json()
     return JSONResponse({"created": True, **body}, status_code=201)
 ```
@@ -77,11 +75,10 @@ async def create_user(request: Request):
 openviper run app
 ```
 
-| URL | Description |
-|---|---|
-| `http://localhost:8000` | API root |
-| `http://localhost:8000/open-api/docs` | Swagger UI |
-| `http://localhost:8000/open-api/redoc` | ReDoc |
+Open in your browser:
+- **API** → `http://localhost:8000`
+- **Swagger UI** → `http://localhost:8000/open-api/docs`
+- **ReDoc** → `http://localhost:8000/open-api/redoc`
 
 ### Full project (with DB, auth, admin)
 
@@ -90,16 +87,18 @@ openviper run app
 openviper create-project myproject
 cd myproject
 openviper create-app blog
-```
 
-Add `"blog"` to `INSTALLED_APPS` in `myproject/settings.py`, then:
+# Configure your myproject/settings.py
 
-```bash
+
+# Run migrations and create an admin user
 python viperctl.py makemigrations
 python viperctl.py migrate
 python viperctl.py createsuperuser
-python viperctl.py runserver    # start the web server
-python viperctl.py runworker    # start the task worker (separate terminal)
+
+# Start everything
+python viperctl.py runserver    # web server
+python viperctl.py runworker    # background task worker (separate terminal)
 ```
 
 ---
@@ -111,11 +110,12 @@ python viperctl.py runworker    # start the task worker (separate terminal)
 ```python
 # blog/models.py
 from openviper.db import Model
-from openviper.db.fields import BooleanField, CharField, DateTimeField, ForeignKey, TextField
+from openviper.db.fields import (
+    CharField, TextField, BooleanField, DateTimeField, ForeignKey,
+)
 from openviper.auth import get_user_model
 
 User = get_user_model()
-
 
 class Post(Model):
     _app_name = "blog"
@@ -131,13 +131,17 @@ class Post(Model):
         table_name = "blog_posts"
 
     async def after_insert(self):
+        # Lifecycle hook — enqueue moderation task after every new post
+        print("Post created:", self.title)
         send_welcome_email.send_with_options(args=(self.id,), delay=5_000)
 
     async def on_update(self):
-        ...
+        # Lifecycle hook — update timestamp before every update
+        print("Post updated:", self.title)
 
     async def on_delete(self):
-        ...
+        # Lifecycle hook — delete related comments after every post deletion
+        print("Post deleted:", self.title)
 ```
 
 **QuerySet API:**
@@ -146,7 +150,7 @@ class Post(Model):
 # All published posts, newest first
 posts = await Post.objects.filter(published=True).order_by("-created_at").all()
 
-# Single record (None if not found)
+# Single record — returns None if not found
 post = await Post.objects.get_or_none(id=42)
 
 # Count
@@ -162,12 +166,11 @@ await Post.objects.filter(author_id=user.id).update(published=True)
 
 ### Admin Panel
 
-Register models in `blog/admin.py` — OpenViper auto-discovers it from `INSTALLED_APPS`:
+Register models in `blog/admin.py` — OpenViper discovers it automatically:
 
 ```python
-from openviper.admin import ActionResult, ModelAdmin, action, register
+from openviper.admin import ModelAdmin, ActionResult, action, register
 from .models import Post
-
 
 @register(Post)
 class PostAdmin(ModelAdmin):
@@ -182,10 +185,13 @@ class PostAdmin(ModelAdmin):
         return ActionResult(success=True, count=count, message=f"Published {count} posts.")
 ```
 
+start server
+
 ```bash
 python viperctl.py runserver
-# Admin: http://localhost:8000/admin
 ```
+
+Visit `http://localhost:8000/admin`
 
 ### Background Tasks
 
@@ -193,30 +199,27 @@ python viperctl.py runserver
 # blog/tasks.py
 from openviper.tasks import task
 
-
 @task()
 async def send_welcome_email(post_id: int):
-    post = await Post.objects.get_or_none(id=post_id)
-    # send email, push notification, etc.
+    """
+    Do something
+    """
 ```
 
-```bash
-python viperctl.py runworker
-```
 
 ### Periodic Scheduler
 
 ```python
 from openviper.tasks.scheduler import periodic
-
+from openviper.tasks.schedule import CronSchedule, IntervalSchedule
+from datetime import timedelta
 
 @periodic(every=60)
-async def refresh_feed():
+async def morning_digest():
     ...
 
-
 @periodic(every=300)
-async def cleanup_old_sessions():
+async def refresh_cache():
     ...
 ```
 
@@ -230,10 +233,9 @@ python viperctl.py runworker
 
 | Example | Description |
 |---|---|
-| [`examples/flexible/`](examples/flexible/) | Minimal decorator-based API — no DB, no auth |
 | [`examples/todoapp/`](examples/todoapp/) | Single-file app — auth, admin, SQLite, HTML templates |
-| [`examples/ai_moderation_platform/`](examples/ai_moderation_platform/) | Multi-app platform — AI moderation, tasks, Docker, PostgreSQL |
-| [`examples/custom_provider_demo/`](examples/custom_provider_demo/) | Writing a custom AI provider plugin |
+| [`examples/ai_moderation_platform/`](examples/ai_moderation_platform/) | Multi-app platform — AI moderation, Dramatiq tasks, Docker, PostgreSQL |
+| [`examples/custom_provider_demo/`](examples/custom_provider_demo/) | Writing and registering a custom AI provider plugin |
 
 ---
 
@@ -241,12 +243,14 @@ python viperctl.py runworker
 
 Full reference documentation lives in [`docs/0.0.1/`](docs/0.0.1/).
 
+
 ---
 
 ## ⚙️ Requirements
 
 - **Python** ≥ 3.14
-- **Supported databases** — PostgreSQL, MySQL/MariaDB, SQLite
+- **Supported DB driver**   — PostgreSQL, MySQL/MariaDB, SQLite
+
 
 ---
 

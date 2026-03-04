@@ -14,16 +14,11 @@
 
 ---
 
-**OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be
-both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when
-you want control, while also providing a rich, fully integrated stack when you want to move fast.
+**OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when you want control, while also providing a rich, fully integrated stack when you want to move fast.
 
-Out of the box it includes a powerful ORM with model lifecycle and events, built-in authentication and
-authorization, an Admin UI, background task processing, a pluggable AI provider registry, and automatic
-OpenAPI documentation.
+Out of the box it includes a powerful ORM with model lifecycle and events, built-in authentication and authorization, an Admin UI, background task processing, a pluggable AI provider registry, and automatic OpenAPI documentation.
 
-Whether you're building lean APIs or full-scale platforms, OpenViper scales with you — without forcing
-you into rigid architectural constraints.
+Whether you're building lean APIs or full-scale platforms, OpenViper scales with you — without forcing you into rigid architectural constraints.
 
 ---
 
@@ -31,17 +26,16 @@ you into rigid architectural constraints.
 
 | | |
 |---|---|
-| 🔀 **Routing** | Decorator-based and class-based (`View`) routes, path params, route groups |
+| 🔀 **Routing** | function-based and class-based (`View`) routes, path params, route groups |
 | 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events |
 | 🔐 **Auth** | Session + JWT, password hashing, roles, permissions, `@login_required` |
-| 🖥️ **Admin UI** | Auto-discovered Vue SPA — CRUD, bulk actions, change history, inlines |
+| 🖥️ **Admin UI** | Auto-discovered SPA — CRUD, bulk actions, change history, inlines |
 | 🔧 **Middleware** | Auth, CORS, CSRF, rate-limiting, security headers |
-| ⚙️ **Background Tasks** | Dramatiq-backed queue with retry, priorities, model-event hooks |
+| ⚙️ **Background Tasks** | Task queue with retry, priorities, model-event hooks |
 | 🕐 **Scheduler** | Cron and interval periodic jobs built into the framework |
 | 🤖 **AI Registry** | Unified async API — OpenAI, Anthropic, Gemini, Ollama, Grok, custom |
-| 📦 **Serializers** | Pydantic-based, `ModelSerializer`, nested, partial updates, role-aware |
+| 📦 **Serializers** | Pydantic-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware |
 | 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes |
-| 📁 **Storage** | Built-in static file serving and pluggable storage backends |
 
 ---
 
@@ -60,11 +54,8 @@ pip install openviper
 from openviper import OpenViper, JSONResponse
 from openviper.http.request import Request
 
-app = OpenViper(title="My API", version="1.0.0")
+app = OpenViper(title="My API")
 
-@app.on_startup
-async def startup():
-    print("Server started.")
 
 @app.get("/")
 async def index(request: Request) -> JSONResponse:
@@ -97,8 +88,8 @@ openviper create-project myproject
 cd myproject
 openviper create-app blog
 
-# Configure your database in .env
-echo "DATABASE_URL=postgresql+asyncpg://user:pass@localhost/mydb" >> .env
+# Configure your myproject/settings.py
+
 
 # Run migrations and create an admin user
 python viperctl.py makemigrations
@@ -141,8 +132,16 @@ class Post(Model):
 
     async def after_insert(self):
         # Lifecycle hook — enqueue moderation task after every new post
-        from blog.tasks import moderate_post
-        moderate_post.send(self.id)
+        print("Post created:", self.title)
+        send_welcome_email.send_with_options(args=(self.id,), delay=5_000)
+
+    async def on_update(self):
+        # Lifecycle hook — update timestamp before every update
+        print("Post updated:", self.title)
+
+    async def on_delete(self):
+        # Lifecycle hook — delete related comments after every post deletion
+        print("Post deleted:", self.title)
 ```
 
 **QuerySet API:**
@@ -163,24 +162,6 @@ async for post in Post.objects.filter(author_id=user.id):
 
 # Bulk update
 await Post.objects.filter(author_id=user.id).update(published=True)
-```
-
-### Authentication & Permissions
-
-```python
-from openviper.auth.decorators import login_required, permission_required
-from openviper.http.request import Request
-from openviper.http.response import JSONResponse
-
-@app.get("/dashboard")
-@login_required
-async def dashboard(request: Request) -> JSONResponse:
-    return JSONResponse({"user": request.user.username})
-
-@app.delete("/posts/{post_id}")
-@permission_required("post.delete")
-async def delete_post(request: Request, post_id: int) -> JSONResponse:
-    ...
 ```
 
 ### Admin Panel
@@ -204,7 +185,13 @@ class PostAdmin(ModelAdmin):
         return ActionResult(success=True, count=count, message=f"Published {count} posts.")
 ```
 
-Visit `http://localhost:8000/admin` after running `python viperctl.py createsuperuser`.
+start server
+
+```bash
+python viperctl.py runserver
+```
+
+Visit `http://localhost:8000/admin`
 
 ### Background Tasks
 
@@ -212,18 +199,13 @@ Visit `http://localhost:8000/admin` after running `python viperctl.py createsupe
 # blog/tasks.py
 from openviper.tasks import task
 
-@task
-async def moderate_post(post_id: int):
-    from blog.models import Post
-    post = await Post.objects.get_or_none(id=post_id)
-    if post:
-        # call AI, update flags, send notifications …
-        pass
+@task()
+async def send_welcome_email(post_id: int):
+    """
+    Do something
+    """
 ```
 
-```bash
-python viperctl.py runworker
-```
 
 ### Periodic Scheduler
 
@@ -232,50 +214,17 @@ from openviper.tasks.scheduler import periodic
 from openviper.tasks.schedule import CronSchedule, IntervalSchedule
 from datetime import timedelta
 
-@periodic(CronSchedule("0 8 * * *"), name="morning_digest")
+@periodic(every=60)
 async def morning_digest():
-    # Runs every day at 08:00
     ...
 
-@periodic(IntervalSchedule(timedelta(minutes=15)), name="refresh_cache")
+@periodic(every=300)
 async def refresh_cache():
     ...
 ```
 
 ```bash
-python viperctl.py runscheduler
-```
-
-### AI Registry
-
-```python
-from openviper.ai.registry import ai_registry
-
-# Generate text
-result = await ai_registry.generate(
-    prompt="Summarise this article in 3 bullet points: ...",
-    provider="openai",
-    model="gpt-4o",
-)
-print(result.text)
-
-# Moderation check
-verdict = await ai_registry.moderate(content="...", provider="openai")
-print(verdict.flagged, verdict.reason)
-
-# Streaming
-async for chunk in ai_registry.stream(prompt="Tell me a story", provider="anthropic"):
-    print(chunk, end="", flush=True)
-```
-
-Configure providers in your settings:
-
-```python
-AI_PROVIDERS = {
-    "openai":    {"api_key": os.environ["OPENAI_API_KEY"]},
-    "anthropic": {"api_key": os.environ["ANTHROPIC_API_KEY"]},
-    "gemini":    {"api_key": os.environ["GEMINI_API_KEY"]},
-}
+python viperctl.py runworker
 ```
 
 ---
@@ -294,35 +243,14 @@ AI_PROVIDERS = {
 
 Full reference documentation lives in [`docs/0.0.1/`](docs/0.0.1/).
 
-Build and open locally:
-
-```bash
-pip install sphinx sphinx_rtd_theme
-cd docs/0.0.1
-sphinx-build -b html . _build/html
-open _build/html/index.html
-```
 
 ---
 
 ## ⚙️ Requirements
 
-- **Python** ≥ 3.11
-- **Async DB driver** — `asyncpg` (PostgreSQL), `aiomysql` (MySQL), `aiosqlite` (SQLite)
-- **uvicorn** — included when you install `openviper`
+- **Python** ≥ 3.14
+- **Supported DB driver** — PostgreSQL, MySQL/MariaDB, SQLite
 
-```bash
-pip install openviper asyncpg          # PostgreSQL
-pip install openviper aiosqlite        # SQLite (dev/testing)
-```
-
-Optional extras:
-
-```bash
-pip install openviper[ai]              # OpenAI, Anthropic, Gemini clients
-pip install openviper[tasks]           # Dramatiq + RabbitMQ/Redis broker
-pip install openviper[all]             # Everything
-```
 
 ---
 

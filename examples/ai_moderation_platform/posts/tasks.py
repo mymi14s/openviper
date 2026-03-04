@@ -37,53 +37,21 @@ if not any(
     logger.addHandler(_fh)
 
 
-# @task()
-# async def moderate(post_id: int) -> None:
-#     """AI-moderate a post.  Hides the post and logs the result when unsafe."""
-#     # Local imports prevent circular imports (Post → tasks → Post).
-
-#     logger.info("Starting moderate task for post_id=%s", post_id)
-#     try:
-#         post = await Post.objects.get_or_none(id=post_id)
-#         if not post:
-#             logger.error("Post %s not found in database (returning silently).", post_id)
-#             return
-
-#         logger.info("Found Post %s, sending to moderator…", post.id)
-#         result = await get_moderator().moderate_content(post.content)
-
-#         if not result.is_safe:
-#             post.is_hidden = True
-#             await post.save()
-
-#             await ModerationLog(
-#                 reason=result.reason,
-#                 confidence=result.confidence,
-#                 content_type="post",
-#                 object_id=post.id,
-#                 classification=result.classification,
-#             ).save()
-#             logger.info(
-#                 "[%s] Moderation finished: post hidden (%s).",
-#                 post_id,
-#                 result.classification,
-#             )
-#         else:
-#             logger.info("[%s] Moderation finished: post is safe.", post_id)
-
-#     except Exception as exc:
-#         logger.error("[%s] Moderation error: %s", post_id, exc)
-#         raise
+@task()
+async def moderate(post_id: int) -> None:
+    """AI-moderate a post.  Hides the post and logs the result when unsafe."""
+    # Local imports prevent circular imports (Post → tasks → Post).
+    logger.info("Starting moderate task for post_id=%s", post_id)
+    
 
 
-# @periodic(every=60)
-# async def vulgerity_scan() -> None:
-#     """Demo periodic task — re-moderates post 13 every 60 s."""
-#     moderate.send(13)
-#     logger.info("Periodic vulnerability scan enqueued.")
+@periodic(every=60)
+async def vulgerity_scan() -> None:
+    """Demo periodic task — re-moderates post 13 every 60 s."""
+    logger.info("Periodic vulnerability scan enqueued.")
 
 
-@periodic(every=10_000)
+@periodic(every=300)
 def example_sync_task() -> None:
     """Demo synchronous periodic task."""
     logger.info("Running example_sync_task.")

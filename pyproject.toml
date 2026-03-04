@@ -1,0 +1,202 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "cython"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openviper"
+version = "0.0.1"
+description = "A production-ready, high-performance, async-first Python web framework."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.14"
+authors = [{ name = "E.A" }]
+keywords = ["web", "framework", "asgi", "async", "api"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.optional-dependencies]
+
+dev = [
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
+    "pytest-cov==7.0.0",
+    "pytest-xdist==3.8.0",
+    "httpx==0.28.1",
+    "black==26.1.0",
+    "isort==8.0.0",
+    "ruff==0.15.3",
+    "mypy==1.19.1",
+    "pylint==4.0.5",
+    "flake8==7.3.0",
+    "radon==6.0.1",
+    "bandit==1.9.4",
+    "safety==3.7.0",
+    "pre-commit==4.5.1",
+]
+docs = [
+    "sphinx==9.1.0",
+    "sphinx-rtd-theme==3.1.0",
+    "sphinxcontrib-httpdomain>=1.8.1",
+]
+all = ["openviper[postgresql,mariadb,ai,tasks,admin]"]
+
+[project.scripts]
+openviper = "openviper.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "openviper*",
+]
+exclude = [
+    "examples*",
+    "tests*",
+    "admin_frontend*",
+    ".github*",
+    "dist*",
+    "build*",
+    "*.egg-info*",
+    "htmlcov*",
+    ".pytest_cache*",
+]
+
+[tool.setuptools.package-data]
+openviper = [
+    "project_template/**/*",
+    "app_template/**/*",
+    "admin/static/**/*",
+    "admin/static/assets/**/*",
+    "contrib/admin/templates/**/*",
+    "contrib/admin/static/**/*",
+]
+
+# ── Ruff ────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PT", "SIM", "TCH"]
+ignore = ["B008", "N818", "TC003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+# ── Black ───────────────────────────────────────────────────────────────────
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+# ── isort ───────────────────────────────────────────────────────────────────
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["openviper"]
+known_third_party = [
+    "click", "pydantic", "sqlalchemy", "uvicorn", "httpx",
+    "openai", "anthropic", "dramatiq", "aiofiles", "jinja2",
+]
+sections = [
+    "FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER",
+]
+skip_glob = ["*/migrations/*"]
+force_single_line = false
+combine_as_imports = true
+
+# ── Pylint ──────────────────────────────────────────────────────────────────
+[tool.pylint.main]
+load-plugins = []
+ignore = ["migrations", "__pycache__", ".venv"]
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114",  # missing-module-docstring (handled by ruff D)
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0801",  # duplicate-code
+    "W0511",  # fixme
+    "C0301",  # line-too-long (handled by black)
+    "W0223",  # abstract-method
+    "R0401",  # cyclic-import (managed with lazy imports)
+    "E0401",  # import-error (optional deps)
+    "C0209",  # consider-using-f-string
+    "W0613",  # unused-argument (common in ASGI handlers)
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.design]
+max-args = 8
+max-attributes = 12
+max-locals = 20
+max-returns = 6
+max-branches = 15
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "v", "e", "f", "x", "T", "db", "pk", "qs", "mw", "fn"]
+
+# ── MyPy ────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.14"
+strict = true
+ignore_missing_imports = true
+exclude = [
+    "tests/", 
+    "docs/",
+    "admin_frontend*",
+    "examples*",
+    ".*",
+]
+
+# ── Pytest ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=openviper --cov-report=term-missing --cov-report=html --cov-fail-under=0"
+
+[tool.coverage.run]
+source = ["openviper"]
+omit = [
+    "openviper/project_template/*",
+    "openviper/app_template/*",
+    # AI providers require live API keys — excluded from coverage
+    "openviper/ai/providers/openai_provider.py",
+    "openviper/ai/providers/anthropic_provider.py",
+    "openviper/ai/providers/ollama_provider.py",
+    # CLI scaffolding — OS file-system operations
+    "openviper/cli.py",
+    # DB session store — requires live database
+    "openviper/auth/sessions.py",
+    # DB backends / decorators — require live database and full request cycle
+    "openviper/auth/backends.py",
+    "openviper/auth/decorators.py",
+    # SQLAlchemy executor — requires live DB connection
+    "openviper/db/executor.py",
+    # DB connection pool — requires live DB
+    "openviper/db/connection.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]

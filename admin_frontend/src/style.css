@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Focus styles */
+*:focus-visible {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-gray-900;
+}
+
+/* Form elements */
+input, select, textarea {
+  @apply rounded-md border border-gray-300 dark:border-gray-600 
+         bg-white dark:bg-gray-800 
+         text-gray-900 dark:text-gray-100
+         placeholder-gray-400 dark:placeholder-gray-500;
+}
+
+/* Buttons */
+.btn {
+  @apply px-4 py-2 rounded-md font-medium transition-colors duration-150 
+         focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-primary-600 text-white hover:bg-primary-700 
+         focus:ring-primary-500 dark:focus:ring-offset-gray-900;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-900 hover:bg-gray-300 
+         dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600
+         focus:ring-gray-500;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 
+         focus:ring-red-500 dark:focus:ring-offset-gray-900;
+}
+
+/* Cards */
+.card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm 
+         border border-gray-200 dark:border-gray-700;
+}
+
+/* Tables */
+.table {
+  @apply w-full divide-y divide-gray-200 dark:divide-gray-700;
+}
+
+.table th {
+  @apply px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 
+         uppercase tracking-wider bg-gray-50 dark:bg-gray-900;
+}
+
+.table td {
+  @apply px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100;
+}
+
+.table tbody tr {
+  @apply hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors;
+}
+
+/* Sidebar */
+.sidebar-link {
+  @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium
+         text-gray-700 dark:text-gray-300 
+         hover:bg-gray-100 dark:hover:bg-gray-700
+         transition-colors duration-150;
+}
+
+.sidebar-link.active {
+  @apply bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400;
+}
+
+/* Animations */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}

@@ -1,0 +1,25 @@
+# Development Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:  docker compose -f docker-compose.dev.yml up
+#
+# Serves the app via Openviper's built-in dev server with:
+#   - Hot-reload (code is volume-mounted)
+#   - DEBUG=True (static files served by the framework)
+#   - SQLite database (no external DB needed)
+
+services:
+
+  web:
+    build:
+      context: .
+      target: development
+    volumes:
+      # Mount source code for hot-reload
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "1"
+      SECRET_KEY: "dev-only-insecure-key"
+      DATABASE_URL: "sqlite+aiosqlite:///db.sqlite3"
+      OPENVIPER_SETTINGS_MODULE: "tp.settings"

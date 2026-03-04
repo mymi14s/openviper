@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Blog</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #ef4444;
+      --text: #0f172a;
+      --muted: #64748b;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Nav ── */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 1.25rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .nav-logo {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+      flex: 1;
+    }
+    .nav-logo span { color: var(--primary); }
+    .nav-links { display: flex; align-items: center; gap: 0.5rem; }
+    .nav-link {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 0.375rem 0.75rem;
+      border-radius: 6px;
+      transition: color .15s, background .15s;
+      cursor: pointer;
+    }
+    .nav-link:hover { color: var(--text); background: var(--bg); }
+    .nav-btn {
+      font-size: 0.875rem;
+      font-weight: 500;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 0.375rem 0.875rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .nav-btn:hover { background: var(--primary-hover); }
+    .nav-user {
+      font-size: 0.875rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-username { font-weight: 600; color: var(--text); }
+
+    /* ── Page wrapper ── */
+    #app {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    /* ── Page headings ── */
+    .page-header {
+      margin-bottom: 2rem;
+    }
+    .page-header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.25rem;
+    }
+    .page-header p { color: var(--muted); font-size: 0.95rem; }
+
+    /* ── Blog post cards ── */
+    .posts-grid { display: flex; flex-direction: column; gap: 1rem; }
+    .post-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: box-shadow .15s, border-color .15s;
+      box-shadow: var(--shadow);
+    }
+    .post-card:hover { box-shadow: var(--shadow-md); border-color: #cbd5e1; }
+    .post-card-title {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    .post-card-excerpt {
+      color: var(--muted);
+      font-size: 0.9rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .post-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .post-card-meta .dot { opacity: 0.4; }
+    .post-likes { display: flex; align-items: center; gap: 0.25rem; }
+
+    /* ── Post detail ── */
+    .post-detail {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 2rem;
+    }
+    .post-detail-title {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+    .post-detail-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .post-detail-content {
+      font-size: 1rem;
+      line-height: 1.8;
+      color: #1e293b;
+      white-space: pre-wrap;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--muted);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: 1.25rem;
+      transition: color .15s;
+    }
+    .back-link:hover { color: var(--text); }
+
+    /* ── Comments ── */
+    .comments-section h2 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .comment-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .comment-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .comment-meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem; }
+    .comment-text { font-size: 0.9rem; }
+    .comment-form { display: flex; gap: 0.5rem; }
+    .comment-form textarea {
+      flex: 1;
+      resize: none;
+      height: 60px;
+      padding: 0.6rem 0.875rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .comment-form textarea:focus { border-color: var(--primary); }
+    .no-comments { color: var(--muted); font-size: 0.875rem; }
+
+    /* ── Auth forms ── */
+    .auth-card {
+      max-width: 420px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow-md);
+    }
+    .auth-card h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      letter-spacing: -0.03em;
+    }
+    .auth-card .subtitle {
+      color: var(--muted);
+      font-size: 0.875rem;
+      margin-bottom: 1.75rem;
+    }
+    .auth-card .subtitle a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .auth-card .subtitle a:hover { text-decoration: underline; }
+
+    /* ── Form elements ── */
+    .form-group { margin-bottom: 1rem; }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: #334155;
+    }
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 0.625rem 0.875rem;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 0.9375rem;
+      font-family: inherit;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+    }
+    .form-group textarea { resize: vertical; min-height: 220px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      font-family: inherit;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-block { width: 100%; }
+    .btn-sm {
+      padding: 0.375rem 0.875rem;
+      font-size: 0.875rem;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+    /* ── Alert ── */
+    .alert {
+      padding: 0.75rem 1rem;
+      border-radius: 7px;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+    .alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
+    /* ── Create post ── */
+    .create-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 4rem 1rem;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+    .empty h3 { font-size: 1.125rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
+    .empty p { font-size: 0.9rem; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: flex;
+      justify-content: center;
+      padding: 3rem;
+    }
+    .spinner::after {
+      content: "";
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .badge-pending {
+      background: #fef9c3;
+      color: #854d0e;
+    }
+    .badge-hidden {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="#/" onclick="navigate('/')"><span>&#9679;</span> The Blog</a>
+    <div class="nav-links" id="nav-links"><!-- rendered by JS --></div>
+  </div>
+</nav>
+
+<div id="app">
+  <div class="spinner"></div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+//  Auth state
+// ──────────────────────────────────────────────
+const Auth = {
+  getToken() { return localStorage.getItem('token'); },
+  getUser()  { try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; } },
+  setSession(token, user) {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  },
+  clearSession() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  },
+  isLoggedIn() { return !!this.getToken(); },
+};
+
+// ──────────────────────────────────────────────
+//  API service
+// ──────────────────────────────────────────────
+const API = {
+  async request(method, path, body) {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = Auth.getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw { status: res.status, message: data.error || 'Something went wrong' };
+    return data;
+  },
+  get(path)         { return this.request('GET', path); },
+  post(path, body)  { return this.request('POST', path, body); },
+
+  // Auth
+  register(payload)  { return this.post('/users/auth/register', payload); },
+  login(payload)     { return this.post('/users/auth/login', payload); },
+
+  // Posts
+  listPosts()        { return this.get('/posts'); },
+  getPost(id)        { return this.get(`/posts/${id}`); },
+  createPost(payload){ return this.post('/posts', payload); },
+
+  // Comments
+  listComments(postId){ return this.get(`/posts/comments?post_id=${postId}`); },
+  createComment(payload){ return this.post('/posts/comments', payload); },
+};
+
+// ──────────────────────────────────────────────
+//  Router
+// ──────────────────────────────────────────────
+function getRoute() {
+  const hash = location.hash.replace(/^#/, '') || '/';
+  return hash;
+}
+
+function navigate(path) {
+  location.hash = path;
+}
+
+window.addEventListener('hashchange', render);
+
+// ──────────────────────────────────────────────
+//  Helpers
+// ──────────────────────────────────────────────
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function setApp(html) {
+  document.getElementById('app').innerHTML = html;
+}
+
+function showAlert(id, msg, type = 'error') {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = `<div class="alert alert-${type}">${escHtml(msg)}</div>`;
+}
+
+// ──────────────────────────────────────────────
+//  Nav
+// ──────────────────────────────────────────────
+function renderNav() {
+  const el = document.getElementById('nav-links');
+  if (!el) return;
+  if (Auth.isLoggedIn()) {
+    const user = Auth.getUser();
+    el.innerHTML = `
+      <span class="nav-user">
+        <span class="nav-username">${escHtml(user?.username || 'You')}</span>
+      </span>
+      <a class="nav-link" onclick="navigate('/create')">New Post</a>
+      <button class="nav-link" onclick="logout()">Logout</button>
+    `;
+  } else {
+    el.innerHTML = `
+      <a class="nav-link" onclick="navigate('/login')">Login</a>
+      <a class="nav-btn" onclick="navigate('/register')">Register</a>
+    `;
+  }
+}
+
+function logout() {
+  Auth.clearSession();
+  renderNav();
+  navigate('/');
+}
+
+// ──────────────────────────────────────────────
+//  Pages
+// ──────────────────────────────────────────────
+
+// ── Blog List ──────────────────────────────────
+async function renderBlogList() {
+  setApp('<div class="spinner"></div>');
+  try {
+    const data = await API.listPosts();
+    const posts = data.posts || [];
+
+    if (!posts.length) {
+      setApp(`
+        <div class="empty">
+          <div class="empty-icon">&#9998;</div>
+          <h3>No posts yet</h3>
+          <p>Be the first to write something.</p>
+        </div>
+      `);
+      return;
+    }
+
+    const cards = posts.map(p => `
+      <div class="post-card" onclick="navigate('/posts/${escHtml(String(p.id))}')">
+        <div class="post-card-title">${escHtml(p.title)}</div>
+        <div class="post-card-excerpt">${escHtml(p.content)}</div>
+        <div class="post-card-meta">
+          <span>By user #${escHtml(String(p.author_id))}</span>
+          <span class="dot">&#8226;</span>
+          <span>${formatDate(p.created_at)}</span>
+          <span class="dot">&#8226;</span>
+          <span class="post-likes">&#9825; ${escHtml(String(p.likes_count || 0))}</span>
+        </div>
+      </div>
+    `).join('');
+
+    setApp(`
+      <div class="page-header">
+        <h1>Latest Posts</h1>
+        <p>${posts.length} article${posts.length === 1 ? '' : 's'} published</p>
+      </div>
+      <div class="posts-grid">${cards}</div>
+    `);
+  } catch (err) {
+    setApp(`<div class="alert alert-error">Failed to load posts: ${escHtml(err.message || '')}</div>`);
+  }
+}
+
+// ── Post Detail ────────────────────────────────
+async function renderPostDetail(id) {
+  setApp('<div class="spinner"></div>');
+  try {
+    const [post, commentData] = await Promise.all([
+      API.getPost(id),
+      API.listComments(id).catch(() => ({ comments: [] })),
+    ]);
+    const comments = commentData.comments || [];
+
+    const commentCards = comments.length
+      ? comments.map(c => `
+          <div class="comment-card">
+            <div class="comment-meta">User #${escHtml(String(c.author_id))} &nbsp;·&nbsp; ${formatDate(c.created_at)}</div>
+            <div class="comment-text">${escHtml(c.content)}</div>
+          </div>
+        `).join('')
+      : `<p class="no-comments">No comments yet. Be the first!</p>`;
+
+    const commentFormHtml = Auth.isLoggedIn()
+      ? `
+        <div id="comment-alert"></div>
+        <div class="comment-form">
+          <textarea id="comment-input" placeholder="Write a comment…"></textarea>
+          <button class="btn btn-primary btn-sm" id="comment-submit" onclick="submitComment(${id})">Post</button>
+        </div>
+      `
+      : `<p class="no-comments"><a style="color:var(--primary);cursor:pointer" onclick="navigate('/login')">Login</a> to leave a comment.</p>`;
+
+    setApp(`
+      <a class="back-link" onclick="navigate('/')">&#8592; Back to posts</a>
+
+      <div class="post-detail">
+        <h1 class="post-detail-title">${escHtml(post.title)}</h1>
+        <div class="post-detail-meta">
+          <span>By user #${escHtml(String(post.author_id))}</span>
+          <span class="dot">&#8226;</span>
+          <span>${formatDate(post.created_at)}</span>
+          <span class="dot">&#8226;</span>
+          <span>&#9825; ${escHtml(String(post.likes_count || 0))} likes</span>
+        </div>
+        <div class="post-detail-content">${escHtml(post.content)}</div>
+      </div>
+
+      <div class="comments-section">
+        <h2>Comments (${comments.length})</h2>
+        <div class="comment-list" id="comment-list">${commentCards}</div>
+        ${commentFormHtml}
+      </div>
+    `);
+  } catch (err) {
+    if (err.status === 404) {
+      setApp(`
+        <a class="back-link" onclick="navigate('/')">&#8592; Back</a>
+        <div class="empty">
+          <div class="empty-icon">&#128269;</div>
+          <h3>Post not found</h3>
+          <p>This post may have been removed or doesn't exist.</p>
+        </div>
+      `);
+    } else {
+      setApp(`<div class="alert alert-error">Failed to load post: ${escHtml(err.message || '')}</div>`);
+    }
+  }
+}
+
+async function submitComment(postId) {
+  const input = document.getElementById('comment-input');
+  const btn = document.getElementById('comment-submit');
+  const content = input?.value?.trim();
+  if (!content) { showAlert('comment-alert', 'Comment cannot be empty.'); return; }
+  btn.disabled = true;
+  try {
+    await API.createComment({ post_id: postId, content });
+    input.value = '';
+    // Reload comments
+    const data = await API.listComments(postId).catch(() => ({ comments: [] }));
+    const comments = data.comments || [];
+    const list = document.getElementById('comment-list');
+    if (list) {
+      list.innerHTML = comments.length
+        ? comments.map(c => `
+            <div class="comment-card">
+              <div class="comment-meta">User #${escHtml(String(c.author_id))} &nbsp;·&nbsp; ${formatDate(c.created_at)}</div>
+              <div class="comment-text">${escHtml(c.content)}</div>
+            </div>
+          `).join('')
+        : `<p class="no-comments">No comments yet.</p>`;
+      // Update count heading
+      const h2 = document.querySelector('.comments-section h2');
+      if (h2) h2.textContent = `Comments (${comments.length})`;
+    }
+    const alertEl = document.getElementById('comment-alert');
+    if (alertEl) alertEl.innerHTML = '';
+  } catch (err) {
+    showAlert('comment-alert', err.message || 'Failed to post comment.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Login ──────────────────────────────────────
+function renderLogin() {
+  setApp(`
+    <div class="auth-card">
+      <h1>Welcome back</h1>
+      <p class="subtitle">Don't have an account? <a onclick="navigate('/register')">Register</a></p>
+      <div id="login-alert"></div>
+      <form onsubmit="submitLogin(event)">
+        <div class="form-group">
+          <label for="login-username">Username</label>
+          <input id="login-username" type="text" placeholder="your_username" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="login-btn">Sign in</button>
+      </form>
+    </div>
+  `);
+}
+
+async function submitLogin(e) {
+  e.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const data = await API.login({ username, password });
+    Auth.setSession(data.access_token, data.user);
+    renderNav();
+    navigate('/');
+  } catch (err) {
+    showAlert('login-alert', err.message || 'Invalid credentials');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+  }
+}
+
+// ── Register ───────────────────────────────────
+function renderRegister() {
+  setApp(`
+    <div class="auth-card">
+      <h1>Create account</h1>
+      <p class="subtitle">Already have an account? <a onclick="navigate('/login')">Login</a></p>
+      <div id="register-alert"></div>
+      <form onsubmit="submitRegister(event)">
+        <div class="form-group">
+          <label for="reg-username">Username</label>
+          <input id="reg-username" type="text" placeholder="your_username" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-email">Email</label>
+          <input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Password</label>
+          <input id="reg-password" type="password" placeholder="Min. 8 characters" autocomplete="new-password" required minlength="8" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="register-btn">Create account</button>
+      </form>
+    </div>
+  `);
+}
+
+async function submitRegister(e) {
+  e.preventDefault();
+  const username = document.getElementById('reg-username').value.trim();
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const btn = document.getElementById('register-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  try {
+    const data = await API.register({ username, email, password });
+    Auth.setSession(data.access_token, data.user);
+    renderNav();
+    navigate('/');
+  } catch (err) {
+    showAlert('register-alert', err.message || 'Registration failed');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create account';
+  }
+}
+
+// ── Create Post ────────────────────────────────
+function renderCreatePost() {
+  if (!Auth.isLoggedIn()) { navigate('/login'); return; }
+  setApp(`
+    <div class="page-header">
+      <h1>New Post</h1>
+      <p>Write something for the community.</p>
+    </div>
+    <div class="create-card">
+      <div id="create-alert"></div>
+      <form onsubmit="submitCreatePost(event)">
+        <div class="form-group">
+          <label for="post-title">Title</label>
+          <input id="post-title" type="text" placeholder="An interesting title…" required />
+        </div>
+        <div class="form-group">
+          <label for="post-content">Content</label>
+          <textarea id="post-content" placeholder="Write your post here…" required></textarea>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:center">
+          <button type="submit" class="btn btn-primary" id="create-btn">Publish</button>
+          <button type="button" class="btn btn-ghost" onclick="navigate('/')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  `);
+}
+
+async function submitCreatePost(e) {
+  e.preventDefault();
+  const title   = document.getElementById('post-title').value.trim();
+  const content = document.getElementById('post-content').value.trim();
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true;
+  btn.textContent = 'Publishing…';
+  try {
+    const data = await API.createPost({ title, content });
+    navigate(`/posts/${data.id}`);
+  } catch (err) {
+    showAlert('create-alert', err.message || 'Failed to create post');
+    btn.disabled = false;
+    btn.textContent = 'Publish';
+  }
+}
+
+// ── 404 ────────────────────────────────────────
+function renderNotFound() {
+  setApp(`
+    <div class="empty">
+      <div class="empty-icon">&#128581;</div>
+      <h3>Page not found</h3>
+      <p><a style="color:var(--primary);cursor:pointer" onclick="navigate('/')">Go home</a></p>
+    </div>
+  `);
+}
+
+// ──────────────────────────────────────────────
+//  Main render
+// ──────────────────────────────────────────────
+async function render() {
+  renderNav();
+  const route = getRoute();
+
+  // /posts/:id
+  const postMatch = route.match(/^\/posts\/(\d+)$/);
+  if (postMatch) { renderPostDetail(parseInt(postMatch[1], 10)); return; }
+
+  switch (route) {
+    case '/':
+    case '/posts':
+      renderBlogList(); break;
+    case '/login':
+      renderLogin(); break;
+    case '/register':
+      renderRegister(); break;
+    case '/create':
+      renderCreatePost(); break;
+    default:
+      renderNotFound();
+  }
+}
+
+// Boot
+render();
+</script>
+</body>
+</html>

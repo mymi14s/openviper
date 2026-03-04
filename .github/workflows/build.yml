@@ -1,0 +1,50 @@
+name: Build Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build & Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin_frontend/package-lock.json
+
+      - name: Install and Build Admin Frontend
+        working-directory: admin_frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Get Version
+        id: get_version
+        run: |
+          VERSION=$(grep '^version =' pyproject.toml | cut -d '"' -f 2)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Wheel
+        run: python -m build
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openviper-${{ env.VERSION }}
+          path: dist/*.whl

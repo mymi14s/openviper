@@ -96,7 +96,7 @@ class ProjectSettings(Settings):
 
     # # Background Tasks
     # TASKS: dict[str, Any] = dataclasses.field(
-    #     default_factory=lambda: {
+    #     default_factory=lambda: {{
     #         "enabled": 0,
     #         "scheduler_enabled": 0,
     #         "tracking_enabled": 1,
@@ -107,19 +107,19 @@ class ProjectSettings(Settings):
     #         "broker": "redis",
     #         "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
     #         "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
-    #     }
+    #     }}
     # )
 
     # # Model events configuration: maps "app.model" to event hooks to lists of
     # # "app.events.func" paths.
     # MODEL_EVENTS: dict = dataclasses.field(
-    #     default_factory=lambda: {
-    #         "posts.models.Post": {
+    #     default_factory=lambda: {{
+    #         "posts.models.Post": {{
     #             "after_insert": ["posts.events.create_likes"],
     #             "after_delete": ["posts.events.cleanup_comments"],
     #             "on_update": ["posts.events.handle_post_update"],
-    #         },
-    #     }
+    #         }},
+    #     }}
     # )
 '''
 
@@ -131,6 +131,9 @@ from __future__ import annotations
 
 import os
 import sys
+
+import openviper
+from openviper.app import OpenViper
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "{project_name}.settings")

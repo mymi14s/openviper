@@ -1,1 +1,0 @@
-"""OpenViper core package."""

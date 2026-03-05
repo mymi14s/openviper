@@ -591,7 +591,6 @@ class TestCallHandler:
         assert calls == [(obj, "after_insert")]
 
     def test_async_handler_no_running_loop_logs_warning(self, caplog):
-        """Lines 367-375: async handler with no loop logs a warning."""
         import logging
 
         async def async_h(instance, event, **kw):
@@ -637,17 +636,14 @@ class TestDispatchDecoratorHandlers:
         _events_module._decorator_registry.clear()
 
     def test_no_model_in_registry_is_noop(self):
-        """Lines 393-395: model not in registry → returns immediately."""
         # No handlers registered, must not raise
         _dispatch_decorator_handlers("missing.Model", "after_insert", object())
 
     def test_no_event_in_registry_is_noop(self):
-        """Lines 396-398: model in registry but event not registered → noop."""
         _events_module._decorator_registry["m.M"] = {"on_change": [lambda i, **k: None]}
         _dispatch_decorator_handlers("m.M", "after_insert", object())
 
     def test_handler_is_called(self):
-        """Lines 399-401: registered handler is called with instance."""
         calls = []
 
         def h(instance, event, **kw):
@@ -659,7 +655,6 @@ class TestDispatchDecoratorHandlers:
         assert calls == [obj]
 
     def test_handler_exception_is_caught_and_logged(self, caplog):
-        """Lines 402-409: exception from handler is caught and logged."""
         import logging
 
         def bad_h(instance, event, **kw):
@@ -699,7 +694,6 @@ class TestModelEventProxyTrigger:
         _events_module._decorator_registry.clear()
 
     def test_trigger_registers_handler(self):
-        """Lines 460-464: applying the decorator registers the function."""
         calls = []
 
         @model_event.trigger("myapp.models.Post.after_insert")

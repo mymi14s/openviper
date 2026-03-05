@@ -208,7 +208,6 @@ def test_reset_registry_creates_fresh_singleton():
 
 
 def test_schedule_entry_is_due_false_when_disabled():
-    """Lines 64-65: is_due() returns False immediately for disabled entries."""
     sched = _make_schedule(is_due=True)
     entry = ScheduleEntry(name="t", actor=MagicMock(), schedule=sched, enabled=False)
     assert entry.is_due() is False
@@ -216,7 +215,6 @@ def test_schedule_entry_is_due_false_when_disabled():
 
 
 def test_schedule_entry_is_due_delegates_when_enabled():
-    """Lines 66-67: is_due() delegates to schedule.is_due when enabled."""
     now = datetime.now(UTC)
     sched = _make_schedule(is_due=True)
     entry = ScheduleEntry(name="t", actor=MagicMock(), schedule=sched, enabled=True)

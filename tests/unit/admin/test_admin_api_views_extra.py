@@ -65,7 +65,6 @@ def _make_qs(items=None, total=0, delete_count=0):
 class TestSerializeWithChildren:
     @pytest.mark.asyncio
     async def test_child_records_included_in_response(self):
-        """Lines 87-122: child table records are fetched and serialized."""
         child_record = MagicMock()
         child_record.id = 10
         child_record.title = "Child 1"
@@ -108,7 +107,6 @@ class TestSerializeWithChildren:
 
     @pytest.mark.asyncio
     async def test_child_fk_auto_discovered(self):
-        """Lines 92-97: fk_name auto-discovery when not set."""
         child_record = MagicMock()
         child_record.id = 5
         child_record.name = "Auto FK"
@@ -153,7 +151,6 @@ class TestSerializeWithChildren:
 
     @pytest.mark.asyncio
     async def test_child_with_extra_filters(self):
-        """Line 102-103: extra_filters merged into child queryset filter."""
         child_qs = MagicMock()
         child_qs.filter.return_value = child_qs
         child_qs.all = AsyncMock(return_value=[])
@@ -190,7 +187,6 @@ class TestSerializeWithChildren:
 
     @pytest.mark.asyncio
     async def test_child_datetime_isoformat(self):
-        """Lines 114-115: child field with isoformat() is serialized."""
         dt = datetime(2024, 6, 1, 12, 0, 0)
 
         child_record = MagicMock()
@@ -284,7 +280,6 @@ class TestAdminChangeUserPasswordValidation:
 class TestAdminDashboardExtra:
     @pytest.mark.asyncio
     async def test_model_count_exception_yields_zero(self):
-        """Lines 366-367: if model.objects.count() raises, stats[model] = 0."""
         router = _make_router()
         handler = _get_handler(router, "admin_dashboard")
 
@@ -310,7 +305,6 @@ class TestAdminDashboardExtra:
 
     @pytest.mark.asyncio
     async def test_recent_activity_records_appended(self):
-        """Line 374: activity records are serialized into response."""
         router = _make_router()
         handler = _get_handler(router, "admin_dashboard")
 
@@ -364,7 +358,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_filter_prefix_params_applied(self):
-        """Lines 498-502: filter_ prefix params are collected and applied."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -392,7 +385,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_ordering_from_model_admin_applied(self):
-        """Lines 507-511: when no sort param, model_admin.get_ordering is used."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -421,7 +413,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_explicit_ordering_param_used(self):
-        """Line 507: explicit 'ordering' query param takes precedence."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -449,7 +440,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_value_isoformat_serialized(self):
-        """Lines 541-544: datetime field values are isoformatted in response."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -487,7 +477,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_non_primitive_value_converted_to_str(self):
-        """Lines 544-546: non-primitive values get str() in list serialization."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -557,7 +546,6 @@ class TestCreateInstanceByAppExtra:
 
     @pytest.mark.asyncio
     async def test_value_error_returns_422(self):
-        """Lines 630-631: ValueError during save returns 422 with errors."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -590,7 +578,6 @@ class TestCreateInstanceByAppExtra:
 
     @pytest.mark.asyncio
     async def test_readonly_field_skipped(self):
-        """Line 587: readonly fields are skipped during field coercion."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -628,7 +615,6 @@ class TestCreateInstanceByAppExtra:
 
     @pytest.mark.asyncio
     async def test_field_coercion_applied(self):
-        """Line 589: fields present in model._fields get coerce_field_value."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -676,7 +662,6 @@ class TestCreateInstanceByAppExtra:
 class TestGetInstanceByAppExtra:
     @pytest.mark.asyncio
     async def test_no_view_permission_raises_permission_denied(self):
-        """Lines 664-665, 672: has_view_permission=False raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "get_instance_by_app")
 
@@ -778,7 +763,6 @@ class TestUpdateInstanceByApp:
 
     @pytest.mark.asyncio
     async def test_successful_update_returns_200(self):
-        """Lines 696-822: successful full update path."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -838,7 +822,6 @@ class TestUpdateInstanceByApp:
 
     @pytest.mark.asyncio
     async def test_value_error_returns_422(self):
-        """Line 800: ValueError during save returns 422."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -929,7 +912,6 @@ class TestBulkActionByAppExtra:
 
     @pytest.mark.asyncio
     async def test_action_no_permission_raises_permission_denied(self):
-        """Line 888: action without permission raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "bulk_action_by_app")
 
@@ -982,7 +964,6 @@ class TestExportInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_ids_param_filters_queryset(self):
-        """Lines 921-922, 927: ids param filters instances."""
         router = _make_router()
         handler = _get_handler(router, "export_instances_by_app")
 
@@ -1021,7 +1002,6 @@ class TestExportInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_datetime_field_isoformatted_in_csv(self):
-        """Line 944: datetime values in export are isoformatted."""
         router = _make_router()
         handler = _get_handler(router, "export_instances_by_app")
 
@@ -1104,7 +1084,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_no_view_permission_returns_permission_denied_response(self):
-        """Lines 1008-1020: no view permission returns empty result with flag."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1128,7 +1107,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_q_param_triggers_search(self):
-        """Lines 1026-1035: 'q' param applies queryset filter."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1153,7 +1131,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_filter_prefix_applied(self):
-        """Lines 1037-1045: filter_ prefix params applied."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1231,7 +1208,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_isoformat_value_in_list(self):
-        """Lines 1075-1076: datetime value serialized to isoformat in list."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1315,7 +1291,6 @@ class TestListInstancesExtra:
 class TestCreateInstanceExtra:
     @pytest.mark.asyncio
     async def test_no_add_permission_raises_permission_denied(self):
-        """Lines 1105-1106."""
         router = _make_router()
         handler = _get_handler(router, "create_instance")
 
@@ -1335,7 +1310,6 @@ class TestCreateInstanceExtra:
 
     @pytest.mark.asyncio
     async def test_field_coercion_and_log_change(self):
-        """Lines 1117-1143: field coercion applied and log_change called."""
         router = _make_router()
         handler = _get_handler(router, "create_instance")
 
@@ -1424,7 +1398,6 @@ class TestCreateInstanceExtra:
 class TestGetInstanceExtra:
     @pytest.mark.asyncio
     async def test_no_view_permission_raises_permission_denied(self):
-        """Lines 1163-1180: has_view_permission=False raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
@@ -1447,7 +1420,6 @@ class TestGetInstanceExtra:
 
     @pytest.mark.asyncio
     async def test_successful_get_instance(self):
-        """Lines 1163-1187: successful retrieval serializes instance."""
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
@@ -1539,7 +1511,6 @@ class TestUpdateInstance:
 
     @pytest.mark.asyncio
     async def test_successful_update_returns_200(self):
-        """Lines 1192-1254: successful patch update."""
         router = _make_router()
         handler = _get_handler(router, "update_instance")
 
@@ -1707,7 +1678,6 @@ class TestBulkDelete:
 
     @pytest.mark.asyncio
     async def test_successful_bulk_delete(self):
-        """Lines 1313-1331: successful bulk delete returns count."""
         router = _make_router()
         handler = _get_handler(router, "bulk_delete")
 
@@ -1851,7 +1821,6 @@ class TestBulkAction:
 
     @pytest.mark.asyncio
     async def test_successful_bulk_action(self):
-        """Lines 1366-1379: successful legacy bulk action."""
         router = _make_router()
         handler = _get_handler(router, "bulk_action")
 
@@ -1948,7 +1917,6 @@ class TestGetFilterOptionsExtra:
 
     @pytest.mark.asyncio
     async def test_boolean_field_gets_yes_no_choices(self):
-        """Lines 1416-1420: BooleanField gets Yes/No options."""
         router = _make_router()
         handler = _get_handler(router, "get_filter_options")
 
@@ -2064,7 +2032,6 @@ class TestExportInstances:
 
     @pytest.mark.asyncio
     async def test_returns_csv_with_ids(self):
-        """Lines 1447-1481: builds CSV from specific ids."""
         router = _make_router()
         handler = _get_handler(router, "export_instances")
 
@@ -2180,7 +2147,6 @@ class TestGetInstanceHistoryLegacy:
 
     @pytest.mark.asyncio
     async def test_returns_history(self):
-        """Lines 1503-1518: returns history records."""
         router = _make_router()
         handler = _get_handler(router, "get_instance_history")
 
@@ -2230,7 +2196,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_model_found_in_registry(self):
-        """Lines 1538-1540: model found via admin registry."""
         router = _make_router()
         handler = _get_handler(router, "fk_search")
 
@@ -2259,7 +2224,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_model_not_in_registry_uses_importlib(self):
-        """Lines 1543-1550: falls back to importlib import."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -2297,7 +2261,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_model_found_by_scanning_all_models(self):
-        """Lines 1552-1557: scans all registered models to find by name."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -2363,7 +2326,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_search_query_applied_to_text_fields(self):
-        """Lines 1569-1581: q param triggers filter on text fields."""
         router = _make_router()
         handler = _get_handler(router, "fk_search")
 
@@ -2411,7 +2373,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_empty_query_returns_empty_results(self):
-        """Lines 1623-1625: empty q returns empty results immediately."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2443,7 +2404,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_uses_admin_search_fields(self):
-        """Lines 1637-1638, 1650-1657: uses model_admin.get_search_fields."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2477,7 +2437,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_falls_back_to_common_field_names(self):
-        """Lines 1639-1647: no search_fields, falls back to name/title/etc."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2614,7 +2573,6 @@ class TestCreateInstanceByAppNotRegistered:
 class TestCreateInstanceByAppChildSync:
     @pytest.mark.asyncio
     async def test_child_rows_saved_during_create(self):
-        """Lines 614-644: child rows provided in request body are saved."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -2682,7 +2640,6 @@ class TestCreateInstanceByAppChildSync:
 
     @pytest.mark.asyncio
     async def test_child_sync_with_extra_filters(self):
-        """Lines 641-643: extra_filters applied to new child rows."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -2755,7 +2712,6 @@ class TestCreateInstanceByAppChildSync:
 class TestCreateInstanceByAppIntegrityError:
     @pytest.mark.asyncio
     async def test_integrity_error_returns_422(self):
-        """Lines 647-649: IntegrityError during save returns 422."""
         import sqlalchemy.exc
 
         router = _make_router()
@@ -2835,7 +2791,6 @@ class TestGetInstanceByAppNotRegistered:
 class TestUpdateInstanceByAppWithFields:
     @pytest.mark.asyncio
     async def test_field_coercion_in_update(self):
-        """Lines 732, 740, 742-744: field coercion applied for known fields."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -2971,7 +2926,6 @@ class TestUpdateInstanceByAppWithFields:
 class TestUpdateInstanceByAppChildSync:
     @pytest.mark.asyncio
     async def test_child_sync_creates_and_deletes(self):
-        """Lines 757-814: child sync creates new rows and deletes missing rows."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3059,7 +3013,6 @@ class TestUpdateInstanceByAppChildSync:
 
     @pytest.mark.asyncio
     async def test_child_sync_updates_existing(self):
-        """Lines 788-795: existing child matched by id is updated and kept."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3151,7 +3104,6 @@ class TestUpdateInstanceByAppChildSync:
 class TestUpdateInstanceByAppIntegrityError:
     @pytest.mark.asyncio
     async def test_integrity_error_returns_422(self):
-        """Lines 818-820: IntegrityError during update save returns 422."""
         import sqlalchemy.exc
 
         router = _make_router()
@@ -3246,7 +3198,6 @@ class TestGetInstanceLegacyExtra:
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        """Lines 1179-1180: NotRegistered raises NotFound."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -3262,7 +3213,6 @@ class TestGetInstanceLegacyExtra:
 
     @pytest.mark.asyncio
     async def test_field_serialization_in_response(self):
-        """Lines 1193-1198: instance fields are serialized in response."""
         from datetime import datetime
 
         router = _make_router()
@@ -3307,7 +3257,6 @@ class TestGetInstanceLegacyExtra:
 class TestUpdateInstanceLegacyExtra:
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        """Lines 1221-1222: NotRegistered raises NotFound."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -3323,7 +3272,6 @@ class TestUpdateInstanceLegacyExtra:
 
     @pytest.mark.asyncio
     async def test_field_ops_and_response_serialization(self):
-        """Lines 1237, 1247-1249, 1272-1275: field coercion + response serialization."""
         from datetime import datetime
 
         router = _make_router()
@@ -3486,7 +3434,6 @@ class TestGetFilterOptionsChoices:
 class TestGlobalSearchCap:
     @pytest.mark.asyncio
     async def test_results_capped_at_50(self):
-        """Lines 1694, 1697: results are capped at 50 across all models."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -3555,7 +3502,6 @@ class TestCreateInstanceByAppChildFKAutoDiscover:
 
     @pytest.mark.asyncio
     async def test_fk_name_auto_discovered_during_create(self):
-        """Lines 619-626: when fk_name is empty, FK field is auto-discovered."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -3692,7 +3638,6 @@ class TestUpdateInstanceByAppChildFKAutoDiscover:
 
     @pytest.mark.asyncio
     async def test_fk_name_auto_discovered_during_update(self):
-        """Lines 762-769: when fk_name is empty, FK auto-discovered in update path."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3916,7 +3861,6 @@ class TestUpdateInstanceByAppChildExtraFilters:
 
     @pytest.mark.asyncio
     async def test_extra_filters_applied_to_new_child_in_update(self):
-        """Lines 805-806: extra_filters set on new child rows during update sync."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -4052,7 +3996,6 @@ class TestCreateInstanceReadonlySkipped:
 class TestGetInstanceNonPrimitiveField:
     @pytest.mark.asyncio
     async def test_non_primitive_field_converted_to_str_in_response(self):
-        """Lines 1196-1197: non-primitive field value is str()-converted in response."""
 
         class ObjVal:
             def __str__(self):

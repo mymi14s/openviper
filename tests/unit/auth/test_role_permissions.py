@@ -3,12 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from openviper.auth.models import ContentType, User
-from openviper.auth.permissions import PermissionError  # noqa: A004
 from openviper.auth.permissions import (
     _CT_PERMISSION_CACHE,
+    PermissionError,  # noqa: A004
     check_permission_for_model,
 )
-from openviper.core.context import current_user as context_current_user, set_current_user
+from openviper.core.context import current_user as context_current_user
+from openviper.core.context import set_current_user
 from openviper.db.models import Model
 
 

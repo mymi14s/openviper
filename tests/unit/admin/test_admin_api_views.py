@@ -334,7 +334,6 @@ class TestAdminLogout:
 
     @pytest.mark.asyncio
     async def test_logout_json_parse_exception_is_suppressed(self):
-        """Lines 248-249: request.json() raising an exception is caught silently."""
         router = _make_router()
         handler = _get_handler(router, "admin_logout")
 

@@ -88,7 +88,6 @@ def test_scheduler_remove_unregisters_entry():
 
 
 def test_scheduler_run_now_raises_type_error_for_plain_function():
-    """Lines 126-135: run_now() raises TypeError if actor has no .send."""
     scheduler = Scheduler()
 
     def plain_fn():
@@ -120,7 +119,6 @@ def test_scheduler_run_now_sends_actor_no_args():
 
 
 def test_scheduler_tick_enqueues_due_entries():
-    """Lines 166-174: tick() calls send on due entries and records last_run_at."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     actor_a = _make_actor("actor_a")
@@ -137,7 +135,6 @@ def test_scheduler_tick_enqueues_due_entries():
 
 
 def test_scheduler_tick_handles_send_failure():
-    """Lines 175-180: exceptions in actor.send() are logged, not re-raised."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     failing_actor = _make_actor("failing")

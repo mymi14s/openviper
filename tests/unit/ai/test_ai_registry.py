@@ -370,7 +370,6 @@ def test_register_provider_uses_default_model_when_no_supported_models(isolated_
 
 
 def test_register_from_module_via_get_providers(isolated_registry, tmp_path):
-    """Lines 186-207: module with get_providers() function is registered."""
     import sys
     import types
 
@@ -521,7 +520,6 @@ def test_discover_entrypoints_logs_warning_on_failure(isolated_registry, caplog)
 
 
 def test_load_from_settings_infers_provider_type_from_name(isolated_registry):
-    """Lines 393-396: provider type inferred from name if 'provider' key absent."""
     mock_cls = MagicMock(return_value=MockProvider({"models": ["inferred-model"]}))
     cfg = {"my-openai-provider": {"api_key": "sk-x"}}  # no 'provider' key but name has 'openai'
     with patch("openviper.ai.registry.settings") as ms:
@@ -534,7 +532,6 @@ def test_load_from_settings_infers_provider_type_from_name(isolated_registry):
 
 
 def test_load_from_settings_logs_warning_on_init_exception(isolated_registry, caplog):
-    """Lines 407-408: exception from provider constructor is logged as warning."""
     import logging
 
     class _BrokenProvider:

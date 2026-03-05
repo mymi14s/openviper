@@ -352,7 +352,6 @@ def test_get_broker_concurrent_creates_broker_exactly_once():
 
 
 def test_reset_broker_close_exception_is_suppressed():
-    """Lines 99-100: exception from broker.close() is silently ignored."""
     mock_broker = MagicMock()
     mock_broker.add_middleware = MagicMock()
     mock_broker.close.side_effect = RuntimeError("can't close cleanly")
@@ -374,7 +373,6 @@ def test_reset_broker_close_exception_is_suppressed():
 
 
 def test_get_broker_tracking_middleware_exception_is_logged():
-    """Lines 145-146: exception during TaskTrackingMiddleware() is caught and logged."""
     with (
         _stub_settings({"broker": "stub", "tracking_enabled": 1}),
         patch(
@@ -393,7 +391,6 @@ def test_get_broker_tracking_middleware_exception_is_logged():
 
 
 def test_get_broker_scheduler_middleware_exception_is_logged():
-    """Lines 153-158: exception during SchedulerMiddleware() is caught and logged."""
     with (
         _stub_settings({"broker": "stub", "scheduler_enabled": 1}),
         patch(
@@ -411,7 +408,6 @@ def test_get_broker_scheduler_middleware_exception_is_logged():
 
 
 def test_get_broker_results_backend_exception_is_logged():
-    """Lines 173-174: exception during RedisBackend setup is caught and logged."""
     with (
         _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}),
         patch(

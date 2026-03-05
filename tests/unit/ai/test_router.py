@@ -52,7 +52,6 @@ def test_get_model_returns_none_when_unset():
 
 
 def test_set_model_is_thread_safe():
-    """Lines 66-67: concurrent set_model calls don't race."""
     router, _ = _make_router("initial")
     results = []
     barrier = threading.Barrier(5)
@@ -73,7 +72,6 @@ def test_set_model_is_thread_safe():
 
 
 def test_get_model_is_thread_safe():
-    """Lines 71-72: concurrent get_model calls are safe."""
     router, _ = _make_router("stable-model")
     results = []
     barrier = threading.Barrier(5)
@@ -104,14 +102,12 @@ def test_get_provider_with_explicit_model():
 
 
 def test_get_provider_uses_active_model_when_no_override():
-    """Lines 96-97: falls back to _model when model=None."""
     router, provider = _make_router("active-model")
     router._get_provider()
     router._registry.get_by_model.assert_called_with("active-model")
 
 
 def test_get_provider_raises_runtime_error_when_no_model_set():
-    """Lines 98-101: RuntimeError when no model has been selected."""
     registry = MagicMock(spec=ProviderRegistry)
     router = ModelRouter(registry=registry)  # no default_model
     with pytest.raises(RuntimeError, match="No model selected"):
@@ -152,7 +148,6 @@ def test_generate_with_model_override():
 
 
 def test_stream_yields_chunks_from_provider():
-    """Lines 132-133: stream() yields chunks from provider.stream()."""
     provider = MagicMock()
 
     async def _fake_stream(prompt, **kw):

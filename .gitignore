@@ -167,6 +167,8 @@ AGENT.md
 benchmarks
 clean-cython.sh
 file:res*
+docs/*/_build/
+uv.lock
 
 # ===============================
 # Node Modules

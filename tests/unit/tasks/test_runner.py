@@ -111,7 +111,6 @@ def test_run_scheduler_empty_tick_does_not_log_debug():
 
 
 def test_run_scheduler_sigint_handler_sets_running_false():
-    """Lines 65-69: SIGINT handler sets _running=False so the loop exits cleanly."""
     from openviper.tasks.runner import run_scheduler
 
     scheduler = _make_scheduler()
@@ -142,7 +141,6 @@ def test_run_scheduler_sigint_handler_sets_running_false():
 
 
 def test_run_scheduler_sigterm_handler_registered():
-    """Lines 71-72: SIGTERM handler is also registered."""
     from openviper.tasks.runner import run_scheduler
 
     scheduler = _make_scheduler()

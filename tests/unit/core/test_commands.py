@@ -257,7 +257,6 @@ def test_shell_command_build_banner_without_models():
 
 
 def test_shell_command_discover_models_get_user_model_exception():
-    """Lines 63-64: exception from get_user_model() is silently swallowed."""
     cmd = ShellCommand()
     with patch("openviper.core.management.commands.shell.settings") as ms:
         ms.INSTALLED_APPS = []
@@ -270,7 +269,6 @@ def test_shell_command_discover_models_get_user_model_exception():
 
 
 def test_shell_command_ipython_import_error():
-    """Lines 110-111: missing IPython causes SystemExit."""
     cmd = ShellCommand()
     with (
         patch.dict("sys.modules", {"IPython": None, "traitlets.config": None}),
@@ -280,7 +278,6 @@ def test_shell_command_ipython_import_error():
 
 
 def test_shell_command_discover_models_type_error(tmp_path):
-    """Lines 52-53: TypeError from issubclass is caught and skipped."""
     import types
 
     cmd = ShellCommand()

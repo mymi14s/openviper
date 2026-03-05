@@ -327,7 +327,6 @@ def test_coerce_response_fallback_json():
 
 @pytest.mark.asyncio
 async def test_core_app_dispatches_websocket():
-    """Lines 350-352: _core_app dispatches scope['type']=='websocket' to _handle_websocket."""
     app = create_application()
     sent = []
 

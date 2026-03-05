@@ -419,6 +419,7 @@ class QuerySet:
         clone._offset = self._offset
         clone._select_related = list(self._select_related)
         clone._prefetch_related = list(self._prefetch_related)
+        clone._ignore_permissions = self._ignore_permissions
         return clone
 
     def __repr__(self) -> str:

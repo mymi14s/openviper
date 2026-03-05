@@ -83,29 +83,33 @@ class TestHandleUsernameFromOptions:
     def test_user_not_found_raises(self):
         cmd = Command()
         User = _user_not_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with pytest.raises(CommandError, match="not found"):
-                    cmd.handle(username="nonexistent", password=None)
+            ),
+            pytest.raises(CommandError, match="not found"),
+        ):
+            cmd.handle(username="nonexistent", password=None)
 
     def test_password_from_option_skips_prompt(self):
         cmd = Command()
         User, mock_user = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                cmd.handle(username="admin", password="directpass")
+            ),
+        ):
+            cmd.handle(username="admin", password="directpass")
 
         mock_user.set_password.assert_called_once_with("directpass")
         mock_user.save.assert_awaited_once()
@@ -114,16 +118,18 @@ class TestHandleUsernameFromOptions:
         cmd = Command()
         User, mock_user = _user_found()
         messages = []
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch.object(cmd, "stdout", side_effect=lambda m: messages.append(m)):
-                    cmd.handle(username="admin", password="pw")
+            ),
+            patch.object(cmd, "stdout", side_effect=lambda m: messages.append(m)),
+        ):
+            cmd.handle(username="admin", password="pw")
 
         assert any("admin" in m for m in messages)
 
@@ -137,67 +143,77 @@ class TestHandleUsernamePrompted:
     def test_eoferror_during_username_prompt_cancels(self):
         cmd = Command()
         User, _ = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch("builtins.input", side_effect=EOFError):
-                    stdout_calls = []
-                    with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
-                        cmd.handle(username=None, password=None)
-                    assert any("cancelled" in m.lower() for m in stdout_calls)
+            ),
+            patch("builtins.input", side_effect=EOFError),
+        ):
+            stdout_calls = []
+            with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
+                cmd.handle(username=None, password=None)
+            assert any("cancelled" in m.lower() for m in stdout_calls)
 
     def test_keyboard_interrupt_during_username_prompt_cancels(self):
         cmd = Command()
         User, _ = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch("builtins.input", side_effect=KeyboardInterrupt):
-                    stdout_calls = []
-                    with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
-                        cmd.handle(username=None, password=None)
-                    assert any("cancelled" in m.lower() for m in stdout_calls)
+            ),
+            patch("builtins.input", side_effect=KeyboardInterrupt),
+        ):
+            stdout_calls = []
+            with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
+                cmd.handle(username=None, password=None)
+            assert any("cancelled" in m.lower() for m in stdout_calls)
 
     def test_empty_username_raises_command_error(self):
         cmd = Command()
         User, _ = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
+            ),
+        ):
+            # input returns spaces only -> stripped to empty string
+            with (
+                patch("builtins.input", return_value="   "),
+                pytest.raises(CommandError, match="Username is required"),
             ):
-                # input returns spaces only -> stripped to empty string
-                with patch("builtins.input", return_value="   "):
-                    with pytest.raises(CommandError, match="Username is required"):
-                        cmd.handle(username=None, password=None)
+                cmd.handle(username=None, password=None)
 
     def test_valid_username_from_prompt_proceeds_to_password(self):
         cmd = Command()
         User, mock_user = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch("builtins.input", return_value="admin"):
-                    with patch("getpass.getpass", side_effect=["newpass", "newpass"]):
-                        cmd.handle(username=None, password=None)
+            ),
+            patch("builtins.input", return_value="admin"),
+            patch("getpass.getpass", side_effect=["newpass", "newpass"]),
+        ):
+            cmd.handle(username=None, password=None)
 
         mock_user.set_password.assert_called_once_with("newpass")
         mock_user.save.assert_awaited_once()
@@ -212,92 +228,104 @@ class TestHandlePasswordInteractive:
     def test_blank_password_retries(self):
         cmd = Command()
         User, mock_user = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
+            ),
+        ):
+            # First attempt blank, second attempt successful
+            with (
+                patch("getpass.getpass", side_effect=["", "mypass", "mypass"]),
+                patch.object(cmd, "stderr"),
             ):
-                # First attempt blank, second attempt successful
-                with patch("getpass.getpass", side_effect=["", "mypass", "mypass"]):
-                    with patch.object(cmd, "stderr"):
-                        cmd.handle(username="admin", password=None)
+                cmd.handle(username="admin", password=None)
 
         mock_user.set_password.assert_called_once_with("mypass")
 
     def test_password_mismatch_retries(self):
         cmd = Command()
         User, mock_user = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch(
-                    "getpass.getpass",
-                    side_effect=["pass1", "wrongpass", "pass1", "pass1"],
-                ):
-                    with patch.object(cmd, "stderr"):
-                        cmd.handle(username="admin", password=None)
+            ),
+            patch(
+                "getpass.getpass",
+                side_effect=["pass1", "wrongpass", "pass1", "pass1"],
+            ),
+            patch.object(cmd, "stderr"),
+        ):
+            cmd.handle(username="admin", password=None)
 
         mock_user.set_password.assert_called_once_with("pass1")
 
     def test_eoferror_during_password_prompt_cancels(self):
         cmd = Command()
         User, mock_user = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch("getpass.getpass", side_effect=EOFError):
-                    stdout_calls = []
-                    with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
-                        cmd.handle(username="admin", password=None)
-                    assert any("cancelled" in m.lower() for m in stdout_calls)
+            ),
+            patch("getpass.getpass", side_effect=EOFError),
+        ):
+            stdout_calls = []
+            with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
+                cmd.handle(username="admin", password=None)
+            assert any("cancelled" in m.lower() for m in stdout_calls)
         # save should NOT have been called since we cancelled
         mock_user.save.assert_not_awaited()
 
     def test_keyboard_interrupt_during_password_cancels(self):
         cmd = Command()
         User, mock_user = _user_found()
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch("getpass.getpass", side_effect=KeyboardInterrupt):
-                    stdout_calls = []
-                    with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
-                        cmd.handle(username="admin", password=None)
-                    assert any("cancelled" in m.lower() for m in stdout_calls)
+            ),
+            patch("getpass.getpass", side_effect=KeyboardInterrupt),
+        ):
+            stdout_calls = []
+            with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
+                cmd.handle(username="admin", password=None)
+            assert any("cancelled" in m.lower() for m in stdout_calls)
         mock_user.save.assert_not_awaited()
 
     def test_success_outputs_success_message(self):
         cmd = Command()
         User, mock_user = _user_found()
         stdout_calls = []
-        with patch(
-            "openviper.core.management.commands.changepassword.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.changepassword.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.changepassword.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch("getpass.getpass", side_effect=["goodpass", "goodpass"]):
-                    with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
-                        cmd.handle(username="admin", password=None)
+            ),
+            patch("getpass.getpass", side_effect=["goodpass", "goodpass"]),
+            patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)),
+        ):
+            cmd.handle(username="admin", password=None)
 
         assert any("successfully" in m.lower() or "admin" in m for m in stdout_calls)

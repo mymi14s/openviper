@@ -86,7 +86,7 @@ async def test_logout_redirects_to_login(auth_client):
 
 
 @pytest.mark.parametrize(
-    "method,path",
+    ("method", "path"),
     [
         ("get", "/todos"),
         ("post", "/todos"),

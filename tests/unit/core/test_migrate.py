@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from openviper.core.management.commands.migrate import Command
 
@@ -70,16 +67,18 @@ class TestHandleAppLabelNotFound:
 
         cmd = Command()
         output = []
-        with patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)):
-            with patch(
+        with (
+            patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)),
+            patch(
                 "openviper.core.management.commands.migrate.AppResolver.print_app_not_found_error"
-            ):
-                cmd.handle(
-                    app_label="missing_app",
-                    migration_name=None,
-                    fake=False,
-                    database="default",
-                )
+            ),
+        ):
+            cmd.handle(
+                app_label="missing_app",
+                migration_name=None,
+                fake=False,
+                database="default",
+            )
 
         combined = " ".join(output)
         assert "missing_app" in combined or "Error" in combined
@@ -93,16 +92,18 @@ class TestHandleAppLabelNotFound:
         MockResolver.return_value = resolver
 
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.migrate.AppResolver.print_app_not_found_error"
+        with (
+            patch(
+                "openviper.core.management.commands.migrate.AppResolver.print_app_not_found_error"
+            ),
+            patch("openviper.core.management.commands.migrate.MigrationExecutor") as mock_exec,
         ):
-            with patch("openviper.core.management.commands.migrate.MigrationExecutor") as mock_exec:
-                cmd.handle(
-                    app_label="missing_app",
-                    migration_name=None,
-                    fake=False,
-                    database="default",
-                )
+            cmd.handle(
+                app_label="missing_app",
+                migration_name=None,
+                fake=False,
+                database="default",
+            )
         mock_exec.assert_not_called()
 
 

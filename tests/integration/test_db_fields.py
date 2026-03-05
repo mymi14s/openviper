@@ -162,7 +162,7 @@ class TestCharField:
         f.name = "emoji_field"
         # Unicode characters each count as 1
         f.validate("abc")  # OK
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="exceeds max_length"):
             f.validate("abcd")
 
 

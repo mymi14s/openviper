@@ -51,7 +51,7 @@ def test_decode_wrong_type():
 
 def test_token_expired():
     # Build an already-expired token directly — no settings mutation needed.
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     payload = {
         "sub": str(123),
         "type": "access",
@@ -66,7 +66,7 @@ def test_token_expired():
 
 def test_refresh_token_expired():
     """decode_refresh_token raises TokenExpired for an expired refresh token."""
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     payload = {
         "sub": str(99),
         "type": "refresh",

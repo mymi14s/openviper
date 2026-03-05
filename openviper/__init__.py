@@ -1,5 +1,6 @@
 """
-OpenViper - A production-ready, high-performance Python web framework, with modern async capabilities.
+OpenViper - A production-ready, high-performance Python web framework,
+with modern async capabilities.
 """
 
 from importlib.metadata import version as _version

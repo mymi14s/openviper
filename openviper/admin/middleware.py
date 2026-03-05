@@ -141,12 +141,9 @@ def check_model_permission(request: Any, model_class: Any, action: str) -> bool:
         return True
 
     # Staff users have basic permissions
-    if getattr(user, "is_staff", False):
-        return True
-
     # Could implement granular permission checking here
     # e.g., user.has_perm(f"{model_class._app_name}.{action}_{model_class.__name__.lower()}")
-    return False
+    return getattr(user, "is_staff", False)
 
 
 def check_object_permission(request: Any, obj: Any, action: str) -> bool:

@@ -6,6 +6,7 @@ backed by ``multidict`` C extensions for O(1) lookups and zero-copy iteration.
 
 from __future__ import annotations
 
+import contextlib
 import urllib.parse
 from collections.abc import Iterator
 from typing import Any
@@ -112,10 +113,8 @@ class MutableHeaders(Headers):
         """Remove all entries for *key*."""
         bkey = key.lower().encode("latin-1")
         self._list = [(k, v) for k, v in self._list if k != bkey]
-        try:
+        with contextlib.suppress(KeyError):
             del self._store[key]
-        except KeyError:
-            pass
 
     def __setitem__(self, key: str, value: str) -> None:
         self.set(key, value)
@@ -154,7 +153,7 @@ class QueryParams:
 
     def __iter__(self) -> Iterator[str]:
         seen: set[str] = set()
-        for k in self._store.keys():
+        for k in self._store:
             if k not in seen:
                 seen.add(k)
                 yield k
@@ -177,7 +176,7 @@ class QueryParams:
     def keys(self) -> list[str]:
         seen: set[str] = set()
         result: list[str] = []
-        for k in self._store.keys():
+        for k in self._store:
             if k not in seen:
                 seen.add(k)
                 result.append(k)
@@ -210,7 +209,7 @@ class ImmutableMultiDict:
 
     def __iter__(self) -> Iterator[str]:
         seen: set[str] = set()
-        for k in self._store.keys():
+        for k in self._store:
             if k not in seen:
                 seen.add(k)
                 yield k

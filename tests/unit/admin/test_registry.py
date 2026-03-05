@@ -6,7 +6,8 @@ import pytest
 
 from openviper.admin import admin as admin1
 from openviper.admin.options import ModelAdmin
-from openviper.admin.registry import AdminRegistry, admin as admin2
+from openviper.admin.registry import AdminRegistry
+from openviper.admin.registry import admin as admin2
 
 
 class MockModel:
@@ -215,7 +216,7 @@ class TestAdminRegistryConfig:
 
     def test_auto_discover_from_installed_apps(self):
         registry = AdminRegistry()
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         with patch("openviper.admin.registry.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = ["app1", "app2"]

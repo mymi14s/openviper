@@ -27,7 +27,6 @@ Via module auto-discovery::
 
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncIterator
 from typing import Any
 

@@ -1,13 +1,8 @@
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from openviper.admin.auth_admin import (
     ChangeHistoryAdmin,
     register_auth_models,
 )
 from openviper.admin.history import ChangeHistory
-from openviper.admin.registry import AdminRegistry
 
 
 def test_change_history_admin_permissions():

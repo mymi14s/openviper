@@ -26,9 +26,8 @@ def test_setup_broker_stub():
 
 
 def test_setup_broker_unknown_raises_value_error():
-    with _stub_settings({"broker": "unknown"}):
-        with pytest.raises(ValueError, match="unknown"):
-            setup_broker()
+    with _stub_settings({"broker": "unknown"}), pytest.raises(ValueError, match="unknown"):
+        setup_broker()
 
 
 def test_result_backend_setup():
@@ -38,9 +37,11 @@ def test_result_backend_setup():
     from unittest.mock import MagicMock
 
     mock_backend = MagicMock()
-    with _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}):
-        with patch("dramatiq.results.backends.redis.RedisBackend", return_value=mock_backend):
-            broker = setup_broker()
+    with (
+        _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}),
+        patch("dramatiq.results.backends.redis.RedisBackend", return_value=mock_backend),
+    ):
+        broker = setup_broker()
     from dramatiq.results import Results
 
     assert any(isinstance(m, Results) for m in broker.middleware)

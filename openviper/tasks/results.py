@@ -45,6 +45,7 @@ Column reference
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib
 import json
 import logging
@@ -466,10 +467,8 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     # Deserialise JSON columns back to Python objects for convenience.
     for key in ("args", "kwargs"):
         if isinstance(d.get(key), str):
-            try:
+            with contextlib.suppress(Exception):
                 d[key] = json.loads(d[key])
-            except Exception:
-                pass
     # Normalise datetime objects to ISO strings.
     for key in ("enqueued_at", "started_at", "completed_at"):
         val = d.get(key)

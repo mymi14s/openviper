@@ -1,10 +1,8 @@
 import datetime
-import gzip
 import json
 import os
 import tempfile
 import uuid
-from collections.abc import AsyncIterator, Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,9 +106,11 @@ async def test_html_response():
 
 @pytest.mark.asyncio
 async def test_html_response_no_jinja2():
-    with patch("openviper.http.response.Environment", None):
-        with pytest.raises(ImportError, match="jinja2 is required"):
-            HTMLResponse(template="index.html")
+    with (
+        patch("openviper.http.response.Environment", None),
+        pytest.raises(ImportError, match="jinja2 is required"),
+    ):
+        HTMLResponse(template="index.html")
 
 
 def test_plain_text_response():

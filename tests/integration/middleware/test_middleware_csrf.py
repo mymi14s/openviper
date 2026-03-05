@@ -1,7 +1,6 @@
 import pytest
 
-from openviper.http.response import Response
-from openviper.middleware.csrf import CSRFMiddleware, _generate_csrf_token, _mask_csrf_token
+from openviper.middleware.csrf import CSRFMiddleware
 
 
 @pytest.mark.asyncio

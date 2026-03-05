@@ -18,7 +18,7 @@ async def test_is_token_revoked_db_hit_with_datetime_expiry():
     jti = "test-jti-datetime-expiry"
     _JTI_CACHE.pop(jti, None)
 
-    future_expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)
+    future_expiry = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
 
     mock_result = MagicMock()
     mock_result.fetchone.return_value = (future_expiry,)

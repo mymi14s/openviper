@@ -47,7 +47,7 @@ async def client(auth_app):
 async def test_revoke_token_and_check_revoked():
     """revoke_token stores jti; is_token_revoked returns True."""
     jti = "test-jti-001"
-    expires_at = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)
+    expires_at = datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(hours=1)
 
     await revoke_token(jti=jti, token_type="access", user_id=1, expires_at=expires_at)
     assert await is_token_revoked(jti) is True
@@ -63,7 +63,7 @@ async def test_is_token_revoked_returns_false_for_unknown():
 async def test_revoke_duplicate_jti_is_safe():
     """Revoking the same jti twice does not raise."""
     jti = "test-jti-dup"
-    expires_at = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)
+    expires_at = datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(hours=1)
 
     await revoke_token(jti=jti, token_type="refresh", user_id=2, expires_at=expires_at)
     # Second call should silently pass (duplicate jti)
@@ -76,14 +76,14 @@ async def test_revoke_duplicate_jti_is_safe():
 async def test_expired_tokens_pruned_on_revoke():
     """Expired tokens are cleaned up opportunistically during revoke_token."""
     jti_expired = "expired-jti"
-    past = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(hours=1)
+    past = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(hours=1)
 
     # Insert directly an already-expired token
     await revoke_token(jti=jti_expired, token_type="access", user_id=3, expires_at=past)
 
     # Now revoke another token — this should trigger pruning of the expired one
     jti_new = "new-jti-after-prune"
-    future = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)
+    future = datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(hours=1)
     await revoke_token(jti=jti_new, token_type="access", user_id=3, expires_at=future)
 
     # The expired token should have been pruned
@@ -96,7 +96,7 @@ async def test_expired_tokens_pruned_on_revoke():
 async def test_revoke_token_null_user_id():
     """revoke_token allows null user_id."""
     jti = "test-jti-null-user"
-    expires_at = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)
+    expires_at = datetime.datetime.now(tz=datetime.UTC) + datetime.timedelta(hours=1)
 
     await revoke_token(jti=jti, token_type="access", user_id=None, expires_at=expires_at)
     assert await is_token_revoked(jti) is True
@@ -126,7 +126,7 @@ async def test_admin_logout_revokes_access_token(client):
 @pytest.mark.asyncio
 async def test_admin_logout_revokes_refresh_token(client):
     """POST /admin/api/auth/logout/ with refresh_token also revokes it."""
-    admin_user = await create_admin_user(username="logout_refresh")
+    await create_admin_user(username="logout_refresh")
 
     login_resp = await client.post(
         "/admin/api/auth/login/",

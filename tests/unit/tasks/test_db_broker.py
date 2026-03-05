@@ -251,9 +251,11 @@ class TestDatabaseConsumerNext:
         self._wire_conn(mock_engine, row=None)  # no rows
 
         # start_time=0, then timeout check returns 100 (100*1000 > 5000)
-        with patch("openviper.tasks.db_broker.time.monotonic", side_effect=[0.0, 100.0]):
-            with patch("openviper.tasks.db_broker.time.sleep"):
-                result = consumer.__next__()
+        with (
+            patch("openviper.tasks.db_broker.time.monotonic", side_effect=[0.0, 100.0]),
+            patch("openviper.tasks.db_broker.time.sleep"),
+        ):
+            result = consumer.__next__()
 
         assert result is None
 
@@ -261,13 +263,16 @@ class TestDatabaseConsumerNext:
         """First check: not timed out -> sleep; second check: timed out -> None."""
         self._wire_conn(mock_engine, row=None)
 
-        # monotonic calls: #1=start, #2=elapsed check (500ms<5s), #3=remaining calc, #4=elapsed check->timed out
-        with patch(
-            "openviper.tasks.db_broker.time.monotonic",
-            side_effect=[0.0, 0.5, 0.5, 100.0],
+        # monotonic calls: #1=start, #2=elapsed check (500ms<5s),
+        # #3=remaining calc, #4=elapsed check->timed out
+        with (
+            patch(
+                "openviper.tasks.db_broker.time.monotonic",
+                side_effect=[0.0, 0.5, 0.5, 100.0],
+            ),
+            patch("openviper.tasks.db_broker.time.sleep") as mock_sleep,
         ):
-            with patch("openviper.tasks.db_broker.time.sleep") as mock_sleep:
-                result = consumer.__next__()
+            result = consumer.__next__()
 
         assert result is None
         mock_sleep.assert_called_once_with(0.1)
@@ -281,9 +286,11 @@ class TestDatabaseConsumerNext:
         mock_engine.begin.return_value.__exit__ = MagicMock(return_value=False)
 
         # Simulated elapsed: 0ms start, then 200ms -> exceeds 100ms timeout
-        with patch("openviper.tasks.db_broker.time.monotonic", side_effect=[0.0, 0.2]):
-            with patch("openviper.tasks.db_broker.time.sleep"):
-                result = consumer.__next__()
+        with (
+            patch("openviper.tasks.db_broker.time.monotonic", side_effect=[0.0, 0.2]),
+            patch("openviper.tasks.db_broker.time.sleep"),
+        ):
+            result = consumer.__next__()
 
         assert result is None
 
@@ -477,7 +484,7 @@ class TestSkipLocked:
             return original_wfu(self_stmt, **kw)
 
         with patch.object(sa.Select, "with_for_update", tracking_wfu):
-            result = consumer.__next__()
+            consumer.__next__()
 
         # The `with_for_update(skip_locked=True)` branch was executed
         assert any(c.get("skip_locked") is True for c in wfu_calls)
@@ -502,9 +509,11 @@ class TestSkipLocked:
             wfu_calls.append(kw)
             return original_wfu(self_stmt, **kw)
 
-        with patch.object(sa.Select, "with_for_update", tracking_wfu):
-            with patch("openviper.tasks.db_broker.time.monotonic", side_effect=[0.0, 100.0]):
-                with patch("openviper.tasks.db_broker.time.sleep"):
-                    consumer.__next__()
+        with (
+            patch.object(sa.Select, "with_for_update", tracking_wfu),
+            patch("openviper.tasks.db_broker.time.monotonic", side_effect=[0.0, 100.0]),
+            patch("openviper.tasks.db_broker.time.sleep"),
+        ):
+            consumer.__next__()
 
         assert not wfu_calls

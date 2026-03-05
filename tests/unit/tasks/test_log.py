@@ -1,7 +1,9 @@
-"""Tests for openviper/tasks/log.py — configure_worker_logging, configure_worker_logging_from_settings."""
+"""Tests for openviper/tasks/log.py
+— configure_worker_logging, configure_worker_logging_from_settings."""
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -21,10 +23,8 @@ def reset_logging_configured():
     for name in ("openviper.tasks", "dramatiq"):
         lg = logging.getLogger(name)
         for h in list(lg.handlers):
-            try:
+            with contextlib.suppress(Exception):
                 h.close()
-            except Exception:
-                pass
         lg.handlers.clear()
         lg.propagate = True
     yield
@@ -32,10 +32,8 @@ def reset_logging_configured():
     for name in ("openviper.tasks", "dramatiq"):
         lg = logging.getLogger(name)
         for h in list(lg.handlers):
-            try:
+            with contextlib.suppress(Exception):
                 h.close()
-            except Exception:
-                pass
         lg.handlers.clear()
         lg.propagate = True
 

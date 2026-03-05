@@ -186,7 +186,8 @@ class TestStaticfilesLoadedOnFirstRequest:
         assert middleware_app is not None
 
     def test_staticfiles_not_loaded_when_debug_false(self):
-        """With DEBUG=False, openviper.staticfiles must never be imported even after building the middleware stack."""
+        """With DEBUG=False, openviper.staticfiles must never be imported
+        even after building the middleware stack."""
         code = (
             "import sys\n"
             "# Ensure a clean slate — staticfiles should not already be present\n"
@@ -201,7 +202,8 @@ class TestStaticfilesLoadedOnFirstRequest:
         assert stdout.strip() == "False", "openviper.staticfiles was loaded despite DEBUG=False"
 
     def test_staticfiles_loaded_when_debug_true(self):
-        """With DEBUG=True, openviper.staticfiles is imported while building the middleware stack."""
+        """With DEBUG=True, openviper.staticfiles is imported while building
+        the middleware stack."""
         code = (
             "import sys\n"
             "assert 'openviper.staticfiles' not in sys.modules\n"

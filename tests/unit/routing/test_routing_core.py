@@ -1,7 +1,6 @@
 import pytest
 
 from openviper.exceptions import MethodNotAllowed, NotFound
-from openviper.http.response import JSONResponse
 from openviper.routing.router import Router, include
 
 

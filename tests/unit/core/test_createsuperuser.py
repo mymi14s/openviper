@@ -130,17 +130,21 @@ class TestPromptUsername:
     def test_interactive_retries_on_blank_then_valid(self):
         cmd = Command()
         inputs = iter(["", "validuser"])
-        with patch("builtins.input", side_effect=lambda _: next(inputs)):
-            with patch.object(cmd, "stderr"):
-                result = cmd._prompt_username(None)
+        with (
+            patch("builtins.input", side_effect=lambda _: next(inputs)),
+            patch.object(cmd, "stderr"),
+        ):
+            result = cmd._prompt_username(None)
         assert result == "validuser"
 
     def test_interactive_retries_on_invalid_chars(self):
         cmd = Command()
         inputs = iter(["bad user!", "gooduser"])
-        with patch("builtins.input", side_effect=lambda _: next(inputs)):
-            with patch.object(cmd, "stderr"):
-                result = cmd._prompt_username(None)
+        with (
+            patch("builtins.input", side_effect=lambda _: next(inputs)),
+            patch.object(cmd, "stderr"),
+        ):
+            result = cmd._prompt_username(None)
         assert result == "gooduser"
 
 
@@ -174,9 +178,11 @@ class TestPromptEmail:
     def test_interactive_retries_on_invalid(self):
         cmd = Command()
         inputs = iter(["bademail", "user@example.com"])
-        with patch("builtins.input", side_effect=lambda _: next(inputs)):
-            with patch.object(cmd, "stderr"):
-                result = cmd._prompt_email(None)
+        with (
+            patch("builtins.input", side_effect=lambda _: next(inputs)),
+            patch.object(cmd, "stderr"),
+        ):
+            result = cmd._prompt_email(None)
         assert result == "user@example.com"
 
 
@@ -198,16 +204,20 @@ class TestPromptPassword:
     def test_interactive_blank_then_valid(self):
         cmd = Command()
         # blank password -> retry -> valid pair
-        with patch("getpass.getpass", side_effect=["", "password1", "password1"]):
-            with patch.object(cmd, "stderr"):
-                result = cmd._prompt_password(None)
+        with (
+            patch("getpass.getpass", side_effect=["", "password1", "password1"]),
+            patch.object(cmd, "stderr"),
+        ):
+            result = cmd._prompt_password(None)
         assert result == "password1"
 
     def test_interactive_mismatch_then_valid(self):
         cmd = Command()
-        with patch("getpass.getpass", side_effect=["pass1", "wrongpass", "pass1", "pass1"]):
-            with patch.object(cmd, "stderr"):
-                result = cmd._prompt_password(None)
+        with (
+            patch("getpass.getpass", side_effect=["pass1", "wrongpass", "pass1", "pass1"]),
+            patch.object(cmd, "stderr"),
+        ):
+            result = cmd._prompt_password(None)
         assert result == "pass1"
 
 
@@ -227,117 +237,133 @@ class TestHandleNoInput:
 
     def test_missing_all_required_fields(self):
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=MagicMock(),
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=MagicMock(),
+            ),
+            pytest.raises(CommandError, match="required with --no-input"),
         ):
-            with pytest.raises(CommandError, match="required with --no-input"):
-                cmd.handle(no_input=True, username=None, email=None, password=None)
+            cmd.handle(no_input=True, username=None, email=None, password=None)
 
     def test_missing_email_raises(self):
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=MagicMock(),
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=MagicMock(),
+            ),
+            pytest.raises(CommandError, match="required with --no-input"),
         ):
-            with pytest.raises(CommandError, match="required with --no-input"):
-                cmd.handle(no_input=True, username="admin", email=None, password="pw")
+            cmd.handle(no_input=True, username="admin", email=None, password="pw")
 
     def test_missing_password_raises(self):
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=MagicMock(),
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=MagicMock(),
+            ),
+            pytest.raises(CommandError, match="required with --no-input"),
         ):
-            with pytest.raises(CommandError, match="required with --no-input"):
-                cmd.handle(no_input=True, username="admin", email="a@b.com", password=None)
+            cmd.handle(no_input=True, username="admin", email="a@b.com", password=None)
 
     def test_invalid_username_raises(self):
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=MagicMock(),
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=MagicMock(),
+            ),
+            pytest.raises(CommandError, match="Invalid username"),
         ):
-            with pytest.raises(CommandError, match="Invalid username"):
-                cmd.handle(
-                    no_input=True,
-                    username="bad user!",
-                    email="a@b.com",
-                    password="pw",
-                )
+            cmd.handle(
+                no_input=True,
+                username="bad user!",
+                email="a@b.com",
+                password="pw",
+            )
 
     def test_invalid_email_raises(self):
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=MagicMock(),
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=MagicMock(),
+            ),
+            pytest.raises(CommandError, match="valid email"),
         ):
-            with pytest.raises(CommandError, match="valid email"):
-                cmd.handle(
-                    no_input=True,
-                    username="admin",
-                    email="notvalidemail",
-                    password="pw",
-                )
+            cmd.handle(
+                no_input=True,
+                username="admin",
+                email="notvalidemail",
+                password="pw",
+            )
 
     def test_existing_username_raises(self):
         cmd = Command()
         User, _ = self._make_user_class()
         User.objects.get_or_none = AsyncMock(return_value=MagicMock())  # user exists
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.createsuperuser.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with pytest.raises(CommandError, match="already exists"):
-                    cmd.handle(
-                        no_input=True,
-                        username="admin",
-                        email="a@b.com",
-                        password="pw",
-                    )
+            ),
+            pytest.raises(CommandError, match="already exists"),
+        ):
+            cmd.handle(
+                no_input=True,
+                username="admin",
+                email="a@b.com",
+                password="pw",
+            )
 
     def test_existing_email_raises(self):
         cmd = Command()
         User, _ = self._make_user_class()
         # First call (username check) returns None; second call (email check) returns existing user
         User.objects.get_or_none = AsyncMock(side_effect=[None, MagicMock()])
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.createsuperuser.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with pytest.raises(CommandError, match="already exists"):
-                    cmd.handle(
-                        no_input=True,
-                        username="admin",
-                        email="admin@example.com",
-                        password="pw",
-                    )
+            ),
+            pytest.raises(CommandError, match="already exists"),
+        ):
+            cmd.handle(
+                no_input=True,
+                username="admin",
+                email="admin@example.com",
+                password="pw",
+            )
 
     def test_success_creates_superuser(self):
         cmd = Command()
         User, mock_user = self._make_user_class()
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.createsuperuser.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                cmd.handle(
-                    no_input=True,
-                    username="admin",
-                    email="admin@example.com",
-                    password="secret123",
-                )
+            ),
+        ):
+            cmd.handle(
+                no_input=True,
+                username="admin",
+                email="admin@example.com",
+                password="secret123",
+            )
 
         User.objects.create.assert_awaited_once_with(
             username="admin",
@@ -353,21 +379,23 @@ class TestHandleNoInput:
         cmd = Command()
         User, mock_user = self._make_user_class()
         output_lines = []
-        with patch(
-            "openviper.core.management.commands.createsuperuser.get_user_model",
-            return_value=User,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.createsuperuser.get_user_model",
+                return_value=User,
+            ),
+            patch(
                 "openviper.core.management.commands.createsuperuser.asyncio.run",
                 side_effect=_make_async_runner(),
-            ):
-                with patch.object(cmd, "stdout", side_effect=lambda msg: output_lines.append(msg)):
-                    cmd.handle(
-                        no_input=True,
-                        username="admin",
-                        email="admin@example.com",
-                        password="pw",
-                    )
+            ),
+            patch.object(cmd, "stdout", side_effect=lambda msg: output_lines.append(msg)),
+        ):
+            cmd.handle(
+                no_input=True,
+                username="admin",
+                email="admin@example.com",
+                password="pw",
+            )
 
         assert any("admin" in line for line in output_lines)
 
@@ -390,19 +418,21 @@ class TestHandleInteractive:
             "openviper.core.management.commands.createsuperuser.get_user_model",
             return_value=User,
         ):
-            with patch.object(cmd, "_prompt_username", return_value="newuser") as mu:
-                with patch.object(cmd, "_prompt_email", return_value="new@example.com") as me:
-                    with patch.object(cmd, "_prompt_password", return_value="mypassword") as mp:
-                        with patch(
-                            "openviper.core.management.commands.createsuperuser.asyncio.run",
-                            side_effect=_make_async_runner(),
-                        ):
-                            cmd.handle(
-                                no_input=False,
-                                username=None,
-                                email=None,
-                                password=None,
-                            )
+            with (
+                patch.object(cmd, "_prompt_username", return_value="newuser") as mu,
+                patch.object(cmd, "_prompt_email", return_value="new@example.com") as me,
+                patch.object(cmd, "_prompt_password", return_value="mypassword") as mp,
+                patch(
+                    "openviper.core.management.commands.createsuperuser.asyncio.run",
+                    side_effect=_make_async_runner(),
+                ),
+            ):
+                cmd.handle(
+                    no_input=False,
+                    username=None,
+                    email=None,
+                    password=None,
+                )
             mu.assert_called_once_with(None)
             me.assert_called_once_with(None)
             mp.assert_called_once_with(None)
@@ -422,19 +452,21 @@ class TestHandleInteractive:
             "openviper.core.management.commands.createsuperuser.get_user_model",
             return_value=User,
         ):
-            with patch.object(cmd, "_prompt_username", return_value="preset") as mu:
-                with patch.object(cmd, "_prompt_email", return_value="p@e.com") as me:
-                    with patch.object(cmd, "_prompt_password", return_value="pw") as mp:
-                        with patch(
-                            "openviper.core.management.commands.createsuperuser.asyncio.run",
-                            side_effect=_make_async_runner(),
-                        ):
-                            cmd.handle(
-                                no_input=False,
-                                username="preset",
-                                email="p@e.com",
-                                password="pw",
-                            )
+            with (
+                patch.object(cmd, "_prompt_username", return_value="preset") as mu,
+                patch.object(cmd, "_prompt_email", return_value="p@e.com") as me,
+                patch.object(cmd, "_prompt_password", return_value="pw") as mp,
+                patch(
+                    "openviper.core.management.commands.createsuperuser.asyncio.run",
+                    side_effect=_make_async_runner(),
+                ),
+            ):
+                cmd.handle(
+                    no_input=False,
+                    username="preset",
+                    email="p@e.com",
+                    password="pw",
+                )
             mu.assert_called_once_with("preset")
             me.assert_called_once_with("p@e.com")
             mp.assert_called_once_with("pw")

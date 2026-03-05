@@ -306,11 +306,7 @@ class AbstractUser(Model):
             content_type=content_type.pk, role__in=role_ids
         ).all()
 
-        for ctp in ct_perms:
-            if getattr(ctp, action_field, False):
-                return True
-
-        return False
+        return any(getattr(ctp, action_field, False) for ctp in ct_perms)
 
     async def has_role(self, role_name: str) -> bool:
         """Check if user is assigned to a specific role."""

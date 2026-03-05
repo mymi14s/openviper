@@ -181,9 +181,7 @@ class TestSerializeWithChildren:
         instance = MagicMock()
         instance.id = 3
 
-        result = await _serialize_instance_with_children(
-            _mock_request(), model_admin, model_class, instance
-        )
+        await _serialize_instance_with_children(_mock_request(), model_admin, model_class, instance)
 
         # filter called with merged keys
         call_kwargs = child_model.objects.filter.call_args[1]
@@ -245,9 +243,11 @@ class TestAdminChangeUserPasswordValidation:
         handler = _get_handler(router, "admin_change_user_password")
 
         req = _mock_request(json_data={"confirm_password": "something"})
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with pytest.raises(ValidationError, match="required"):
-                await handler(req, user_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            pytest.raises(ValidationError, match="required"),
+        ):
+            await handler(req, user_id=1)
 
     @pytest.mark.asyncio
     async def test_password_mismatch_raises_validation_error(self):
@@ -257,9 +257,11 @@ class TestAdminChangeUserPasswordValidation:
         req = _mock_request(
             json_data={"new_password": "password1", "confirm_password": "password2"}
         )
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with pytest.raises(ValidationError, match="do not match"):
-                await handler(req, user_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            pytest.raises(ValidationError, match="do not match"),
+        ):
+            await handler(req, user_id=1)
 
     @pytest.mark.asyncio
     async def test_short_new_password_raises_validation_error(self):
@@ -267,9 +269,11 @@ class TestAdminChangeUserPasswordValidation:
         handler = _get_handler(router, "admin_change_user_password")
 
         req = _mock_request(json_data={"new_password": "short", "confirm_password": "short"})
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with pytest.raises(ValidationError, match="8 characters"):
-                await handler(req, user_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            pytest.raises(ValidationError, match="8 characters"),
+        ):
+            await handler(req, user_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -320,14 +324,16 @@ class TestAdminDashboardExtra:
         activity.change_message = "Added item"
         activity.change_time = datetime(2024, 1, 1)
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with patch("openviper.admin.api.views.admin.get_all_models", return_value=[]):
-                with patch(
-                    "openviper.admin.api.views.get_recent_activity",
-                    new_callable=AsyncMock,
-                    return_value=[activity],
-                ):
-                    response = await handler(_mock_request())
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            patch("openviper.admin.api.views.admin.get_all_models", return_value=[]),
+            patch(
+                "openviper.admin.api.views.get_recent_activity",
+                new_callable=AsyncMock,
+                return_value=[activity],
+            ),
+        ):
+            response = await handler(_mock_request())
 
         body = json.loads(response.body)
         assert len(body["recent_activity"]) == 1
@@ -706,9 +712,11 @@ class TestUpdateInstanceByApp:
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), app_label="a", model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), app_label="a", model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -940,13 +948,15 @@ class TestBulkActionByAppExtra:
                     "openviper.admin.api.views.admin.get_model_by_app_and_name",
                     return_value=mock_model,
                 ):
-                    with patch("openviper.admin.api.views.get_action", return_value=mock_action):
-                        with pytest.raises(PermissionDenied):
-                            await handler(
-                                _mock_request(json_data={"action": "delete_selected", "ids": [1]}),
-                                app_label="a",
-                                model_name="X",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.get_action", return_value=mock_action),
+                        pytest.raises(PermissionDenied),
+                    ):
+                        await handler(
+                            _mock_request(json_data={"action": "delete_selected", "ids": [1]}),
+                            app_label="a",
+                            model_name="X",
+                        )
 
 
 # ---------------------------------------------------------------------------
@@ -1393,12 +1403,14 @@ class TestCreateInstanceExtra:
                 with patch(
                     "openviper.admin.api.views.admin.get_model_by_name", return_value=mock_model
                 ):
-                    with patch("openviper.admin.api.views.coerce_field_value", return_value=dt):
-                        with patch("openviper.admin.api.views.log_change", new_callable=AsyncMock):
-                            response = await handler(
-                                _mock_request(json_data={"ts": dt.isoformat()}),
-                                model_name="Article",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.coerce_field_value", return_value=dt),
+                        patch("openviper.admin.api.views.log_change", new_callable=AsyncMock),
+                    ):
+                        response = await handler(
+                            _mock_request(json_data={"ts": dt.isoformat()}),
+                            model_name="Article",
+                        )
 
         body = json.loads(response.body)
         assert body["ts"] == dt.isoformat()
@@ -1479,9 +1491,11 @@ class TestUpdateInstance:
         router = _make_router()
         handler = _get_handler(router, "update_instance")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_instance_not_found_raises_not_found(self):
@@ -1636,9 +1650,11 @@ class TestBulkDelete:
         router = _make_router()
         handler = _get_handler(router, "bulk_delete")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X")
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -1730,9 +1746,11 @@ class TestBulkAction:
         router = _make_router()
         handler = _get_handler(router, "bulk_action")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X")
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -1796,12 +1814,14 @@ class TestBulkAction:
                 with patch(
                     "openviper.admin.api.views.admin.get_model_by_name", return_value=mock_model
                 ):
-                    with patch("openviper.admin.api.views.get_action", return_value=None):
-                        with pytest.raises(NotFound):
-                            await handler(
-                                _mock_request(json_data={"action": "noop", "ids": [1]}),
-                                model_name="X",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.get_action", return_value=None),
+                        pytest.raises(NotFound),
+                    ):
+                        await handler(
+                            _mock_request(json_data={"action": "noop", "ids": [1]}),
+                            model_name="X",
+                        )
 
     @pytest.mark.asyncio
     async def test_no_permission_raises_permission_denied(self):
@@ -1820,12 +1840,14 @@ class TestBulkAction:
                 with patch(
                     "openviper.admin.api.views.admin.get_model_by_name", return_value=mock_model
                 ):
-                    with patch("openviper.admin.api.views.get_action", return_value=mock_action):
-                        with pytest.raises(PermissionDenied):
-                            await handler(
-                                _mock_request(json_data={"action": "act", "ids": [1]}),
-                                model_name="X",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.get_action", return_value=mock_action),
+                        pytest.raises(PermissionDenied),
+                    ):
+                        await handler(
+                            _mock_request(json_data={"action": "act", "ids": [1]}),
+                            model_name="X",
+                        )
 
     @pytest.mark.asyncio
     async def test_successful_bulk_action(self):
@@ -2001,9 +2023,11 @@ class TestExportInstances:
         router = _make_router()
         handler = _get_handler(router, "export_instances")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="Article")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="Article")
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -2118,9 +2142,11 @@ class TestGetInstanceHistoryLegacy:
         router = _make_router()
         handler = _get_handler(router, "get_instance_history")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -2196,9 +2222,11 @@ class TestFkSearch:
         router = _make_router()
         handler = _get_handler(router, "fk_search")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), app_label="a", model_name="X")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), app_label="a", model_name="X")
 
     @pytest.mark.asyncio
     async def test_model_found_in_registry(self):
@@ -2320,16 +2348,18 @@ class TestFkSearch:
             ):
                 with patch("openviper.admin.api.views.importlib") as mock_importlib_mod:
                     mock_importlib_mod.import_module.side_effect = ImportError("no module")
-                    with patch(
-                        "openviper.admin.api.views.admin.get_all_models",
-                        return_value=[],
+                    with (
+                        patch(
+                            "openviper.admin.api.views.admin.get_all_models",
+                            return_value=[],
+                        ),
+                        pytest.raises(NotFound),
                     ):
-                        with pytest.raises(NotFound):
-                            await handler(
-                                _mock_request(query_params={}),
-                                app_label="myapp",
-                                model_name="NonExistent",
-                            )
+                        await handler(
+                            _mock_request(query_params={}),
+                            app_label="myapp",
+                            model_name="NonExistent",
+                        )
 
     @pytest.mark.asyncio
     async def test_search_query_applied_to_text_fields(self):
@@ -2373,9 +2403,11 @@ class TestGlobalSearch:
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request())
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request())
 
     @pytest.mark.asyncio
     async def test_empty_query_returns_empty_results(self):
@@ -2466,9 +2498,11 @@ class TestGlobalSearch:
                 "openviper.admin.api.views.admin.get_all_models",
                 return_value=[(mock_model, mock_model_admin)],
             ):
-                with patch("openviper.admin.api.views.check_model_permission", return_value=True):
-                    with patch("openviper.admin.api.views.admin._get_app_label", return_value="a"):
-                        response = await handler(_mock_request(query_params={"q": "test"}))
+                with (
+                    patch("openviper.admin.api.views.check_model_permission", return_value=True),
+                    patch("openviper.admin.api.views.admin._get_app_label", return_value="a"),
+                ):
+                    response = await handler(_mock_request(query_params={"q": "test"}))
 
         body = json.loads(response.body)
         assert "results" in body
@@ -3204,9 +3238,11 @@ class TestGetInstanceLegacyExtra:
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -3366,13 +3402,15 @@ class TestUpdateInstanceLegacyExtra:
                     "openviper.admin.api.views.admin.get_model_by_name",
                     return_value=mock_model,
                 ):
-                    with patch("openviper.admin.api.views.log_change", new_callable=AsyncMock):
-                        with patch("openviper.admin.api.views.compute_changes", return_value={}):
-                            response = await handler(
-                                _mock_request(json_data={"count": 99}),
-                                model_name="Article",
-                                obj_id=3,
-                            )
+                    with (
+                        patch("openviper.admin.api.views.log_change", new_callable=AsyncMock),
+                        patch("openviper.admin.api.views.compute_changes", return_value={}),
+                    ):
+                        response = await handler(
+                            _mock_request(json_data={"count": 99}),
+                            model_name="Article",
+                            obj_id=3,
+                        )
 
         assert response.status_code == 200
         body = json.loads(response.body)
@@ -3391,9 +3429,11 @@ class TestDeleteInstanceNoAccess:
         router = _make_router()
         handler = _get_handler(router, "delete_instance")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
 
 # ---------------------------------------------------------------------------

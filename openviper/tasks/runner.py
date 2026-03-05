@@ -25,7 +25,7 @@ import logging
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from openviper.tasks.core import Scheduler
@@ -73,7 +73,7 @@ def run_scheduler(
 
     try:
         while _running:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             enqueued = _scheduler.tick(now)
             if enqueued:
                 logger.debug("Tick enqueued: %s", enqueued)

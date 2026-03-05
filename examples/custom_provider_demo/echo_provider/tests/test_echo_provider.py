@@ -77,7 +77,6 @@ async def test_stream_reverse(provider):
 
 def test_get_providers():
     from echo_provider.provider import get_providers
-
     from openviper.ai.base import AIProvider
 
     providers = get_providers()
@@ -88,7 +87,6 @@ def test_get_providers():
 def test_registration():
     """Verify the provider integrates correctly with ProviderRegistry."""
     from echo_provider.provider import EchoProvider
-
     from openviper.ai.registry import ProviderRegistry
 
     registry = ProviderRegistry()

@@ -1,8 +1,5 @@
-import pytest
-
 from openviper.admin.decorators import register
 from openviper.admin.options import ModelAdmin
-from openviper.admin.registry import AdminRegistry
 from openviper.db.fields import IntegerField
 from openviper.db.models import Model
 

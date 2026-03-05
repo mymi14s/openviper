@@ -25,6 +25,7 @@ imports are automatically picked up by the broker.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import logging
 import os
@@ -37,7 +38,7 @@ from dramatiq.worker import Worker
 
 from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
-from openviper.tasks.broker import get_broker, setup_broker
+from openviper.tasks.broker import setup_broker
 from openviper.tasks.log import configure_worker_logging_from_settings
 from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
@@ -222,8 +223,6 @@ def run_worker(
         if scheduler_enabled:
             stop_scheduler()
         logger.info("Stopping worker (timeout 30 s)…")
-        try:
+        with contextlib.suppress(Exception):
             worker.stop(timeout=30_000)
-        except Exception:
-            pass
         logger.info("Worker exited.")

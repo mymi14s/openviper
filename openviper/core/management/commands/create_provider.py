@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import textwrap
 
 from openviper.core.management.base import BaseCommand, CommandError
 
@@ -225,7 +224,8 @@ provider_registry.register_from_module("{{ pkg_name }}.provider")
 
 # Or programmatically:
 from {{ pkg_name }}.provider import {{ class_name }}
-provider_registry.register_provider({{ class_name }}({"models": {"default": "{{ provider_name }}-v1"}}))
+provider_registry.register_provider(
+    {{ class_name }}({"models": {"default": "{{ provider_name }}-v1"}}))
 ```
 
 ## Publishing as a reusable package

@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 class ModelAdmin:
-    """Configuration class for admin model behavior. Subclass this to customize how a model appears in the admin panel.
+    """Configuration class for admin model behavior.
+
+    Subclass this to customize how a model appears in the admin panel.
 
     Example::
 
@@ -214,7 +216,7 @@ class ModelAdmin:
         ]
         return [
             f
-            for f in getattr(obj or self.model, "_fields", {}).keys()
+            for f in getattr(obj or self.model, "_fields", {})
             if any(s in f.lower() for s in default_sensitive)
         ]
 

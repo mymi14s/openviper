@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import sys
-from io import StringIO
-
 import pytest
 
 from openviper.core.management.base import BaseCommand, CommandError

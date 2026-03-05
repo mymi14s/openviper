@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -125,7 +125,7 @@ def test_scheduler_tick_enqueues_due_entries():
     scheduler = Scheduler(registry=custom_reg)
     actor_a = _make_actor("actor_a")
     actor_b = _make_actor("actor_b")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     custom_reg.register("task_a", actor_a, _make_schedule(True))
     custom_reg.register("task_b", actor_b, _make_schedule(False))
@@ -145,7 +145,7 @@ def test_scheduler_tick_handles_send_failure():
 
     custom_reg.register("failing_task", failing_actor, _make_schedule(True))
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     enqueued = scheduler.tick(now=now)
 
     # tick() should not raise — failed entry is excluded from result

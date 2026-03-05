@@ -2,12 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from openviper.core.management.commands.runserver import Command, _clear_pycache
 
@@ -103,12 +99,14 @@ class TestHandleUvicornMissing:
                 pass  # handled below with simpler approach
 
         # Simpler: patch the try/except block
-        with patch.object(cmd, "_check_pending_migrations"):
-            with patch(
+        with (
+            patch.object(cmd, "_check_pending_migrations"),
+            patch(
                 "openviper.core.management.commands.runserver.Command.handle",
                 wraps=lambda self, **opts: None,
-            ):
-                pass  # hard to trigger ImportError inside handle cleanly
+            ),
+        ):
+            pass  # hard to trigger ImportError inside handle cleanly
 
     def test_uvicorn_missing_prints_error(self):
         """When uvicorn isn't importable, an error message is printed."""
@@ -124,9 +122,11 @@ class TestHandleUvicornMissing:
                 raise ImportError("No module named 'uvicorn'")
             return real_import(name, *args, **kwargs)
 
-        with patch("builtins.__import__", side_effect=fake_import):
-            with patch.object(cmd, "stderr", side_effect=lambda m: err_output.append(m)):
-                cmd.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
+        with (
+            patch("builtins.__import__", side_effect=fake_import),
+            patch.object(cmd, "stderr", side_effect=lambda m: err_output.append(m)),
+        ):
+            cmd.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
         assert any("uvicorn" in msg for msg in err_output)
 
 
@@ -216,9 +216,11 @@ class TestRunWithCacheClear:
     def test_calls_uvicorn_run_with_reload(self):
         cmd = Command()
         mock_uvicorn = MagicMock()
-        with patch("openviper.core.management.commands.runserver.os.getcwd", return_value="/proj"):
-            with patch.object(cmd, "_reload_dirs", return_value=["/proj"]):
-                cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
+        with (
+            patch("openviper.core.management.commands.runserver.os.getcwd", return_value="/proj"),
+            patch.object(cmd, "_reload_dirs", return_value=["/proj"]),
+        ):
+            cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
         mock_uvicorn.run.assert_called_once()
         kwargs = mock_uvicorn.run.call_args[1]
         assert kwargs["reload"] is True
@@ -229,10 +231,12 @@ class TestRunWithCacheClear:
         mock_uvicorn = MagicMock()
         mock_supervisor = MagicMock()
 
-        with patch("openviper.core.management.commands.runserver.os.getcwd", return_value="/proj"):
-            with patch.object(cmd, "_reload_dirs", return_value=["/proj"]):
-                with patch("importlib.import_module", return_value=mock_supervisor) as mock_import:
-                    cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
+        with (
+            patch("openviper.core.management.commands.runserver.os.getcwd", return_value="/proj"),
+            patch.object(cmd, "_reload_dirs", return_value=["/proj"]),
+            patch("importlib.import_module", return_value=mock_supervisor) as mock_import,
+        ):
+            cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
         # Should have attempted to import supervisor modules
         assert mock_import.called
 
@@ -241,11 +245,13 @@ class TestRunWithCacheClear:
         cmd = Command()
         mock_uvicorn = MagicMock()
 
-        with patch("openviper.core.management.commands.runserver.os.getcwd", return_value="/proj"):
-            with patch.object(cmd, "_reload_dirs", return_value=["/proj"]):
-                with patch("importlib.import_module", side_effect=ImportError):
-                    # Should not raise
-                    cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
+        with (
+            patch("openviper.core.management.commands.runserver.os.getcwd", return_value="/proj"),
+            patch.object(cmd, "_reload_dirs", return_value=["/proj"]),
+        ):
+            with patch("importlib.import_module", side_effect=ImportError):
+                # Should not raise
+                cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
         mock_uvicorn.run.assert_called_once()
 
 
@@ -278,12 +284,14 @@ class TestCheckPendingMigrations:
             mock_resolver = MagicMock()
             mock_resolver.resolve_all_apps.return_value = {"found": {}, "not_found": []}
             mock_resolver_cls.return_value = mock_resolver
-            with patch(
-                "openviper.core.management.commands.runserver.asyncio.run",
-                return_value=["myapp.0001_initial"],
+            with (
+                patch(
+                    "openviper.core.management.commands.runserver.asyncio.run",
+                    return_value=["myapp.0001_initial"],
+                ),
+                patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)),
             ):
-                with patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)):
-                    cmd._check_pending_migrations()
+                cmd._check_pending_migrations()
 
         combined = " ".join(output)
         assert "migration" in combined.lower() or "migrate" in combined.lower()

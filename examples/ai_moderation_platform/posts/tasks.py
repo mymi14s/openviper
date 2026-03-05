@@ -17,10 +17,6 @@ from __future__ import annotations
 import logging
 import os
 
-from moderation.ai_service import get_moderator
-from moderation.models import ModerationLog
-from posts.models import Post
-
 from openviper.tasks import periodic, task
 
 logger = logging.getLogger(__name__)
@@ -42,7 +38,6 @@ async def moderate(post_id: int) -> None:
     """AI-moderate a post.  Hides the post and logs the result when unsafe."""
     # Local imports prevent circular imports (Post → tasks → Post).
     logger.info("Starting moderate task for post_id=%s", post_id)
-    
 
 
 @periodic(every=60)

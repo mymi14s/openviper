@@ -1,6 +1,5 @@
 import pytest
 
-from openviper.http.response import Response
 from openviper.middleware.cors import CORSMiddleware
 
 

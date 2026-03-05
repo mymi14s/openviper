@@ -110,7 +110,8 @@ class ProjectSettings(Settings):
     #     }
     # )
 
-    # # Model events configuration: maps "app.model" to event hooks to lists of "app.events.func" paths.
+    # # Model events configuration: maps "app.model" to event hooks to lists of
+    # # "app.events.func" paths.
     # MODEL_EVENTS: dict = dataclasses.field(
     #     default_factory=lambda: {
     #         "posts.models.Post": {

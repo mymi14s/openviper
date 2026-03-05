@@ -20,7 +20,7 @@ async def get_user_by_id(user_id: int) -> Any | None:
         User instance or None if not found.
     """
     try:
-        User = get_user_model()
+        User = get_user_model()  # noqa: N806
         return await User.objects.get_or_none(id=user_id, ignore_permissions=True)
     except Exception:
         return None
@@ -39,7 +39,7 @@ async def authenticate(username: str, password: str) -> Any:
     Raises:
         AuthenticationFailed: Credentials are invalid.
     """
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
     # Try username first, then email
     user = await User.objects.get_or_none(
         username=username, is_active=True, ignore_permissions=True
@@ -56,7 +56,7 @@ async def authenticate(username: str, password: str) -> Any:
         raise AuthenticationFailed()
 
     # Update last_login
-    user.last_login = datetime.datetime.now(datetime.timezone.utc)
+    user.last_login = datetime.datetime.now(datetime.UTC)
     await user.save(ignore_permissions=True)
 
     return user

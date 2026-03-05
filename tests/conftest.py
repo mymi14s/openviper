@@ -2,7 +2,7 @@ import asyncio
 import logging
 import shutil
 import tempfile
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 

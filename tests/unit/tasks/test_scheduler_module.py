@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -125,11 +123,13 @@ def test_periodic_auto_wraps_plain_function():
 
     mock_wrapped_actor = MagicMock()
     mock_wrapped_actor.actor_name = "plain_func"
-    mock_task_decorator = MagicMock(return_value=mock_wrapped_actor)
+    MagicMock(return_value=mock_wrapped_actor)
 
-    with patch("openviper.tasks.scheduler._pending", sched_module._pending):
-        with patch("openviper.tasks.decorators.task", return_value=lambda fn: mock_wrapped_actor):
-            result = periodic(every=60)(plain_func)
+    with (
+        patch("openviper.tasks.scheduler._pending", sched_module._pending),
+        patch("openviper.tasks.decorators.task", return_value=lambda fn: mock_wrapped_actor),
+    ):
+        result = periodic(every=60)(plain_func)
 
     # The result is the wrapped actor, not the plain function
     assert hasattr(result, "actor_name")
@@ -342,15 +342,15 @@ def _run_tick_loop_once(mock_scheduler):
     """Run _tick_loop in the current thread for exactly one iteration."""
     call_count = [0]
 
-    original_wait = sched_module._stop_event.wait
-
     def mock_wait(timeout):
         call_count[0] += 1
         return call_count[0] > 1  # False (run) then True (stop)
 
-    with patch.object(sched_module, "_scheduler", mock_scheduler):
-        with patch.object(sched_module._stop_event, "wait", side_effect=mock_wait):
-            _tick_loop()
+    with (
+        patch.object(sched_module, "_scheduler", mock_scheduler),
+        patch.object(sched_module._stop_event, "wait", side_effect=mock_wait),
+    ):
+        _tick_loop()
 
 
 def test_tick_loop_calls_scheduler_tick():
@@ -396,9 +396,11 @@ def test_tick_loop_exits_when_scheduler_is_none():
         call_count[0] += 1
         return False  # never stop via event — exits via `_scheduler is None` break
 
-    with patch.object(sched_module, "_scheduler", None):
-        with patch.object(sched_module._stop_event, "wait", side_effect=mock_wait):
-            _tick_loop()
+    with (
+        patch.object(sched_module, "_scheduler", None),
+        patch.object(sched_module._stop_event, "wait", side_effect=mock_wait),
+    ):
+        _tick_loop()
 
     assert call_count[0] == 1  # ran once, then broke out
 

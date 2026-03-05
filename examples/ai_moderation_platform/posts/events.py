@@ -28,7 +28,6 @@ from typing import Any
 
 logger = logging.getLogger("posts.events")
 
-from posts.models import Comment, Post
 
 # ---------------------------------------------------------------------------
 # Post handlers

@@ -63,8 +63,9 @@ def _format_columns(model_cls: type[Model]) -> str:
 
 def _sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Model]]:
     """Sort models based on ForeignKey dependencies within the same app."""
-    from openviper.db.fields import ForeignKey
     from collections import deque
+
+    from openviper.db.fields import ForeignKey
 
     # map table_name -> Model
     lookup = {m._table_name: m for m in model_classes}
@@ -504,7 +505,7 @@ def _diff_states(
 
         # Build dependency graph from snapshot column definitions
         adj = {name: [] for name in new_table_names}
-        in_degree = {name: 0 for name in new_table_names}
+        in_degree = dict.fromkeys(new_table_names, 0)
 
         for name in new_table_names:
             cols = current[name]

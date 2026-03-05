@@ -371,7 +371,6 @@ def test_register_provider_uses_default_model_when_no_supported_models(isolated_
 
 def test_register_from_module_via_get_providers(isolated_registry, tmp_path):
     """Lines 186-207: module with get_providers() function is registered."""
-    import importlib
     import sys
     import types
 
@@ -506,9 +505,11 @@ def test_discover_entrypoints_logs_warning_on_failure(isolated_registry, caplog)
     mock_ep.name = "bad_ep"
     mock_ep.load.side_effect = RuntimeError("entrypoint broken")
 
-    with patch("importlib.metadata.entry_points", return_value=[mock_ep]):
-        with caplog.at_level(logging.WARNING, logger="openviper.ai"):
-            count = isolated_registry.discover_entrypoints()
+    with (
+        patch("importlib.metadata.entry_points", return_value=[mock_ep]),
+        caplog.at_level(logging.WARNING, logger="openviper.ai"),
+    ):
+        count = isolated_registry.discover_entrypoints()
 
     assert count == 0
     assert "bad_ep" in caplog.text or "failed" in caplog.text.lower()
@@ -543,8 +544,10 @@ def test_load_from_settings_logs_warning_on_init_exception(isolated_registry, ca
     cfg = {"my-broken": {"provider": "openai"}}
     with patch("openviper.ai.registry.settings") as ms:
         ms.AI_PROVIDERS = cfg
-        with patch("openviper.ai.registry._resolve_provider_class", return_value=_BrokenProvider):
-            with caplog.at_level(logging.WARNING, logger="openviper.ai"):
-                isolated_registry._load_from_settings()
+        with (
+            patch("openviper.ai.registry._resolve_provider_class", return_value=_BrokenProvider),
+            caplog.at_level(logging.WARNING, logger="openviper.ai"),
+        ):
+            isolated_registry._load_from_settings()
 
     assert "init failed!" in caplog.text or "my-broken" in caplog.text

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
 
 from pydantic import Field
 
@@ -20,8 +19,8 @@ class PostCreateSerializer(Serializer):
 class PostUpdateSerializer(Serializer):
     """Serializer for updating a post."""
 
-    title: Optional[str] = None
-    content: Optional[str] = None
+    title: str | None = None
+    content: str | None = None
 
 
 class PostResponseSerializer(Serializer):
@@ -31,12 +30,12 @@ class PostResponseSerializer(Serializer):
     title: str
     content: str
     author_id: int = Field(validation_alias="author")
-    author_username: Optional[str] = None
+    author_username: str | None = None
     is_hidden: bool
     likes_count: int
     created_at: datetime
     updated_at: datetime
-    moderation_status: Optional[str] = None
+    moderation_status: str | None = None
 
 
 class CommentCreateSerializer(Serializer):
@@ -49,7 +48,7 @@ class CommentCreateSerializer(Serializer):
 class CommentUpdateSerializer(Serializer):
     """Serializer for updating a comment."""
 
-    content: Optional[str] = None
+    content: str | None = None
 
 
 class CommentResponseSerializer(Serializer):
@@ -59,7 +58,7 @@ class CommentResponseSerializer(Serializer):
     post_id: int = Field(validation_alias="post")
     content: str
     author_id: int = Field(validation_alias="author")
-    author_username: Optional[str] = None
+    author_username: str | None = None
     is_hidden: bool
     created_at: datetime
     updated_at: datetime

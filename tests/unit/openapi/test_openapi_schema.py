@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import inspect
 import sys
-import typing
-from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from openviper.openapi.schema import (
     _build_operation,
@@ -76,7 +72,7 @@ async def _handler_with_dict_return(request) -> dict:
     return {}
 
 
-async def _handler_with_list_return(request) -> List[str]:
+async def _handler_with_list_return(request) -> list[str]:
     """Handler returning list of strings."""
     return []
 
@@ -86,7 +82,7 @@ async def _handler_with_int_return(request) -> int:
     return 0
 
 
-async def _handler_with_optional_return(request) -> Optional[str]:
+async def _handler_with_optional_return(request) -> str | None:
     """Handler returning Optional[str]."""
     return None
 
@@ -181,11 +177,11 @@ class TestPythonTypeToSchema:
         assert _python_type_to_schema(dict) == {"type": "object"}
 
     def test_generic_list_of_str(self):
-        schema = _python_type_to_schema(List[str])
+        schema = _python_type_to_schema(list[str])
         assert schema == {"type": "array", "items": {"type": "string"}}
 
     def test_generic_list_of_int(self):
-        schema = _python_type_to_schema(List[int])
+        schema = _python_type_to_schema(list[int])
         assert schema == {"type": "array", "items": {"type": "integer"}}
 
     def test_generic_list_no_args(self):
@@ -197,27 +193,27 @@ class TestPythonTypeToSchema:
         assert schema == {"type": "array", "items": {}}
 
     def test_generic_dict(self):
-        schema = _python_type_to_schema(Dict[str, int])
+        schema = _python_type_to_schema(dict[str, int])
         assert schema == {"type": "object"}
 
     def test_optional_str(self):
-        schema = _python_type_to_schema(Optional[str])
+        schema = _python_type_to_schema(str | None)
         assert schema["type"] == "string"
         assert schema["nullable"] is True
 
     def test_optional_int(self):
-        schema = _python_type_to_schema(Optional[int])
+        schema = _python_type_to_schema(int | None)
         assert schema["type"] == "integer"
         assert schema["nullable"] is True
 
     def test_optional_list(self):
-        schema = _python_type_to_schema(Optional[List[str]])
+        schema = _python_type_to_schema(list[str] | None)
         assert schema["type"] == "array"
         assert schema["nullable"] is True
 
     def test_union_multiple_non_none_falls_to_fallback(self):
         """Union[str, int] has two non-None args; code falls through to fallback."""
-        ann = typing.Union[str, int]
+        ann = str | int
         schema = _python_type_to_schema(ann)
         # Falls all the way to the string fallback because no branch handles it
         assert schema == {"type": "string"}

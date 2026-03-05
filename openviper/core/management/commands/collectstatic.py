@@ -41,7 +41,8 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout(
                 self.style_notice(
-                    f"Would collect static files from installed apps and {source_dirs} → {static_root}"
+                    f"Would collect static files from installed apps"
+                    f" and {source_dirs} → {static_root}"
                 )
             )
             return

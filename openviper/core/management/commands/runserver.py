@@ -9,8 +9,6 @@ import os
 import shutil
 from pathlib import Path
 
-from PIL import Image
-
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
 from openviper.db.migrations.executor import MigrationExecutor, discover_migrations

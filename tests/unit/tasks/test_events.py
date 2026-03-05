@@ -125,7 +125,6 @@ class TestModelEventDispatcherInit:
 
 class TestModelEventDispatcherTrigger:
     def _dispatcher_with_handler(self, handler):
-        cfg = {"myapp.models.Post": {"after_insert": [handler]}}
         # Patch _resolve_dotted to pass the callable directly
         d = ModelEventDispatcher.__new__(ModelEventDispatcher)
         d._handlers = {"myapp.models.Post": {"after_insert": [handler]}}
@@ -217,7 +216,6 @@ class TestGetDispatcher:
         assert d is None
 
     def test_returns_dispatcher_when_tasks_enabled(self):
-        cfg = {"m.M": {"after_insert": ["openviper.tasks.events._resolve_dotted"]}}
         mock_dispatcher = ModelEventDispatcher.__new__(ModelEventDispatcher)
         mock_dispatcher._handlers = {"m.M": {"after_insert": [_resolve_dotted]}}
         with patch(
@@ -594,7 +592,6 @@ class TestCallHandler:
 
     def test_async_handler_no_running_loop_logs_warning(self, caplog):
         """Lines 367-375: async handler with no loop logs a warning."""
-        import asyncio
         import logging
 
         async def async_h(instance, event, **kw):

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger("openviper.tasks")
 
@@ -87,12 +87,12 @@ class IntervalSchedule(Schedule):
         """Return ``True`` when at least *seconds* have elapsed since *last_run_at*."""
         if last_run_at is None:
             return True
-        _now = now if now is not None else datetime.now(timezone.utc)
+        _now = now if now is not None else datetime.now(UTC)
         # Ensure both datetimes are timezone-aware before subtracting.
         if _now.tzinfo is None:
-            _now = _now.replace(tzinfo=timezone.utc)
+            _now = _now.replace(tzinfo=UTC)
         if last_run_at.tzinfo is None:
-            last_run_at = last_run_at.replace(tzinfo=timezone.utc)
+            last_run_at = last_run_at.replace(tzinfo=UTC)
         elapsed = (_now - last_run_at).total_seconds()
         return elapsed >= self.seconds
 
@@ -191,7 +191,7 @@ class CronSchedule(Schedule):
             )
         return {
             name: _expand_field(token, *_CRON_FIELD_RANGES[name])
-            for name, token in zip(_CRON_FIELD_NAMES, parts)
+            for name, token in zip(_CRON_FIELD_NAMES, parts, strict=False)
         }
 
     def _stdlib_is_due(self, last_run_at: datetime | None, now: datetime) -> bool:
@@ -220,9 +220,9 @@ class CronSchedule(Schedule):
         period — call ``tick()`` at most once per minute to avoid duplicate
         enqueues.
         """
-        _now = now if now is not None else datetime.now(timezone.utc)
+        _now = now if now is not None else datetime.now(UTC)
         if _now.tzinfo is None:
-            _now = _now.replace(tzinfo=timezone.utc)
+            _now = _now.replace(tzinfo=UTC)
 
         if self._use_croniter:
             return self._croniter_is_due(last_run_at, _now)
@@ -236,11 +236,11 @@ class CronSchedule(Schedule):
                 # Never run — treat as due immediately.
                 return True
             if last_run_at.tzinfo is None:
-                last_run_at = last_run_at.replace(tzinfo=timezone.utc)
+                last_run_at = last_run_at.replace(tzinfo=UTC)
             it = croniter(self.expr, last_run_at)
             next_run = it.get_next(datetime)
             if next_run.tzinfo is None:
-                next_run = next_run.replace(tzinfo=timezone.utc)
+                next_run = next_run.replace(tzinfo=UTC)
             return now >= next_run
         except Exception as exc:
             logger.warning("croniter error for %r: %s — falling back to stdlib", self.expr, exc)

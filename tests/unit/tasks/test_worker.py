@@ -1,9 +1,5 @@
-import importlib
-import os
 import signal as signal_module
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from openviper.tasks.worker import discover_tasks, run_worker
 
@@ -136,14 +132,16 @@ def test_discover_tasks_extra_modules_import_error_is_logged():
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = []
 
-        with patch("openviper.tasks.worker.AppResolver"):
-            with patch(
+        with (
+            patch("openviper.tasks.worker.AppResolver"),
+            patch(
                 "openviper.tasks.worker.importlib.import_module",
                 side_effect=ImportError("missing"),
-            ):
-                result = discover_tasks(extra_modules=["nonexistent.module"])
-                # extra module failed → not in result
-                assert result == []
+            ),
+        ):
+            result = discover_tasks(extra_modules=["nonexistent.module"])
+            # extra module failed → not in result
+            assert result == []
 
 
 # ---------------------------------------------------------------------------
@@ -247,11 +245,13 @@ def test_discover_tasks_extra_modules_success():
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = []
 
-        with patch("openviper.tasks.worker.AppResolver"):
-            with patch("openviper.tasks.worker.importlib.import_module") as mock_import:
-                result = discover_tasks(extra_modules=["myapp.tasks"])
-                mock_import.assert_called_once_with("myapp.tasks")
-                assert result == ["myapp.tasks"]
+        with (
+            patch("openviper.tasks.worker.AppResolver"),
+            patch("openviper.tasks.worker.importlib.import_module") as mock_import,
+        ):
+            result = discover_tasks(extra_modules=["myapp.tasks"])
+            mock_import.assert_called_once_with("myapp.tasks")
+            assert result == ["myapp.tasks"]
 
 
 # ---------------------------------------------------------------------------
@@ -280,9 +280,11 @@ def test_run_worker_shutdown_signal_handler_calls_sys_exit(
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.TASKS = {"enabled": 1, "scheduler_enabled": 0}
         mock_settings.INSTALLED_APPS = []
-        with patch("openviper.tasks.worker.signal.signal", side_effect=fake_signal):
-            with patch("openviper.tasks.worker.time.sleep", side_effect=KeyboardInterrupt):
-                run_worker()
+        with (
+            patch("openviper.tasks.worker.signal.signal", side_effect=fake_signal),
+            patch("openviper.tasks.worker.time.sleep", side_effect=KeyboardInterrupt),
+        ):
+            run_worker()
 
     assert signal_module.SIGINT in captured_handlers
 

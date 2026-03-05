@@ -4,17 +4,15 @@ from __future__ import annotations
 
 import logging
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from posts.models import Comment, Post
-from users.models import User
 
 from openviper.http import JSONResponse, Request, Response
 from openviper.http.views import View
 
 from .models import ModerationLog
 from .serializers import (
-    BanUserSerializer,
     ModerationActionSerializer,
     ModerationLogResponseSerializer,
 )
@@ -73,7 +71,7 @@ class ModerationActionView(View):
             serializer = ModerationActionSerializer.validate(data)
 
             log.reviewed = True
-            log.reviewed_at = datetime.now(timezone.utc)
+            log.reviewed_at = datetime.now(UTC)
             log.moderator = request.user.id
 
             if serializer.action == "approve":

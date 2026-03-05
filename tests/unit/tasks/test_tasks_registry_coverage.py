@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -137,7 +137,7 @@ def test_all_entries_returns_all():
 def test_all_due_returns_only_due_entries():
     reg = ScheduleRegistry()
     actor = MagicMock()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     reg.register("due_task", actor, _make_schedule(is_due=True))
     reg.register("not_due_task", actor, _make_schedule(is_due=False))
     due = reg.all_due(now)
@@ -217,7 +217,7 @@ def test_schedule_entry_is_due_false_when_disabled():
 
 def test_schedule_entry_is_due_delegates_when_enabled():
     """Lines 66-67: is_due() delegates to schedule.is_due when enabled."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     sched = _make_schedule(is_due=True)
     entry = ScheduleEntry(name="t", actor=MagicMock(), schedule=sched, enabled=True)
     assert entry.is_due(now) is True

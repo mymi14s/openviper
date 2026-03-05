@@ -1,8 +1,7 @@
 import datetime
-import json
 import uuid
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -170,7 +169,6 @@ def test_file_image_fields():
 
 
 def test_datetime_to_db_and_aware():
-    from openviper.utils import timezone
 
     dt_field = fields.DateTimeField()
 
@@ -179,7 +177,7 @@ def test_datetime_to_db_and_aware():
 
     with patch("openviper.db.fields.settings", MockSettings):
         naive = datetime.datetime(2023, 1, 1)
-        aware = datetime.datetime(2023, 1, 1, tzinfo=datetime.timezone.utc)
+        datetime.datetime(2023, 1, 1, tzinfo=datetime.UTC)
 
         # Test to_python timezone manipulation
         res = dt_field.to_python(naive)
@@ -252,7 +250,6 @@ def test_file_field_size_fallback():
 
 
 def test_datetime_complex_timezone():
-    from openviper.utils import timezone
 
     dt_field = fields.DateTimeField()
 
@@ -260,42 +257,44 @@ def test_datetime_complex_timezone():
     class MockSettings:
         USE_TZ = True
 
-    with patch("openviper.db.fields.settings", MockSettings):
-        with patch(
+    with (
+        patch("openviper.db.fields.settings", MockSettings),
+        patch(
             "openviper.db.fields.timezone.get_current_timezone",
             return_value=datetime.timezone(-datetime.timedelta(hours=5)),
-        ):
-            # parse from string
-            res = dt_field.to_python("2023-01-01T12:00:00")
-            assert res.tzinfo is not None
+        ),
+    ):
+        # parse from string
+        res = dt_field.to_python("2023-01-01T12:00:00")
+        assert res.tzinfo is not None
 
-            # db parse aware
-            aware_t = datetime.datetime(2023, 1, 1, tzinfo=datetime.timezone.utc)
-            db_res = dt_field.to_db(aware_t)
-            assert db_res.tzinfo is datetime.UTC
+        # db parse aware
+        aware_t = datetime.datetime(2023, 1, 1, tzinfo=datetime.UTC)
+        db_res = dt_field.to_db(aware_t)
+        assert db_res.tzinfo is datetime.UTC
 
-            # db parse naive
-            naive_t = datetime.datetime(2023, 1, 1)
-            db_res_n = dt_field.to_db(naive_t)
-            assert db_res_n.tzinfo is datetime.UTC
+        # db parse naive
+        naive_t = datetime.datetime(2023, 1, 1)
+        db_res_n = dt_field.to_db(naive_t)
+        assert db_res_n.tzinfo is datetime.UTC
 
-            db_from_str = dt_field.to_db("2023-01-01T12:00:00")
-            assert db_from_str.tzinfo is datetime.UTC
+        db_from_str = dt_field.to_db("2023-01-01T12:00:00")
+        assert db_from_str.tzinfo is datetime.UTC
 
     class MockSettingsFalse:
         USE_TZ = False
 
-    with patch("openviper.db.fields.settings", MockSettingsFalse):
-        with patch(
-            "openviper.db.fields.timezone.get_current_timezone", return_value=datetime.timezone.utc
-        ):
-            aware_t = datetime.datetime(2023, 1, 1, tzinfo=datetime.timezone.utc)
-            assert dt_field.to_python(aware_t).tzinfo is None
-            assert dt_field.to_db(aware_t).tzinfo is None
+    with (
+        patch("openviper.db.fields.settings", MockSettingsFalse),
+        patch("openviper.db.fields.timezone.get_current_timezone", return_value=datetime.UTC),
+    ):
+        aware_t = datetime.datetime(2023, 1, 1, tzinfo=datetime.UTC)
+        assert dt_field.to_python(aware_t).tzinfo is None
+        assert dt_field.to_db(aware_t).tzinfo is None
 
-            naive_t = datetime.datetime(2023, 1, 1)
-            assert dt_field.to_python(naive_t).tzinfo is None
-            assert dt_field.to_db(naive_t).tzinfo is None
+        naive_t = datetime.datetime(2023, 1, 1)
+        assert dt_field.to_python(naive_t).tzinfo is None
+        assert dt_field.to_db(naive_t).tzinfo is None
 
 
 def test_uuid_none():
@@ -330,7 +329,6 @@ def test_boolean_field_extra():
 
 
 def test_date_time_extra():
-    from openviper.utils import timezone
 
     d = fields.DateField()
     t = fields.TimeField()

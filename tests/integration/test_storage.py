@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import io
-import os
-import tempfile
 
 import pytest
 
@@ -78,7 +76,7 @@ class TestFileSystemStorage:
     @pytest.mark.asyncio
     async def test_save_file_like_object(self, tmp_storage):
         content = io.BytesIO(b"file content")
-        path = await tmp_storage.save("doc.txt", content)
+        await tmp_storage.save("doc.txt", content)
         assert await tmp_storage.exists("doc.txt")
 
     @pytest.mark.asyncio
@@ -144,7 +142,7 @@ class TestFileSystemStorage:
 
     @pytest.mark.asyncio
     async def test_save_creates_nested_dirs(self, tmp_storage):
-        path = await tmp_storage.save("uploads/images/photo.jpg", b"img data")
+        await tmp_storage.save("uploads/images/photo.jpg", b"img data")
         assert await tmp_storage.exists("uploads/images/photo.jpg")
 
     @pytest.mark.asyncio

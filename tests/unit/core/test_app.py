@@ -1,13 +1,12 @@
-import asyncio
+import contextlib
 import json
 
 import pytest
 from pydantic import BaseModel
 
 from openviper.app import OpenViper
-from openviper.exceptions import HTTPException, NotFound
-from openviper.http.request import Request
-from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from openviper.exceptions import HTTPException
+from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse
 from openviper.routing.router import Router
 from tests.factories.app_factory import create_application
 
@@ -163,10 +162,8 @@ async def test_app_middleware_builder():
     # Should warn on invalid string
     app._extra_middleware.append("invalidmodule")  # fails rsplit unpacking
     app._extra_middleware.append("invalid.module.Class")  # triggers Exception on import
-    try:
+    with contextlib.suppress(ValueError):
         app._build_middleware_stack()
-    except ValueError:
-        pass
 
 
 @pytest.mark.asyncio
@@ -176,15 +173,21 @@ async def test_app_call_handler_coercion():
     class MockModel(BaseModel):
         name: str
 
-    handler_pydantic = lambda: MockModel(name="test")
+    def handler_pydantic():
+        return MockModel(name="test")
+
     resp = await app._call_handler(handler_pydantic, None)
     assert json.loads(resp.body) == {"name": "test"}
 
-    handler_list = lambda: [{"id": 1}]
+    def handler_list():
+        return [{"id": 1}]
+
     resp = await app._call_handler(handler_list, None)
     assert json.loads(resp.body) == [{"id": 1}]
 
-    handler_resp = lambda: PlainTextResponse("direct")
+    def handler_resp():
+        return PlainTextResponse("direct")
+
     resp = await app._call_handler(handler_resp, None)
     assert resp.body == b"direct"
 
@@ -266,7 +269,7 @@ def test_app_repr():
 
 @pytest.mark.asyncio
 async def test_app_openapi_routes(test_client):
-    app = create_application()
+    create_application()
 
     resp_schema = await test_client.get("/open-api/openapi.json")
     assert resp_schema.status_code == 200
@@ -368,7 +371,6 @@ def test_build_middleware_stack_valid_middleware():
 @pytest.mark.asyncio
 async def test_handle_http_per_route_middleware():
     """Line 367: per-route middleware wraps the handler."""
-    from unittest.mock import MagicMock, patch
 
     app = create_application()
     middleware_called = []
@@ -383,8 +385,6 @@ async def test_handle_http_per_route_middleware():
     @app.get("/mw-test", middlewares=[tracking_middleware])
     async def mw_handler(request):
         return JSONResponse({"ok": True})
-
-    from tests.factories.http_factory import create_request
 
     scope = {
         "type": "http",

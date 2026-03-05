@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from openviper.db.migrations.executor import (
     AddColumn,
@@ -9,14 +10,13 @@ from openviper.db.migrations.executor import (
     CreateTable,
     DropTable,
     MigrationExecutor,
+    MigrationRecord,
     MigrationStatus,
     Operation,
     RemoveColumn,
     RenameColumn,
     RestoreColumn,
     _get_dialect,
-    _get_migration_table,
-    _get_soft_removed_table,
     _map_column_type,
     _MigrationLogger,
     _should_skip_backward,
@@ -270,11 +270,6 @@ def test_logger():
     _MigrationLogger.log_status(MigrationStatus.ROLLBACK)
     _MigrationLogger.log_status(MigrationStatus.PENDING)
     _MigrationLogger.log_summary([("app", "001", MigrationStatus.OK)])
-
-
-from sqlalchemy.ext.asyncio import create_async_engine
-
-from openviper.db.migrations.executor import MigrationRecord
 
 
 @pytest.fixture

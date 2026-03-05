@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -99,7 +99,7 @@ def test_get_model_is_thread_safe():
 def test_get_provider_with_explicit_model():
     """Line 93-94: explicit model override bypasses active model."""
     router, provider = _make_router("default-model")
-    result = router._get_provider(model="override-model")
+    router._get_provider(model="override-model")
     router._registry.get_by_model.assert_called_with("override-model")
 
 

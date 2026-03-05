@@ -4,7 +4,6 @@ import pytest
 
 from openviper.http.request import Request
 from openviper.http.response import JSONResponse, Response
-from tests.factories.http_factory import create_request
 
 
 @pytest.mark.asyncio

@@ -56,7 +56,8 @@ class Command(BaseCommand):
             if not found:
                 self.stdout(
                     self.style_error(
-                        f"\nError: App '{app_label}' not found in project or settings.INSTALLED_APPS\n"
+                        f"\nError: App '{app_label}' not found in project"
+                        f" or settings.INSTALLED_APPS\n"
                     )
                 )
                 AppResolver.print_app_not_found_error(

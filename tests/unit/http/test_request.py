@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from openviper.http.request import URL, Request, UploadFile

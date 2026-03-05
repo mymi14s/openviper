@@ -10,7 +10,6 @@ Settings are now an immutable frozen dataclass; this module tests:
 from __future__ import annotations
 
 import dataclasses
-import os
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
@@ -216,7 +215,7 @@ def test_apply_env_overrides_timedelta():
     s = Settings()
     with patch.dict("os.environ", {"SESSION_TIMEOUT": "7200"}):
         result = _apply_env_overrides(s)
-    assert result.SESSION_TIMEOUT == timedelta(seconds=7200)
+    assert timedelta(seconds=7200) == result.SESSION_TIMEOUT
 
 
 def test_apply_env_overrides_invalid_cast_ignored():
@@ -316,21 +315,25 @@ def test_lazy_settings_module_load():
 
     fake_mod.FakeSettings = FakeSettings
 
-    with patch.dict("sys.modules", {"my_fake_settings": fake_mod}):
-        with patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "my_fake_settings"}):
-            lazy._setup()
-            assert lazy.CUSTOM_VAR == 123
-            # Top-level package auto-included in INSTALLED_APPS
-            assert "my_fake_settings" in lazy.INSTALLED_APPS
+    with (
+        patch.dict("sys.modules", {"my_fake_settings": fake_mod}),
+        patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "my_fake_settings"}),
+    ):
+        lazy._setup()
+        assert lazy.CUSTOM_VAR == 123
+        # Top-level package auto-included in INSTALLED_APPS
+        assert "my_fake_settings" in lazy.INSTALLED_APPS
 
 
 def test_lazy_settings_module_load_no_settings_class_falls_back_to_defaults():
     lazy = _LazySettings()
     fake_mod = MagicMock(spec=[])  # no Settings subclass exposed
 
-    with patch.dict("sys.modules", {"mod_with_no_settings": fake_mod}):
-        with patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "mod_with_no_settings"}):
-            lazy._setup()
+    with (
+        patch.dict("sys.modules", {"mod_with_no_settings": fake_mod}),
+        patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "mod_with_no_settings"}),
+    ):
+        lazy._setup()
     assert isinstance(lazy._instance, Settings)
 
 

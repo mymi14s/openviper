@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -52,20 +53,19 @@ def test_add_arguments_all_options():
 class TestHandleDramatiqMissing:
     def test_dramatiq_not_installed_exits_1(self):
         cmd = Command()
-        with patch.dict("sys.modules", {"dramatiq": None}):
-            with pytest.raises(SystemExit) as exc_info:
-                cmd.handle(processes=1, threads=8, queues=None, modules=[])
+        with patch.dict("sys.modules", {"dramatiq": None}), pytest.raises(SystemExit) as exc_info:
+            cmd.handle(processes=1, threads=8, queues=None, modules=[])
         assert exc_info.value.code == 1
 
     def test_dramatiq_not_installed_prints_error(self):
         cmd = Command()
         err_calls = []
-        with patch.dict("sys.modules", {"dramatiq": None}):
-            with patch.object(cmd, "stderr", side_effect=lambda m: err_calls.append(m)):
-                try:
-                    cmd.handle(processes=1, threads=8, queues=None, modules=[])
-                except SystemExit:
-                    pass
+        with (
+            patch.dict("sys.modules", {"dramatiq": None}),
+            patch.object(cmd, "stderr", side_effect=lambda m: err_calls.append(m)),
+            contextlib.suppress(SystemExit),
+        ):
+            cmd.handle(processes=1, threads=8, queues=None, modules=[])
         assert any("dramatiq" in msg for msg in err_calls)
 
 
@@ -79,9 +79,11 @@ class TestHandleDatabaseBroker:
         cmd = Command()
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "database"}
-            with patch("openviper.core.management.commands.runworker.run_worker") as mock_worker:
-                with patch.object(cmd, "stdout"):
-                    cmd.handle(processes=3, threads=6, queues=["high"], modules=[])
+            with (
+                patch("openviper.core.management.commands.runworker.run_worker") as mock_worker,
+                patch.object(cmd, "stdout"),
+            ):
+                cmd.handle(processes=3, threads=6, queues=["high"], modules=[])
         mock_worker.assert_called_once_with(processes=3, threads=6, queues=["high"])
 
     def test_database_broker_outputs_start_message(self):
@@ -89,9 +91,11 @@ class TestHandleDatabaseBroker:
         output = []
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "database"}
-            with patch("openviper.core.management.commands.runworker.run_worker"):
-                with patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)):
-                    cmd.handle(processes=1, threads=8, queues=None, modules=[])
+            with (
+                patch("openviper.core.management.commands.runworker.run_worker"),
+                patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)),
+            ):
+                cmd.handle(processes=1, threads=8, queues=None, modules=[])
         assert any("database" in msg.lower() for msg in output)
 
 
@@ -110,16 +114,15 @@ class TestHandleDramatiqWithModules:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = []
-            with patch(
-                "openviper.core.management.commands.runworker.subprocess.Popen", return_value=proc
-            ) as mock_popen:
-                with patch.object(cmd, "stdout"):
-                    try:
-                        cmd.handle(
-                            processes=processes, threads=threads, queues=queues, modules=modules
-                        )
-                    except SystemExit:
-                        pass
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.subprocess.Popen",
+                    return_value=proc,
+                ) as mock_popen,
+                patch.object(cmd, "stdout"),
+                contextlib.suppress(SystemExit),
+            ):
+                cmd.handle(processes=processes, threads=threads, queues=queues, modules=modules)
         return mock_popen
 
     def test_explicit_modules_passed_to_popen(self):
@@ -168,12 +171,15 @@ class TestHandleDramatiqWithModules:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = []
-            with patch(
-                "openviper.core.management.commands.runworker.subprocess.Popen", return_value=proc
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.subprocess.Popen",
+                    return_value=proc,
+                ),
+                patch.object(cmd, "stdout"),
+                pytest.raises(SystemExit) as exc_info,
             ):
-                with patch.object(cmd, "stdout"):
-                    with pytest.raises(SystemExit) as exc_info:
-                        cmd.handle(processes=1, threads=8, queues=None, modules=["myapp.tasks"])
+                cmd.handle(processes=1, threads=8, queues=None, modules=["myapp.tasks"])
         assert exc_info.value.code == 2
 
 
@@ -192,13 +198,15 @@ class TestHandleAutoDiscovery:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = ["myapp"]
-            with patch(
-                "openviper.core.management.commands.runworker.AppResolver",
-                return_value=mock_resolver,
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.AppResolver",
+                    return_value=mock_resolver,
+                ),
+                patch.object(cmd, "stdout"),
+                pytest.raises(SystemExit) as exc_info,
             ):
-                with patch.object(cmd, "stdout"):
-                    with pytest.raises(SystemExit) as exc_info:
-                        cmd.handle(processes=1, threads=8, queues=None, modules=[])
+                cmd.handle(processes=1, threads=8, queues=None, modules=[])
         assert exc_info.value.code == 1
 
     def test_auto_discovers_modules_from_apps(self, tmp_path):
@@ -217,19 +225,19 @@ class TestHandleAutoDiscovery:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = ["myapp"]
-            with patch(
-                "openviper.core.management.commands.runworker.AppResolver",
-                return_value=mock_resolver,
-            ):
-                with patch(
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.AppResolver",
+                    return_value=mock_resolver,
+                ),
+                patch(
                     "openviper.core.management.commands.runworker.subprocess.Popen",
                     return_value=proc,
-                ) as mock_popen:
-                    with patch.object(cmd, "stdout"):
-                        try:
-                            cmd.handle(processes=1, threads=8, queues=None, modules=[])
-                        except SystemExit:
-                            pass
+                ) as mock_popen,
+                patch.object(cmd, "stdout"),
+                contextlib.suppress(SystemExit),
+            ):
+                cmd.handle(processes=1, threads=8, queues=None, modules=[])
 
         # Should have tried to popen with discovered modules
         if mock_popen.called:
@@ -245,13 +253,15 @@ class TestHandleAutoDiscovery:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = ["openviper.internal_app"]
-            with patch(
-                "openviper.core.management.commands.runworker.AppResolver",
-                return_value=mock_resolver,
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.AppResolver",
+                    return_value=mock_resolver,
+                ),
+                patch.object(cmd, "stdout"),
+                pytest.raises(SystemExit) as exc_info,
             ):
-                with patch.object(cmd, "stdout"):
-                    with pytest.raises(SystemExit) as exc_info:
-                        cmd.handle(processes=1, threads=8, queues=None, modules=[])
+                cmd.handle(processes=1, threads=8, queues=None, modules=[])
 
         # openviper.internal_app was skipped, so no modules found → exit(1)
         assert exc_info.value.code == 1
@@ -266,14 +276,15 @@ class TestHandleAutoDiscovery:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = []
-            with patch(
-                "openviper.core.management.commands.runworker.subprocess.Popen", return_value=proc
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.subprocess.Popen",
+                    return_value=proc,
+                ),
+                patch.object(cmd, "stdout"),
+                contextlib.suppress(SystemExit),
             ):
-                with patch.object(cmd, "stdout"):
-                    try:
-                        cmd.handle(processes=1, threads=8, queues=None, modules=["myapp.tasks"])
-                    except SystemExit:
-                        pass
+                cmd.handle(processes=1, threads=8, queues=None, modules=["myapp.tasks"])
 
         proc.send_signal.assert_called_once()
 
@@ -286,14 +297,15 @@ class TestHandleAutoDiscovery:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = []
-            with patch(
-                "openviper.core.management.commands.runworker.subprocess.Popen", return_value=proc
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.subprocess.Popen",
+                    return_value=proc,
+                ),
+                patch.object(cmd, "stdout"),
+                contextlib.suppress(SystemExit),
             ):
-                with patch.object(cmd, "stdout"):
-                    try:
-                        cmd.handle(processes=1, threads=8, queues=None, modules=["myapp.tasks"])
-                    except SystemExit:
-                        pass
+                cmd.handle(processes=1, threads=8, queues=None, modules=["myapp.tasks"])
 
         proc.kill.assert_called_once()
 
@@ -321,19 +333,19 @@ class TestHandleSkipFiles:
         with patch("openviper.core.management.commands.runworker.settings") as ms:
             ms.TASKS = {"broker": "redis"}
             ms.INSTALLED_APPS = ["myapp"]
-            with patch(
-                "openviper.core.management.commands.runworker.AppResolver",
-                return_value=mock_resolver,
-            ):
-                with patch(
+            with (
+                patch(
+                    "openviper.core.management.commands.runworker.AppResolver",
+                    return_value=mock_resolver,
+                ),
+                patch(
                     "openviper.core.management.commands.runworker.subprocess.Popen",
                     return_value=proc,
-                ) as mock_popen:
-                    with patch.object(cmd, "stdout"):
-                        try:
-                            cmd.handle(processes=1, threads=8, queues=None, modules=[])
-                        except SystemExit:
-                            pass
+                ) as mock_popen,
+                patch.object(cmd, "stdout"),
+                contextlib.suppress(SystemExit),
+            ):
+                cmd.handle(processes=1, threads=8, queues=None, modules=[])
 
         if mock_popen.called:
             call_args = mock_popen.call_args[0][0]

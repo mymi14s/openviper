@@ -11,7 +11,7 @@ Covers:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -330,16 +330,18 @@ def test_full_lifecycle_flushes_on_success():
     broker = MagicMock()
     flushed: list[list] = []
 
-    with patch("openviper.tasks.middleware._event_buffer", buf):
-        with patch(
+    with (
+        patch("openviper.tasks.middleware._event_buffer", buf),
+        patch(
             "openviper.tasks.middleware.batch_upsert_results",
             side_effect=lambda events: flushed.append(list(events)),
-        ):
-            mw.before_enqueue(broker, msg, None)  # pending  — non-terminal
-            mw.before_process_message(broker, msg)  # running  — non-terminal
-            mw.after_process_message(  # success  — terminal → FLUSH
-                broker, msg, result="done", exception=None
-            )
+        ),
+    ):
+        mw.before_enqueue(broker, msg, None)  # pending  — non-terminal
+        mw.before_process_message(broker, msg)  # running  — non-terminal
+        mw.after_process_message(  # success  — terminal → FLUSH
+            broker, msg, result="done", exception=None
+        )
 
     # Exactly one flush triggered by the terminal event.
     assert len(flushed) == 1

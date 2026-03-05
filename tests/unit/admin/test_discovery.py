@@ -1,10 +1,6 @@
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from openviper.admin import discovery
 from openviper.admin.discovery import (
     autodiscover,
     discover_admin_modules,
@@ -117,8 +113,10 @@ def test_discover_extensions_exception():
 
 
 def test_autodiscover():
-    with patch("openviper.admin.discovery.admin.auto_discover_from_installed_apps") as mock_auto:
-        with patch("openviper.admin.discovery.register_auth_models") as mock_register:
-            autodiscover()
-            mock_auto.assert_called_once()
-            mock_register.assert_called_once()
+    with (
+        patch("openviper.admin.discovery.admin.auto_discover_from_installed_apps") as mock_auto,
+        patch("openviper.admin.discovery.register_auth_models") as mock_register,
+    ):
+        autodiscover()
+        mock_auto.assert_called_once()
+        mock_register.assert_called_once()

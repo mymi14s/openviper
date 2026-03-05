@@ -1,11 +1,9 @@
 import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from openviper.exceptions import TooManyRequests
 from openviper.http.request import Request
-from openviper.http.response import JSONResponse
 from openviper.middleware.ratelimit import RateLimitMiddleware, _SlidingWindowCounter, rate_limit
 
 

@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import logging
 import os
+from typing import cast
 
 logger = logging.getLogger("openviper.auth")
 
@@ -23,7 +24,7 @@ def get_user_model() -> type:
         try:
             from openviper.utils import import_string
 
-            return import_string(custom_user)
+            return cast("type", import_string(custom_user))
         except (ImportError, AttributeError):
             pass
 
@@ -80,7 +81,7 @@ async def sync_content_types() -> None:
 
     # Get existing content types from DB
     try:
-        existing_cts = await ContentType.objects.all()
+        existing_cts = await ContentType.objects.all()  # type: ignore[misc]
     except Exception as e:
         # Table might not exist yet during first migration
         logger.debug("Could not fetch existing ContentTypes: %s", e)
@@ -93,8 +94,8 @@ async def sync_content_types() -> None:
     deleted_count = 0
 
     for model_cls in all_models:
-        app_label = model_cls._app_name
-        model_name = model_cls._model_name
+        app_label = model_cls._app_name  # type: ignore[attr-defined]
+        model_name = model_cls._model_name  # type: ignore[attr-defined]
 
         # Skip the base Model placeholder
         if app_label == "default" and model_name == "Model":

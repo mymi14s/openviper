@@ -91,7 +91,7 @@ def get_admin_site() -> Router:
         except NotFound:
             raise
         except Exception:
-            raise NotFound(f"Extension not found: {app_name}/{path}")
+            raise NotFound(f"Extension not found: {app_name}/{path}") from None
         return FileResponse(str(ext_file))
 
     async def serve_admin_index(request: Request) -> FileResponse | HTMLResponse:
@@ -108,7 +108,8 @@ def get_admin_site() -> Router:
                 return Response(status_code=404)
             return HTMLResponse(
                 "<h1>Admin Not Built</h1>"
-                "<p>Run <code>cd admin_frontend && npm run build</code> to build the admin panel.</p>",
+                "<p>Run <code>cd admin_frontend && npm run build</code>"
+                " to build the admin panel.</p>",
                 status_code=500,
             )
         return FileResponse(str(index_path))
@@ -127,7 +128,8 @@ def get_admin_site() -> Router:
                 return Response(status_code=404)
             return HTMLResponse(
                 "<h1>Admin Not Built</h1>"
-                "<p>Run <code>cd admin_frontend && npm run build</code> to build the admin panel.</p>",
+                "<p>Run <code>cd admin_frontend && npm run build</code>"
+                " to build the admin panel.</p>",
                 status_code=500,
             )
         return FileResponse(str(index_path))

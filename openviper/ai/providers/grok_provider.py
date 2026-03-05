@@ -288,28 +288,30 @@ class GrokProvider(AIProvider):
         messages = self._build_messages(prompt, images)
         payload = self._build_payload(messages, model, temperature, max_tokens, extra, stream=True)
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=self._timeout) as client,
+            client.stream(
                 "POST",
                 f"{self._base_url}/chat/completions",
                 headers=self._headers,
                 json=payload,
-            ) as response:
-                self._raise_for_status(response)
-                async for line in response.aiter_lines():
-                    # Server-sent events are prefixed with "data: "
-                    if not line.startswith("data: "):
-                        continue
-                    data = line[len("data: ") :]
-                    if data.strip() == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data)
-                        content = chunk["choices"][0]["delta"].get("content")
-                        if content:
-                            yield content
-                    except (json.JSONDecodeError, KeyError, IndexError):
-                        continue
+            ) as response,
+        ):
+            self._raise_for_status(response)
+            async for line in response.aiter_lines():
+                # Server-sent events are prefixed with "data: "
+                if not line.startswith("data: "):
+                    continue
+                data = line[len("data: ") :]
+                if data.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(data)
+                    content = chunk["choices"][0]["delta"].get("content")
+                    if content:
+                        yield content
+                except (json.JSONDecodeError, KeyError, IndexError):
+                    continue
 
     async def embed(self, text: str, **kwargs: Any) -> list[float]:
         """Not supported by the Grok API.

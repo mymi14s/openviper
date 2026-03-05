@@ -127,7 +127,8 @@ class _MigrationLogger:
             print(f"\n{cls._colorize('✓ All migrations completed successfully!', 'GREEN')}\n")
         else:
             print(
-                f"\n{cls._colorize('✗ Some migrations failed. Please review errors above.', 'RED')}\n"
+                f"\n{cls._colorize('✗ Some migrations failed. Please review errors above.', 'RED')}"
+                "\n"
             )
 
 
@@ -302,9 +303,9 @@ class CreateTable(Operation):
     table_name: str
     columns: list[dict[str, Any]] = field(default_factory=list)
 
-    def forward_sql(self) -> list[str]:
+    def forward_sql(self) -> list[Any]:
         dialect = _get_dialect()
-        cols = []
+        cols: list[str] = []
         for col in self.columns:
             raw_type = _map_column_type(col["type"], dialect)
             # PostgreSQL uses SERIAL for auto-incrementing integer primary keys
@@ -345,6 +346,7 @@ class CreateTable(Operation):
                 )
 
             cols.append(definition)
+
         col_str = ",\n".join(cols)
         quoted_table = _quote_identifier(self.table_name, dialect)
         return [f"CREATE TABLE IF NOT EXISTS {quoted_table} (\n{col_str}\n)"]
@@ -423,7 +425,7 @@ class RemoveColumn(Operation):
         # We also quote the soft-removed table name just in case.
         quoted_soft_table = _quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         return [
-            sa.text(
+            sa.text(  # type: ignore[list-item]
                 f"INSERT INTO {quoted_soft_table} "
                 "(table_name, column_name, column_type, removed_at) "
                 "VALUES (:table_name, :column_name, :column_type, CURRENT_TIMESTAMP)"
@@ -535,18 +537,20 @@ class AlterColumn(Operation):
                 action = "DROP NOT NULL" if self.nullable else "SET NOT NULL"
                 stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {action}")
             elif dialect == "mysql":
-                # MySQL nullable is part of MODIFY COLUMN; if we just have nullable change, we need to repeat the type
+                # MySQL nullable is part of MODIFY COLUMN; if we just have nullable change,
+                # we need to repeat the type
                 raw_type = _map_column_type(self.column_type or self.old_type or "TEXT", dialect)
                 null_str = "NULL" if self.nullable else "NOT NULL"
                 stmts.append(
-                    f"ALTER TABLE {quoted_table} MODIFY COLUMN {quoted_column} {raw_type} {null_str}"
+                    f"ALTER TABLE {quoted_table} MODIFY COLUMN"
+                    f" {quoted_column} {raw_type} {null_str}"
                 )
 
-        if self.default is not None:
-            if dialect == "postgresql" or dialect == "mysql":
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {self.default!r}"
-                )
+        if self.default is not None and dialect in ("postgresql", "mysql"):
+            stmts.append(
+                f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                f" {quoted_column} SET DEFAULT {self.default!r}"
+            )
         return stmts
 
     def backward_sql(self) -> list[str]:
@@ -563,7 +567,8 @@ class AlterColumn(Operation):
             stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {action}")
         if self.old_default is not None:
             stmts.append(
-                f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {self.old_default!r}"
+                f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                f" {quoted_column} SET DEFAULT {self.old_default!r}"
             )
         return stmts
 
@@ -603,7 +608,8 @@ class CreateIndex(Operation):
         quoted_cols = ", ".join(_quote_identifier(c, dialect) for c in self.columns)
         unique_kw = "UNIQUE " if self.unique else ""
         return [
-            f"CREATE {unique_kw}INDEX IF NOT EXISTS {quoted_index} ON {quoted_table} ({quoted_cols})"
+            f"CREATE {unique_kw}INDEX IF NOT EXISTS {quoted_index}"
+            f" ON {quoted_table} ({quoted_cols})"
         ]
 
     def backward_sql(self) -> list[str]:
@@ -662,7 +668,7 @@ def _discover_app_migrations(app_dir: Path, records: list[MigrationRecord]) -> N
             continue
         mod = importlib.util.module_from_spec(spec)
         try:
-            spec.loader.exec_module(mod)  # type: ignore[union-attr]
+            spec.loader.exec_module(mod)
         except Exception as e:
             logger.warning("Could not load migration %s: %s", migration_file, e)
             continue
@@ -716,7 +722,7 @@ def discover_migrations(
     # ── 2. Project app migrations ─────────────────────────────────────
     if resolved_apps:
         # Use resolved apps from AppResolver (flexible structure)
-        for app_name, app_path in sorted(resolved_apps.items()):
+        for _app_name, app_path in sorted(resolved_apps.items()):
             app_dir = Path(app_path)
             if app_dir.is_dir():
                 _discover_app_migrations(app_dir, records)
@@ -738,7 +744,7 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
     lookup = {(m.app, m.name): m for m in migrations}
 
     # build adjacency list and in-degree count
-    adj = {(m.app, m.name): [] for m in migrations}
+    adj: dict[tuple[str, str], list[tuple[str, str]]] = {(m.app, m.name): [] for m in migrations}
     in_degree = {(m.app, m.name): 0 for m in migrations}
 
     for m in migrations:
@@ -833,10 +839,12 @@ async def _get_soft_removed_info(
     conn: Any, table_name: str, column_name: str
 ) -> dict[str, Any] | None:
     """Return soft-removed column info if it exists, else None."""
-    soft_table = _get_soft_removed_table()
     try:
+        soft_table = _get_soft_removed_table()
         result = await conn.execute(
-            sa.select(soft_table).where(
+            sa.select(
+                soft_table.c.table_name, soft_table.c.column_name, soft_table.c.column_type
+            ).where(
                 sa.and_(
                     soft_table.c.table_name == table_name,
                     soft_table.c.column_name == column_name,

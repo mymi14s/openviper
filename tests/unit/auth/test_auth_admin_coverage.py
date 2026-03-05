@@ -32,10 +32,6 @@ def test_conditional_user_admin_block():
     """Cover lines 42-50: `if not settings.USER_MODEL:` UserAdmin registration."""
     from openviper.admin.registry import admin
     from openviper.auth.models import (
-        ContentType,
-        Permission,
-        Role,
-        RoleProfile,
         User,
     )
     from openviper.conf import settings

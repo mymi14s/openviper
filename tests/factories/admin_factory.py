@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
-
-from openviper.admin.registry import admin
 from openviper.auth import get_user_model
-from openviper.auth.models import Permission, Role
-from openviper.db.models import Model
 
 
 async def create_user(

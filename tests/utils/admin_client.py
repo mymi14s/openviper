@@ -4,9 +4,6 @@ import json
 from typing import Any
 
 from openviper.auth.jwt import create_access_token
-from openviper.http.request import Request
-from openviper.http.response import Response
-from openviper.routing.router import Router
 
 
 class AdminClient:
@@ -40,7 +37,7 @@ class AdminClient:
             query = "&".join(f"{k}={v}" for k, v in params.items())
             path = f"{path}?{query}"
 
-        scope = {
+        {
             "type": "http",
             "method": method,
             "path": path,
@@ -55,7 +52,7 @@ class AdminClient:
             "http_version": "1.1",
         }
 
-        body = json.dumps(data).encode() if data else b""
+        json.dumps(data).encode() if data else b""
 
         # This is a bit simplified, but enough for our integration tests
         # The real app uses ASGI, so we'd normally use httpx.AsyncClient(app=app)

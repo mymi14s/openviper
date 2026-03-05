@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -379,14 +377,14 @@ class TestDiscoverAppStaticDirs:
 
         with patch("openviper.staticfiles.handlers.settings") as ms:
             ms.INSTALLED_APPS = ["localapp"]
-            with patch(
-                "openviper.staticfiles.handlers.importlib.util.find_spec",
-                side_effect=[ImportError, None],
+            with (
+                patch(
+                    "openviper.staticfiles.handlers.importlib.util.find_spec",
+                    side_effect=[ImportError, None],
+                ),
+                patch("openviper.staticfiles.handlers.AppResolver", return_value=mock_resolver),
             ):
-                with patch(
-                    "openviper.staticfiles.handlers.AppResolver", return_value=mock_resolver
-                ):
-                    result = _discover_app_static_dirs()
+                result = _discover_app_static_dirs()
 
         assert static_dir in result
 
@@ -396,14 +394,14 @@ class TestDiscoverAppStaticDirs:
 
         with patch("openviper.staticfiles.handlers.settings") as ms:
             ms.INSTALLED_APPS = ["unknownapp"]
-            with patch(
-                "openviper.staticfiles.handlers.importlib.util.find_spec",
-                side_effect=[ImportError, None],
+            with (
+                patch(
+                    "openviper.staticfiles.handlers.importlib.util.find_spec",
+                    side_effect=[ImportError, None],
+                ),
+                patch("openviper.staticfiles.handlers.AppResolver", return_value=mock_resolver),
             ):
-                with patch(
-                    "openviper.staticfiles.handlers.AppResolver", return_value=mock_resolver
-                ):
-                    result = _discover_app_static_dirs()
+                result = _discover_app_static_dirs()
 
         assert result == [] or len(result) <= 1  # only openviper.admin (also not found)
 

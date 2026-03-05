@@ -3,14 +3,14 @@ import pytest_asyncio
 
 from openviper.admin.registry import admin as admin_registry
 from openviper.admin.site import get_admin_site
-from openviper.db.connection import get_engine, init_db
-from tests.factories.admin_factory import create_admin_user, create_regular_user
+from openviper.db.connection import init_db
+from tests.factories.admin_factory import create_admin_user
 from tests.utils.admin_client import AdminClient
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_admin_db():
-    from openviper.db.connection import close_db, init_db
+    from openviper.db.connection import close_db
 
     await init_db(drop_first=True)
     admin_registry.clear()
@@ -78,7 +78,6 @@ async def test_admin_models_list_access(admin_client):
 
 @pytest.mark.asyncio
 async def test_admin_crud_workflow(admin_client):
-    from openviper.auth.models import Role  # Use a real model
 
     admin_user = await create_admin_user()
     admin_client.login(admin_user)

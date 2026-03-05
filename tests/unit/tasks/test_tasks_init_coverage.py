@@ -36,7 +36,6 @@ def _restore_tasks_module(original_module):
 
 
 def test_openviper_worker_env_triggers_broker_setup():
-    """Lines 75-85: OPENVIPER_WORKER=1 triggers configure logging + broker setup."""
     _ensure_broker_loaded()
     original_module = sys.modules.get("openviper.tasks")
     original_env = os.environ.get("OPENVIPER_WORKER")
@@ -64,7 +63,6 @@ def test_openviper_worker_env_triggers_broker_setup():
 
 
 def test_openviper_worker_env_broker_setup_exception_is_swallowed():
-    """Lines 86-89: exception from setup_broker() is caught as warning, not raised."""
     _ensure_broker_loaded()
     original_module = sys.modules.get("openviper.tasks")
     original_env = os.environ.get("OPENVIPER_WORKER")

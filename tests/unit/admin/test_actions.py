@@ -32,9 +32,9 @@ def test_admin_action_base():
     assert act.confirm_message is None
     assert act.permissions == []
 
-    with pytest.raises(NotImplementedError):
-        import asyncio
+    import asyncio
 
+    with pytest.raises(NotImplementedError):
         asyncio.run(act.execute(MagicMock(), MagicMock()))
 
     # permissions test

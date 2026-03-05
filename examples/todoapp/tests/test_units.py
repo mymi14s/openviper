@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 # ── Todo model ───────────────────────────────────────────────────────────────
 
 
@@ -142,7 +140,7 @@ class TestStartup:
 
         from openviper.auth import get_user_model
 
-        User = get_user_model()
+        User = get_user_model()  # noqa: N806
         await startup()
 
         demo = await User.objects.get_or_none(username="demo")
@@ -155,7 +153,7 @@ class TestStartup:
 
         from openviper.auth import get_user_model
 
-        User = get_user_model()
+        User = get_user_model()  # noqa: N806
         u = User(username="demo", email="demo@example.com")
         u.set_password("demo1234")
         await u.save()

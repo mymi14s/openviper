@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -94,9 +95,11 @@ def test_get_broker_registers_with_dramatiq():
 def test_get_broker_redis_delegates_to_make_redis_broker():
     mock_broker = MagicMock()
     mock_broker.add_middleware = MagicMock()
-    with _stub_settings({"broker": "redis", "broker_url": "redis://localhost:6379/0"}):
-        with patch("openviper.tasks.broker._make_redis_broker", return_value=mock_broker) as m:
-            result = get_broker()
+    with (
+        _stub_settings({"broker": "redis", "broker_url": "redis://localhost:6379/0"}),
+        patch("openviper.tasks.broker._make_redis_broker", return_value=mock_broker) as m,
+    ):
+        result = get_broker()
     m.assert_called_once()
     assert result is mock_broker
 
@@ -104,9 +107,11 @@ def test_get_broker_redis_delegates_to_make_redis_broker():
 def test_get_broker_rabbitmq_delegates_to_make_rabbitmq_broker():
     mock_broker = MagicMock()
     mock_broker.add_middleware = MagicMock()
-    with _stub_settings({"broker": "rabbitmq", "broker_url": "amqp://localhost/"}):
-        with patch("openviper.tasks.broker._make_rabbitmq_broker", return_value=mock_broker) as m:
-            result = get_broker()
+    with (
+        _stub_settings({"broker": "rabbitmq", "broker_url": "amqp://localhost/"}),
+        patch("openviper.tasks.broker._make_rabbitmq_broker", return_value=mock_broker) as m,
+    ):
+        result = get_broker()
     m.assert_called_once()
     assert result is mock_broker
 
@@ -117,19 +122,18 @@ def test_get_broker_rabbitmq_delegates_to_make_rabbitmq_broker():
 
 
 def test_get_broker_unknown_type_raises_value_error():
-    with _stub_settings({"broker": "nonexistent_broker_xyz"}):
-        with pytest.raises(ValueError, match="nonexistent_broker_xyz"):
-            get_broker()
+    with (
+        _stub_settings({"broker": "nonexistent_broker_xyz"}),
+        pytest.raises(ValueError, match="nonexistent_broker_xyz"),
+    ):
+        get_broker()
 
 
 def test_get_broker_unknown_type_does_not_cache():
     # After a failed creation, _broker must remain None so a subsequent
     # call with a valid config can still succeed.
-    with _stub_settings({"broker": "nonexistent_broker_xyz"}):
-        try:
-            get_broker()
-        except ValueError:
-            pass
+    with _stub_settings({"broker": "nonexistent_broker_xyz"}), contextlib.suppress(ValueError):
+        get_broker()
     assert broker_module._broker is None
 
 
@@ -184,9 +188,11 @@ def test_get_broker_backend_url_attaches_results_middleware():
     from dramatiq.results import Results
 
     mock_backend = MagicMock()
-    with _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}):
-        with patch("dramatiq.results.backends.redis.RedisBackend", return_value=mock_backend):
-            broker = get_broker()
+    with (
+        _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}),
+        patch("dramatiq.results.backends.redis.RedisBackend", return_value=mock_backend),
+    ):
+        broker = get_broker()
     assert any(isinstance(m, Results) for m in broker.middleware)
 
 
@@ -214,9 +220,11 @@ def test_reset_broker_sets_module_var_to_none():
 def test_reset_broker_calls_close_on_existing_broker():
     mock_broker = MagicMock()
     mock_broker.add_middleware = MagicMock()
-    with _stub_settings({"broker": "stub"}):
-        with patch("dramatiq.brokers.stub.StubBroker", return_value=mock_broker):
-            get_broker()
+    with (
+        _stub_settings({"broker": "stub"}),
+        patch("dramatiq.brokers.stub.StubBroker", return_value=mock_broker),
+    ):
+        get_broker()
     reset_broker()
     mock_broker.close.assert_called_once()
 
@@ -319,13 +327,15 @@ def test_get_broker_concurrent_creates_broker_exactly_once():
         except Exception as exc:
             errors.append(exc)
 
-    with _stub_settings({"broker": "stub"}):
-        with patch("openviper.tasks.broker._create_broker", side_effect=counting_create):
-            threads = [threading.Thread(target=worker) for _ in range(100)]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join()
+    with (
+        _stub_settings({"broker": "stub"}),
+        patch("openviper.tasks.broker._create_broker", side_effect=counting_create),
+    ):
+        threads = [threading.Thread(target=worker) for _ in range(100)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
     assert not errors, f"Unexpected errors in threads: {errors}"
     assert (
@@ -342,14 +352,15 @@ def test_get_broker_concurrent_creates_broker_exactly_once():
 
 
 def test_reset_broker_close_exception_is_suppressed():
-    """Lines 99-100: exception from broker.close() is silently ignored."""
     mock_broker = MagicMock()
     mock_broker.add_middleware = MagicMock()
     mock_broker.close.side_effect = RuntimeError("can't close cleanly")
 
-    with _stub_settings({"broker": "stub"}):
-        with patch("dramatiq.brokers.stub.StubBroker", return_value=mock_broker):
-            get_broker()
+    with (
+        _stub_settings({"broker": "stub"}),
+        patch("dramatiq.brokers.stub.StubBroker", return_value=mock_broker),
+    ):
+        get_broker()
 
     # reset_broker() must not raise even though broker.close() raises
     reset_broker()
@@ -362,13 +373,14 @@ def test_reset_broker_close_exception_is_suppressed():
 
 
 def test_get_broker_tracking_middleware_exception_is_logged():
-    """Lines 145-146: exception during TaskTrackingMiddleware() is caught and logged."""
-    with _stub_settings({"broker": "stub", "tracking_enabled": 1}):
-        with patch(
+    with (
+        _stub_settings({"broker": "stub", "tracking_enabled": 1}),
+        patch(
             "openviper.tasks.middleware.TaskTrackingMiddleware",
             side_effect=RuntimeError("db not ready"),
-        ):
-            broker = get_broker()
+        ),
+    ):
+        broker = get_broker()
     # No exception raised — broker is still returned
     assert broker is not None
 
@@ -379,13 +391,14 @@ def test_get_broker_tracking_middleware_exception_is_logged():
 
 
 def test_get_broker_scheduler_middleware_exception_is_logged():
-    """Lines 153-158: exception during SchedulerMiddleware() is caught and logged."""
-    with _stub_settings({"broker": "stub", "scheduler_enabled": 1}):
-        with patch(
+    with (
+        _stub_settings({"broker": "stub", "scheduler_enabled": 1}),
+        patch(
             "openviper.tasks.middleware.SchedulerMiddleware",
             side_effect=RuntimeError("scheduler unavailable"),
-        ):
-            broker = get_broker()
+        ),
+    ):
+        broker = get_broker()
     assert broker is not None
 
 
@@ -395,11 +408,12 @@ def test_get_broker_scheduler_middleware_exception_is_logged():
 
 
 def test_get_broker_results_backend_exception_is_logged():
-    """Lines 173-174: exception during RedisBackend setup is caught and logged."""
-    with _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}):
-        with patch(
+    with (
+        _stub_settings({"broker": "stub", "backend_url": "redis://localhost:6379/1"}),
+        patch(
             "dramatiq.results.backends.redis.RedisBackend",
             side_effect=RuntimeError("redis unreachable"),
-        ):
-            broker = get_broker()
+        ),
+    ):
+        broker = get_broker()
     assert broker is not None

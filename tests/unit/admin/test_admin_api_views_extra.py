@@ -65,7 +65,6 @@ def _make_qs(items=None, total=0, delete_count=0):
 class TestSerializeWithChildren:
     @pytest.mark.asyncio
     async def test_child_records_included_in_response(self):
-        """Lines 87-122: child table records are fetched and serialized."""
         child_record = MagicMock()
         child_record.id = 10
         child_record.title = "Child 1"
@@ -108,7 +107,6 @@ class TestSerializeWithChildren:
 
     @pytest.mark.asyncio
     async def test_child_fk_auto_discovered(self):
-        """Lines 92-97: fk_name auto-discovery when not set."""
         child_record = MagicMock()
         child_record.id = 5
         child_record.name = "Auto FK"
@@ -153,7 +151,6 @@ class TestSerializeWithChildren:
 
     @pytest.mark.asyncio
     async def test_child_with_extra_filters(self):
-        """Line 102-103: extra_filters merged into child queryset filter."""
         child_qs = MagicMock()
         child_qs.filter.return_value = child_qs
         child_qs.all = AsyncMock(return_value=[])
@@ -181,9 +178,7 @@ class TestSerializeWithChildren:
         instance = MagicMock()
         instance.id = 3
 
-        result = await _serialize_instance_with_children(
-            _mock_request(), model_admin, model_class, instance
-        )
+        await _serialize_instance_with_children(_mock_request(), model_admin, model_class, instance)
 
         # filter called with merged keys
         call_kwargs = child_model.objects.filter.call_args[1]
@@ -192,7 +187,6 @@ class TestSerializeWithChildren:
 
     @pytest.mark.asyncio
     async def test_child_datetime_isoformat(self):
-        """Lines 114-115: child field with isoformat() is serialized."""
         dt = datetime(2024, 6, 1, 12, 0, 0)
 
         child_record = MagicMock()
@@ -245,9 +239,11 @@ class TestAdminChangeUserPasswordValidation:
         handler = _get_handler(router, "admin_change_user_password")
 
         req = _mock_request(json_data={"confirm_password": "something"})
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with pytest.raises(ValidationError, match="required"):
-                await handler(req, user_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            pytest.raises(ValidationError, match="required"),
+        ):
+            await handler(req, user_id=1)
 
     @pytest.mark.asyncio
     async def test_password_mismatch_raises_validation_error(self):
@@ -257,9 +253,11 @@ class TestAdminChangeUserPasswordValidation:
         req = _mock_request(
             json_data={"new_password": "password1", "confirm_password": "password2"}
         )
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with pytest.raises(ValidationError, match="do not match"):
-                await handler(req, user_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            pytest.raises(ValidationError, match="do not match"),
+        ):
+            await handler(req, user_id=1)
 
     @pytest.mark.asyncio
     async def test_short_new_password_raises_validation_error(self):
@@ -267,9 +265,11 @@ class TestAdminChangeUserPasswordValidation:
         handler = _get_handler(router, "admin_change_user_password")
 
         req = _mock_request(json_data={"new_password": "short", "confirm_password": "short"})
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with pytest.raises(ValidationError, match="8 characters"):
-                await handler(req, user_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            pytest.raises(ValidationError, match="8 characters"),
+        ):
+            await handler(req, user_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +280,6 @@ class TestAdminChangeUserPasswordValidation:
 class TestAdminDashboardExtra:
     @pytest.mark.asyncio
     async def test_model_count_exception_yields_zero(self):
-        """Lines 366-367: if model.objects.count() raises, stats[model] = 0."""
         router = _make_router()
         handler = _get_handler(router, "admin_dashboard")
 
@@ -306,7 +305,6 @@ class TestAdminDashboardExtra:
 
     @pytest.mark.asyncio
     async def test_recent_activity_records_appended(self):
-        """Line 374: activity records are serialized into response."""
         router = _make_router()
         handler = _get_handler(router, "admin_dashboard")
 
@@ -320,14 +318,16 @@ class TestAdminDashboardExtra:
         activity.change_message = "Added item"
         activity.change_time = datetime(2024, 1, 1)
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
-            with patch("openviper.admin.api.views.admin.get_all_models", return_value=[]):
-                with patch(
-                    "openviper.admin.api.views.get_recent_activity",
-                    new_callable=AsyncMock,
-                    return_value=[activity],
-                ):
-                    response = await handler(_mock_request())
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=True),
+            patch("openviper.admin.api.views.admin.get_all_models", return_value=[]),
+            patch(
+                "openviper.admin.api.views.get_recent_activity",
+                new_callable=AsyncMock,
+                return_value=[activity],
+            ),
+        ):
+            response = await handler(_mock_request())
 
         body = json.loads(response.body)
         assert len(body["recent_activity"]) == 1
@@ -358,7 +358,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_filter_prefix_params_applied(self):
-        """Lines 498-502: filter_ prefix params are collected and applied."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -386,7 +385,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_ordering_from_model_admin_applied(self):
-        """Lines 507-511: when no sort param, model_admin.get_ordering is used."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -415,7 +413,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_explicit_ordering_param_used(self):
-        """Line 507: explicit 'ordering' query param takes precedence."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -443,7 +440,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_value_isoformat_serialized(self):
-        """Lines 541-544: datetime field values are isoformatted in response."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -481,7 +477,6 @@ class TestListInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_non_primitive_value_converted_to_str(self):
-        """Lines 544-546: non-primitive values get str() in list serialization."""
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
 
@@ -551,7 +546,6 @@ class TestCreateInstanceByAppExtra:
 
     @pytest.mark.asyncio
     async def test_value_error_returns_422(self):
-        """Lines 630-631: ValueError during save returns 422 with errors."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -584,7 +578,6 @@ class TestCreateInstanceByAppExtra:
 
     @pytest.mark.asyncio
     async def test_readonly_field_skipped(self):
-        """Line 587: readonly fields are skipped during field coercion."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -622,7 +615,6 @@ class TestCreateInstanceByAppExtra:
 
     @pytest.mark.asyncio
     async def test_field_coercion_applied(self):
-        """Line 589: fields present in model._fields get coerce_field_value."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -670,7 +662,6 @@ class TestCreateInstanceByAppExtra:
 class TestGetInstanceByAppExtra:
     @pytest.mark.asyncio
     async def test_no_view_permission_raises_permission_denied(self):
-        """Lines 664-665, 672: has_view_permission=False raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "get_instance_by_app")
 
@@ -706,9 +697,11 @@ class TestUpdateInstanceByApp:
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), app_label="a", model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), app_label="a", model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -770,7 +763,6 @@ class TestUpdateInstanceByApp:
 
     @pytest.mark.asyncio
     async def test_successful_update_returns_200(self):
-        """Lines 696-822: successful full update path."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -830,7 +822,6 @@ class TestUpdateInstanceByApp:
 
     @pytest.mark.asyncio
     async def test_value_error_returns_422(self):
-        """Line 800: ValueError during save returns 422."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -921,7 +912,6 @@ class TestBulkActionByAppExtra:
 
     @pytest.mark.asyncio
     async def test_action_no_permission_raises_permission_denied(self):
-        """Line 888: action without permission raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "bulk_action_by_app")
 
@@ -940,13 +930,15 @@ class TestBulkActionByAppExtra:
                     "openviper.admin.api.views.admin.get_model_by_app_and_name",
                     return_value=mock_model,
                 ):
-                    with patch("openviper.admin.api.views.get_action", return_value=mock_action):
-                        with pytest.raises(PermissionDenied):
-                            await handler(
-                                _mock_request(json_data={"action": "delete_selected", "ids": [1]}),
-                                app_label="a",
-                                model_name="X",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.get_action", return_value=mock_action),
+                        pytest.raises(PermissionDenied),
+                    ):
+                        await handler(
+                            _mock_request(json_data={"action": "delete_selected", "ids": [1]}),
+                            app_label="a",
+                            model_name="X",
+                        )
 
 
 # ---------------------------------------------------------------------------
@@ -972,7 +964,6 @@ class TestExportInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_ids_param_filters_queryset(self):
-        """Lines 921-922, 927: ids param filters instances."""
         router = _make_router()
         handler = _get_handler(router, "export_instances_by_app")
 
@@ -1011,7 +1002,6 @@ class TestExportInstancesByAppExtra:
 
     @pytest.mark.asyncio
     async def test_datetime_field_isoformatted_in_csv(self):
-        """Line 944: datetime values in export are isoformatted."""
         router = _make_router()
         handler = _get_handler(router, "export_instances_by_app")
 
@@ -1094,7 +1084,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_no_view_permission_returns_permission_denied_response(self):
-        """Lines 1008-1020: no view permission returns empty result with flag."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1118,7 +1107,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_q_param_triggers_search(self):
-        """Lines 1026-1035: 'q' param applies queryset filter."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1143,7 +1131,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_filter_prefix_applied(self):
-        """Lines 1037-1045: filter_ prefix params applied."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1221,7 +1208,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_isoformat_value_in_list(self):
-        """Lines 1075-1076: datetime value serialized to isoformat in list."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1305,7 +1291,6 @@ class TestListInstancesExtra:
 class TestCreateInstanceExtra:
     @pytest.mark.asyncio
     async def test_no_add_permission_raises_permission_denied(self):
-        """Lines 1105-1106."""
         router = _make_router()
         handler = _get_handler(router, "create_instance")
 
@@ -1325,7 +1310,6 @@ class TestCreateInstanceExtra:
 
     @pytest.mark.asyncio
     async def test_field_coercion_and_log_change(self):
-        """Lines 1117-1143: field coercion applied and log_change called."""
         router = _make_router()
         handler = _get_handler(router, "create_instance")
 
@@ -1393,12 +1377,14 @@ class TestCreateInstanceExtra:
                 with patch(
                     "openviper.admin.api.views.admin.get_model_by_name", return_value=mock_model
                 ):
-                    with patch("openviper.admin.api.views.coerce_field_value", return_value=dt):
-                        with patch("openviper.admin.api.views.log_change", new_callable=AsyncMock):
-                            response = await handler(
-                                _mock_request(json_data={"ts": dt.isoformat()}),
-                                model_name="Article",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.coerce_field_value", return_value=dt),
+                        patch("openviper.admin.api.views.log_change", new_callable=AsyncMock),
+                    ):
+                        response = await handler(
+                            _mock_request(json_data={"ts": dt.isoformat()}),
+                            model_name="Article",
+                        )
 
         body = json.loads(response.body)
         assert body["ts"] == dt.isoformat()
@@ -1412,7 +1398,6 @@ class TestCreateInstanceExtra:
 class TestGetInstanceExtra:
     @pytest.mark.asyncio
     async def test_no_view_permission_raises_permission_denied(self):
-        """Lines 1163-1180: has_view_permission=False raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
@@ -1435,7 +1420,6 @@ class TestGetInstanceExtra:
 
     @pytest.mark.asyncio
     async def test_successful_get_instance(self):
-        """Lines 1163-1187: successful retrieval serializes instance."""
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
@@ -1479,9 +1463,11 @@ class TestUpdateInstance:
         router = _make_router()
         handler = _get_handler(router, "update_instance")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_instance_not_found_raises_not_found(self):
@@ -1525,7 +1511,6 @@ class TestUpdateInstance:
 
     @pytest.mark.asyncio
     async def test_successful_update_returns_200(self):
-        """Lines 1192-1254: successful patch update."""
         router = _make_router()
         handler = _get_handler(router, "update_instance")
 
@@ -1636,9 +1621,11 @@ class TestBulkDelete:
         router = _make_router()
         handler = _get_handler(router, "bulk_delete")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X")
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -1691,7 +1678,6 @@ class TestBulkDelete:
 
     @pytest.mark.asyncio
     async def test_successful_bulk_delete(self):
-        """Lines 1313-1331: successful bulk delete returns count."""
         router = _make_router()
         handler = _get_handler(router, "bulk_delete")
 
@@ -1730,9 +1716,11 @@ class TestBulkAction:
         router = _make_router()
         handler = _get_handler(router, "bulk_action")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X")
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -1796,12 +1784,14 @@ class TestBulkAction:
                 with patch(
                     "openviper.admin.api.views.admin.get_model_by_name", return_value=mock_model
                 ):
-                    with patch("openviper.admin.api.views.get_action", return_value=None):
-                        with pytest.raises(NotFound):
-                            await handler(
-                                _mock_request(json_data={"action": "noop", "ids": [1]}),
-                                model_name="X",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.get_action", return_value=None),
+                        pytest.raises(NotFound),
+                    ):
+                        await handler(
+                            _mock_request(json_data={"action": "noop", "ids": [1]}),
+                            model_name="X",
+                        )
 
     @pytest.mark.asyncio
     async def test_no_permission_raises_permission_denied(self):
@@ -1820,16 +1810,17 @@ class TestBulkAction:
                 with patch(
                     "openviper.admin.api.views.admin.get_model_by_name", return_value=mock_model
                 ):
-                    with patch("openviper.admin.api.views.get_action", return_value=mock_action):
-                        with pytest.raises(PermissionDenied):
-                            await handler(
-                                _mock_request(json_data={"action": "act", "ids": [1]}),
-                                model_name="X",
-                            )
+                    with (
+                        patch("openviper.admin.api.views.get_action", return_value=mock_action),
+                        pytest.raises(PermissionDenied),
+                    ):
+                        await handler(
+                            _mock_request(json_data={"action": "act", "ids": [1]}),
+                            model_name="X",
+                        )
 
     @pytest.mark.asyncio
     async def test_successful_bulk_action(self):
-        """Lines 1366-1379: successful legacy bulk action."""
         router = _make_router()
         handler = _get_handler(router, "bulk_action")
 
@@ -1926,7 +1917,6 @@ class TestGetFilterOptionsExtra:
 
     @pytest.mark.asyncio
     async def test_boolean_field_gets_yes_no_choices(self):
-        """Lines 1416-1420: BooleanField gets Yes/No options."""
         router = _make_router()
         handler = _get_handler(router, "get_filter_options")
 
@@ -2001,9 +1991,11 @@ class TestExportInstances:
         router = _make_router()
         handler = _get_handler(router, "export_instances")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="Article")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="Article")
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -2040,7 +2032,6 @@ class TestExportInstances:
 
     @pytest.mark.asyncio
     async def test_returns_csv_with_ids(self):
-        """Lines 1447-1481: builds CSV from specific ids."""
         router = _make_router()
         handler = _get_handler(router, "export_instances")
 
@@ -2118,9 +2109,11 @@ class TestGetInstanceHistoryLegacy:
         router = _make_router()
         handler = _get_handler(router, "get_instance_history")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
@@ -2154,7 +2147,6 @@ class TestGetInstanceHistoryLegacy:
 
     @pytest.mark.asyncio
     async def test_returns_history(self):
-        """Lines 1503-1518: returns history records."""
         router = _make_router()
         handler = _get_handler(router, "get_instance_history")
 
@@ -2196,13 +2188,14 @@ class TestFkSearch:
         router = _make_router()
         handler = _get_handler(router, "fk_search")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), app_label="a", model_name="X")
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), app_label="a", model_name="X")
 
     @pytest.mark.asyncio
     async def test_model_found_in_registry(self):
-        """Lines 1538-1540: model found via admin registry."""
         router = _make_router()
         handler = _get_handler(router, "fk_search")
 
@@ -2231,7 +2224,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_model_not_in_registry_uses_importlib(self):
-        """Lines 1543-1550: falls back to importlib import."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -2269,7 +2261,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_model_found_by_scanning_all_models(self):
-        """Lines 1552-1557: scans all registered models to find by name."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -2320,20 +2311,21 @@ class TestFkSearch:
             ):
                 with patch("openviper.admin.api.views.importlib") as mock_importlib_mod:
                     mock_importlib_mod.import_module.side_effect = ImportError("no module")
-                    with patch(
-                        "openviper.admin.api.views.admin.get_all_models",
-                        return_value=[],
+                    with (
+                        patch(
+                            "openviper.admin.api.views.admin.get_all_models",
+                            return_value=[],
+                        ),
+                        pytest.raises(NotFound),
                     ):
-                        with pytest.raises(NotFound):
-                            await handler(
-                                _mock_request(query_params={}),
-                                app_label="myapp",
-                                model_name="NonExistent",
-                            )
+                        await handler(
+                            _mock_request(query_params={}),
+                            app_label="myapp",
+                            model_name="NonExistent",
+                        )
 
     @pytest.mark.asyncio
     async def test_search_query_applied_to_text_fields(self):
-        """Lines 1569-1581: q param triggers filter on text fields."""
         router = _make_router()
         handler = _get_handler(router, "fk_search")
 
@@ -2373,13 +2365,14 @@ class TestGlobalSearch:
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request())
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request())
 
     @pytest.mark.asyncio
     async def test_empty_query_returns_empty_results(self):
-        """Lines 1623-1625: empty q returns empty results immediately."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2411,7 +2404,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_uses_admin_search_fields(self):
-        """Lines 1637-1638, 1650-1657: uses model_admin.get_search_fields."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2445,7 +2437,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_falls_back_to_common_field_names(self):
-        """Lines 1639-1647: no search_fields, falls back to name/title/etc."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2466,9 +2457,11 @@ class TestGlobalSearch:
                 "openviper.admin.api.views.admin.get_all_models",
                 return_value=[(mock_model, mock_model_admin)],
             ):
-                with patch("openviper.admin.api.views.check_model_permission", return_value=True):
-                    with patch("openviper.admin.api.views.admin._get_app_label", return_value="a"):
-                        response = await handler(_mock_request(query_params={"q": "test"}))
+                with (
+                    patch("openviper.admin.api.views.check_model_permission", return_value=True),
+                    patch("openviper.admin.api.views.admin._get_app_label", return_value="a"),
+                ):
+                    response = await handler(_mock_request(query_params={"q": "test"}))
 
         body = json.loads(response.body)
         assert "results" in body
@@ -2580,7 +2573,6 @@ class TestCreateInstanceByAppNotRegistered:
 class TestCreateInstanceByAppChildSync:
     @pytest.mark.asyncio
     async def test_child_rows_saved_during_create(self):
-        """Lines 614-644: child rows provided in request body are saved."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -2648,7 +2640,6 @@ class TestCreateInstanceByAppChildSync:
 
     @pytest.mark.asyncio
     async def test_child_sync_with_extra_filters(self):
-        """Lines 641-643: extra_filters applied to new child rows."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -2721,7 +2712,6 @@ class TestCreateInstanceByAppChildSync:
 class TestCreateInstanceByAppIntegrityError:
     @pytest.mark.asyncio
     async def test_integrity_error_returns_422(self):
-        """Lines 647-649: IntegrityError during save returns 422."""
         import sqlalchemy.exc
 
         router = _make_router()
@@ -2801,7 +2791,6 @@ class TestGetInstanceByAppNotRegistered:
 class TestUpdateInstanceByAppWithFields:
     @pytest.mark.asyncio
     async def test_field_coercion_in_update(self):
-        """Lines 732, 740, 742-744: field coercion applied for known fields."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -2937,7 +2926,6 @@ class TestUpdateInstanceByAppWithFields:
 class TestUpdateInstanceByAppChildSync:
     @pytest.mark.asyncio
     async def test_child_sync_creates_and_deletes(self):
-        """Lines 757-814: child sync creates new rows and deletes missing rows."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3025,7 +3013,6 @@ class TestUpdateInstanceByAppChildSync:
 
     @pytest.mark.asyncio
     async def test_child_sync_updates_existing(self):
-        """Lines 788-795: existing child matched by id is updated and kept."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3117,7 +3104,6 @@ class TestUpdateInstanceByAppChildSync:
 class TestUpdateInstanceByAppIntegrityError:
     @pytest.mark.asyncio
     async def test_integrity_error_returns_422(self):
-        """Lines 818-820: IntegrityError during update save returns 422."""
         import sqlalchemy.exc
 
         router = _make_router()
@@ -3204,13 +3190,14 @@ class TestGetInstanceLegacyExtra:
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        """Lines 1179-1180: NotRegistered raises NotFound."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -3226,7 +3213,6 @@ class TestGetInstanceLegacyExtra:
 
     @pytest.mark.asyncio
     async def test_field_serialization_in_response(self):
-        """Lines 1193-1198: instance fields are serialized in response."""
         from datetime import datetime
 
         router = _make_router()
@@ -3271,7 +3257,6 @@ class TestGetInstanceLegacyExtra:
 class TestUpdateInstanceLegacyExtra:
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        """Lines 1221-1222: NotRegistered raises NotFound."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -3287,7 +3272,6 @@ class TestUpdateInstanceLegacyExtra:
 
     @pytest.mark.asyncio
     async def test_field_ops_and_response_serialization(self):
-        """Lines 1237, 1247-1249, 1272-1275: field coercion + response serialization."""
         from datetime import datetime
 
         router = _make_router()
@@ -3366,13 +3350,15 @@ class TestUpdateInstanceLegacyExtra:
                     "openviper.admin.api.views.admin.get_model_by_name",
                     return_value=mock_model,
                 ):
-                    with patch("openviper.admin.api.views.log_change", new_callable=AsyncMock):
-                        with patch("openviper.admin.api.views.compute_changes", return_value={}):
-                            response = await handler(
-                                _mock_request(json_data={"count": 99}),
-                                model_name="Article",
-                                obj_id=3,
-                            )
+                    with (
+                        patch("openviper.admin.api.views.log_change", new_callable=AsyncMock),
+                        patch("openviper.admin.api.views.compute_changes", return_value={}),
+                    ):
+                        response = await handler(
+                            _mock_request(json_data={"count": 99}),
+                            model_name="Article",
+                            obj_id=3,
+                        )
 
         assert response.status_code == 200
         body = json.loads(response.body)
@@ -3391,9 +3377,11 @@ class TestDeleteInstanceNoAccess:
         router = _make_router()
         handler = _get_handler(router, "delete_instance")
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
-            with pytest.raises(PermissionDenied):
-                await handler(_mock_request(), model_name="X", obj_id=1)
+        with (
+            patch("openviper.admin.api.views.check_admin_access", return_value=False),
+            pytest.raises(PermissionDenied),
+        ):
+            await handler(_mock_request(), model_name="X", obj_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -3446,7 +3434,6 @@ class TestGetFilterOptionsChoices:
 class TestGlobalSearchCap:
     @pytest.mark.asyncio
     async def test_results_capped_at_50(self):
-        """Lines 1694, 1697: results are capped at 50 across all models."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -3515,7 +3502,6 @@ class TestCreateInstanceByAppChildFKAutoDiscover:
 
     @pytest.mark.asyncio
     async def test_fk_name_auto_discovered_during_create(self):
-        """Lines 619-626: when fk_name is empty, FK field is auto-discovered."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -3652,7 +3638,6 @@ class TestUpdateInstanceByAppChildFKAutoDiscover:
 
     @pytest.mark.asyncio
     async def test_fk_name_auto_discovered_during_update(self):
-        """Lines 762-769: when fk_name is empty, FK auto-discovered in update path."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3876,7 +3861,6 @@ class TestUpdateInstanceByAppChildExtraFilters:
 
     @pytest.mark.asyncio
     async def test_extra_filters_applied_to_new_child_in_update(self):
-        """Lines 805-806: extra_filters set on new child rows during update sync."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -4012,7 +3996,6 @@ class TestCreateInstanceReadonlySkipped:
 class TestGetInstanceNonPrimitiveField:
     @pytest.mark.asyncio
     async def test_non_primitive_field_converted_to_str_in_response(self):
-        """Lines 1196-1197: non-primitive field value is str()-converted in response."""
 
         class ObjVal:
             def __str__(self):

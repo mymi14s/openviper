@@ -35,6 +35,7 @@ Call :func:`reset_broker` to tear it down (primarily for testing).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from typing import Any
@@ -95,10 +96,8 @@ def reset_broker() -> None:
     global _broker
     with _broker_lock:
         if _broker is not None:
-            try:
+            with contextlib.suppress(Exception):
                 _broker.close()
-            except Exception:
-                pass
         _broker = None
 
 
@@ -164,8 +163,8 @@ def _create_broker() -> Any:
             from dramatiq.results import Results
             from dramatiq.results.backends.redis import RedisBackend
 
-            result_backend = RedisBackend(url=cfg["backend_url"])
-            broker.add_middleware(Results(backend=result_backend))
+            result_backend = RedisBackend(url=cfg["backend_url"])  # type: ignore[no-untyped-call]
+            broker.add_middleware(Results(backend=result_backend))  # type: ignore[no-untyped-call]
             logger.info(
                 "Dramatiq result backend: %s",
                 cfg["backend_url"].split("@")[-1],
@@ -187,7 +186,7 @@ def _make_redis_broker(cfg: dict[str, Any]) -> Any:
 
     url = cfg.get("broker_url") or "redis://localhost:6379/0"
     logger.debug("Connecting to Redis broker: %s", url)
-    return RedisBroker(url=url)
+    return RedisBroker(url=url)  # type: ignore[no-untyped-call]
 
 
 def _make_rabbitmq_broker(cfg: dict[str, Any]) -> Any:

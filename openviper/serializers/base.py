@@ -78,8 +78,14 @@ from typing import Any, ClassVar, TypeVar
 from pydantic import (
     BaseModel,
     ConfigDict,
+)
+from pydantic import (
     ValidationError as PydanticValidationError,
+)
+from pydantic import (
     field_validator as pydantic_field_validator,
+)
+from pydantic import (
     model_validator as pydantic_model_validator,
 )
 
@@ -159,7 +165,8 @@ class Serializer(BaseModel):
 
     @classmethod
     def validate(cls: type[T], data: Any) -> T:
-        """Parse *data* into this serializer, raising :class:`~openviper.exceptions.ValidationError`."""
+        """Parse *data* into this serializer, raising
+        :class:`~openviper.exceptions.ValidationError`."""
         try:
             return cls.model_validate(data)
         except PydanticValidationError as exc:
@@ -395,7 +402,8 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
 
     @classmethod
     def _validate_file_sizes(cls, data: dict[str, Any]) -> None:
-        """Raise :class:`~openviper.exceptions.ValidationError` if any file value exceeds its limit."""
+        """Raise :class:`~openviper.exceptions.ValidationError`
+        if any file value exceeds its limit."""
         file_fields = cls._get_file_fields()
         errors: list[dict[str, str]] = []
         for name, orm_field in file_fields.items():
@@ -507,7 +515,8 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
 
         Behaviour:
         * If *instance* is provided explicitly → update that instance.
-        * If the validated data contains a non-``None`` ``id`` / ``pk`` → fetch the existing record and update it.
+        * If the validated data contains a non-``None`` ``id`` / ``pk``
+          → fetch the existing record and update it.
         * Otherwise → create a new record.
 
         Returns:

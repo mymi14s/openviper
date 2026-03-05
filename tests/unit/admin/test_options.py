@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from openviper.admin.options import (
     ChildTable,
@@ -46,7 +43,7 @@ def make_field(class_name: str = "CharField", **attrs) -> MagicMock:
     field.blank = attrs.get("blank", False)
     field.unique = attrs.get("unique", False)
     field.db_index = attrs.get("db_index", False)
-    field.default = attrs.get("default", None)
+    field.default = attrs.get("default")
     field.primary_key = attrs.get("primary_key", False)
     field.help_text = attrs.get("help_text", "")
     return field

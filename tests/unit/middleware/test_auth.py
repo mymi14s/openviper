@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -243,7 +243,6 @@ async def test_auth_session_exception(mock_session):
 @patch("openviper.middleware.auth.decode_access_token")
 @patch("openviper.middleware.auth.get_user_by_id")
 async def test_auth_jwt_cache_hit_expired(mock_get_user, mock_decode):
-    """Line 56: expired cache entry is deleted before the DB round-trip."""
     import time
 
     mock_decode.return_value = {"sub": "55"}

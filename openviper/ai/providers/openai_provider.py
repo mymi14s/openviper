@@ -27,9 +27,9 @@ class OpenAIProvider(AIProvider):
         global AsyncOpenAI
         from openai import AsyncOpenAI
 
-        self._client: "AsyncOpenAI" | None = None
+        self._client: AsyncOpenAI | None = None
 
-    def _get_client(self) -> "AsyncOpenAI":
+    def _get_client(self) -> AsyncOpenAI:
         import asyncio
 
         try:

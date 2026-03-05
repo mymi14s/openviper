@@ -275,7 +275,7 @@ class AppResolver:
             app_name: App name that wasn't found
             search_paths: Paths that were searched
         """
-        COLORS = {"RED": "\033[91m", "END": "\033[0m"}
+        COLORS = {"RED": "\033[91m", "END": "\033[0m"}  # noqa: N806
 
         print(f"\n{COLORS['RED']}")
         print("=" * 70)
@@ -304,7 +304,7 @@ class AppResolver:
             app_name: App name
             app_path: Path where app was found
         """
-        COLORS = {"RED": "\033[91m", "END": "\033[0m"}
+        COLORS = {"RED": "\033[91m", "END": "\033[0m"}  # noqa: N806
 
         print(f"\n{COLORS['RED']}")
         print("=" * 70)

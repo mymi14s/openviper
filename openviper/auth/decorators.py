@@ -32,7 +32,7 @@ from openviper.exceptions import PermissionDenied, Unauthorized
 from openviper.http.request import Request
 
 
-def login_required(func: Callable) -> Callable:
+def login_required(func: Callable[..., Any]) -> Callable[..., Any]:
     """Require the request user to be authenticated.
 
     Raises:
@@ -50,7 +50,7 @@ def login_required(func: Callable) -> Callable:
     return wrapper
 
 
-def permission_required(codename: str) -> Callable:
+def permission_required(codename: str) -> Callable[..., Any]:
     """Require the request user to have a specific permission.
 
     Args:
@@ -61,7 +61,7 @@ def permission_required(codename: str) -> Callable:
         PermissionDenied (403): User lacks the required permission.
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             request = _get_request(args)
@@ -78,7 +78,7 @@ def permission_required(codename: str) -> Callable:
     return decorator
 
 
-def role_required(role_name: str) -> Callable:
+def role_required(role_name: str) -> Callable[..., Any]:
     """Require the request user to have a specific role.
 
     Args:
@@ -89,7 +89,7 @@ def role_required(role_name: str) -> Callable:
         PermissionDenied (403): User lacks the required role.
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             request = _get_request(args)
@@ -106,7 +106,7 @@ def role_required(role_name: str) -> Callable:
     return decorator
 
 
-def superuser_required(func: Callable) -> Callable:
+def superuser_required(func: Callable[..., Any]) -> Callable[..., Any]:
     """Require request.user.is_superuser to be True.
 
     Raises:
@@ -127,7 +127,7 @@ def superuser_required(func: Callable) -> Callable:
     return wrapper
 
 
-def staff_required(func: Callable) -> Callable:
+def staff_required(func: Callable[..., Any]) -> Callable[..., Any]:
     """Require request.user.is_staff to be True."""
 
     @functools.wraps(func)

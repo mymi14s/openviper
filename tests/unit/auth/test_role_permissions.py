@@ -2,13 +2,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openviper.auth.models import ContentType, ContentTypePermission, Role, User
+from openviper.auth.models import ContentType, User
 from openviper.auth.permissions import (
     _CT_PERMISSION_CACHE,
-    PermissionError,
+    PermissionError,  # noqa: A004
     check_permission_for_model,
 )
-from openviper.core.context import current_user as context_current_user, set_current_user
+from openviper.core.context import current_user as context_current_user
+from openviper.core.context import set_current_user
 from openviper.db.models import Model
 
 
@@ -166,9 +167,11 @@ async def test_deny_insufficient_permissions(mock_ctp_objs, mock_ct_objs):
     mock_ct_objs.filter.return_value = MagicMock(first=AsyncMock(return_value=ct))
     mock_ctp_objs.filter.return_value = MagicMock(count=AsyncMock(return_value=1))
 
-    with patch.object(user, "has_model_perm", new=AsyncMock(return_value=False)):
-        with pytest.raises(PermissionError, match="Access denied 'delete'"):
-            await check_permission_for_model(DummyAppModel, "delete")
+    with (
+        patch.object(user, "has_model_perm", new=AsyncMock(return_value=False)),
+        pytest.raises(PermissionError, match="Access denied 'delete'"),
+    ):
+        await check_permission_for_model(DummyAppModel, "delete")
 
 
 @pytest.mark.asyncio

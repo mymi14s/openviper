@@ -1,5 +1,4 @@
-import asyncio
-import sys
+import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,16 +18,16 @@ from openviper.core.management.commands.test import Command as TestCommand
 def test_runserver_command():
     cmd = RunserverCommand()
     mock_uvicorn = MagicMock()
-    with patch.dict("sys.modules", {"uvicorn": mock_uvicorn}):
-        # Need to mock the pending migrations check to prevent DB init inside tests
-        with patch.object(cmd, "_check_pending_migrations"):
-            cmd.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
-            mock_uvicorn.run.assert_called_once()
+    with patch.dict(
+        "sys.modules", {"uvicorn": mock_uvicorn}, patch.object(cmd, "_check_pending_migrations")
+    ):
+        cmd.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
+        mock_uvicorn.run.assert_called_once()
 
-            # test reload logic
-            with patch.object(cmd, "_run_with_cache_clear") as mock_clear:
-                cmd.handle(host="127.0.0.1", port=8000, reload=True, workers=1, app=None)
-                mock_clear.assert_called_once()
+        # test reload logic
+        with patch.object(cmd, "_run_with_cache_clear") as mock_clear:
+            cmd.handle(host="127.0.0.1", port=8000, reload=True, workers=1, app=None)
+            mock_clear.assert_called_once()
 
 
 def test_shell_command():
@@ -47,42 +46,48 @@ def test_shell_command():
 def test_worker_command():
     cmd = WorkerCommand()
     mock_dramatiq = MagicMock()
-    with patch.dict("sys.modules", {"dramatiq": mock_dramatiq}):
-        with patch("openviper.core.management.commands.runworker.run_worker") as mock_worker:
-            with patch("openviper.core.management.commands.runworker.settings") as mock_settings:
-                mock_settings.TASKS = {"broker": "database"}
-                cmd.handle(processes=2, threads=4, queues=None, modules=None)
-                mock_worker.assert_called_once_with(processes=2, threads=4, queues=None)
+    with (
+        patch.dict("sys.modules", {"dramatiq": mock_dramatiq}),
+        patch("openviper.core.management.commands.runworker.run_worker") as mock_worker,
+        patch("openviper.core.management.commands.runworker.settings") as mock_settings,
+    ):
+        mock_settings.TASKS = {"broker": "database"}
+        cmd.handle(processes=2, threads=4, queues=None, modules=None)
+        mock_worker.assert_called_once_with(processes=2, threads=4, queues=None)
 
 
 def test_test_command():
     cmd = TestCommand()
-    with patch("openviper.core.management.commands.test.subprocess.run") as mock_run:
-        with patch("sys.exit") as mock_exit:
-            mock_run.return_value = MagicMock(returncode=0)
-            cmd.handle(test_labels=["tests/unit"], verbosity=2, failfast=True, coverage=True)
-            mock_run.assert_called_once()
-            mock_exit.assert_called_once_with(0)
+    with (
+        patch("openviper.core.management.commands.test.subprocess.run") as mock_run,
+        patch("sys.exit") as mock_exit,
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        cmd.handle(test_labels=["tests/unit"], verbosity=2, failfast=True, coverage=True)
+        mock_run.assert_called_once()
+        mock_exit.assert_called_once_with(0)
 
 
 @patch("openviper.core.management.commands.makemigrations.os.path.exists", return_value=True)
 def test_makemigrations_command(mock_exists):
-    cmd = MakeMigrationsCommand()
-    with patch("alembic.command.revision") as mock_rev:
-        try:
+    import sys
+
+    alembic_stub = MagicMock()
+    with patch.dict(sys.modules, {"alembic": alembic_stub, "alembic.command": alembic_stub}):
+        cmd = MakeMigrationsCommand()
+        with contextlib.suppress(Exception):
             cmd.handle(message="Init", autogenerate=True, app=None)
-        except Exception:
-            pass
 
 
 @patch("openviper.core.management.commands.migrate.os.path.exists", return_value=True)
 def test_migrate_command(mock_exists):
-    cmd = MigrateCommand()
-    with patch("alembic.command.upgrade") as mock_upgrade:
-        try:
+    import sys
+
+    alembic_stub = MagicMock()
+    with patch.dict(sys.modules, {"alembic": alembic_stub, "alembic.command": alembic_stub}):
+        cmd = MigrateCommand()
+        with contextlib.suppress(Exception):
             cmd.handle(revision="head", app="core")
-        except Exception:
-            pass
 
 
 def test_collectstatic_command():
@@ -99,18 +104,22 @@ def test_collectstatic_command():
 
 def test_create_app_command():
     cmd = CreateAppCommand()
-    with patch("openviper.core.management.commands.create_app.os.makedirs") as mock_mkdir:
-        with patch("openviper.core.management.commands.create_app.open") as mock_open:
-            cmd.handle(name="testapp", directory=".")
-            mock_mkdir.assert_called()
+    with (
+        patch("openviper.core.management.commands.create_app.os.makedirs") as mock_mkdir,
+        patch("openviper.core.management.commands.create_app.open"),
+    ):
+        cmd.handle(name="testapp", directory=".")
+        mock_mkdir.assert_called()
 
 
 def test_create_command_command():
     cmd = CreateCommandCommand()
-    with patch("openviper.core.management.commands.create_command.os.makedirs") as mock_mkdir:
-        with patch("openviper.core.management.commands.create_command.open") as mock_open:
-            cmd.handle(command_name="mycmd", app_name="myapp", directory=".")
-            mock_mkdir.assert_called()
+    with (
+        patch("openviper.core.management.commands.create_command.os.makedirs") as mock_mkdir,
+        patch("openviper.core.management.commands.create_command.open"),
+    ):
+        cmd.handle(command_name="mycmd", app_name="myapp", directory=".")
+        mock_mkdir.assert_called()
 
 
 def test_createsuperuser_command():
@@ -191,10 +200,12 @@ def test_runserver_helpers():
 def test_test_command_verbose_flag():
     """Line 47: verbose flag -vv appended for verbose_count=2."""
     cmd = TestCommand()
-    with patch("openviper.core.management.commands.test.subprocess.run") as mock_run:
-        with patch("sys.exit"):
-            mock_run.return_value = MagicMock(returncode=0)
-            cmd.handle(verbose=2, test_labels=[], failfast=False)
+    with (
+        patch("openviper.core.management.commands.test.subprocess.run") as mock_run,
+        patch("sys.exit"),
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        cmd.handle(verbose=2, test_labels=[], failfast=False)
     call_args = mock_run.call_args[0][0]
     assert "-vv" in call_args
 
@@ -202,10 +213,12 @@ def test_test_command_verbose_flag():
 def test_test_command_py_colon_normalization():
     """Line 56: 'foo.py:SomeClass' is rewritten to 'foo.py::SomeClass'."""
     cmd = TestCommand()
-    with patch("openviper.core.management.commands.test.subprocess.run") as mock_run:
-        with patch("sys.exit"):
-            mock_run.return_value = MagicMock(returncode=0)
-            cmd.handle(verbose=0, test_labels=["mytest.py:SomeClass"], failfast=False)
+    with (
+        patch("openviper.core.management.commands.test.subprocess.run") as mock_run,
+        patch("sys.exit"),
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        cmd.handle(verbose=0, test_labels=["mytest.py:SomeClass"], failfast=False)
     call_args = mock_run.call_args[0][0]
     assert "mytest.py::SomeClass" in call_args
 
@@ -213,10 +226,12 @@ def test_test_command_py_colon_normalization():
 def test_test_command_py_double_colon_not_altered():
     """Labels with '::' are passed through unchanged."""
     cmd = TestCommand()
-    with patch("openviper.core.management.commands.test.subprocess.run") as mock_run:
-        with patch("sys.exit"):
-            mock_run.return_value = MagicMock(returncode=0)
-            cmd.handle(verbose=0, test_labels=["mytest.py::SomeClass::test_foo"], failfast=False)
+    with (
+        patch("openviper.core.management.commands.test.subprocess.run") as mock_run,
+        patch("sys.exit"),
+    ):
+        mock_run.return_value = MagicMock(returncode=0)
+        cmd.handle(verbose=0, test_labels=["mytest.py::SomeClass::test_foo"], failfast=False)
     call_args = mock_run.call_args[0][0]
     assert "mytest.py::SomeClass::test_foo" in call_args
 
@@ -242,7 +257,6 @@ def test_shell_command_build_banner_without_models():
 
 
 def test_shell_command_discover_models_get_user_model_exception():
-    """Lines 63-64: exception from get_user_model() is silently swallowed."""
     cmd = ShellCommand()
     with patch("openviper.core.management.commands.shell.settings") as ms:
         ms.INSTALLED_APPS = []
@@ -255,16 +269,15 @@ def test_shell_command_discover_models_get_user_model_exception():
 
 
 def test_shell_command_ipython_import_error():
-    """Lines 110-111: missing IPython causes SystemExit."""
     cmd = ShellCommand()
-    with patch.dict("sys.modules", {"IPython": None, "traitlets.config": None}):
-        with pytest.raises(SystemExit, match="IPython"):
-            cmd.handle(no_models=True, command=None)
+    with (
+        patch.dict("sys.modules", {"IPython": None, "traitlets.config": None}),
+        pytest.raises(SystemExit, match="IPython"),
+    ):
+        cmd.handle(no_models=True, command=None)
 
 
 def test_shell_command_discover_models_type_error(tmp_path):
-    """Lines 52-53: TypeError from issubclass is caught and skipped."""
-    import inspect
     import types
 
     cmd = ShellCommand()
@@ -282,18 +295,20 @@ def test_shell_command_discover_models_type_error(tmp_path):
 
     # All shell-module patches must be applied BEFORE importlib.import_module
     # is patched, otherwise mock's resolution can pick up the fake module.
-    with patch("inspect.getmembers", return_value=[("BadClass", BadClass)]):
-        with patch("openviper.core.management.commands.shell.settings") as ms:
-            with patch(
-                "openviper.core.management.commands.shell.get_user_model",
-                side_effect=Exception,
-            ):
-                ms.INSTALLED_APPS = ["fakeapp"]
-                # importlib.import_module innermost so it doesn't break other patches
-                with patch(
-                    "openviper.core.management.commands.shell.importlib.import_module",
-                    return_value=fake_module,
-                ):
-                    result = cmd._discover_models()
+    with (
+        patch("inspect.getmembers", return_value=[("BadClass", BadClass)]),
+        patch("openviper.core.management.commands.shell.settings") as ms,
+        patch(
+            "openviper.core.management.commands.shell.get_user_model",
+            side_effect=Exception,
+        ),
+    ):
+        ms.INSTALLED_APPS = ["fakeapp"]
+        # importlib.import_module innermost so it doesn't break other patches
+        with patch(
+            "openviper.core.management.commands.shell.importlib.import_module",
+            return_value=fake_module,
+        ):
+            result = cmd._discover_models()
     # Should not raise; TypeError from issubclass is silently continued
     assert isinstance(result, dict)

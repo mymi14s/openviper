@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 _CT_PERMISSION_CACHE: dict[str, bool] = {}
 
 
-class PermissionError(Exception):
+class PermissionError(Exception):  # noqa: A001
     """Raised when a user attempts an unauthorized action on a model."""
 
     pass

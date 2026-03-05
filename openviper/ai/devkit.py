@@ -202,7 +202,6 @@ def map_http_error(
     Returns:
         An appropriate :class:`~openviper.ai.exceptions.AIError` subclass.
     """
-    from openviper.ai.exceptions import ModelUnavailableError, ProviderNotAvailableError
 
     reason = detail or f"HTTP {status_code}"
 

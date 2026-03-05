@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from openviper.auth.hashers import check_password, make_password
 from openviper.conf import settings
 from openviper.db.fields import (
@@ -27,14 +29,14 @@ class Permission(Model):
 
     codename = CharField(max_length=100, unique=True)
     name = CharField(max_length=255)
-    content_type = CharField(max_length=100, null=True)  # "app.Model"
+    content_type = CharField(max_length=100, null=True)  # type: ignore[assignment]  # "app.Model"
     created_at = DateTimeField(auto_now_add=True)
 
     class Meta:
         table_name = "auth_permissions"
 
     def __str__(self) -> str:
-        return self.codename or ""
+        return str(self.codename or "")
 
 
 class Role(Model):
@@ -54,7 +56,7 @@ class Role(Model):
         table_name = "auth_roles"
 
     def __str__(self) -> str:
-        return self.name or ""
+        return str(self.name or "")
 
 
 class RoleProfile(Model):
@@ -71,7 +73,7 @@ class RoleProfile(Model):
         table_name = "auth_role_profiles"
 
     def __str__(self) -> str:
-        return self.name
+        return str(self.name)
 
 
 class RoleProfileDetail(Model):
@@ -141,7 +143,7 @@ class ContentTypePermission(Model):
 
     _app_name = "auth"
 
-    content_type = ForeignKey(to="ContentType")
+    content_type = ForeignKey(to="ContentType")  # type: ignore[assignment]
     role = ForeignKey(to="Role")
     can_create = BooleanField(default=False)
     can_read = BooleanField(default=False)
@@ -188,6 +190,9 @@ class AbstractUser(Model):
     class Meta:
         abstract = True
 
+    # Per-request permissions cache; populated lazily by get_permissions()
+    _cached_perms: set[str]
+
     # ── Password methods ──────────────────────────────────────────────────
 
     def set_password(self, raw_password: str) -> None:
@@ -195,13 +200,13 @@ class AbstractUser(Model):
 
         Uses Argon2id by default, falls back to bcrypt.
         """
-        self.password = make_password(raw_password)
+        self.password = make_password(raw_password)  # type: ignore[assignment]
 
     def check_password(self, raw_password: str) -> bool:
         """Verify raw_password against the stored hash."""
         if not self.password:
             return False
-        return check_password(raw_password, self.password)
+        return check_password(raw_password, cast("str", self.password))
 
     # ── Permission checks ─────────────────────────────────────────────────
 
@@ -224,43 +229,43 @@ class AbstractUser(Model):
             details = await RoleProfileDetail.objects.filter(role_profile=self.role_profile).all()
             if not details:
                 return []
-            role_ids = [d.role for d in details]
-            return await Role.objects.filter(id__in=role_ids).all()
+            role_ids = [d.role for d in details]  # type: ignore[attr-defined]
+            return await Role.objects.filter(id__in=role_ids).all()  # type: ignore[return-value]
 
         user_roles = await UserRole.objects.filter(user=self.pk).all()
         if not user_roles:
             return []
-        role_ids = [ur.role for ur in user_roles]
-        return await Role.objects.filter(id__in=role_ids).all()
+        role_ids = [ur.role for ur in user_roles]  # type: ignore[attr-defined]
+        return await Role.objects.filter(id__in=role_ids).all()  # type: ignore[return-value]
 
     async def get_permissions(self) -> set[str]:
         """Return all permission codenames for this user (direct + via roles)."""
         # Per-request cache: user objects are created fresh per request, so
         # caching on the instance avoids repeated DB queries within one request.
         if hasattr(self, "_cached_perms"):
-            return self._cached_perms  # type: ignore[attr-defined]
+            return self._cached_perms
 
         if self.is_superuser:
             all_perms = await Permission.objects.filter().all()
-            result: set[str] = {p.codename for p in all_perms}
-            self._cached_perms = result  # type: ignore[attr-defined]
+            result: set[str] = {p.codename for p in all_perms}  # type: ignore[attr-defined]
+            self._cached_perms = result
             return result
 
         roles = await self.get_roles()
         if not roles:
-            self._cached_perms: set[str] = set()  # type: ignore[attr-defined]
+            self._cached_perms = set()
             return set()
 
         role_ids = [r.pk for r in roles]
         role_perms = await RolePermission.objects.filter(role__in=role_ids).all()
-        perm_ids = [rp.permission for rp in role_perms]
+        perm_ids = [rp.permission for rp in role_perms]  # type: ignore[attr-defined]
         if not perm_ids:
-            self._cached_perms = set()  # type: ignore[attr-defined]
+            self._cached_perms = set()
             return set()
 
         perms = await Permission.objects.filter(id__in=perm_ids).all()
-        result = {p.codename for p in perms}
-        self._cached_perms = result  # type: ignore[attr-defined]
+        result = {p.codename for p in perms}  # type: ignore[attr-defined]
+        self._cached_perms = result
         return result
 
     async def has_perm(self, codename: str) -> bool:
@@ -306,18 +311,14 @@ class AbstractUser(Model):
             content_type=content_type.pk, role__in=role_ids
         ).all()
 
-        for ctp in ct_perms:
-            if getattr(ctp, action_field, False):
-                return True
-
-        return False
+        return any(getattr(ctp, action_field, False) for ctp in ct_perms)
 
     async def has_role(self, role_name: str) -> bool:
         """Check if user is assigned to a specific role."""
         if self.is_superuser:
             return True
         roles = await self.get_roles()
-        return any(r.name == role_name for r in roles)
+        return any(str(r.name) == role_name for r in roles)
 
     async def assign_role(self, role: Role) -> None:
         """Assign a role to this user."""
@@ -331,11 +332,11 @@ class AbstractUser(Model):
 
     @property
     def full_name(self) -> str:
-        parts = [self.first_name or "", self.last_name or ""]
+        parts = [str(self.first_name or ""), str(self.last_name or "")]
         return " ".join(p for p in parts if p).strip()
 
     def __str__(self) -> str:
-        return self.username or str(self.pk)
+        return str(self.username or self.pk)
 
     def __repr__(self) -> str:
         return f"<User id={self.pk!r} username={self.username!r}>"

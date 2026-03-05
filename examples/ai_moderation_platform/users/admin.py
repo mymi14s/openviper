@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from openviper.admin import ModelAdmin, register
-from openviper.admin.options import ChildTable, ModelAdmin
+from openviper.admin import register
+from openviper.admin.options import ModelAdmin
 from openviper.auth.admin import UserRoleInline
-from openviper.auth.models import UserRole
 
 from .models import User
 

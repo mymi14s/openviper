@@ -11,7 +11,7 @@ Covers:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -330,16 +330,18 @@ def test_full_lifecycle_flushes_on_success():
     broker = MagicMock()
     flushed: list[list] = []
 
-    with patch("openviper.tasks.middleware._event_buffer", buf):
-        with patch(
+    with (
+        patch("openviper.tasks.middleware._event_buffer", buf),
+        patch(
             "openviper.tasks.middleware.batch_upsert_results",
             side_effect=lambda events: flushed.append(list(events)),
-        ):
-            mw.before_enqueue(broker, msg, None)  # pending  — non-terminal
-            mw.before_process_message(broker, msg)  # running  — non-terminal
-            mw.after_process_message(  # success  — terminal → FLUSH
-                broker, msg, result="done", exception=None
-            )
+        ),
+    ):
+        mw.before_enqueue(broker, msg, None)  # pending  — non-terminal
+        mw.before_process_message(broker, msg)  # running  — non-terminal
+        mw.after_process_message(  # success  — terminal → FLUSH
+            broker, msg, result="done", exception=None
+        )
 
     # Exactly one flush triggered by the terminal event.
     assert len(flushed) == 1
@@ -355,7 +357,6 @@ def test_full_lifecycle_flushes_on_success():
 
 
 def test_reset_tracking_buffer_clears_queue():
-    """Lines 102-105: reset_tracking_buffer() empties the module-level event buffer."""
     from openviper.tasks.middleware import reset_tracking_buffer
 
     # Pre-populate buffer
@@ -382,7 +383,6 @@ def _make_bad_message():
 
 
 def test_before_process_message_exception_is_swallowed():
-    """Lines 158-159: exceptions in before_process_message are logged, not raised."""
     mw = TaskTrackingMiddleware()
     broker = MagicMock()
 
@@ -395,7 +395,6 @@ def test_before_process_message_exception_is_swallowed():
 
 
 def test_after_process_message_exception_is_swallowed():
-    """Lines 207-208: exceptions in after_process_message are logged, not raised."""
     mw = TaskTrackingMiddleware()
     broker = MagicMock()
 
@@ -408,7 +407,6 @@ def test_after_process_message_exception_is_swallowed():
 
 
 def test_after_skip_message_exception_is_swallowed():
-    """Lines 219-220: exceptions in after_skip_message are logged, not raised."""
     mw = TaskTrackingMiddleware()
     broker = MagicMock()
 
@@ -419,7 +417,6 @@ def test_after_skip_message_exception_is_swallowed():
 
 
 def test_after_nack_exception_is_swallowed():
-    """Lines 237-238: exceptions in after_nack are logged, not raised."""
     mw = TaskTrackingMiddleware()
     broker = MagicMock()
 
@@ -435,7 +432,6 @@ def test_after_nack_exception_is_swallowed():
 
 
 def test_scheduler_middleware_after_worker_boot_success():
-    """Lines 256-261: after_worker_boot() calls start_scheduler()."""
     from openviper.tasks.middleware import SchedulerMiddleware
 
     mw = SchedulerMiddleware()
@@ -448,7 +444,6 @@ def test_scheduler_middleware_after_worker_boot_success():
 
 
 def test_scheduler_middleware_after_worker_boot_exception_is_logged():
-    """Lines 260-261: exception from start_scheduler() is caught and logged."""
     from openviper.tasks.middleware import SchedulerMiddleware
 
     mw = SchedulerMiddleware()
@@ -463,7 +458,6 @@ def test_scheduler_middleware_after_worker_boot_exception_is_logged():
 
 
 def test_scheduler_middleware_before_worker_shutdown_success():
-    """Lines 263-268: before_worker_shutdown() calls stop_scheduler()."""
     from openviper.tasks.middleware import SchedulerMiddleware
 
     mw = SchedulerMiddleware()
@@ -476,7 +470,6 @@ def test_scheduler_middleware_before_worker_shutdown_success():
 
 
 def test_scheduler_middleware_before_worker_shutdown_exception_is_logged():
-    """Lines 267-268: exception from stop_scheduler() is caught and logged."""
     from openviper.tasks.middleware import SchedulerMiddleware
 
     mw = SchedulerMiddleware()

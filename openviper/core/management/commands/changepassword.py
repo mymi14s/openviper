@@ -29,7 +29,7 @@ class Command(BaseCommand):
     def handle(self, **options):
         username = options.get("username")
         password = options.get("password")
-        User = get_user_model()
+        User = get_user_model()  # noqa: N806
 
         async def run_command():
             nonlocal username, password

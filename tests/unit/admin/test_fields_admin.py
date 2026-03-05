@@ -1,10 +1,6 @@
-import json
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
-from unittest.mock import MagicMock
-
-import pytest
 
 from openviper.admin.fields import (
     _serialize_default,

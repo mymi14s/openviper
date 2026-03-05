@@ -190,6 +190,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../admin.html">Admin Interface</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#accessing-the-admin">Accessing the Admin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../admin.html#standalone-single-file-apps">Standalone / Single-file Apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#registering-models">Registering Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#auto-discovery">Auto-Discovery</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#admin-api-endpoints">Admin API Endpoints</a></li>
@@ -298,10 +299,11 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../cli.html#global-cli-openviper">Global CLI (<code class="docutils literal notranslate"><span class="pre">openviper</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#create-project"><code class="docutils literal notranslate"><span class="pre">create-project</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#create-app-global"><code class="docutils literal notranslate"><span class="pre">create-app</span></code> (global)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../cli.html#run"><code class="docutils literal notranslate"><span class="pre">run</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#version"><code class="docutils literal notranslate"><span class="pre">version</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../../cli.html#management-commands-python-manage-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli.html#management-commands-python-viperctl-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#runserver"><code class="docutils literal notranslate"><span class="pre">runserver</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#runworker"><code class="docutils literal notranslate"><span class="pre">runworker</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#makemigrations"><code class="docutils literal notranslate"><span class="pre">makemigrations</span></code></a></li>
@@ -684,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -1089,10 +1092,12 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="c1"># Module-level reference so tests can patch ``openviper.tasks.events.settings``</span>
 <span class="c1"># without having to reach into ``openviper.conf.settings``.</span>
@@ -1122,21 +1127,23 @@
 
 <span class="c1"># All nine Model lifecycle hook names that the dispatcher understands.</span>
 <span class="c1"># Mirrors the hooks fired by Model.save() and Model.delete().</span>
-<span class="n">SUPPORTED_EVENTS</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span>
-    <span class="c1"># save() — validation (create + update)</span>
-    <span class="s2">&quot;before_validate&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;validate&quot;</span><span class="p">,</span>
-    <span class="c1"># save() — pre-write (create + update)</span>
-    <span class="s2">&quot;before_insert&quot;</span><span class="p">,</span>   <span class="c1"># create only</span>
-    <span class="s2">&quot;before_save&quot;</span><span class="p">,</span>
-    <span class="c1"># save() — post-write (create + update)</span>
-    <span class="s2">&quot;after_insert&quot;</span><span class="p">,</span>    <span class="c1"># create only</span>
-    <span class="s2">&quot;on_update&quot;</span><span class="p">,</span>       <span class="c1"># update only</span>
-    <span class="s2">&quot;on_change&quot;</span><span class="p">,</span>       <span class="c1"># create (all fields) or update (changed fields only)</span>
-    <span class="c1"># delete()</span>
-    <span class="s2">&quot;on_delete&quot;</span><span class="p">,</span>
-    <span class="s2">&quot;after_delete&quot;</span><span class="p">,</span>
-<span class="p">})</span>
+<span class="n">SUPPORTED_EVENTS</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="c1"># save() — validation (create + update)</span>
+        <span class="s2">&quot;before_validate&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;validate&quot;</span><span class="p">,</span>
+        <span class="c1"># save() — pre-write (create + update)</span>
+        <span class="s2">&quot;before_insert&quot;</span><span class="p">,</span>  <span class="c1"># create only</span>
+        <span class="s2">&quot;before_save&quot;</span><span class="p">,</span>
+        <span class="c1"># save() — post-write (create + update)</span>
+        <span class="s2">&quot;after_insert&quot;</span><span class="p">,</span>  <span class="c1"># create only</span>
+        <span class="s2">&quot;on_update&quot;</span><span class="p">,</span>  <span class="c1"># update only</span>
+        <span class="s2">&quot;on_change&quot;</span><span class="p">,</span>  <span class="c1"># create (all fields) or update (changed fields only)</span>
+        <span class="c1"># delete()</span>
+        <span class="s2">&quot;on_delete&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;after_delete&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
 
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
@@ -1183,8 +1190,7 @@
             <span class="k">for</span> <span class="n">event_name</span><span class="p">,</span> <span class="n">dotted_paths</span> <span class="ow">in</span> <span class="n">events</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="k">if</span> <span class="n">event_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SUPPORTED_EVENTS</span><span class="p">:</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                        <span class="s2">&quot;MODEL_EVENTS[</span><span class="si">%r</span><span class="s2">][</span><span class="si">%r</span><span class="s2">]: unknown event name; &quot;</span>
-                        <span class="s2">&quot;supported: </span><span class="si">%s</span><span class="s2">.&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;MODEL_EVENTS[</span><span class="si">%r</span><span class="s2">][</span><span class="si">%r</span><span class="s2">]: unknown event name; &quot;</span> <span class="s2">&quot;supported: </span><span class="si">%s</span><span class="s2">.&quot;</span><span class="p">,</span>
                         <span class="n">model_path</span><span class="p">,</span>
                         <span class="n">event_name</span><span class="p">,</span>
                         <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">SUPPORTED_EVENTS</span><span class="p">)),</span>
@@ -1236,7 +1242,7 @@
             <span class="k">return</span>
         <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">handlers</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="n">handler</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">event_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="n">_call_handler</span><span class="p">(</span><span class="n">handler</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">event_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s2">&quot;MODEL_EVENTS handler </span><span class="si">%r</span><span class="s2"> raised for </span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
@@ -1283,15 +1289,15 @@
     <span class="k">global</span> <span class="n">_dispatcher_cache</span>
     <span class="c1"># Fast path (lock-free): already built (None or a dispatcher).</span>
     <span class="k">if</span> <span class="n">_dispatcher_cache</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">_UNSET</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_dispatcher_cache</span>  <span class="c1"># type: ignore[return-value]</span>
+        <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;ModelEventDispatcher | None&quot;</span><span class="p">,</span> <span class="n">_dispatcher_cache</span><span class="p">)</span>
 
     <span class="k">with</span> <span class="n">_init_lock</span><span class="p">:</span>
         <span class="c1"># Double-check after acquiring the lock.</span>
         <span class="k">if</span> <span class="n">_dispatcher_cache</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">_UNSET</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">_dispatcher_cache</span>  <span class="c1"># type: ignore[return-value]</span>
+            <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;ModelEventDispatcher | None&quot;</span><span class="p">,</span> <span class="n">_dispatcher_cache</span><span class="p">)</span>
 
         <span class="n">_dispatcher_cache</span> <span class="o">=</span> <span class="n">_build_dispatcher</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">_dispatcher_cache</span></div>
+        <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;ModelEventDispatcher | None&quot;</span><span class="p">,</span> <span class="n">_dispatcher_cache</span><span class="p">)</span></div>
 
 
 
@@ -1317,14 +1323,12 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_build_dispatcher</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ModelEventDispatcher</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Create and return a dispatcher from current settings, or ``None``.&quot;&quot;&quot;</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">task_cfg</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="s2">&quot;TASKS&quot;</span><span class="p">,</span> <span class="p">{})</span> <span class="ow">or</span> <span class="p">{})</span>
+        <span class="n">task_cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="s2">&quot;TASKS&quot;</span><span class="p">,</span> <span class="p">{})</span> <span class="ow">or</span> <span class="p">{})</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">task_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;enabled&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="s2">&quot;MODEL_EVENTS dispatcher not created: TASKS[&#39;enabled&#39;] is falsy.&quot;</span>
-            <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;MODEL_EVENTS dispatcher not created: TASKS[&#39;enabled&#39;] is falsy.&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">None</span>
 
-        <span class="n">model_events</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="s2">&quot;MODEL_EVENTS&quot;</span><span class="p">,</span> <span class="p">{})</span> <span class="ow">or</span> <span class="p">{})</span>
+        <span class="n">model_events</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="s2">&quot;MODEL_EVENTS&quot;</span><span class="p">,</span> <span class="p">{})</span> <span class="ow">or</span> <span class="p">{})</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">model_events</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span>
 
@@ -1373,6 +1377,25 @@
 <span class="c1"># ---------------------------------------------------------------------------</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_call_handler</span><span class="p">(</span><span class="n">handler</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Invoke *handler* for both sync and async callables.</span>
+
+<span class="sd">    Async handlers are scheduled as tasks on the running event loop (which</span>
+<span class="sd">    always exists inside ``Model.save()`` / ``Model.delete()``).  Sync</span>
+<span class="sd">    handlers are called directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">iscoroutinefunction</span><span class="p">(</span><span class="n">handler</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">handler</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">event_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;MODEL_EVENTS: async handler </span><span class="si">%r</span><span class="s2"> skipped — no running event loop.&quot;</span><span class="p">,</span>
+                <span class="nb">getattr</span><span class="p">(</span><span class="n">handler</span><span class="p">,</span> <span class="s2">&quot;__qualname__&quot;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">handler</span><span class="p">)),</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">handler</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">event_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_dispatch_decorator_handlers</span><span class="p">(</span>
     <span class="n">model_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -1394,7 +1417,7 @@
         <span class="k">return</span>
     <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">handlers</span><span class="p">:</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">handler</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">event_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">_call_handler</span><span class="p">(</span><span class="n">handler</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">event_name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">&quot;@model_event handler </span><span class="si">%r</span><span class="s2"> raised for </span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>

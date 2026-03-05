@@ -33,11 +33,13 @@ Examples::
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from openviper.tasks.registry import ScheduleEntry, ScheduleRegistry, get_registry
-from openviper.tasks.schedule import Schedule
+
+if TYPE_CHECKING:
+    from openviper.tasks.schedule import Schedule
 
 logger = logging.getLogger("openviper.tasks")
 
@@ -159,7 +161,7 @@ class Scheduler:
         Returns:
             Sorted list of entry names that were successfully enqueued.
         """
-        _now = now if now is not None else datetime.now(timezone.utc)
+        _now = now if now is not None else datetime.now(UTC)
         enqueued: list[str] = []
 
         for entry in self._registry.all_due(_now):

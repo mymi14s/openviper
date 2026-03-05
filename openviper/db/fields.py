@@ -52,7 +52,7 @@ class Field:
         self.db_column = db_column
         self.auto_increment = auto_increment
         self.choices = choices or []
-        self._choices_set: frozenset = frozenset(c[0] for c in self.choices)
+        self._choices_set: frozenset[Any] = frozenset(c[0] for c in self.choices)
         self.help_text = help_text
         self.name: str = ""  # Set by ModelMeta
 
@@ -214,7 +214,9 @@ class DateTimeField(Field):
 
         if settings.USE_TZ:
             if timezone.is_naive(dt):
-                return timezone.make_aware(dt, datetime.UTC)
+                import zoneinfo
+
+                return timezone.make_aware(dt, zoneinfo.ZoneInfo("UTC"))
             return dt.astimezone(datetime.UTC)
         else:
             if timezone.is_aware(dt):
@@ -488,7 +490,7 @@ class PositiveIntegerField(IntegerField):
 
     def validate(self, value: Any) -> None:
         super().validate(value)
-        if value is not None and value < 0:
+        if value is not None and int(value) < 0:
             raise ValueError(f"Field '{self.name}': value must be >= 0, got {value!r}.")
 
 
@@ -566,7 +568,7 @@ class FileField(CharField):
             value.seek(0, 2)
             size = value.tell()
             value.seek(pos)
-            return size
+            return int(size)
         return None
 
 

@@ -6,8 +6,6 @@ import asyncio
 import runpy
 from unittest.mock import patch
 
-import pytest
-
 from tests.conftest import TODOAPP_DIR
 
 # ── main() branches ──────────────────────────────────────────────────────────
@@ -25,7 +23,7 @@ async def test_create_new_superuser(capsys):
     out = capsys.readouterr().out
     assert "newadmin" in out
 
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
     user = await User.objects.get_or_none(username="newadmin")
     assert user is not None
     assert user.is_superuser is True
@@ -44,7 +42,7 @@ async def test_empty_password_exits_early(capsys):
     out = capsys.readouterr().out
     assert "cannot be empty" in out
 
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
     assert await User.objects.get_or_none(username="nopwduser") is None
 
 
@@ -54,7 +52,7 @@ async def test_existing_user_update_yes(capsys):
 
     from openviper.auth import get_user_model
 
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
     existing = User(username="existingadmin", email="ex@example.com")
     existing.set_password("old_pass")
     await existing.save()
@@ -77,7 +75,7 @@ async def test_existing_user_update_no(capsys):
 
     from openviper.auth import get_user_model
 
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
     existing = User(username="keepadmin", email="keep@example.com", is_superuser=False)
     existing.set_password("old_pass")
     await existing.save()

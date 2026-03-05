@@ -25,6 +25,7 @@ imports are automatically picked up by the broker.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import logging
 import os
@@ -37,7 +38,7 @@ from dramatiq.worker import Worker
 
 from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
-from openviper.tasks.broker import get_broker, setup_broker
+from openviper.tasks.broker import setup_broker
 from openviper.tasks.log import configure_worker_logging_from_settings
 from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
@@ -140,6 +141,30 @@ def discover_tasks(extra_modules: list[str] | None = None) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
+def create_worker(
+    threads: int = 8,
+    queues: list[str] | None = None,
+    extra_modules: list[str] | None = None,
+) -> Worker:
+    """Initialize and return a Dramatiq worker instance.
+
+    Args:
+        threads:       Number of worker threads to spawn.
+        queues:        Restrict processing to these queue names.
+        extra_modules: Extra Python modules to import.
+    """
+    # Discover task modules BEFORE getting the broker so that all @task
+    # decorators fire (and register actors) while the broker is initialised.
+    discover_tasks(extra_modules)
+
+    broker = setup_broker()
+    return Worker(
+        broker,
+        worker_threads=threads,
+        queues=set(queues) if queues else None,
+    )
+
+
 def run_worker(
     processes: int = 1,
     threads: int = 8,
@@ -177,17 +202,8 @@ def run_worker(
 
     scheduler_enabled: bool = bool(task_cfg.get("scheduler_enabled", False))
 
-    # Discover task modules BEFORE getting the broker so that all @task
-    # decorators fire (and register actors) while the broker is initialised.
-    discover_tasks(extra_modules)
-
-    broker = setup_broker()
-
-    worker = Worker(
-        broker,
-        worker_threads=threads,
-        queues=set(queues) if queues else None,
-    )
+    worker = create_worker(threads=threads, queues=queues, extra_modules=extra_modules)
+    broker = worker.broker
 
     # ── Signal handlers ──────────────────────────────────────────────────────
     # Raise SystemExit so the except/finally block below handles all cleanup
@@ -222,8 +238,6 @@ def run_worker(
         if scheduler_enabled:
             stop_scheduler()
         logger.info("Stopping worker (timeout 30 s)…")
-        try:
+        with contextlib.suppress(Exception):
             worker.stop(timeout=30_000)
-        except Exception:
-            pass
         logger.info("Worker exited.")

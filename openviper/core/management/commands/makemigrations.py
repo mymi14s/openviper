@@ -14,15 +14,17 @@ from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
 from openviper.db.fields import ForeignKey
-from openviper.db.migrations.executor import (
+from openviper.db.migrations.executor import (  # noqa: N814
     AddColumn,
     AlterColumn,
     CreateTable,
     DropTable,
     RemoveColumn,
-    RemoveColumn as _RC,
     RenameColumn,
     RestoreColumn,
+)
+from openviper.db.migrations.executor import (
+    RemoveColumn as _RemoveColumn,
 )
 from openviper.db.migrations.writer import (
     _diff_states,
@@ -124,11 +126,7 @@ class Command(BaseCommand):
         resolver = AppResolver()
 
         # Determine target apps
-        if app_labels:
-            targets = app_labels
-        else:
-            # Use all non-builtin apps
-            targets = [app for app in installed if not app.startswith("openviper.")]
+        targets = app_labels or [app for app in installed if not app.startswith("openviper.")]
 
         # Try to resolve all target apps
         resolved = resolver.resolve_all_apps(targets, include_builtin=bool(app_labels))
@@ -239,13 +237,12 @@ class Command(BaseCommand):
                             target
                             and hasattr(target, "_app_name")
                             and target._app_name != app_label
-                        ):
-                            if target._app_name in app_data:
-                                data["dependencies"].add(target._app_name)
+                        ) and target._app_name in app_data:
+                            data["dependencies"].add(target._app_name)
 
         # Topological Sort Phase
         adj = {label: [] for label in app_data}
-        in_degree = {label: 0 for label in app_data}
+        in_degree = dict.fromkeys(app_data, 0)
         for label, data in app_data.items():
             for dep in data["dependencies"]:
                 adj[dep].append(label)
@@ -316,7 +313,7 @@ class Command(BaseCommand):
                                     ]
                                     if existing:
                                         deps.append((target_app_label, sorted(existing)[-1]))
-            deps = sorted(list(set(deps)))
+            deps = sorted(set(deps))
 
             if empty or int(num) == 1:
                 if name_part is None:
@@ -339,7 +336,7 @@ class Command(BaseCommand):
                 if drop_columns:
 
                     for op in ops:
-                        if isinstance(op, _RC):
+                        if isinstance(op, _RemoveColumn):
                             op.drop = True
                 if name_part is None:
                     name_part = _auto_migration_name(ops)

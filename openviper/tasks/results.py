@@ -45,11 +45,12 @@ Column reference
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib
 import json
 import logging
 import threading
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import sqlalchemy as sa
@@ -77,9 +78,9 @@ _table = sa.Table(
     sa.Column("actor_name", sa.String(255), nullable=False, index=True, default="unknown"),
     sa.Column("queue_name", sa.String(100), nullable=False, default="unknown"),
     sa.Column("status", sa.String(20), nullable=False, default="pending"),
-    sa.Column("args", sa.Text, nullable=True),
-    sa.Column("kwargs", sa.Text, nullable=True),
-    sa.Column("result", sa.Text, nullable=True),
+    sa.Column("args", sa.JSON, nullable=True),
+    sa.Column("kwargs", sa.JSON, nullable=True),
+    sa.Column("result", sa.JSON, nullable=True),
     sa.Column("error", sa.Text, nullable=True),
     sa.Column("traceback", sa.Text, nullable=True),
     sa.Column("retries", sa.Integer, nullable=False, default=0),
@@ -157,12 +158,12 @@ def _get_engine() -> Any:
 
         # pool_size=10 accommodates the default 8 worker threads with headroom;
         # max_overflow=5 allows short bursts without exhausting the DB.
-        engine = create_engine(
-            url,
-            pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=5,
-        )
+        engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
+        if ":memory:" not in url and "mode=memory" not in url:
+            engine_kwargs["pool_size"] = 10
+            engine_kwargs["max_overflow"] = 5
+
+        engine = create_engine(url, **engine_kwargs)
         # Ensure the table exists — idempotent, safe to call repeatedly.
         # Assign to _engine only after create_all succeeds so a failed attempt
         # doesn't leave a broken engine in the singleton cache.
@@ -220,7 +221,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
     if dialect_name == "postgresql":
         from sqlalchemy.dialects.postgresql import insert as _ins
 
-        def _pg(conn: Any, message_id: str, fields: dict) -> None:
+        def _pg(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
             data = {
                 "actor_name": "unknown",
                 "queue_name": "unknown",
@@ -240,9 +241,9 @@ def _build_upsert_fn(dialect_name: str) -> Any:
         return _pg
 
     if dialect_name == "sqlite":
-        from sqlalchemy.dialects.sqlite import insert as _ins  # type: ignore[no-redef]
+        from sqlalchemy.dialects.sqlite import insert as sqlite_ins
 
-        def _sqlite(conn: Any, message_id: str, fields: dict) -> None:
+        def _sqlite(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
             data = {
                 "actor_name": "unknown",
                 "queue_name": "unknown",
@@ -251,7 +252,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
                 "message_id": message_id,
             }
             update_data = {k: v for k, v in fields.items() if k != "message_id"}
-            stmt = _ins(_table).values(**data)
+            stmt = sqlite_ins(_table).values(**data)
             stmt = (
                 stmt.on_conflict_do_update(index_elements=["message_id"], set_=update_data)
                 if update_data
@@ -262,9 +263,9 @@ def _build_upsert_fn(dialect_name: str) -> Any:
         return _sqlite
 
     if dialect_name in ("mysql", "mariadb"):
-        from sqlalchemy.dialects.mysql import insert as _ins  # type: ignore[no-redef]
+        from sqlalchemy.dialects.mysql import insert as mysql_ins
 
-        def _mysql(conn: Any, message_id: str, fields: dict) -> None:
+        def _mysql(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
             data = {
                 "actor_name": "unknown",
                 "queue_name": "unknown",
@@ -273,7 +274,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
                 "message_id": message_id,
             }
             update_data = {k: v for k, v in fields.items() if k != "message_id"}
-            stmt = _ins(_table).values(**data)
+            stmt: Any = mysql_ins(_table).values(**data)
             if update_data:
                 conn.execute(stmt.on_duplicate_key_update(**update_data))
             else:
@@ -282,7 +283,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
         return _mysql
 
     # Generic fallback: SELECT then INSERT or UPDATE (2 round-trips).
-    def _generic(conn: Any, message_id: str, fields: dict) -> None:
+    def _generic(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
         existing = conn.execute(
             sa.select(_table.c.id).where(_table.c.message_id == message_id)
         ).fetchone()
@@ -457,6 +458,75 @@ async def list_task_results(
 
 
 # ---------------------------------------------------------------------------
+# Management — synchronous
+# ---------------------------------------------------------------------------
+
+
+def delete_task_result(message_id: str) -> bool:
+    """Delete a task result record. Returns True if a record was deleted."""
+    try:
+        engine = _get_engine()
+    except RuntimeError:
+        return False
+
+    with engine.begin() as conn:
+        res = conn.execute(sa.delete(_table).where(_table.c.message_id == message_id))
+        return bool(res.rowcount > 0)
+
+
+def clean_old_results(days: int = 7) -> int:
+    """Delete task results older than the given number of days.
+
+    Args:
+        days: Rows with ``completed_at`` older than this many days are removed.
+
+    Returns:
+        Number of rows deleted.
+    """
+    try:
+        engine = _get_engine()
+    except RuntimeError:
+        return 0
+
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    with engine.begin() as conn:
+        res = conn.execute(sa.delete(_table).where(_table.c.completed_at < cutoff))
+        return int(res.rowcount or 0)
+
+
+# ---------------------------------------------------------------------------
+# Management — async wrappers
+# ---------------------------------------------------------------------------
+
+
+async def get_task_stats() -> dict[str, int]:
+    """Return counts of tasks grouped by status."""
+    try:
+        engine = _get_engine()
+    except RuntimeError:
+        return {"total": 0, "success": 0, "failure": 0, "pending": 0, "running": 0}
+
+    stmt = sa.select(_table.c.status, sa.func.count(_table.c.id)).group_by(_table.c.status)
+
+    loop = asyncio.get_running_loop()
+
+    def _get() -> dict[str, int]:
+        with engine.connect() as conn:
+            return dict(conn.execute(stmt).fetchall())
+
+    counts = await loop.run_in_executor(None, _get)
+
+    stats = {
+        "success": counts.get("success", 0),
+        "failure": counts.get("failure", 0),
+        "pending": counts.get("pending", 0),
+        "running": counts.get("running", 0),
+    }
+    stats["total"] = sum(stats.values())
+    return stats
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -466,10 +536,8 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     # Deserialise JSON columns back to Python objects for convenience.
     for key in ("args", "kwargs"):
         if isinstance(d.get(key), str):
-            try:
+            with contextlib.suppress(Exception):
                 d[key] = json.loads(d[key])
-            except Exception:
-                pass
     # Normalise datetime objects to ISO strings.
     for key in ("enqueued_at", "started_at", "completed_at"):
         val = d.get(key)

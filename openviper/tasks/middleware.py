@@ -22,7 +22,7 @@ import logging
 import threading
 import traceback as tb_module
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from dramatiq.middleware import Middleware
@@ -36,7 +36,7 @@ _TERMINAL_STATUSES = frozenset({"success", "failure", "skipped", "dead"})
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------

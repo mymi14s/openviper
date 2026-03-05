@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -45,7 +43,6 @@ def _mock_actor(name: str = "my_actor") -> MagicMock:
 
 
 def test_periodic_raises_when_neither_every_nor_cron():
-    """Lines 99-102: both every and cron omitted → ValueError."""
     with pytest.raises(ValueError, match="requires 'every'"):
         periodic()
 
@@ -56,7 +53,6 @@ def test_periodic_raises_when_neither_every_nor_cron():
 
 
 def test_periodic_with_every_appends_to_pending():
-    """Lines 104-133: applying @periodic(every=60) registers entry in _pending."""
     actor = _mock_actor("my_task")
     decorator = periodic(every=60)
     result = decorator(actor)
@@ -118,18 +114,19 @@ def test_periodic_kwargs_defaults_to_empty_dict_when_none():
 
 
 def test_periodic_auto_wraps_plain_function():
-    """Lines 107-109: plain function without actor_name is auto-wrapped with @task()."""
 
     def plain_func():
         pass
 
     mock_wrapped_actor = MagicMock()
     mock_wrapped_actor.actor_name = "plain_func"
-    mock_task_decorator = MagicMock(return_value=mock_wrapped_actor)
+    MagicMock(return_value=mock_wrapped_actor)
 
-    with patch("openviper.tasks.scheduler._pending", sched_module._pending):
-        with patch("openviper.tasks.decorators.task", return_value=lambda fn: mock_wrapped_actor):
-            result = periodic(every=60)(plain_func)
+    with (
+        patch("openviper.tasks.scheduler._pending", sched_module._pending),
+        patch("openviper.tasks.decorators.task", return_value=lambda fn: mock_wrapped_actor),
+    ):
+        result = periodic(every=60)(plain_func)
 
     # The result is the wrapped actor, not the plain function
     assert hasattr(result, "actor_name")
@@ -141,7 +138,6 @@ def test_periodic_auto_wraps_plain_function():
 
 
 def test_start_scheduler_noop_when_pending_empty():
-    """Lines 151-152: _pending is empty → returns immediately, no thread started."""
     assert sched_module._pending == []
     start_scheduler()
     assert sched_module._tick_thread is None
@@ -153,7 +149,6 @@ def test_start_scheduler_noop_when_pending_empty():
 
 
 def test_start_scheduler_noop_when_thread_already_alive():
-    """Lines 154-156: if tick thread is alive, start_scheduler returns early."""
     mock_thread = MagicMock()
     mock_thread.is_alive.return_value = True
 
@@ -182,7 +177,6 @@ def test_start_scheduler_noop_when_thread_already_alive():
 
 
 def test_start_scheduler_starts_tick_thread():
-    """Lines 158-177: start_scheduler() creates a Scheduler and starts tick thread."""
     actor = _mock_actor("interval_task")
     sched_module._pending.append(
         {
@@ -203,7 +197,6 @@ def test_start_scheduler_starts_tick_thread():
 
 
 def test_start_scheduler_enqueues_run_on_start_entry():
-    """Lines 168-169: entries with run_on_start=True are enqueued immediately."""
     actor = _mock_actor("eager_task")
     sched_module._pending.append(
         {
@@ -259,7 +252,6 @@ def test_stop_scheduler_sets_stop_event():
 
 
 def test_stop_scheduler_joins_running_thread():
-    """Lines 192-194: if tick thread is running, it is joined and cleared."""
     actor = _mock_actor()
     sched_module._pending.append(
         {
@@ -292,7 +284,6 @@ def test_stop_scheduler_noop_when_no_thread():
 
 
 def test_reset_scheduler_clears_pending():
-    """Lines 206-208: pending list is cleared."""
     actor = _mock_actor()
     sched_module._pending.append(
         {
@@ -342,19 +333,18 @@ def _run_tick_loop_once(mock_scheduler):
     """Run _tick_loop in the current thread for exactly one iteration."""
     call_count = [0]
 
-    original_wait = sched_module._stop_event.wait
-
     def mock_wait(timeout):
         call_count[0] += 1
         return call_count[0] > 1  # False (run) then True (stop)
 
-    with patch.object(sched_module, "_scheduler", mock_scheduler):
-        with patch.object(sched_module._stop_event, "wait", side_effect=mock_wait):
-            _tick_loop()
+    with (
+        patch.object(sched_module, "_scheduler", mock_scheduler),
+        patch.object(sched_module._stop_event, "wait", side_effect=mock_wait),
+    ):
+        _tick_loop()
 
 
 def test_tick_loop_calls_scheduler_tick():
-    """Lines 221-224: _tick_loop calls scheduler.tick() and logs fired tasks."""
     mock_sched = MagicMock()
     mock_sched.tick.return_value = ["task_a"]
 
@@ -377,7 +367,6 @@ def test_tick_loop_logs_each_fired_task():
 
 
 def test_tick_loop_logs_warning_on_exception():
-    """Lines 225-226: exception from tick() logs a warning and does not propagate."""
     mock_sched = MagicMock()
     mock_sched.tick.side_effect = RuntimeError("tick boom")
 
@@ -389,16 +378,17 @@ def test_tick_loop_logs_warning_on_exception():
 
 
 def test_tick_loop_exits_when_scheduler_is_none():
-    """Lines 219-220: loop body breaks immediately if _scheduler becomes None."""
     call_count = [0]
 
     def mock_wait(timeout):
         call_count[0] += 1
         return False  # never stop via event — exits via `_scheduler is None` break
 
-    with patch.object(sched_module, "_scheduler", None):
-        with patch.object(sched_module._stop_event, "wait", side_effect=mock_wait):
-            _tick_loop()
+    with (
+        patch.object(sched_module, "_scheduler", None),
+        patch.object(sched_module._stop_event, "wait", side_effect=mock_wait),
+    ):
+        _tick_loop()
 
     assert call_count[0] == 1  # ran once, then broke out
 
@@ -409,7 +399,6 @@ def test_tick_loop_exits_when_scheduler_is_none():
 
 
 def test_enqueue_calls_actor_send():
-    """Lines 236-239: actor.send(*args, **kwargs) is called."""
     actor = MagicMock()
     _enqueue(actor, "my_task", (1, 2), {"key": "value"})
     actor.send.assert_called_once_with(1, 2, key="value")

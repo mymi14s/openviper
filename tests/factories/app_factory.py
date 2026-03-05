@@ -1,5 +1,3 @@
-import pytest
-
 from openviper.app import OpenViper
 from openviper.routing.router import Router
 

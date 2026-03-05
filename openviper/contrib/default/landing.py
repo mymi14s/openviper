@@ -156,7 +156,8 @@ LANDING_HTML = """\
         <p>
             A production-ready, high-performance, async-first Python web framework.
         </p>
-        <span class="badge">&#x1f6e1;&#xfe0f; DEBUG mode &mdash; this page is only visible in development</span>
+        <span class="badge">&#x1f6e1;&#xfe0f; DEBUG mode &mdash; this page is \
+only visible in development</span>
     </div>
 
     <div class="features">

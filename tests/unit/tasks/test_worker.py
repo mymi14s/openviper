@@ -1,9 +1,5 @@
-import importlib
-import os
 import signal as signal_module
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from openviper.tasks.worker import discover_tasks, run_worker
 
@@ -87,7 +83,6 @@ def test_discover_tasks_skips_openviper_internal_apps():
 
 
 def test_discover_tasks_skips_apps_with_unresolvable_path():
-    """Lines 83-85: apps whose path cannot be resolved are skipped."""
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = ["myapp"]
 
@@ -104,7 +99,6 @@ def test_discover_tasks_skips_apps_with_unresolvable_path():
 
 
 def test_discover_tasks_logs_warning_on_import_error():
-    """Lines 102-103: ImportError during module import logs warning but continues."""
     import openviper.tasks.worker
 
     with patch("openviper.tasks.worker.settings") as mock_settings:
@@ -132,18 +126,19 @@ def test_discover_tasks_logs_warning_on_import_error():
 
 
 def test_discover_tasks_extra_modules_import_error_is_logged():
-    """Lines 107-112: ImportError in extra_modules is logged but doesn't raise."""
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = []
 
-        with patch("openviper.tasks.worker.AppResolver"):
-            with patch(
+        with (
+            patch("openviper.tasks.worker.AppResolver"),
+            patch(
                 "openviper.tasks.worker.importlib.import_module",
                 side_effect=ImportError("missing"),
-            ):
-                result = discover_tasks(extra_modules=["nonexistent.module"])
-                # extra module failed → not in result
-                assert result == []
+            ),
+        ):
+            result = discover_tasks(extra_modules=["nonexistent.module"])
+            # extra module failed → not in result
+            assert result == []
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +148,6 @@ def test_discover_tasks_extra_modules_import_error_is_logged():
 
 @patch("openviper.tasks.worker.configure_worker_logging_from_settings")
 def test_run_worker_disabled_returns_early(mock_log):
-    """Lines 149-153: run_worker() returns immediately when tasks are disabled."""
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.TASKS = {"enabled": 0}
         mock_settings.INSTALLED_APPS = []
@@ -185,7 +179,6 @@ def test_run_worker_with_scheduler_enabled(
     mock_discover,
     mock_log,
 ):
-    """Lines 187, 203-208: when scheduler_enabled, start/stop scheduler are called."""
     mock_broker = MagicMock()
     mock_broker.get_declared_queues.return_value = {"default"}
     mock_setup_broker.return_value = mock_broker
@@ -243,15 +236,16 @@ def test_discover_tasks_skips_files_in_skip_files_set():
 
 
 def test_discover_tasks_extra_modules_success():
-    """Lines 109-110: extra module imported successfully is appended to result."""
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = []
 
-        with patch("openviper.tasks.worker.AppResolver"):
-            with patch("openviper.tasks.worker.importlib.import_module") as mock_import:
-                result = discover_tasks(extra_modules=["myapp.tasks"])
-                mock_import.assert_called_once_with("myapp.tasks")
-                assert result == ["myapp.tasks"]
+        with (
+            patch("openviper.tasks.worker.AppResolver"),
+            patch("openviper.tasks.worker.importlib.import_module") as mock_import,
+        ):
+            result = discover_tasks(extra_modules=["myapp.tasks"])
+            mock_import.assert_called_once_with("myapp.tasks")
+            assert result == ["myapp.tasks"]
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +260,6 @@ def test_discover_tasks_extra_modules_success():
 def test_run_worker_shutdown_signal_handler_calls_sys_exit(
     mock_worker_cls, mock_setup_broker, mock_discover, mock_log
 ):
-    """Lines 178-180: _shutdown() logs the signal name and calls sys.exit(0)."""
     mock_broker = MagicMock()
     mock_broker.get_declared_queues.return_value = set()
     mock_setup_broker.return_value = mock_broker
@@ -280,9 +273,11 @@ def test_run_worker_shutdown_signal_handler_calls_sys_exit(
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.TASKS = {"enabled": 1, "scheduler_enabled": 0}
         mock_settings.INSTALLED_APPS = []
-        with patch("openviper.tasks.worker.signal.signal", side_effect=fake_signal):
-            with patch("openviper.tasks.worker.time.sleep", side_effect=KeyboardInterrupt):
-                run_worker()
+        with (
+            patch("openviper.tasks.worker.signal.signal", side_effect=fake_signal),
+            patch("openviper.tasks.worker.time.sleep", side_effect=KeyboardInterrupt),
+        ):
+            run_worker()
 
     assert signal_module.SIGINT in captured_handlers
 
@@ -305,7 +300,6 @@ def test_run_worker_shutdown_signal_handler_calls_sys_exit(
 def test_run_worker_stop_exception_is_swallowed(
     mock_signal, mock_worker_cls, mock_setup_broker, mock_discover, mock_log
 ):
-    """Lines 208-209: RuntimeError from worker.stop() is silently suppressed."""
     mock_broker = MagicMock()
     mock_broker.get_declared_queues.return_value = set()
     mock_setup_broker.return_value = mock_broker

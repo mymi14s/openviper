@@ -160,7 +160,7 @@ class TestJSONResponse:
         class Unserializable:
             pass
 
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError, match="not JSON serializable"):
             JSONResponse({"obj": Unserializable()})
 
     def test_json_indent(self):
@@ -211,7 +211,7 @@ class TestHTMLResponse:
         assert any(b"text/html" in h[1] for h in content_type_headers)
 
     def test_html_cannot_have_both_content_and_template(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Cannot specify both"):
             HTMLResponse(content="<p>stuff</p>", template="index.html")
 
     def test_html_none_content(self):
@@ -353,7 +353,7 @@ class TestGZipResponse:
         gz = GZipResponse(inner, minimum_size=500)
 
         messages = await _call_response(gz)
-        start_msg = messages[0]
+        messages[0]
         body_msg = messages[1]
 
         # Should be compressed

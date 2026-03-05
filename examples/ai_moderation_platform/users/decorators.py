@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
-from openviper.http import JSONResponse, Request, Response
+from openviper.http import JSONResponse, Request
 
 
 def login_required(func: Callable) -> Callable:

@@ -7,7 +7,7 @@ import contextlib
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from openviper.db.migrations.executor import Operation
@@ -49,7 +49,7 @@ def _format_columns(model_cls: type[Model]) -> str:
         if isinstance(field, ForeignKey):
             target_model = field.resolve_target()
             if target_model:
-                col["target_table"] = target_model._table_name
+                col["target_table"] = cast("Any", target_model)._table_name
             elif isinstance(field.to, str):
                 # Fallback to string name if not yet resolvable
                 # But we need the table name. If it's 'auth.User', we might not know the table.
@@ -63,13 +63,14 @@ def _format_columns(model_cls: type[Model]) -> str:
 
 def _sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Model]]:
     """Sort models based on ForeignKey dependencies within the same app."""
-    from openviper.db.fields import ForeignKey
     from collections import deque
+
+    from openviper.db.fields import ForeignKey
 
     # map table_name -> Model
     lookup = {m._table_name: m for m in model_classes}
     # build adjacency list and in-degree count
-    adj = {m._table_name: [] for m in model_classes}
+    adj: dict[str, Any] = {m._table_name: [] for m in model_classes}
     in_degree = {m._table_name: 0 for m in model_classes}
 
     for model_cls in model_classes:
@@ -77,7 +78,12 @@ def _sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Mo
         for field in model_cls._fields.values():
             if isinstance(field, ForeignKey):
                 target = field.resolve_target()
-                if target and target._table_name in lookup and target._table_name != node:
+                if (
+                    target
+                    and hasattr(target, "_table_name")
+                    and target._table_name in lookup
+                    and target._table_name != node
+                ):
                     # Found intra-app dependency
                     adj[target._table_name].append(node)
                     in_degree[node] += 1
@@ -178,22 +184,22 @@ def next_migration_number(migrations_dir: str) -> str:
 # ── Model state helpers ──────────────────────────────────────────────────
 
 
-def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, list[dict]]:
+def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, list[dict[str, Any]]]:
     """Build a deterministic snapshot of the current model state.
 
     Returns a dict mapping table names to sorted lists of column definition
     dicts.  Abstract models are excluded automatically.
     """
-    state: dict[str, list[dict]] = {}
+    state: dict[str, list[dict[str, Any]]] = {}
     for model_cls in model_classes:
         meta = getattr(model_cls, "Meta", None)
         if meta and getattr(meta, "abstract", False):
             continue
-        cols: list[dict] = []
+        cols: list[dict[str, Any]] = []
         for _name, field in model_cls._fields.items():
             if field._column_type == "":
                 continue
-            col: dict = {
+            col: dict[str, Any] = {
                 "name": field.column_name,
                 "type": field._column_type,
                 "field_class": type(field).__name__,
@@ -213,7 +219,7 @@ def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, list[dic
     return state
 
 
-def read_migrated_state(migrations_dir: str) -> dict[str, list[dict]]:
+def read_migrated_state(migrations_dir: str) -> dict[str, list[dict[str, Any]]]:
     """Read all existing migration files and reconstruct the table state.
 
     Parses each migration's ``operations`` list to extract ``CreateTable``
@@ -228,7 +234,7 @@ def read_migrated_state(migrations_dir: str) -> dict[str, list[dict]]:
     # Reset soft-removed tracking for a clean parse
     _soft_removed_columns.clear()
 
-    state: dict[str, list[dict]] = {}
+    state: dict[str, list[dict[str, Any]]] = {}
     mig_dir = Path(migrations_dir)
     if not mig_dir.is_dir():
         return state
@@ -274,7 +280,7 @@ def _get_keyword_str(node: ast.Call, key: str) -> str | None:
     return None
 
 
-def _parse_operation(node: ast.AST, state: dict[str, list[dict]]) -> None:
+def _parse_operation(node: ast.AST, state: dict[str, list[dict[str, Any]]]) -> None:
     """Extract table info from a single AST operation node."""
     if not isinstance(node, ast.Call):
         return
@@ -301,14 +307,14 @@ def _parse_operation(node: ast.AST, state: dict[str, list[dict]]) -> None:
         _parse_restore_column(node, state)
 
 
-def _parse_create_table(node: ast.Call, state: dict[str, list[dict]]) -> None:
+def _parse_create_table(node: ast.Call, state: dict[str, list[dict[str, Any]]]) -> None:
     """Handle a CreateTable operation."""
     table_name: str | None = None
-    columns: list[dict] = []
+    columns: list[dict[str, Any]] = []
 
     for kw in node.keywords:
         if kw.arg == "table_name" and isinstance(kw.value, ast.Constant):
-            table_name = kw.value.value
+            table_name = str(kw.value.value)
         elif kw.arg == "columns" and isinstance(kw.value, ast.List):
             for col_node in kw.value.elts:
                 if isinstance(col_node, ast.Constant) and isinstance(col_node.value, dict):
@@ -323,7 +329,7 @@ def _parse_create_table(node: ast.Call, state: dict[str, list[dict]]) -> None:
         state[table_name] = columns
 
 
-def _parse_add_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
+def _parse_add_column(node: ast.Call, state: dict[str, list[dict[str, Any]]]) -> None:
     """Handle an AddColumn operation."""
     table_name = _get_keyword_str(node, "table_name")
     column_name = _get_keyword_str(node, "column_name")
@@ -348,7 +354,7 @@ def _parse_add_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
     cols.sort(key=lambda c: c.get("name", ""))
 
 
-def _parse_remove_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
+def _parse_remove_column(node: ast.Call, state: dict[str, list[dict[str, Any]]]) -> None:
     """Handle a RemoveColumn operation."""
     table_name = _get_keyword_str(node, "table_name")
     column_name = _get_keyword_str(node, "column_name")
@@ -377,7 +383,7 @@ def _parse_remove_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
     state[table_name] = [c for c in cols if c.get("name") != column_name]
 
 
-def _parse_alter_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
+def _parse_alter_column(node: ast.Call, state: dict[str, list[dict[str, Any]]]) -> None:
     """Handle an AlterColumn operation — update the column dict in state."""
     table_name = _get_keyword_str(node, "table_name")
     column_name = _get_keyword_str(node, "column_name")
@@ -400,7 +406,7 @@ def _parse_alter_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
             break
 
 
-def _parse_rename_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
+def _parse_rename_column(node: ast.Call, state: dict[str, list[dict[str, Any]]]) -> None:
     """Handle a RenameColumn operation — update the column name in state."""
     table_name = _get_keyword_str(node, "table_name")
     old_name = _get_keyword_str(node, "old_name")
@@ -415,7 +421,7 @@ def _parse_rename_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
             break
 
 
-def _parse_restore_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
+def _parse_restore_column(node: ast.Call, state: dict[str, list[dict[str, Any]]]) -> None:
     """Handle a RestoreColumn operation — re-add the column to state.
 
     The column was previously soft-removed (still in DB, tracked in
@@ -443,12 +449,12 @@ def _parse_restore_column(node: ast.Call, state: dict[str, list[dict]]) -> None:
     cols.sort(key=lambda c: c.get("name", ""))
 
 
-def _ast_dict_to_dict(node: ast.Dict) -> dict:
+def _ast_dict_to_dict(node: ast.Dict) -> dict[str, Any]:
     """Convert an ast.Dict of constants to a plain dict."""
-    result: dict = {}
+    result: dict[str, Any] = {}
     for key, value in zip(node.keys, node.values, strict=False):
         if isinstance(key, ast.Constant) and isinstance(value, ast.Constant):
-            result[key.value] = value.value
+            result[str(key.value)] = value.value
     return result
 
 
@@ -464,15 +470,15 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
 
 # Global dict to track columns that have been soft-removed across migrations.
 # Populated by read_migrated_state; maps (table_name, column_name) to col info.
-_soft_removed_columns: dict[tuple[str, str], dict] = {}
+_soft_removed_columns: dict[tuple[str, str], dict[str, Any]] = {}
 
 
 def _check_was_soft_removed(
     column_name: str,
     table_name: str,
-    existing: dict[str, list[dict]],
+    existing: dict[str, list[dict[str, Any]]],
     migrations_dir: str | None = None,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Check if a column was previously soft-removed.
 
     Returns the column info dict if it was soft-removed, else None.
@@ -484,8 +490,8 @@ def _check_was_soft_removed(
 
 
 def _diff_states(
-    current: dict[str, list[dict]],
-    existing: dict[str, list[dict]],
+    current: dict[str, list[dict[str, Any]]],
+    existing: dict[str, list[dict[str, Any]]],
 ) -> list[Operation]:
     """Compare *current* model state with *existing* migrated state.
 
@@ -503,8 +509,8 @@ def _diff_states(
         # However, CreateTable operations in snapshots ALREADY contain target_table for FKs.
 
         # Build dependency graph from snapshot column definitions
-        adj = {name: [] for name in new_table_names}
-        in_degree = {name: 0 for name in new_table_names}
+        adj: dict[str, Any] = {name: [] for name in new_table_names}
+        in_degree = dict.fromkeys(new_table_names, 0)
 
         for name in new_table_names:
             cols = current[name]

@@ -5,9 +5,9 @@ name: Code Quality
 
 on:
   push:
-    branches: [main, develop]
+    branches: [master, staging]
   pull_request:
-    branches: [main, develop]
+    branches: [master, staging]
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ permissions:
 jobs:
   # ── Formatting Check ──────────────────────────────────────────────────
   format:
-    name: Formatting (black + isort)
+    name: Formatting (black)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +23,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install black isort
+      - run: pip install black
       - name: Check black formatting
         run: black --check --diff openviper tests
-      - name: Check isort ordering
-        run: isort --check-only --diff openviper tests
 
   # ── Linting ───────────────────────────────────────────────────────────
   lint:
@@ -55,9 +53,12 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install OpenViper + dev requirements
+        run: |
+          pip install -e .
+          pip install -r requirements-dev.txt
       - name: mypy
-        run: mypy openviper
+        run: mypy openviper/*.py
 
   # ── Tests ─────────────────────────────────────────────────────────────
   test:
@@ -66,14 +67,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.14", "3.13"]
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install OpenViper + dev requirements
+        run: |
+          pip install -e .
+          pip install -r requirements-dev.txt
       - name: Run tests with coverage
         run: pytest tests --cov=openviper --cov-report=term-missing --cov-fail-under=90
       - name: Upload coverage

@@ -13,9 +13,9 @@ from openviper.db.migrations.executor import (
     RenameColumn,
     RestoreColumn,
     RunSQL,
-    _column_exists,
-    _should_skip_backward,
-    _should_skip_forward,
+    _column_exists,  # noqa: F401
+    _should_skip_backward,  # noqa: F401
+    _should_skip_forward,  # noqa: F401
     discover_migrations,
 )
 from openviper.db.migrations.writer import (

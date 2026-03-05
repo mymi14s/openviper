@@ -103,6 +103,25 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../architecture.html#subsystem-overview">Subsystem Overview</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../../../http.html">HTTP — Requests &amp; Responses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../http.html#request-object">Request Object</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#file-uploads">File Uploads</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../http.html#response-types">Response Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#jsonresponse">JSONResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#plaintextresponse">PlainTextResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#htmlresponse">HTMLResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#redirectresponse">RedirectResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#fileresponse">FileResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#streamingresponse">StreamingResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../http.html#gzipresponse">GZipResponse</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../http.html#setting-cookies">Setting Cookies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../http.html#custom-headers">Custom Headers</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="../../../orm.html">ORM System</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../orm.html#model-definition">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../orm.html#fields">Fields</a></li>
@@ -171,6 +190,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../admin.html">Admin Interface</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#accessing-the-admin">Accessing the Admin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../admin.html#standalone-single-file-apps">Standalone / Single-file Apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#registering-models">Registering Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#auto-discovery">Auto-Discovery</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#admin-api-endpoints">Admin API Endpoints</a></li>
@@ -190,7 +210,10 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#starting-the-worker">Starting the Worker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#retry-behaviour">Retry Behaviour</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#broker-configuration">Broker Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#model-event-hooks">Model Event Hooks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#model-event-hooks">Model Event Hooks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../tasks.html#decorator-based-event-handlers">Decorator-Based Event Handlers</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#task-logging">Task Logging</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../tasks.html#result-tracking">Result Tracking</a></li>
 </ul>
@@ -203,6 +226,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../scheduler.html#registering-periodic-jobs">Registering Periodic Jobs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../scheduler.html#periodic-shorthand-decorator">&#64;periodic — Shorthand Decorator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../scheduler.html#removing-a-job">Removing a Job</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../scheduler.html#running-the-scheduler">Running the Scheduler</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../scheduler.html#one-shot-execution">One-Shot Execution</a></li>
@@ -222,11 +246,26 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#listing-available-models">Listing Available Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#modelrouter-runtime-model-switching">ModelRouter — Runtime Model Switching</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#provider-abstraction-interface">Provider Abstraction Interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#writing-a-custom-provider">Writing a Custom Provider</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#plugin-discovery-via-entry-points">Plugin Discovery via Entry-Points</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#streaming-in-a-view">Streaming in a View</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../ai_registry.html#error-handling">Error Handling</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../storage.html">File Storage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../storage.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../storage.html#using-default-storage">Using default_storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../storage.html#handling-file-uploads">Handling File Uploads</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../storage.html#custom-storage-backend">Custom Storage Backend</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../exceptions.html">Exceptions Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../exceptions.html#http-exceptions">HTTP Exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../exceptions.html#orm-database-exceptions">ORM / Database Exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../exceptions.html#ai-exceptions">AI Exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../exceptions.html#configuration-exceptions">Configuration Exceptions</a></li>
 </ul>
 </li>
 </ul>
@@ -260,10 +299,11 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../cli.html#global-cli-openviper">Global CLI (<code class="docutils literal notranslate"><span class="pre">openviper</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#create-project"><code class="docutils literal notranslate"><span class="pre">create-project</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#create-app-global"><code class="docutils literal notranslate"><span class="pre">create-app</span></code> (global)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../cli.html#run"><code class="docutils literal notranslate"><span class="pre">run</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#version"><code class="docutils literal notranslate"><span class="pre">version</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../../cli.html#management-commands-python-manage-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli.html#management-commands-python-viperctl-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#runserver"><code class="docutils literal notranslate"><span class="pre">runserver</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#runworker"><code class="docutils literal notranslate"><span class="pre">runworker</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#makemigrations"><code class="docutils literal notranslate"><span class="pre">makemigrations</span></code></a></li>
@@ -634,6 +674,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.events.ModelEventDispatcher"><code class="docutils literal notranslate"><span class="pre">ModelEventDispatcher</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.events.get_dispatcher"><code class="docutils literal notranslate"><span class="pre">get_dispatcher()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.events.reset_dispatcher"><code class="docutils literal notranslate"><span class="pre">reset_dispatcher()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.events.model_event"><code class="docutils literal notranslate"><span class="pre">model_event</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api_reference.html#module-openviper.tasks.broker">Broker</a><ul>
@@ -645,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -967,6 +1009,8 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">cast</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">openviper.auth.hashers</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_password</span><span class="p">,</span> <span class="n">make_password</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">openviper.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">openviper.db.fields</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -994,7 +1038,7 @@
 
     <span class="n">codename</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">name</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">)</span>
-    <span class="n">content_type</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># &quot;app.Model&quot;</span>
+    <span class="n">content_type</span> <span class="o">=</span> <span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[assignment]  # &quot;app.Model&quot;</span>
     <span class="n">created_at</span> <span class="o">=</span> <span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Permission.Meta">
@@ -1004,7 +1048,7 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">codename</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span></div>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">codename</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
 
 
 
@@ -1030,7 +1074,7 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span></div>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span></div>
 
 
 
@@ -1053,7 +1097,7 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div>
 
 
 
@@ -1150,7 +1194,7 @@
 
     <span class="n">_app_name</span> <span class="o">=</span> <span class="s2">&quot;auth&quot;</span>
 
-    <span class="n">content_type</span> <span class="o">=</span> <span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="s2">&quot;ContentType&quot;</span><span class="p">)</span>
+    <span class="n">content_type</span> <span class="o">=</span> <span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="s2">&quot;ContentType&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore[assignment]</span>
     <span class="n">role</span> <span class="o">=</span> <span class="n">ForeignKey</span><span class="p">(</span><span class="n">to</span><span class="o">=</span><span class="s2">&quot;Role&quot;</span><span class="p">)</span>
     <span class="n">can_create</span> <span class="o">=</span> <span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">can_read</span> <span class="o">=</span> <span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
@@ -1206,6 +1250,9 @@
         <span class="n">abstract</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
+    <span class="c1"># Per-request permissions cache; populated lazily by get_permissions()</span>
+    <span class="n">_cached_perms</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
     <span class="c1"># ── Password methods ──────────────────────────────────────────────────</span>
 
 <div class="viewcode-block" id="AbstractUser.set_password">
@@ -1215,7 +1262,7 @@
 
 <span class="sd">        Uses Argon2id by default, falls back to bcrypt.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">make_password</span><span class="p">(</span><span class="n">raw_password</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">password</span> <span class="o">=</span> <span class="n">make_password</span><span class="p">(</span><span class="n">raw_password</span><span class="p">)</span>  <span class="c1"># type: ignore[assignment]</span></div>
 
 
 <div class="viewcode-block" id="AbstractUser.check_password">
@@ -1224,7 +1271,7 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify raw_password against the stored hash.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="n">check_password</span><span class="p">(</span><span class="n">raw_password</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">check_password</span><span class="p">(</span><span class="n">raw_password</span><span class="p">,</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;str&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">password</span><span class="p">))</span></div>
 
 
     <span class="c1"># ── Permission checks ─────────────────────────────────────────────────</span>
@@ -1250,14 +1297,14 @@
             <span class="n">details</span> <span class="o">=</span> <span class="k">await</span> <span class="n">RoleProfileDetail</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">role_profile</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">role_profile</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">details</span><span class="p">:</span>
                 <span class="k">return</span> <span class="p">[]</span>
-            <span class="n">role_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">role</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">details</span><span class="p">]</span>
-            <span class="k">return</span> <span class="k">await</span> <span class="n">Role</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">role_ids</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+            <span class="n">role_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">role</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">details</span><span class="p">]</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="k">return</span> <span class="k">await</span> <span class="n">Role</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">role_ids</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>  <span class="c1"># type: ignore[return-value]</span>
 
         <span class="n">user_roles</span> <span class="o">=</span> <span class="k">await</span> <span class="n">UserRole</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">user_roles</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[]</span>
-        <span class="n">role_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">ur</span><span class="o">.</span><span class="n">role</span> <span class="k">for</span> <span class="n">ur</span> <span class="ow">in</span> <span class="n">user_roles</span><span class="p">]</span>
-        <span class="k">return</span> <span class="k">await</span> <span class="n">Role</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">role_ids</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span></div>
+        <span class="n">role_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">ur</span><span class="o">.</span><span class="n">role</span> <span class="k">for</span> <span class="n">ur</span> <span class="ow">in</span> <span class="n">user_roles</span><span class="p">]</span>  <span class="c1"># type: ignore[attr-defined]</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">Role</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">role_ids</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>  <span class="c1"># type: ignore[return-value]</span></div>
 
 
 <div class="viewcode-block" id="AbstractUser.get_permissions">
@@ -1267,29 +1314,29 @@
         <span class="c1"># Per-request cache: user objects are created fresh per request, so</span>
         <span class="c1"># caching on the instance avoids repeated DB queries within one request.</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_cached_perms&quot;</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">:</span>
             <span class="n">all_perms</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Permission</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">()</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-            <span class="n">result</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="o">.</span><span class="n">codename</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">all_perms</span><span class="p">}</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="n">result</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="n">result</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="o">.</span><span class="n">codename</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">all_perms</span><span class="p">}</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="n">result</span>
             <span class="k">return</span> <span class="n">result</span>
 
         <span class="n">roles</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_roles</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">roles</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
             <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
         <span class="n">role_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">pk</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">]</span>
         <span class="n">role_perms</span> <span class="o">=</span> <span class="k">await</span> <span class="n">RolePermission</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">role__in</span><span class="o">=</span><span class="n">role_ids</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-        <span class="n">perm_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">rp</span><span class="o">.</span><span class="n">permission</span> <span class="k">for</span> <span class="n">rp</span> <span class="ow">in</span> <span class="n">role_perms</span><span class="p">]</span>
+        <span class="n">perm_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">rp</span><span class="o">.</span><span class="n">permission</span> <span class="k">for</span> <span class="n">rp</span> <span class="ow">in</span> <span class="n">role_perms</span><span class="p">]</span>  <span class="c1"># type: ignore[attr-defined]</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">perm_ids</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
             <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
 
         <span class="n">perms</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Permission</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">id__in</span><span class="o">=</span><span class="n">perm_ids</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="o">.</span><span class="n">codename</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">perms</span><span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="n">result</span>  <span class="c1"># type: ignore[attr-defined]</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="n">p</span><span class="o">.</span><span class="n">codename</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">perms</span><span class="p">}</span>  <span class="c1"># type: ignore[attr-defined]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_perms</span> <span class="o">=</span> <span class="n">result</span>
         <span class="k">return</span> <span class="n">result</span></div>
 
 
@@ -1341,11 +1388,7 @@
             <span class="n">content_type</span><span class="o">=</span><span class="n">content_type</span><span class="o">.</span><span class="n">pk</span><span class="p">,</span> <span class="n">role__in</span><span class="o">=</span><span class="n">role_ids</span>
         <span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
 
-        <span class="k">for</span> <span class="n">ctp</span> <span class="ow">in</span> <span class="n">ct_perms</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctp</span><span class="p">,</span> <span class="n">action_field</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-                <span class="k">return</span> <span class="kc">True</span>
-
-        <span class="k">return</span> <span class="kc">False</span></div>
+        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctp</span><span class="p">,</span> <span class="n">action_field</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">ctp</span> <span class="ow">in</span> <span class="n">ct_perms</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AbstractUser.has_role">
@@ -1355,7 +1398,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_superuser</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">True</span>
         <span class="n">roles</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_roles</span><span class="p">()</span>
-        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">role_name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">==</span> <span class="n">role_name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="AbstractUser.assign_role">
@@ -1376,11 +1419,11 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">full_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">first_name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">]</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">first_name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">last_name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)]</span>
         <span class="k">return</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">parts</span> <span class="k">if</span> <span class="n">p</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">username</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;&lt;User id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pk</span><span class="si">!r}</span><span class="s2"> username=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">username</span><span class="si">!r}</span><span class="s2">&gt;&quot;</span></div>

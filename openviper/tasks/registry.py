@@ -21,10 +21,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
-from openviper.tasks.schedule import Schedule
+if TYPE_CHECKING:
+    from openviper.tasks.schedule import Schedule
 
 logger = logging.getLogger("openviper.tasks")
 
@@ -63,7 +64,7 @@ class ScheduleEntry:
         """Delegate to ``self.schedule.is_due`` if the entry is enabled."""
         if not self.enabled:
             return False
-        _now = now if now is not None else datetime.now(timezone.utc)
+        _now = now if now is not None else datetime.now(UTC)
         return self.schedule.is_due(self.last_run_at, _now)
 
 
@@ -157,7 +158,7 @@ class ScheduleRegistry:
             now: The reference datetime (UTC).  Defaults to
                  ``datetime.now(timezone.utc)``.
         """
-        _now = now if now is not None else datetime.now(timezone.utc)
+        _now = now if now is not None else datetime.now(UTC)
         return [e for e in self._entries.values() if e.is_due(_now)]
 
     def clear(self) -> None:

@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import threading
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from openviper.ai.base import AIProvider
 from openviper.ai.registry import ProviderRegistry, provider_registry
+
+if TYPE_CHECKING:
+    from openviper.ai.base import AIProvider
 
 
 class ModelRouter:

@@ -1,6 +1,4 @@
-import asyncio
 import os
-from typing import Any, AsyncGenerator
 
 import pytest
 
@@ -8,11 +6,8 @@ import pytest
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["OPENVIPER_SETTINGS_MODULE"] = "ai_moderation_platform.settings"
 
-from ai_moderation_platform.asgi import app
-
-from openviper.core.app_resolver import AppResolver
-from openviper.db.connection import _metadata, get_engine, init_db
-from openviper.http import Request
+from ai_moderation_platform.asgi import app  # noqa: E402
+from openviper.db.connection import _metadata, get_engine, init_db  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -24,9 +19,6 @@ def anyio_backend():
 async def setup_database():
     """Initialize database and discover models."""
     # Ensure project models are imported
-    import moderation.models
-    import posts.models
-    import users.models
 
     # Ensure internal system tables are registered in metadata
     from openviper.db.migrations.executor import _get_migration_table, _get_soft_removed_table
@@ -35,7 +27,7 @@ async def setup_database():
     _get_soft_removed_table()
 
     await init_db(drop_first=True)
-    yield
+    return
     # Cleanup session engine if needed
 
 
@@ -46,7 +38,7 @@ async def clean_database():
     async with engine.begin() as conn:
         for table in reversed(_metadata.sorted_tables):
             await conn.execute(table.delete())
-    yield
+    return
 
 
 @pytest.fixture

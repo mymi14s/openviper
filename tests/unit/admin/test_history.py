@@ -1,4 +1,4 @@
-from typing import Any
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -134,8 +134,6 @@ async def test_log_change():
         assert record.object_repr == "Test Obj"
         assert record.change_message == "Created"
         # json dumps changes
-        import json
-
         assert json.loads(record.changed_fields) == changes
 
     # Test with user fallback ID/str
@@ -183,7 +181,6 @@ def test_compute_changes():
 
 
 def test_compute_changes_skips_sensitive_fields():
-    """Line 194: sensitive fields (password, token, etc.) are silently skipped."""
     old_data = {
         "name": "Alice",
         "age": 30,

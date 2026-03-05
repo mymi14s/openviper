@@ -6,7 +6,7 @@
 
 *The freedom of a minimal core. The power of a full stack.*
 
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.14%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.0.1-orange)](pyproject.toml)
 
@@ -249,7 +249,7 @@ Full reference documentation lives in [`docs/0.0.1/`](docs/0.0.1/).
 ## ⚙️ Requirements
 
 - **Python** ≥ 3.14
-- **Supported DB driver** — PostgreSQL, MySQL/MariaDB, SQLite
+- **Supported DB driver**   — PostgreSQL, MySQL/MariaDB, SQLite
 
 
 ---

@@ -4,8 +4,8 @@ This migration runs after both auth/0001_initial and the configured user
 app's initial migration, since auth_user_roles holds a FK to the user table.
 """
 
-from openviper.db.migrations import executor as migrations
 from openviper.conf import settings as _openviper_settings
+from openviper.db.migrations import executor as migrations
 
 _AUTH_USER = "openviper.auth.models.User"
 

@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-import typing
-from typing import Any
-
-import pytest
-
 from openviper.openapi.schema import (
     _extract_path_params,
     _openapi_path,

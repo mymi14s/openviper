@@ -24,7 +24,7 @@ from openviper.db import init_db  # noqa: E402
 async def main() -> None:
     await init_db()
 
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
 
     username = input("Username [admin]: ").strip() or "admin"
     email = input("Email: ").strip()

@@ -132,7 +132,7 @@ class ChangeHistoryAdmin(ModelAdmin):
 def register_auth_models() -> None:
     """Register all auth models with the admin site."""
 
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
 
     # Register User model (may already be registered by project)
     with contextlib.suppress(AlreadyRegistered):

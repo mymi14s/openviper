@@ -8,7 +8,10 @@ import os
 from openviper.core.management.base import BaseCommand, CommandError
 
 _APP_TEMPLATE = {
-    "__init__.py": '"""{{ app_label }} app."""\n\nfrom . import admin  # noqa: F401 - Register admin configuration\n',
+    "__init__.py": (
+        '"""{{ app_label }} app."""\n\n'
+        "from . import admin  # noqa: F401 - Register admin configuration\n"
+    ),
     "admin.py": '''"""{{ app_label }} admin configuration."""
 
 from openviper.admin import admin, ModelAdmin, register
@@ -63,7 +66,13 @@ from openviper.serializers import Serializer
 from openviper.tasks import task
 
 
-# Define your background tasks here.
+''',
+    "events.py": '''"""{{ app_label }} model events."""
+
+from openviper.tasks.events import model_event
+
+
+# Define your background events here.
 ''',
     "tests.py": '''"""{{ app_label }} tests."""
 

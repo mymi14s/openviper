@@ -1,7 +1,9 @@
-"""Tests for openviper/tasks/log.py — configure_worker_logging, configure_worker_logging_from_settings."""
+"""Tests for openviper/tasks/log.py
+— configure_worker_logging, configure_worker_logging_from_settings."""
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -21,10 +23,8 @@ def reset_logging_configured():
     for name in ("openviper.tasks", "dramatiq"):
         lg = logging.getLogger(name)
         for h in list(lg.handlers):
-            try:
+            with contextlib.suppress(Exception):
                 h.close()
-            except Exception:
-                pass
         lg.handlers.clear()
         lg.propagate = True
     yield
@@ -32,10 +32,8 @@ def reset_logging_configured():
     for name in ("openviper.tasks", "dramatiq"):
         lg = logging.getLogger(name)
         for h in list(lg.handlers):
-            try:
+            with contextlib.suppress(Exception):
                 h.close()
-            except Exception:
-                pass
         lg.handlers.clear()
         lg.propagate = True
 
@@ -94,7 +92,6 @@ def test_configure_worker_logging_sets_log_level():
 
 
 def test_configure_worker_logging_to_file_creates_handlers(tmp_path):
-    """Lines 80-100: log_to_file=True creates RotatingFileHandlers."""
     from logging.handlers import RotatingFileHandler
 
     configure_worker_logging(log_dir=str(tmp_path), log_to_file=True)
@@ -127,7 +124,6 @@ def test_configure_worker_logging_to_file_log_info_message(tmp_path, caplog):
 
 
 def test_configure_worker_logging_console_only_log_info_message(caplog):
-    """Lines 124-127: console-only message logged when log_to_file=False."""
     with caplog.at_level(logging.INFO, logger="openviper.tasks"):
         configure_worker_logging(log_to_file=False)
     assert "console only" in caplog.text or log_module._LOGGING_CONFIGURED is True
@@ -180,7 +176,6 @@ def test_configure_worker_logging_from_settings_reads_log_to_file():
 
 
 def test_configure_worker_logging_from_settings_exception_swallowed(caplog):
-    """Lines 157-158: exception in settings import is swallowed silently."""
     with patch("openviper.tasks.log.configure_worker_logging") as mock_cfg:
         mock_cfg.return_value = Path("/tmp/logs")
 

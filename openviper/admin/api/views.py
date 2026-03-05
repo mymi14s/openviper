@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 
 import sqlalchemy.exc
 
-from openviper.admin import ModelAdmin
 from openviper.admin.actions import ActionResult, get_action
 from openviper.admin.fields import coerce_field_value
 from openviper.admin.history import (
@@ -36,13 +35,14 @@ from openviper.auth import (
 from openviper.auth.jwt import decode_refresh_token, decode_token_unverified
 from openviper.auth.token_blocklist import is_token_revoked, revoke_token
 from openviper.conf import settings
-from openviper.db import Model
 from openviper.db.connection import get_engine
 from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, ValidationError
 from openviper.http.response import JSONResponse, Response
 from openviper.routing.router import Router
 
 if TYPE_CHECKING:
+    from openviper.admin import ModelAdmin
+    from openviper.db import Model
     from openviper.http.request import Request
 
 
@@ -63,7 +63,7 @@ def _is_auth_user_model(model_class: type) -> bool:
         # captured at import time and its identity may diverge from what
         # the caller holds when settings or the import cache differ (e.g.
         # during testing).
-        _User = get_user_model()
+        _User = get_user_model()  # noqa: N806
         return model_class is _User or issubclass(model_class, _User)
     except Exception:
         return False
@@ -229,7 +229,7 @@ def get_admin_router() -> Router:
             jti = claims.get("jti")
             if jti:
                 exp = claims.get("exp", 0)
-                expires_at = datetime.datetime.fromtimestamp(exp, tz=datetime.timezone.utc)
+                expires_at = datetime.datetime.fromtimestamp(exp, tz=datetime.UTC)
                 user_id = claims.get("sub")
                 with contextlib.suppress(Exception):
                     await revoke_token(
@@ -251,7 +251,7 @@ def get_admin_router() -> Router:
             jti = claims.get("jti")
             if jti:
                 exp = claims.get("exp", 0)
-                expires_at = datetime.datetime.fromtimestamp(exp, tz=datetime.timezone.utc)
+                expires_at = datetime.datetime.fromtimestamp(exp, tz=datetime.UTC)
                 user_id = claims.get("sub")
                 with contextlib.suppress(Exception):
                     await revoke_token(

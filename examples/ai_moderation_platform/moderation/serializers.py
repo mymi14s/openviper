@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
-
 from openviper.serializers import Serializer
 
 
@@ -18,16 +16,16 @@ class ModerationLogResponseSerializer(Serializer):
     reason: str
     reviewed: bool
     approved: bool
-    moderator_id: Optional[int] = None
+    moderator_id: int | None = None
     created_at: str
-    reviewed_at: Optional[str] = None
+    reviewed_at: str | None = None
 
 
 class ModerationActionSerializer(Serializer):
     """Serializer for moderation action (approve/reject)."""
 
     action: str
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class BanUserSerializer(Serializer):

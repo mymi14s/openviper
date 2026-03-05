@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 
 from openviper.admin.site import get_admin_site
-from tests.factories.admin_factory import create_admin_user, create_regular_user
+from tests.factories.admin_factory import create_admin_user
 from tests.utils.admin_client import AdminClient
 
 
@@ -34,7 +34,7 @@ async def client(auth_app):
 
 @pytest.mark.asyncio
 async def test_admin_login_success(client):
-    admin_user = await create_admin_user(username="admin_test")
+    await create_admin_user(username="admin_test")
 
     response = await client.post(
         "/admin/api/auth/login/", data={"username": "admin_test", "password": "password123"}

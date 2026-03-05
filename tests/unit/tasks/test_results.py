@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -57,7 +55,6 @@ class TestToSyncUrl:
     def test_postgres_asyncpg_with_available_driver(self):
         """postgresql+asyncpg:// → postgresql+<driver>:// when psycopg2 available."""
         url = "postgresql+asyncpg://user:pass@localhost/mydb"
-        rest = "user:pass@localhost/mydb"
         with patch("openviper.tasks.results.importlib.import_module") as mock_import:
             # Make psycopg2 importable
             mock_import.return_value = MagicMock()
@@ -68,12 +65,14 @@ class TestToSyncUrl:
     def test_postgres_asyncpg_no_sync_driver_raises(self):
         """postgresql+asyncpg:// with no sync driver available → RuntimeError."""
         url = "postgresql+asyncpg://user:pass@localhost/mydb"
-        with patch(
-            "openviper.tasks.results.importlib.import_module",
-            side_effect=ModuleNotFoundError,
+        with (
+            patch(
+                "openviper.tasks.results.importlib.import_module",
+                side_effect=ModuleNotFoundError,
+            ),
+            pytest.raises(RuntimeError, match="No synchronous PostgreSQL driver"),
         ):
-            with pytest.raises(RuntimeError, match="No synchronous PostgreSQL driver"):
-                _to_sync_url(url)
+            _to_sync_url(url)
 
     def test_postgres_prefix_variant(self):
         """postgres+asyncpg:// is also handled."""
@@ -167,7 +166,12 @@ class TestBuildUpsertFn:
         assert callable(fn)
 
     def test_postgresql_dialect_returns_callable(self):
-        fn = _build_upsert_fn("postgresql")
+        import sys
+
+        pg_stub = MagicMock()
+        pg_stub.insert = MagicMock()
+        with patch.dict(sys.modules, {"sqlalchemy.dialects.postgresql": pg_stub}):
+            fn = _build_upsert_fn("postgresql")
         assert callable(fn)
 
     def test_mysql_dialect_returns_callable(self):
@@ -188,7 +192,7 @@ class TestBuildUpsertFn:
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def sqlite_engine():
     """Create an in-memory SQLite engine directly (avoids pool kwargs issues)."""
     from sqlalchemy import create_engine as ce
@@ -233,9 +237,11 @@ class TestUpsertResult:
         import logging
 
         reset_engine()
-        with patch("openviper.tasks.results._resolve_db_url", return_value=""):
-            with caplog.at_level(logging.DEBUG, logger="openviper.tasks"):
-                upsert_result("msg-no-db", status="pending")
+        with (
+            patch("openviper.tasks.results._resolve_db_url", return_value=""),
+            caplog.at_level(logging.DEBUG, logger="openviper.tasks"),
+        ):
+            upsert_result("msg-no-db", status="pending")
         # Must not raise; logs debug message
         assert results_module._engine is None
 
@@ -363,7 +369,7 @@ class TestRowToDict:
         assert d["args"] == "not_json"
 
     def test_datetime_columns_normalized_to_iso(self):
-        now = datetime(2024, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        now = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         row = self._make_row(
             message_id="x",
             status="success",

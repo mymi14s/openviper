@@ -51,7 +51,7 @@ def test_boolean_field_coercion():
 
 def test_datetime_field_coercion():
     field = DateTimeField()
-    dt = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=dt_module.timezone.utc)
+    dt = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=dt_module.UTC)
     assert field.to_python(dt.isoformat()) == dt
     assert field.to_db(dt) == dt
 

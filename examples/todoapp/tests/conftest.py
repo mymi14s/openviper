@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
-from typing import AsyncGenerator, Generator
 
 import pytest
 
@@ -50,7 +50,7 @@ async def setup_db() -> AsyncGenerator[None, None]:
     _get_soft_removed_table()
 
     await init_db(drop_first=True)
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +60,7 @@ async def clean_tables() -> AsyncGenerator[None, None]:
     async with engine.begin() as conn:
         for table in reversed(_metadata.sorted_tables):
             await conn.execute(table.delete())
-    yield
+    return
 
 
 # ── Shared object fixtures ────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ async def clean_tables() -> AsyncGenerator[None, None]:
 @pytest.fixture
 async def user():
     """A regular (non-staff) user in the database."""
-    User = get_user_model()
+    User = get_user_model()  # noqa: N806
     u = User(username="testuser", email="test@example.com")
     u.set_password("pass1234")
     await u.save()

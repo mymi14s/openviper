@@ -11,6 +11,7 @@ the table from growing unboundedly.
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import time
 
@@ -80,7 +81,7 @@ async def revoke_token(
     engine = await get_engine()
     async with engine.begin() as conn:
         # Upsert — if the same jti is already revoked, do nothing.
-        try:
+        with contextlib.suppress(Exception):
             await conn.execute(
                 sa.insert(table).values(
                     jti=jti,
@@ -90,9 +91,6 @@ async def revoke_token(
                     revoked_at=timezone.now(),
                 )
             )
-        except Exception:
-            # Duplicate jti (already revoked) — safe to ignore.
-            pass
 
         # Opportunistically prune fully-expired tokens.
         await conn.execute(sa.delete(table).where(table.c.expires_at <= timezone.now()))

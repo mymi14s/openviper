@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from openviper.conf import settings
 from openviper.middleware.base import ASGIApp, BaseMiddleware
@@ -122,15 +122,15 @@ class SecurityMiddleware(BaseMiddleware):
                 return True
         return False
 
-    def _get_host(self, scope: dict) -> str:
+    def _get_host(self, scope: dict[str, Any]) -> str:
         """Extract the hostname (without port) from the ASGI scope."""
         for name, value in scope.get("headers", []):
             if name == b"host":
-                raw = value.decode("latin-1")
+                raw: str = value.decode("latin-1")
                 return raw.rsplit(":", 1)[0] if ":" in raw else raw
         server = scope.get("server")
         if server:
-            return server[0]
+            return cast("str", server[0])
         return ""
 
     async def _send_400(self, send: Any, host: str) -> None:

@@ -12,7 +12,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.pool import StaticPool
@@ -93,30 +93,21 @@ def test_create_engine_rewrites_sqlite_prefix():
 
 
 def test_create_engine_rewrites_postgresql_prefix():
-    # We just need to verify the URL rewriting logic; no actual connection.
-    engine = (
-        _create_engine.__wrapped__("postgresql://user:pass@localhost/db")
-        if hasattr(_create_engine, "__wrapped__")
-        else _create_engine("postgresql://user:pass@localhost/db")
-    )
-    try:
-        assert "asyncpg" in str(engine.url)
-    finally:
-        try:
-            engine.sync_engine.dispose()
-        except Exception:
-            pass
+    # Verify URL rewriting logic without triggering actual PostgreSQL dialect import
+    # (SQLAlchemy postgresql+asyncpg has a circular import on Python 3.14).
+    with patch("openviper.db.connection.create_async_engine") as mock_cae:
+        mock_cae.return_value = MagicMock()
+        _create_engine("postgresql://user:pass@localhost/db")
+    rewritten_url = str(mock_cae.call_args[0][0])
+    assert "asyncpg" in rewritten_url
 
 
 def test_create_engine_rewrites_postgres_short_prefix():
-    engine = _create_engine("postgres://user:pass@localhost/db")
-    try:
-        assert "asyncpg" in str(engine.url)
-    finally:
-        try:
-            engine.sync_engine.dispose()
-        except Exception:
-            pass
+    with patch("openviper.db.connection.create_async_engine") as mock_cae:
+        mock_cae.return_value = MagicMock()
+        _create_engine("postgres://user:pass@localhost/db")
+    rewritten_url = str(mock_cae.call_args[0][0])
+    assert "asyncpg" in rewritten_url
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +185,11 @@ async def test_get_engine_returns_same_instance_on_repeated_calls():
 @pytest.mark.asyncio
 async def test_get_engine_creates_engine_from_settings():
     """get_engine() initialises _engine from settings when not pre-configured."""
-    with patch("openviper.conf.settings.DATABASE_URL", "sqlite:///:memory:", create=True):
-        with patch("openviper.conf.settings.DATABASE_ECHO", False, create=True):
-            engine = await get_engine()
+    with (
+        patch("openviper.conf.settings.DATABASE_URL", "sqlite:///:memory:", create=True),
+        patch("openviper.conf.settings.DATABASE_ECHO", False, create=True),
+    ):
+        engine = await get_engine()
     assert engine is not None
     await close_db()
     conn_module._engine_lock = None
@@ -217,11 +210,13 @@ async def test_get_engine_concurrent_creates_engine_exactly_once():
         create_calls.append(1)
         return original_create(url, echo)
 
-    with patch("openviper.db.connection._create_engine", side_effect=counting_create):
-        with patch("openviper.conf.settings.DATABASE_URL", "sqlite:///:memory:", create=True):
-            with patch("openviper.conf.settings.DATABASE_ECHO", False, create=True):
-                # Spawn 100 coroutines that all race to call get_engine().
-                results = await asyncio.gather(*[get_engine() for _ in range(100)])
+    with (
+        patch("openviper.db.connection._create_engine", side_effect=counting_create),
+        patch("openviper.conf.settings.DATABASE_URL", "sqlite:///:memory:", create=True),
+        patch("openviper.conf.settings.DATABASE_ECHO", False, create=True),
+    ):
+        # Spawn 100 coroutines that all race to call get_engine().
+        results = await asyncio.gather(*[get_engine() for _ in range(100)])
 
     assert (
         len(create_calls) == 1

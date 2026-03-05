@@ -2,7 +2,6 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import Field
 
 from openviper.db import fields
 from openviper.db.models import Model
@@ -295,7 +294,7 @@ def test_model_serializer_generation():
     assert "is_active" in UserModelSerializer.model_fields
 
     # Check types
-    assert UserModelSerializer.model_fields["username"].annotation == str
+    assert UserModelSerializer.model_fields["username"].annotation is str
     # email is null=True, so it should be optional
     # Pydantic v2 might show it as str | None
     annotation = UserModelSerializer.model_fields["email"].annotation
@@ -377,7 +376,7 @@ def test_extra_kwargs_not_present_keeps_required():
 
     # title has no null/auto config so it should be required (str, not str | None)
     annotation = StrictSerializer.model_fields["title"].annotation
-    assert annotation == str
+    assert annotation is str
 
 
 # ── _get_file_fields ──────────────────────────────────────────────────────────
@@ -422,7 +421,7 @@ def test_validate_file_sizes_string_value_skips():
 
 def test_validate_file_sizes_exceeds_limit_raises():
     # Simulate a file object whose size exceeds the field's limit
-    mock_file = MagicMock()
+    MagicMock()
     # Use bytes so FileField._get_content_size returns a real size
     # Override the max_file_size on the field to a tiny value
     tiny_bytes = b"x" * 10
@@ -596,8 +595,8 @@ async def test_model_serializer_update():
 @pytest.mark.asyncio
 async def test_model_serializer_update_does_not_change_pk():
     ser = UserModelSerializer(username="updated", email=None, is_active=True)
-    ser_data = ser.model_dump()
-    assert "id" in ser_data or True  # id may or may not be present
+    ser.model_dump()
+    assert True  # id may or may not be present
 
     mock_instance = MagicMock()
     mock_instance.id = 99
@@ -687,9 +686,11 @@ async def test_save_with_pk_nonexistent_record_calls_create():
     mock_new.is_active = True
     mock_new.id = None
 
-    with patch.object(User.objects, "get", new=AsyncMock(side_effect=DoesNotExist)):
-        with patch.object(User.objects, "create", new=AsyncMock(return_value=mock_new)):
-            result = await ser.save()
+    with (
+        patch.object(User.objects, "get", new=AsyncMock(side_effect=DoesNotExist)),
+        patch.object(User.objects, "create", new=AsyncMock(return_value=mock_new)),
+    ):
+        result = await ser.save()
 
     assert isinstance(result, dict)
 

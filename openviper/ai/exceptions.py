@@ -7,7 +7,7 @@ re-exported here for convenience.
 
 from __future__ import annotations
 
-from openviper.exceptions import AIException, ModelCollisionError, ModelNotFoundError
+from openviper.exceptions import AIException, ModelCollisionError, ModelNotFoundError  # noqa: F401
 
 # Re-export so existing ``from openviper.ai.exceptions import ...`` imports
 # continue to work during the migration window.

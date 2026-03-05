@@ -18,7 +18,7 @@ def test_make_password_plain():
 
 def test_make_password_argon2():
     try:
-        import argon2
+        import argon2  # noqa: F401
     except ImportError:
         pytest.skip("argon2-cffi not installed")
 
@@ -31,7 +31,7 @@ def test_make_password_argon2():
 
 def test_make_password_bcrypt():
     try:
-        import bcrypt
+        import bcrypt  # noqa: F401
     except ImportError:
         pytest.skip("bcrypt not installed")
 

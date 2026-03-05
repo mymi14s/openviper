@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -310,22 +309,24 @@ class TestHandleInitialMigration:
         mod = MagicMock()
         mod.__name__ = "testapp.models"
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                cmd.handle(
-                    app_labels=["testapp"],
-                    name=None,
-                    check=False,
-                    empty=False,
-                    drop_columns=False,
-                )
+            ),
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name=None,
+                check=False,
+                empty=False,
+                drop_columns=False,
+            )
 
         mock_write.assert_called_once()
         # migration name should include "initial"
@@ -351,22 +352,24 @@ class TestHandleInitialMigration:
         mod = MagicMock()
         mod.__name__ = "testapp.models"
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                cmd.handle(
-                    app_labels=["testapp"],
-                    name="setup",
-                    check=False,
-                    empty=False,
-                    drop_columns=False,
-                )
+            ),
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name="setup",
+                check=False,
+                empty=False,
+                drop_columns=False,
+            )
 
         call_kwargs = mock_write.call_args[1]
         assert "setup" in call_kwargs.get("migration_name", "")
@@ -409,22 +412,24 @@ class TestHandleSubsequentMigration:
         mod.__name__ = "testapp.models"
         mock_diff.return_value = [AddColumn(table_name="t", column_name="bio", column_type="TEXT")]
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                cmd.handle(
-                    app_labels=["testapp"],
-                    name=None,
-                    check=False,
-                    empty=False,
-                    drop_columns=False,
-                )
+            ),
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name=None,
+                check=False,
+                empty=False,
+                drop_columns=False,
+            )
 
         mock_write.assert_called_once()
 
@@ -510,22 +515,24 @@ class TestHandleSubsequentMigration:
         rc_op = RemoveColumn(table_name="t", column_name="old_col")
         mock_diff.return_value = [rc_op]
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                cmd.handle(
-                    app_labels=["testapp"],
-                    name=None,
-                    check=False,
-                    empty=False,
-                    drop_columns=True,
-                )
+            ),
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name=None,
+                check=False,
+                empty=False,
+                drop_columns=True,
+            )
 
         assert rc_op.drop is True
         mock_write.assert_called_once()
@@ -561,22 +568,24 @@ class TestHandleSubsequentMigration:
         mod.__name__ = "testapp.models"
         mock_diff.return_value = [AddColumn(table_name="t", column_name="bio", column_type="TEXT")]
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                cmd.handle(
-                    app_labels=["testapp"],
-                    name="my_custom",
-                    check=False,
-                    empty=False,
-                    drop_columns=False,
-                )
+            ),
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name="my_custom",
+                check=False,
+                empty=False,
+                drop_columns=False,
+            )
 
         call_kwargs = mock_write.call_args[1]
         assert "my_custom" in call_kwargs.get("migration_name", "")
@@ -606,24 +615,26 @@ class TestHandleCheckOnly:
         mod = MagicMock()
         mod.__name__ = "testapp.models"
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                with pytest.raises(SystemExit) as exc_info:
-                    cmd.handle(
-                        app_labels=["testapp"],
-                        name=None,
-                        check=True,
-                        empty=False,
-                        drop_columns=False,
-                    )
-                assert exc_info.value.code == 1
+            ),
+        ):
+            cmd = Command()
+            with pytest.raises(SystemExit) as exc_info:
+                cmd.handle(
+                    app_labels=["testapp"],
+                    name=None,
+                    check=True,
+                    empty=False,
+                    drop_columns=False,
+                )
+            assert exc_info.value.code == 1
 
     @patch("openviper.core.management.commands.makemigrations.AppResolver")
     @patch("openviper.core.management.commands.makemigrations.settings")
@@ -637,24 +648,26 @@ class TestHandleCheckOnly:
         mod = MagicMock()
         mod.__name__ = "testapp.models"
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                with patch("sys.exit") as mock_exit:
-                    cmd = Command()
-                    cmd.handle(
-                        app_labels=["testapp"],
-                        name=None,
-                        check=True,
-                        empty=False,
-                        drop_columns=False,
-                    )
-                    mock_exit.assert_not_called()
+            ),
+            patch("sys.exit") as mock_exit,
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name=None,
+                check=True,
+                empty=False,
+                drop_columns=False,
+            )
+            mock_exit.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -676,23 +689,25 @@ class TestHandleNoModelChanges:
         mod.__name__ = "testapp.models"
 
         stdout_calls = []
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
-                    cmd.handle(
-                        app_labels=["testapp"],
-                        name=None,
-                        check=False,
-                        empty=False,
-                        drop_columns=False,
-                    )
+            ),
+        ):
+            cmd = Command()
+            with patch.object(cmd, "stdout", side_effect=lambda m: stdout_calls.append(m)):
+                cmd.handle(
+                    app_labels=["testapp"],
+                    name=None,
+                    check=False,
+                    empty=False,
+                    drop_columns=False,
+                )
 
         combined = " ".join(stdout_calls)
         assert "no changes" in combined.lower() or "0" in combined
@@ -768,22 +783,24 @@ class TestHandleModelImport:
                 raise ImportError("not found")
             return fallback_mod
 
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            side_effect=selective_import,
-        ):
-            with patch(
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                side_effect=selective_import,
+            ),
+            patch(
                 "openviper.core.management.commands.makemigrations.inspect.getmembers",
                 return_value=[],
-            ):
-                cmd = Command()
-                cmd.handle(
-                    app_labels=["testapp"],
-                    name=None,
-                    check=False,
-                    empty=False,
-                    drop_columns=False,
-                )
+            ),
+        ):
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name=None,
+                check=False,
+                empty=False,
+                drop_columns=False,
+            )
 
         mock_write.assert_called_once()
 
@@ -818,23 +835,25 @@ class TestHandleModelImport:
                 abstract = True
 
         # Patch `Model` in makemigrations so `issubclass(AbstractModel, FakeModelBase)` works
-        with patch(
-            "openviper.core.management.commands.makemigrations.importlib.import_module",
-            return_value=mod,
+        with (
+            patch(
+                "openviper.core.management.commands.makemigrations.importlib.import_module",
+                return_value=mod,
+            ),
+            patch("openviper.core.management.commands.makemigrations.Model", FakeModelBase),
+            patch(
+                "openviper.core.management.commands.makemigrations.inspect.getmembers",
+                return_value=[("AbstractModel", AbstractModel)],
+            ),
         ):
-            with patch("openviper.core.management.commands.makemigrations.Model", FakeModelBase):
-                with patch(
-                    "openviper.core.management.commands.makemigrations.inspect.getmembers",
-                    return_value=[("AbstractModel", AbstractModel)],
-                ):
-                    cmd = Command()
-                    cmd.handle(
-                        app_labels=["testapp"],
-                        name=None,
-                        check=False,
-                        empty=False,
-                        drop_columns=False,
-                    )
+            cmd = Command()
+            cmd.handle(
+                app_labels=["testapp"],
+                name=None,
+                check=False,
+                empty=False,
+                drop_columns=False,
+            )
 
         # write_initial_migration should be called with empty model_classes
         mock_write.assert_called_once()

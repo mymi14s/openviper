@@ -25,9 +25,9 @@ class AnthropicProvider(AIProvider):
         global AsyncAnthropic
         from anthropic import AsyncAnthropic
 
-        self._client: "AsyncAnthropic" | None = None
+        self._client: AsyncAnthropic | None = None
 
-    def _get_client(self) -> "AsyncAnthropic":
+    def _get_client(self) -> AsyncAnthropic:
         import asyncio
 
         try:

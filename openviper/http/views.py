@@ -26,7 +26,7 @@ Usage with a router::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from openviper.exceptions import MethodNotAllowed
 from openviper.http.response import Response as Resp
@@ -82,9 +82,9 @@ class View:
         """
         method = request.method.lower()
         if method not in self.http_method_names:
-            return self.http_method_not_allowed(request)
+            return cast("Resp", self.http_method_not_allowed(request))
         handler = getattr(self, method, self.http_method_not_allowed)
-        return await handler(request, **kwargs)
+        return cast("Resp", await handler(request, **kwargs))
 
     def http_method_not_allowed(self, request: Request, **kwargs: Any) -> Any:
         """Return a 405 Method Not Allowed error."""
@@ -135,8 +135,8 @@ class View:
             return await self.dispatch(request, **kwargs)
 
         # Preserve metadata for introspection / debugging
-        view.__name__ = cls.__name__  # type: ignore[attr-defined]
-        view.__qualname__ = cls.__qualname__  # type: ignore[attr-defined]
+        view.__name__ = cls.__name__
+        view.__qualname__ = cls.__qualname__
         view.__doc__ = cls.__doc__
         view.view_class = cls  # type: ignore[attr-defined]
         view.view_initkwargs = initkwargs  # type: ignore[attr-defined]

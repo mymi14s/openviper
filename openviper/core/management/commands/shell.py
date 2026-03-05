@@ -58,7 +58,8 @@ class Command(BaseCommand):
 
             if found:
                 self.stdout(
-                    f"  {self.style_success('✓')} {found} model(s) from {self.style_bold(module_name)}"
+                    f"  {self.style_success('✓')} {found} model(s)"
+                    f" from {self.style_bold(module_name)}"
                 )
 
         try:

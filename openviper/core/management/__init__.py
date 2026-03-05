@@ -7,6 +7,7 @@ correct :class:`~openviper.core.management.base.BaseCommand` subclass.
 
 from __future__ import annotations
 
+import contextlib
 import importlib
 import os
 import pkgutil
@@ -81,11 +82,9 @@ def execute_from_command_line(argv: list[str] | None = None) -> NoReturn:
 
     # Explicitly trigger settings setup early to ensure OPENVIPER_SETTINGS_MODULE
     # is honored before any other framework objects (like models) are imported.
-    try:
+    with contextlib.suppress(Exception):
         # Accessing an attribute triggers _setup()
         _ = settings.DEBUG
-    except Exception:
-        pass
 
     if len(argv) < 2 or argv[1] in ("help", "--help", "-h"):
         prog = os.path.basename(argv[0])

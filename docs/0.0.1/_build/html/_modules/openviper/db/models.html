@@ -190,6 +190,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../admin.html">Admin Interface</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#accessing-the-admin">Accessing the Admin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../admin.html#standalone-single-file-apps">Standalone / Single-file Apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#registering-models">Registering Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#auto-discovery">Auto-Discovery</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../admin.html#admin-api-endpoints">Admin API Endpoints</a></li>
@@ -298,10 +299,11 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../cli.html#global-cli-openviper">Global CLI (<code class="docutils literal notranslate"><span class="pre">openviper</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#create-project"><code class="docutils literal notranslate"><span class="pre">create-project</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#create-app-global"><code class="docutils literal notranslate"><span class="pre">create-app</span></code> (global)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../cli.html#run"><code class="docutils literal notranslate"><span class="pre">run</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#version"><code class="docutils literal notranslate"><span class="pre">version</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../../cli.html#management-commands-python-manage-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli.html#management-commands-python-viperctl-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#runserver"><code class="docutils literal notranslate"><span class="pre">runserver</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#runworker"><code class="docutils literal notranslate"><span class="pre">runworker</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../cli.html#makemigrations"><code class="docutils literal notranslate"><span class="pre">makemigrations</span></code></a></li>
@@ -684,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -694,7 +697,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.ai.base.AIProvider"><code class="docutils literal notranslate"><span class="pre">AIProvider</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api_reference.html#id8">Registry</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api_reference.html#id6">Registry</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.ai.registry.ProviderConfig"><code class="docutils literal notranslate"><span class="pre">ProviderConfig</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.ai.registry.ProviderRegistry"><code class="docutils literal notranslate"><span class="pre">ProviderRegistry</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api_reference.html#openviper.ai.registry.ai_registry"><code class="docutils literal notranslate"><span class="pre">ai_registry</span></code></a></li>
@@ -1029,7 +1032,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">TypeVar</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">TypeVar</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">insert</span>
 
@@ -1078,7 +1081,7 @@
         <span class="c1"># Collect fields from bases first</span>
         <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="s2">&quot;_fields&quot;</span><span class="p">):</span>
-                <span class="n">fields</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">_fields</span><span class="p">)</span>  <span class="c1"># type: ignore[union-attr]</span>
+                <span class="n">fields</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">_fields</span><span class="p">)</span>
 
         <span class="c1"># Collect fields from declaring class</span>
         <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr_val</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">namespace</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
@@ -1117,9 +1120,10 @@
         <span class="n">is_abstract</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="s2">&quot;abstract&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">if</span> <span class="n">meta</span> <span class="k">else</span> <span class="kc">False</span>
 
         <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;Model&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_abstract</span><span class="p">:</span>
-            <span class="bp">cls</span><span class="o">.</span><span class="n">objects</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-defined]</span>
-            <span class="n">get_table</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
-            <span class="n">mcs</span><span class="o">.</span><span class="n">registry</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">app_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span>
+            <span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;Any&quot;</span><span class="p">,</span> <span class="bp">cls</span><span class="p">))</span>
+            <span class="bp">cls</span><span class="o">.</span><span class="n">objects</span> <span class="o">=</span> <span class="n">manager</span>  <span class="c1"># type: ignore[attr-defined]</span>
+            <span class="n">get_table</span><span class="p">(</span><span class="n">cast</span><span class="p">(</span><span class="s2">&quot;Any&quot;</span><span class="p">,</span> <span class="bp">cls</span><span class="p">))</span>
+            <span class="n">mcs</span><span class="o">.</span><span class="n">registry</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">app_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="s2">&quot;Any&quot;</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="bp">cls</span>
 
@@ -1573,7 +1577,7 @@
 <span class="sd">                async def after_insert(self) -&gt; None:</span>
 <span class="sd">                    print(f&quot;Article {self.pk} created!&quot;)</span>
 
-<span class="sd">                async def on_change(self, previous_state: dict) -&gt; None:</span>
+<span class="sd">                async def on_change(self, previous_state: dict[str, Any]) -&gt; None:</span>
 <span class="sd">                    print(f&quot;Changed fields: {previous_state}&quot;)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -1616,14 +1620,14 @@
 
 <span class="sd">        Format: &#39;app_label.model_name&#39; (e.g., &#39;auth.User&#39;).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_app_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_model_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cast</span><span class="p">(</span><span class="s1">&#39;Any&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_app_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">cast</span><span class="p">(</span><span class="s1">&#39;Any&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_model_name</span><span class="si">}</span><span class="s2">&quot;</span>
 
 <div class="viewcode-block" id="Model.get_content_type_label">
 <a class="viewcode-back" href="../../../api_reference.html#openviper.db.models.Model.get_content_type_label">[docs]</a>
     <span class="nd">@classmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_content_type_label</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the content type identifier for this model class.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">cls</span><span class="o">.</span><span class="n">_app_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="bp">cls</span><span class="o">.</span><span class="n">_model_name</span><span class="si">}</span><span class="s2">&quot;</span></div>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">cast</span><span class="p">(</span><span class="s1">&#39;Any&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">_app_name</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">cast</span><span class="p">(</span><span class="s1">&#39;Any&#39;</span><span class="p">,</span><span class="w"> </span><span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">_model_name</span><span class="si">}</span><span class="s2">&quot;</span></div>
 
 
     <span class="c1"># ── Change detection ──────────────────────────────────────────────────</span>

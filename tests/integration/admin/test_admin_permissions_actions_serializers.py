@@ -24,7 +24,6 @@ from openviper.admin.api.permissions import (
 from openviper.admin.api.serializers import (
     ModelDetailSerializer,
     ModelListSerializer,
-    serialize_field_info,
     serialize_for_detail,
     serialize_for_list,
     serialize_instance,
@@ -533,7 +532,6 @@ class TestActionDecorator:
 
     @pytest.mark.asyncio
     async def test_decorated_action_execute(self):
-        from unittest.mock import AsyncMock
 
         @action(description="Test exec")
         async def exec_action(queryset, request):

@@ -24,12 +24,9 @@ Registration (in settings)::
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 logger = logging.getLogger("blog.events")
-
-if TYPE_CHECKING:
-    from blog.models import Comment, Post
 
 
 # ---------------------------------------------------------------------------

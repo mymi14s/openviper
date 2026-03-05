@@ -1,5 +1,3 @@
-import pytest
-
 from openviper.exceptions import (
     AuthenticationFailed,
     Conflict,

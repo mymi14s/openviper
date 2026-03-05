@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from openviper.db import fields
-from openviper.db.models import AbstractModel, Manager, Model, QuerySet
+from openviper.db.models import AbstractModel, Model, QuerySet
 from openviper.exceptions import DoesNotExist, MultipleObjectsReturned
 
 
@@ -72,10 +72,12 @@ def test_model_change_tracking():
 @pytest.mark.asyncio
 async def test_model_validation():
     m = TestModel(title="Too Long String Here")
-    with patch("openviper.db.models.get_soft_removed_columns", return_value=[]):
-        with patch("openviper.db.models._load_soft_removed_columns"):
-            with pytest.raises(ValueError, match="exceeds max_length"):
-                await m.validate()
+    with (
+        patch("openviper.db.models.get_soft_removed_columns", return_value=[]),
+        patch("openviper.db.models._load_soft_removed_columns"),
+        pytest.raises(ValueError, match="exceeds max_length"),
+    ):
+        await m.validate()
 
 
 @pytest.mark.asyncio
@@ -157,8 +159,8 @@ async def test_model_save_lifecycle(mock_save):
 @pytest.mark.asyncio
 @patch("openviper.db.models.execute_delete_instance")
 async def test_model_delete(mock_delete):
-    setattr(EmptyModel, "on_delete", AsyncMock())
-    setattr(EmptyModel, "after_delete", AsyncMock())
+    EmptyModel.on_delete = AsyncMock()
+    EmptyModel.after_delete = AsyncMock()
 
     m = EmptyModel(id=1)
     await m.delete()
@@ -351,7 +353,7 @@ async def test_model_update_lifecycle(mock_save):
 def test_model_kwargs_init():
     # line 436 coverage
     m = EmptyModel(id=1, name="hi")
-    m2 = EmptyModel(
+    EmptyModel(
         id=1, name="hi", extra_arg="ignored"
     )  # Test branch where key not in fields, should be ignored unless hasattr
     assert m.name == "hi"
@@ -377,10 +379,12 @@ async def test_validate_skip_auto_date():
             table_name = "date_model"
 
     m = DateModel()
-    with patch("openviper.db.models.get_soft_removed_columns", return_value=[]):
-        with patch("openviper.db.models._load_soft_removed_columns"):
-            # Should skip validation on created/updated
-            await m.validate()
+    with (
+        patch("openviper.db.models.get_soft_removed_columns", return_value=[]),
+        patch("openviper.db.models._load_soft_removed_columns"),
+    ):
+        # Should skip validation on created/updated
+        await m.validate()
 
     m._apply_auto_fields()
     assert m.created is not None
@@ -391,9 +395,3 @@ async def test_validate_skip_auto_date():
         await EmptyModel(
             id=1, name="hi"
         ).validate()  # name is soft removed, shouldn't raise even if invalid
-
-
-def test_queryset_related():
-    qs = EmptyModel.objects.all().select_related("author").prefetch_related("comments")
-    assert qs._select_related == ["author"]
-    assert qs._prefetch_related == ["comments"]

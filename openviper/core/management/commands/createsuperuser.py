@@ -97,7 +97,7 @@ class Command(BaseCommand):
 
     def handle(self, **options):  # type: ignore[override]
 
-        User = get_user_model()
+        User = get_user_model()  # noqa: N806
 
         no_input = options.get("no_input", False)
 

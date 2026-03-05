@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import sqlalchemy as sa
 
@@ -126,9 +126,9 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
     SQLAlchemy ``InvalidRequestError`` (table already in metadata).
     """
     metadata = get_metadata()
-    columns: list[sa.Column] = []
+    columns: list[sa.Column[Any]] = []
     added_columns: set[str] = set()
-    for _name, field in model_cls._fields.items():
+    for _name, field in cast("Any", model_cls)._fields.items():
         if field._column_type == "":
             continue  # ManyToMany — no column
 
@@ -145,7 +145,7 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
             target_model_cls = field.resolve_target()
 
             if target_model_cls and hasattr(target_model_cls, "_table_name"):
-                related_table = target_model_cls._table_name
+                related_table = str(target_model_cls._table_name)
             else:
                 target_str = field.to
                 if callable(target_str):
@@ -216,7 +216,7 @@ def get_table(model_cls: type[Model]) -> sa.Table:
     return _build_table(model_cls._table_name, model_cls)
 
 
-def _sa_type(field: Any) -> sa.types.TypeEngine:
+def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if isinstance(field, BinaryField):
         return sa.LargeBinary()
     if isinstance(field, (ForeignKey, OneToOneField)):
@@ -255,7 +255,7 @@ def _sa_type(field: Any) -> sa.types.TypeEngine:
 
 def _compile_filters(
     table: sa.Table, filter_dicts: list[dict[str, Any]]
-) -> sa.ColumnElement | None:
+) -> sa.ColumnElement[Any] | None:
     """Convert ORM filters to SQLAlchemy where clauses.
 
     Supports: ``field=val``, ``field__exact``, ``field__contains``,
@@ -263,7 +263,7 @@ def _compile_filters(
     ``field__gt``, ``field__gte``, ``field__lt``, ``field__lte``,
     ``field__in``, ``field__isnull``.
     """
-    clauses: list[sa.ColumnElement] = []
+    clauses: list[sa.ColumnElement[Any]] = []
     for filters in filter_dicts:
         for key, value in filters.items():
             parts = key.split("__", 1)
@@ -312,7 +312,7 @@ def _compile_filters(
 
 def _compile_excludes(
     table: sa.Table, exclude_dicts: list[dict[str, Any]]
-) -> sa.ColumnElement | None:
+) -> sa.ColumnElement[Any] | None:
     filters_clause = _compile_filters(table, exclude_dicts)
     if filters_clause is None:
         return None
@@ -331,7 +331,7 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
     table = get_table(model_cls)
     stmt = sa.select(table)
 
-    where_parts: list[sa.ColumnElement] = []
+    where_parts: list[sa.ColumnElement[Any]] = []
     f = _compile_filters(table, qs._filters)
     if f is not None:
         where_parts.append(f)
@@ -366,7 +366,7 @@ async def execute_count(qs: QuerySet) -> int:
     table = get_table(model_cls)
     stmt = sa.select(sa.func.count()).select_from(table)
 
-    where_parts: list[sa.ColumnElement] = []
+    where_parts: list[sa.ColumnElement[Any]] = []
     f = _compile_filters(table, qs._filters)
     if f is not None:
         where_parts.append(f)
@@ -389,7 +389,7 @@ async def execute_delete(qs: QuerySet) -> int:
     table = get_table(model_cls)
     stmt = sa.delete(table)
 
-    where_parts: list[sa.ColumnElement] = []
+    where_parts: list[sa.ColumnElement[Any]] = []
     f = _compile_filters(table, qs._filters)
     if f is not None:
         where_parts.append(f)
@@ -418,7 +418,7 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
 
     stmt = sa.update(table).values(**db_values)
 
-    where_parts: list[sa.ColumnElement] = []
+    where_parts: list[sa.ColumnElement[Any]] = []
     f = _compile_filters(table, qs._filters)
     if f is not None:
         where_parts.append(f)
@@ -459,11 +459,11 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
         stmt = sa.insert(table).values(**data)
         async with engine.begin() as conn:
             result = await conn.execute(stmt)
-            instance.id = result.inserted_primary_key[0]
+            instance.id = cast("Any", result).inserted_primary_key[0]
     else:
-        stmt = sa.update(table).where(table.c.id == pk_val).values(**data)
+        upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**data)
         async with engine.begin() as conn:
-            await conn.execute(stmt)
+            await conn.execute(upd_stmt)
 
 
 async def execute_delete_instance(instance: Model, ignore_permissions: bool = False) -> None:

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, cast
 
 from sqlalchemy import insert
 
@@ -72,7 +72,7 @@ class ModelMeta(type):
         # Collect fields from bases first
         for base in bases:
             if hasattr(base, "_fields"):
-                fields.update(base._fields)  # type: ignore[union-attr]
+                fields.update(base._fields)
 
         # Collect fields from declaring class
         for attr_name, attr_val in list(namespace.items()):
@@ -111,9 +111,10 @@ class ModelMeta(type):
         is_abstract = getattr(meta, "abstract", False) if meta else False
 
         if name != "Model" and not is_abstract:
-            cls.objects = Manager(cls)  # type: ignore[attr-defined]
-            get_table(cls)
-            mcs.registry[f"{app_name}.{name}"] = cls
+            manager = Manager(cast("Any", cls))
+            cls.objects = manager  # type: ignore[attr-defined]
+            get_table(cast("Any", cls))
+            mcs.registry[f"{app_name}.{name}"] = cast("Any", cls)
 
         return cls
 
@@ -418,6 +419,7 @@ class QuerySet:
         clone._offset = self._offset
         clone._select_related = list(self._select_related)
         clone._prefetch_related = list(self._prefetch_related)
+        clone._ignore_permissions = self._ignore_permissions
         return clone
 
     def __repr__(self) -> str:
@@ -486,7 +488,7 @@ class Model(metaclass=ModelMeta):
                 async def after_insert(self) -> None:
                     print(f"Article {self.pk} created!")
 
-                async def on_change(self, previous_state: dict) -> None:
+                async def on_change(self, previous_state: dict[str, Any]) -> None:
                     print(f"Changed fields: {previous_state}")
     """
 
@@ -529,12 +531,12 @@ class Model(metaclass=ModelMeta):
 
         Format: 'app_label.model_name' (e.g., 'auth.User').
         """
-        return f"{self._app_name}.{self._model_name}"
+        return f"{cast('Any', self)._app_name}.{cast('Any', self)._model_name}"
 
     @classmethod
     def get_content_type_label(cls) -> str:
         """Return the content type identifier for this model class."""
-        return f"{cls._app_name}.{cls._model_name}"
+        return f"{cast('Any', cls)._app_name}.{cast('Any', cls)._model_name}"
 
     # ── Change detection ──────────────────────────────────────────────────
 

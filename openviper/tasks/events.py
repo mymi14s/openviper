@@ -90,7 +90,7 @@ import importlib
 import inspect
 import logging
 import threading
-from typing import Any
+from typing import Any, cast
 
 # Module-level reference so tests can patch ``openviper.tasks.events.settings``
 # without having to reach into ``openviper.conf.settings``.
@@ -271,15 +271,15 @@ def get_dispatcher() -> ModelEventDispatcher | None:
     global _dispatcher_cache
     # Fast path (lock-free): already built (None or a dispatcher).
     if _dispatcher_cache is not _UNSET:
-        return _dispatcher_cache  # type: ignore[return-value]
+        return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
     with _init_lock:
         # Double-check after acquiring the lock.
         if _dispatcher_cache is not _UNSET:
-            return _dispatcher_cache  # type: ignore[return-value]
+            return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
         _dispatcher_cache = _build_dispatcher()
-        return _dispatcher_cache
+        return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
 
 def reset_dispatcher() -> None:
@@ -301,12 +301,12 @@ def reset_dispatcher() -> None:
 def _build_dispatcher() -> ModelEventDispatcher | None:
     """Create and return a dispatcher from current settings, or ``None``."""
     try:
-        task_cfg: dict = dict(getattr(settings, "TASKS", {}) or {})
+        task_cfg: dict[str, Any] = dict(getattr(settings, "TASKS", {}) or {})
         if not task_cfg.get("enabled", False):
             logger.debug("MODEL_EVENTS dispatcher not created: TASKS['enabled'] is falsy.")
             return None
 
-        model_events: dict = dict(getattr(settings, "MODEL_EVENTS", {}) or {})
+        model_events: dict[str, Any] = dict(getattr(settings, "MODEL_EVENTS", {}) or {})
         if not model_events:
             return None
 

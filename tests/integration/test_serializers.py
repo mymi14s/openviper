@@ -1,4 +1,5 @@
-"""Integration tests for openviper.serializers (Serializer, ModelSerializer, PaginatedSerializer)."""
+"""Integration tests for openviper.serializers
+(Serializer, ModelSerializer, PaginatedSerializer)."""
 
 from __future__ import annotations
 
@@ -69,7 +70,7 @@ class TestSerializerValidateJsonString:
             SimpleSerializer.validate_json_string('{"name": "Alice", "age": "bad"}')
 
     def test_malformed_json_raises_validation_error(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match=""):
             SimpleSerializer.validate_json_string("{not valid json")
 
 
@@ -178,7 +179,7 @@ class TestModelValidator:
             confirm: str
 
             @model_validator(mode="after")
-            def passwords_match(self) -> "PwdSerializer":
+            def passwords_match(self) -> PwdSerializer:
                 if self.password != self.confirm:
                     raise ValueError("Passwords do not match")
                 return self

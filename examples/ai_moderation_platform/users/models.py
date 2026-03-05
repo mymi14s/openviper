@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from openviper.auth.models import User as BaseUser
-from openviper.db import Model
 
 
 class User(BaseUser):

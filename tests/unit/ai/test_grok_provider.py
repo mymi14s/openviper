@@ -356,9 +356,8 @@ class TestComplete:
         )
         mock_client = self._mock_httpx(resp)
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
-            with pytest.raises(GrokAuthError):
-                await p.complete("test")
+        with patch("httpx.AsyncClient", return_value=mock_client), pytest.raises(GrokAuthError):
+            await p.complete("test")
 
     @pytest.mark.asyncio
     async def test_complete_raises_rate_limit_error_on_429(self):
@@ -369,9 +368,11 @@ class TestComplete:
         )
         mock_client = self._mock_httpx(resp)
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
-            with pytest.raises(GrokRateLimitError):
-                await p.complete("test")
+        with (
+            patch("httpx.AsyncClient", return_value=mock_client),
+            pytest.raises(GrokRateLimitError),
+        ):
+            await p.complete("test")
 
     @pytest.mark.asyncio
     async def test_complete_passes_temperature_and_max_tokens(self):
@@ -543,10 +544,9 @@ class TestStreamComplete:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
-            with pytest.raises(GrokAuthError):
-                async for _ in p.stream_complete("hi"):
-                    pass
+        with patch("httpx.AsyncClient", return_value=mock_client), pytest.raises(GrokAuthError):
+            async for _ in p.stream_complete("hi"):
+                pass
 
     @pytest.mark.asyncio
     async def test_stream_complete_sets_stream_true_in_payload(self):

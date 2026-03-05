@@ -24,6 +24,8 @@ import openviper  # noqa: E402
 openviper.setup(force=True)
 
 # Register models with the admin panel (imports admin.py side-effects).
+from typing import TYPE_CHECKING  # noqa: E402
+
 import admin  # noqa: E402, F401
 
 # Register Todo in SQLAlchemy metadata before init_db() runs.
@@ -36,8 +38,10 @@ from openviper.auth import get_user_model  # noqa: E402
 from openviper.auth.backends import authenticate, login, logout  # noqa: E402
 from openviper.db import init_db  # noqa: E402
 from openviper.exceptions import AuthenticationFailed  # noqa: E402
-from openviper.http.request import Request  # noqa: E402
 from openviper.http.response import HTMLResponse, RedirectResponse  # noqa: E402
+
+if TYPE_CHECKING:
+    from openviper.http.request import Request
 
 User = get_user_model()
 

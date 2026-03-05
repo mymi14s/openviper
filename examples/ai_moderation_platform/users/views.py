@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from openviper.auth import get_user_model
 from openviper.auth.jwt import create_access_token
@@ -99,7 +99,7 @@ class LoginView(View):
             return JSONResponse({"error": "Account is disabled"}, status_code=403)
 
         # Update last login
-        user.last_login = datetime.now(timezone.utc)
+        user.last_login = datetime.now(UTC)
         await user.save()
 
         # Generate JWT token

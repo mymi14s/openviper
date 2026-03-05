@@ -103,11 +103,11 @@ class GeminiProvider(AIProvider):
         from google import genai
         from google.genai import types
 
-        self._client: "genai.Client" | None = None
+        self._client: genai.Client | None = None
 
     # ── SDK bootstrap ─────────────────────────────────────────────────────
 
-    def _get_client(self) -> "genai.Client":
+    def _get_client(self) -> genai.Client:
         """Return a lazily-initialised google-genai Client bound to the current event loop."""
         import asyncio
 
@@ -122,7 +122,7 @@ class GeminiProvider(AIProvider):
             self._client_loop = loop
         return self._client
 
-    def _make_config(self, overrides: dict[str, Any]) -> "types.GenerateContentConfig":
+    def _make_config(self, overrides: dict[str, Any]) -> types.GenerateContentConfig:
         """Build a GenerateContentConfig from base config plus per-call overrides."""
         cfg: dict[str, Any] = {
             "temperature": self.config.get("temperature"),

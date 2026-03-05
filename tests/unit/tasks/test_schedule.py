@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,7 +19,7 @@ from openviper.tasks.schedule import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_UTC = timezone.utc
+_UTC = UTC
 
 
 def _dt(year=2024, month=1, day=1, hour=0, minute=0, second=0, tz=_UTC):
@@ -104,7 +104,6 @@ def test_expand_field_step_zero_raises_value_error():
 
 
 def test_interval_schedule_raises_on_zero_seconds():
-    """Lines 82-84: seconds=0 raises ValueError."""
     with pytest.raises(ValueError, match="must be > 0"):
         IntervalSchedule(0)
 
@@ -186,7 +185,6 @@ def test_cron_schedule_init_strips_whitespace():
 
 
 def test_cron_schedule_init_parses_fields_when_no_croniter():
-    """Lines 178-179: when croniter not available, _fields is populated."""
     s = CronSchedule("*/5 * * * *")
     assert s._use_croniter is False
     assert s._fields is not None
@@ -197,7 +195,6 @@ def test_cron_schedule_init_parses_fields_when_no_croniter():
 
 
 def test_cron_schedule_parse_wrong_field_count_raises():
-    """Lines 187-191: non-5-field expression raises ValueError."""
     with pytest.raises(ValueError, match="5-field"):
         CronSchedule("* * * *")  # only 4 fields
 
@@ -216,7 +213,6 @@ def test_cron_schedule_parse_all_star():
 
 
 def test_cron_schedule_stdlib_is_due_true():
-    """Lines 199-209: all fields match → True."""
     # "* * * * *" matches any time
     s = CronSchedule("* * * * *")
     now = _dt(month=3, day=15, hour=10, minute=30)
@@ -256,7 +252,6 @@ def test_cron_schedule_is_due_defaults_now_to_utcnow():
 
 
 def test_cron_schedule_is_due_naive_now_gets_tzinfo():
-    """Lines 224-225: naive 'now' gets UTC tzinfo."""
     s = CronSchedule("* * * * *")
     naive = datetime(2024, 1, 1, 0, 0)  # no tzinfo
     # Should not raise and should call _stdlib_is_due
@@ -307,7 +302,6 @@ def test_croniter_is_due_last_run_none_returns_true():
 
 
 def test_croniter_is_due_not_yet_due():
-    """Lines 240-244: now < next_run → False."""
     future_next = _dt(minute=10)
     mock_croniter_mod = _make_croniter_module(future_next)
 
@@ -319,7 +313,6 @@ def test_croniter_is_due_not_yet_due():
 
 
 def test_croniter_is_due_at_or_after_next_run():
-    """Lines 240-244: now >= next_run → True."""
     past_next = _dt(minute=3)
     mock_croniter_mod = _make_croniter_module(past_next)
 
@@ -331,7 +324,6 @@ def test_croniter_is_due_at_or_after_next_run():
 
 
 def test_croniter_is_due_naive_last_run_at_gets_tz():
-    """Lines 238-239: naive last_run_at gets UTC tzinfo before passing to croniter."""
     next_run = _dt(minute=5)
     mock_croniter_mod = _make_croniter_module(next_run)
 
@@ -349,7 +341,6 @@ def test_croniter_is_due_naive_last_run_at_gets_tz():
 
 
 def test_croniter_is_due_naive_next_run_gets_tz():
-    """Lines 242-243: naive next_run from get_next() gets UTC tzinfo."""
     naive_next = datetime(2024, 1, 1, 0, 5)  # no tzinfo
     mock_croniter_mod = _make_croniter_module(naive_next)
 
@@ -363,7 +354,6 @@ def test_croniter_is_due_naive_next_run_gets_tz():
 
 
 def test_croniter_is_due_exception_falls_back_to_stdlib():
-    """Lines 245-249: any exception from croniter falls back to stdlib."""
     mock_mod = MagicMock()
     mock_mod.croniter.side_effect = RuntimeError("croniter broken")
 
@@ -377,7 +367,6 @@ def test_croniter_is_due_exception_falls_back_to_stdlib():
 
 
 def test_croniter_is_due_exception_parses_fields_when_none():
-    """Lines 247-248: if _fields is None when exception occurs, they get parsed."""
     mock_mod = MagicMock()
     mock_mod.croniter.side_effect = RuntimeError("broken")
 

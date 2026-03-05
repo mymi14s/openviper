@@ -1,6 +1,4 @@
-import ast
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -178,7 +176,10 @@ operations = [
     migrations.AddColumn(table_name="opstb", column_name="b", column_type="TEXT", nullable=False),
     migrations.DropTable(table_name="opstb2"),
     migrations.RemoveColumn(table_name="opstb", column_name="a"),
-    migrations.AlterColumn(table_name="opstb", column_name="b", column_type="VARCHAR", nullable=True, default="hi"),
+    migrations.AlterColumn(
+        table_name="opstb", column_name="b", column_type="VARCHAR",
+        nullable=True, default="hi"
+    ),
     migrations.RenameColumn(table_name="opstb", old_name="b", new_name="c"),
     migrations.RestoreColumn(table_name="opstb", column_name="d", column_type="JSON"),
     migrations.UnknownOp()
@@ -306,7 +307,9 @@ def fn():
         migrations.RenameColumn(table_name="x"),
         migrations.RestoreColumn(table_name="x"),
         migrations.RemoveColumn(table_name="t", column_name="unknown_col", column_type="JSON"),
-        migrations.RemoveColumn(table_name="t", column_name="c", column_type="JSON"), # overrides type
+        migrations.RemoveColumn(
+            table_name="t", column_name="c", column_type="JSON"
+        ),  # overrides type
     ]
 """)
     state = writer.read_migrated_state(str(tmp_path))

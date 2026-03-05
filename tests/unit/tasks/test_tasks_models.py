@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
+from datetime import UTC
 
 from openviper.db.fields import CharField, DateTimeField, IntegerField, TextField
 from openviper.db.models import Manager, Model
@@ -205,9 +205,9 @@ def test_task_result_duration_ms_none_when_timestamps_missing():
 
 
 def test_task_result_duration_ms_computed_when_both_timestamps_set():
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    start = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
     end = start + timedelta(milliseconds=250)
     record = TaskResult(message_id="x", actor_name="a", queue_name="q")
     record.started_at = start

@@ -1,4 +1,3 @@
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -55,9 +54,11 @@ def test_find_command_settings_raises_exception():
         def INSTALLED_APPS(self):
             raise RuntimeError("settings not configured")
 
-    with patch("openviper.core.management.settings", new=RaisingSettings()):
-        with pytest.raises(CommandError, match="Unknown command"):
-            _find_command("non-existent-xyz")
+    with (
+        patch("openviper.core.management.settings", new=RaisingSettings()),
+        pytest.raises(CommandError, match="Unknown command"),
+    ):
+        _find_command("non-existent-xyz")
 
 
 def test_find_command_per_app_command_found():
@@ -92,10 +93,12 @@ def test_execute_settings_debug_raises():
             raise RuntimeError("settings not ready")
 
     mock_cmd = MagicMock(spec=BaseCommand)
-    with patch("openviper.core.management.settings", new=RaisingSettings()):
-        with patch("openviper.core.management._find_command", return_value=mock_cmd):
-            with pytest.raises(SystemExit) as exc:
-                execute_from_command_line(["viperctl.py", "somecommand"])
+    with (
+        patch("openviper.core.management.settings", new=RaisingSettings()),
+        patch("openviper.core.management._find_command", return_value=mock_cmd),
+        pytest.raises(SystemExit) as exc,
+    ):
+        execute_from_command_line(["viperctl.py", "somecommand"])
     assert exc.value.code == 0
 
 

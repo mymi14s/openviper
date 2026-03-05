@@ -1,7 +1,5 @@
 """blog admin configuration."""
 
-from openviper.admin import ModelAdmin, admin, register
-
 # Import your models
 # from .models import YourModel
 

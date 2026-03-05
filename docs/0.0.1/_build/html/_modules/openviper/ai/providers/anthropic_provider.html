@@ -54,17 +54,21 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../quickstart.html">Quick Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#create-a-project">Create a Project</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#configure-the-database">Configure the Database</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#run-the-development-server">Run the Development Server</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#create-an-app">Create an App</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#define-a-model">Define a Model</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#define-a-serializer">Define a Serializer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#write-views">Write Views</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#register-routes">Register Routes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#register-with-admin">Register with Admin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#create-a-superuser-and-visit-the-admin">Create a Superuser and Visit the Admin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#test-the-api">Test the API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#flexible-single-file">Flexible — Single File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../quickstart.html#standard-project-structure">Standard — Project Structure</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#create-a-project">Create a Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#configure-the-database">Configure the Database</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#run-the-development-server">Run the Development Server</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#create-an-app">Create an App</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#define-a-model">Define a Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#define-a-serializer">Define a Serializer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#write-views">Write Views</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#register-routes">Register Routes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#register-with-admin">Register with Admin</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#create-a-superuser-and-visit-the-admin">Create a Superuser and Visit the Admin</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../quickstart.html#test-the-api">Test the API</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -99,6 +103,25 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../architecture.html#subsystem-overview">Subsystem Overview</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../http.html">HTTP — Requests &amp; Responses</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../http.html#request-object">Request Object</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#file-uploads">File Uploads</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../http.html#response-types">Response Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#jsonresponse">JSONResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#plaintextresponse">PlainTextResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#htmlresponse">HTMLResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#redirectresponse">RedirectResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#fileresponse">FileResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#streamingresponse">StreamingResponse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../http.html#gzipresponse">GZipResponse</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../http.html#setting-cookies">Setting Cookies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../http.html#custom-headers">Custom Headers</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../orm.html">ORM System</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#model-definition">Model Definition</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#fields">Fields</a></li>
@@ -112,6 +135,14 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#instance-methods">Instance Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#transactions">Transactions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#model-lifecycle-hooks">Model Lifecycle Hooks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#model-events-via-settings-model-events">Model Events via Settings (MODEL_EVENTS)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../orm.html#configuration-format">Configuration format</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../orm.html#key-format">Key format</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../orm.html#handler-function-signature">Handler function signature</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../orm.html#multiple-handlers-per-event">Multiple handlers per event</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../orm.html#multiple-models">Multiple models</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#migrations">Migrations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../orm.html#protected-orm-role-based-enforcement">Protected ORM (Role-Based Enforcement)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../orm.html#how-it-works">How it works</a></li>
@@ -159,6 +190,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../admin.html">Admin Interface</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../admin.html#accessing-the-admin">Accessing the Admin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../admin.html#standalone-single-file-apps">Standalone / Single-file Apps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../admin.html#registering-models">Registering Models</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../admin.html#auto-discovery">Auto-Discovery</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../admin.html#admin-api-endpoints">Admin API Endpoints</a></li>
@@ -178,7 +210,10 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#starting-the-worker">Starting the Worker</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#retry-behaviour">Retry Behaviour</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#broker-configuration">Broker Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#model-event-hooks">Model Event Hooks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#model-event-hooks">Model Event Hooks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../tasks.html#decorator-based-event-handlers">Decorator-Based Event Handlers</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#task-logging">Task Logging</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../tasks.html#result-tracking">Result Tracking</a></li>
 </ul>
@@ -191,6 +226,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../scheduler.html#registering-periodic-jobs">Registering Periodic Jobs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../scheduler.html#periodic-shorthand-decorator">&#64;periodic — Shorthand Decorator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../scheduler.html#removing-a-job">Removing a Job</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../scheduler.html#running-the-scheduler">Running the Scheduler</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../scheduler.html#one-shot-execution">One-Shot Execution</a></li>
@@ -210,11 +246,26 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#listing-available-models">Listing Available Models</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#modelrouter-runtime-model-switching">ModelRouter — Runtime Model Switching</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#provider-abstraction-interface">Provider Abstraction Interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#writing-a-custom-provider">Writing a Custom Provider</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#plugin-discovery-via-entry-points">Plugin Discovery via Entry-Points</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#streaming-in-a-view">Streaming in a View</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../ai_registry.html#error-handling">Error Handling</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../storage.html">File Storage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../storage.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../storage.html#using-default-storage">Using default_storage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../storage.html#handling-file-uploads">Handling File Uploads</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../storage.html#custom-storage-backend">Custom Storage Backend</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../exceptions.html">Exceptions Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../exceptions.html#http-exceptions">HTTP Exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../exceptions.html#orm-database-exceptions">ORM / Database Exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../exceptions.html#ai-exceptions">AI Exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../exceptions.html#configuration-exceptions">Configuration Exceptions</a></li>
 </ul>
 </li>
 </ul>
@@ -248,10 +299,11 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../cli.html#global-cli-openviper">Global CLI (<code class="docutils literal notranslate"><span class="pre">openviper</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#create-project"><code class="docutils literal notranslate"><span class="pre">create-project</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#create-app-global"><code class="docutils literal notranslate"><span class="pre">create-app</span></code> (global)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#run"><code class="docutils literal notranslate"><span class="pre">run</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#version"><code class="docutils literal notranslate"><span class="pre">version</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../../../../cli.html#management-commands-python-manage-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli.html#management-commands-python-viperctl-py">Management Commands (<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">viperctl.py</span></code>)</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#runserver"><code class="docutils literal notranslate"><span class="pre">runserver</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#runworker"><code class="docutils literal notranslate"><span class="pre">runworker</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../cli.html#makemigrations"><code class="docutils literal notranslate"><span class="pre">makemigrations</span></code></a></li>
@@ -283,105 +335,7 @@
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../../api_reference.html">API Reference</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../../../../api_reference.html#module-openviper">openviper (top-level)</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper"><code class="docutils literal notranslate"><span class="pre">OpenViper</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.debug"><code class="docutils literal notranslate"><span class="pre">OpenViper.debug</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.title"><code class="docutils literal notranslate"><span class="pre">OpenViper.title</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.version"><code class="docutils literal notranslate"><span class="pre">OpenViper.version</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.openapi_url"><code class="docutils literal notranslate"><span class="pre">OpenViper.openapi_url</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.docs_url"><code class="docutils literal notranslate"><span class="pre">OpenViper.docs_url</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.redoc_url"><code class="docutils literal notranslate"><span class="pre">OpenViper.redoc_url</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.router"><code class="docutils literal notranslate"><span class="pre">OpenViper.router</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.get"><code class="docutils literal notranslate"><span class="pre">OpenViper.get()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.post"><code class="docutils literal notranslate"><span class="pre">OpenViper.post()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.put"><code class="docutils literal notranslate"><span class="pre">OpenViper.put()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.patch"><code class="docutils literal notranslate"><span class="pre">OpenViper.patch()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.delete"><code class="docutils literal notranslate"><span class="pre">OpenViper.delete()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.options"><code class="docutils literal notranslate"><span class="pre">OpenViper.options()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.route"><code class="docutils literal notranslate"><span class="pre">OpenViper.route()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.include_router"><code class="docutils literal notranslate"><span class="pre">OpenViper.include_router()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.on_startup"><code class="docutils literal notranslate"><span class="pre">OpenViper.on_startup()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.on_shutdown"><code class="docutils literal notranslate"><span class="pre">OpenViper.on_shutdown()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.exception_handler"><code class="docutils literal notranslate"><span class="pre">OpenViper.exception_handler()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.invalidate_openapi_schema"><code class="docutils literal notranslate"><span class="pre">OpenViper.invalidate_openapi_schema()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.run"><code class="docutils literal notranslate"><span class="pre">OpenViper.run()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.test_client"><code class="docutils literal notranslate"><span class="pre">OpenViper.test_client()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViper.description"><code class="docutils literal notranslate"><span class="pre">OpenViper.description</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.Request"><code class="docutils literal notranslate"><span class="pre">Request</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.path_params"><code class="docutils literal notranslate"><span class="pre">Request.path_params</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.state"><code class="docutils literal notranslate"><span class="pre">Request.state</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.user"><code class="docutils literal notranslate"><span class="pre">Request.user</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.auth"><code class="docutils literal notranslate"><span class="pre">Request.auth</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.method"><code class="docutils literal notranslate"><span class="pre">Request.method</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.url"><code class="docutils literal notranslate"><span class="pre">Request.url</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.path"><code class="docutils literal notranslate"><span class="pre">Request.path</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.root_path"><code class="docutils literal notranslate"><span class="pre">Request.root_path</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.headers"><code class="docutils literal notranslate"><span class="pre">Request.headers</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.query_params"><code class="docutils literal notranslate"><span class="pre">Request.query_params</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.cookies"><code class="docutils literal notranslate"><span class="pre">Request.cookies</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.client"><code class="docutils literal notranslate"><span class="pre">Request.client</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.header"><code class="docutils literal notranslate"><span class="pre">Request.header()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.body"><code class="docutils literal notranslate"><span class="pre">Request.body()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.json"><code class="docutils literal notranslate"><span class="pre">Request.json()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.form"><code class="docutils literal notranslate"><span class="pre">Request.form()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.stream"><code class="docutils literal notranslate"><span class="pre">Request.stream()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Request.is_secure"><code class="docutils literal notranslate"><span class="pre">Request.is_secure()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.Response"><code class="docutils literal notranslate"><span class="pre">Response</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.charset"><code class="docutils literal notranslate"><span class="pre">Response.charset</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.status_code"><code class="docutils literal notranslate"><span class="pre">Response.status_code</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.media_type"><code class="docutils literal notranslate"><span class="pre">Response.media_type</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.body"><code class="docutils literal notranslate"><span class="pre">Response.body</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.headers"><code class="docutils literal notranslate"><span class="pre">Response.headers</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.set_cookie"><code class="docutils literal notranslate"><span class="pre">Response.set_cookie()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Response.delete_cookie"><code class="docutils literal notranslate"><span class="pre">Response.delete_cookie()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.JSONResponse"><code class="docutils literal notranslate"><span class="pre">JSONResponse</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.HTMLResponse"><code class="docutils literal notranslate"><span class="pre">HTMLResponse</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.RedirectResponse"><code class="docutils literal notranslate"><span class="pre">RedirectResponse</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.StreamingResponse"><code class="docutils literal notranslate"><span class="pre">StreamingResponse</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.FileResponse"><code class="docutils literal notranslate"><span class="pre">FileResponse</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.FileResponse.chunk_size"><code class="docutils literal notranslate"><span class="pre">FileResponse.chunk_size</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.FileResponse.file_path"><code class="docutils literal notranslate"><span class="pre">FileResponse.file_path</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.Router"><code class="docutils literal notranslate"><span class="pre">Router</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.route"><code class="docutils literal notranslate"><span class="pre">Router.route()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.get"><code class="docutils literal notranslate"><span class="pre">Router.get()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.post"><code class="docutils literal notranslate"><span class="pre">Router.post()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.put"><code class="docutils literal notranslate"><span class="pre">Router.put()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.patch"><code class="docutils literal notranslate"><span class="pre">Router.patch()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.delete"><code class="docutils literal notranslate"><span class="pre">Router.delete()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.options"><code class="docutils literal notranslate"><span class="pre">Router.options()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.any"><code class="docutils literal notranslate"><span class="pre">Router.any()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.add"><code class="docutils literal notranslate"><span class="pre">Router.add()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.include_router"><code class="docutils literal notranslate"><span class="pre">Router.include_router()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.routes"><code class="docutils literal notranslate"><span class="pre">Router.routes</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.resolve"><code class="docutils literal notranslate"><span class="pre">Router.resolve()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.Router.url_for"><code class="docutils literal notranslate"><span class="pre">Router.url_for()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.include"><code class="docutils literal notranslate"><span class="pre">include()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.OpenViperException"><code class="docutils literal notranslate"><span class="pre">OpenViperException</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.HTTPException"><code class="docutils literal notranslate"><span class="pre">HTTPException</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.HTTPException.status_code"><code class="docutils literal notranslate"><span class="pre">HTTPException.status_code</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.HTTPException.detail"><code class="docutils literal notranslate"><span class="pre">HTTPException.detail</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.HTTPException.headers"><code class="docutils literal notranslate"><span class="pre">HTTPException.headers</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.NotFound"><code class="docutils literal notranslate"><span class="pre">NotFound</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.PermissionDenied"><code class="docutils literal notranslate"><span class="pre">PermissionDenied</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.ValidationError"><code class="docutils literal notranslate"><span class="pre">ValidationError</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ValidationError.validation_errors"><code class="docutils literal notranslate"><span class="pre">ValidationError.validation_errors</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.setup"><code class="docutils literal notranslate"><span class="pre">setup()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api_reference.html#openviper-top-level">openviper (top-level)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../api_reference.html#module-openviper.app">openviper.app</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#openviper.app.OpenViper"><code class="docutils literal notranslate"><span class="pre">OpenViper</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.app.OpenViper.debug"><code class="docutils literal notranslate"><span class="pre">OpenViper.debug</span></code></a></li>
@@ -441,11 +395,6 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.routing.router.Route.handler"><code class="docutils literal notranslate"><span class="pre">Route.handler</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.routing.router.Route.name"><code class="docutils literal notranslate"><span class="pre">Route.name</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.routing.router.Route.middlewares"><code class="docutils literal notranslate"><span class="pre">Route.middlewares</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#id0"><code class="docutils literal notranslate"><span class="pre">Route.path</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#id2"><code class="docutils literal notranslate"><span class="pre">Route.methods</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#id3"><code class="docutils literal notranslate"><span class="pre">Route.handler</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#id4"><code class="docutils literal notranslate"><span class="pre">Route.name</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#id5"><code class="docutils literal notranslate"><span class="pre">Route.middlewares</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.routing.router.Route.match"><code class="docutils literal notranslate"><span class="pre">Route.match()</span></code></a></li>
 </ul>
 </li>
@@ -530,7 +479,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../api_reference.html#openviper-auth">openviper.auth</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id8">Models</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id2">Models</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.auth.models.Permission"><code class="docutils literal notranslate"><span class="pre">Permission</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.auth.models.Role"><code class="docutils literal notranslate"><span class="pre">Role</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.auth.models.RoleProfile"><code class="docutils literal notranslate"><span class="pre">RoleProfile</span></code></a></li>
@@ -664,7 +613,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.admin.options.ChildTable"><code class="docutils literal notranslate"><span class="pre">ChildTable</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id18">Decorators</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id3">Decorators</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.admin.decorators.register"><code class="docutils literal notranslate"><span class="pre">register()</span></code></a></li>
 </ul>
 </li>
@@ -694,7 +643,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.core.Scheduler"><code class="docutils literal notranslate"><span class="pre">Scheduler</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id27">Decorators</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id4">Decorators</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.decorators.task"><code class="docutils literal notranslate"><span class="pre">task()</span></code></a></li>
 </ul>
 </li>
@@ -712,7 +661,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.scheduler.reset_scheduler"><code class="docutils literal notranslate"><span class="pre">reset_scheduler()</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id28">Registry</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id5">Registry</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.registry.ScheduleEntry"><code class="docutils literal notranslate"><span class="pre">ScheduleEntry</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.registry.ScheduleRegistry"><code class="docutils literal notranslate"><span class="pre">ScheduleRegistry</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.registry.get_registry"><code class="docutils literal notranslate"><span class="pre">get_registry()</span></code></a></li>
@@ -725,6 +674,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.events.ModelEventDispatcher"><code class="docutils literal notranslate"><span class="pre">ModelEventDispatcher</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.events.get_dispatcher"><code class="docutils literal notranslate"><span class="pre">get_dispatcher()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.events.reset_dispatcher"><code class="docutils literal notranslate"><span class="pre">reset_dispatcher()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.events.model_event"><code class="docutils literal notranslate"><span class="pre">model_event</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#module-openviper.tasks.broker">Broker</a><ul>
@@ -736,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -746,7 +697,7 @@
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.base.AIProvider"><code class="docutils literal notranslate"><span class="pre">AIProvider</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id36">Registry</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#id6">Registry</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.registry.ProviderConfig"><code class="docutils literal notranslate"><span class="pre">ProviderConfig</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.registry.ProviderRegistry"><code class="docutils literal notranslate"><span class="pre">ProviderRegistry</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.registry.ai_registry"><code class="docutils literal notranslate"><span class="pre">ai_registry</span></code></a></li>
@@ -755,8 +706,6 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../../api_reference.html#module-openviper.ai.exceptions">Exceptions</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.AIError"><code class="docutils literal notranslate"><span class="pre">AIError</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.AIException"><code class="docutils literal notranslate"><span class="pre">AIException</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.ModelCollisionError"><code class="docutils literal notranslate"><span class="pre">ModelCollisionError</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.ModelNotFoundError"><code class="docutils literal notranslate"><span class="pre">ModelNotFoundError</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.ModelUnavailableError"><code class="docutils literal notranslate"><span class="pre">ModelUnavailableError</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.ProviderNotAvailableError"><code class="docutils literal notranslate"><span class="pre">ProviderNotAvailableError</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api_reference.html#openviper.ai.exceptions.ProviderNotConfiguredError"><code class="docutils literal notranslate"><span class="pre">ProviderNotConfiguredError</span></code></a></li>
@@ -1066,7 +1015,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">openviper.ai.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIProvider</span>
 
 
-
 <div class="viewcode-block" id="AnthropicProvider">
 <a class="viewcode-back" href="../../../../api_reference.html#openviper.ai.providers.anthropic_provider.AnthropicProvider">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">AnthropicProvider</span><span class="p">(</span><span class="n">AIProvider</span><span class="p">):</span>
@@ -1086,9 +1034,9 @@
         <span class="k">global</span> <span class="n">AsyncAnthropic</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">anthropic</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncAnthropic</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">:</span> <span class="s2">&quot;AsyncAnthropic&quot;</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">:</span> <span class="n">AsyncAnthropic</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_client</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;AsyncAnthropic&quot;</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_client</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncAnthropic</span><span class="p">:</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 
         <span class="k">try</span><span class="p">:</span>

@@ -1,6 +1,5 @@
-import importlib
 import logging
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -85,9 +84,11 @@ def test_get_user_model_uses_auth_user_model_fallback():
     class _FakeSettings:
         AUTH_USER_MODEL = "legacy.models.LegacyUser"
 
-    with patch("openviper.conf.settings", new=_FakeSettings()):
-        with patch("openviper.utils.import_string", return_value=fake_class):
-            result = get_user_model()
+    with (
+        patch("openviper.conf.settings", new=_FakeSettings()),
+        patch("openviper.utils.import_string", return_value=fake_class),
+    ):
+        result = get_user_model()
 
     assert result is fake_class
 
@@ -107,9 +108,11 @@ def test_discover_models_direct_import_success(caplog):
         with patch("openviper.core.app_resolver.AppResolver") as mock_resolver_cls:
             # importlib is imported at module level in openviper.auth.utils,
             # so patch via the module reference.
-            with patch("openviper.auth.utils.importlib.import_module") as mock_import:
-                with caplog.at_level(logging.DEBUG, logger="openviper.auth"):
-                    discover_models()
+            with (
+                patch("openviper.auth.utils.importlib.import_module") as mock_import,
+                caplog.at_level(logging.DEBUG, logger="openviper.auth"),
+            ):
+                discover_models()
 
     assert mock_import.call_count == 2
     mock_import.assert_any_call("myapp.models")
@@ -157,9 +160,11 @@ def test_discover_models_resolver_not_found_skips():
     with patch("openviper.conf.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = ["missingapp"]
 
-        with patch("openviper.core.app_resolver.AppResolver", return_value=mock_resolver):
-            with patch("openviper.auth.utils.importlib.import_module", side_effect=ImportError):
-                discover_models()
+        with (
+            patch("openviper.core.app_resolver.AppResolver", return_value=mock_resolver),
+            patch("openviper.auth.utils.importlib.import_module", side_effect=ImportError),
+        ):
+            discover_models()
 
     mock_resolver.resolve_app.assert_called_once_with("missingapp")
 
@@ -233,9 +238,11 @@ def test_discover_models_no_installed_apps_attribute():
     class _FakeSettings:
         pass  # no INSTALLED_APPS attribute
 
-    with patch("openviper.conf.settings", new=_FakeSettings()):
-        with patch("openviper.auth.utils.importlib.import_module") as mock_import:
-            discover_models()
+    with (
+        patch("openviper.conf.settings", new=_FakeSettings()),
+        patch("openviper.auth.utils.importlib.import_module") as mock_import,
+    ):
+        discover_models()
 
     mock_import.assert_not_called()
 
@@ -260,15 +267,17 @@ async def test_sync_content_types_creates_new_entries(caplog):
     mock_ct_objects.all = AsyncMock(return_value=[])
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models"):
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models"),
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {"blog.Post": mock_model_a}
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {"blog.Post": mock_model_a}
 
-                with caplog.at_level(logging.INFO, logger="openviper.auth"):
-                    await sync_content_types()
+            with caplog.at_level(logging.INFO, logger="openviper.auth"):
+                await sync_content_types()
 
     mock_ct_objects.create.assert_called_once_with(app_label="blog", model="Post")
 
@@ -289,13 +298,15 @@ async def test_sync_content_types_skips_existing_entries():
     mock_ct_objects.all = AsyncMock(return_value=[existing_ct])
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models"):
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models"),
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {"blog.Post": mock_model_a}
-                await sync_content_types()
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {"blog.Post": mock_model_a}
+            await sync_content_types()
 
     mock_ct_objects.create.assert_not_called()
 
@@ -313,15 +324,17 @@ async def test_sync_content_types_deletes_stale_entries(caplog):
     mock_ct_objects.all = AsyncMock(return_value=[stale_ct])
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models"):
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models"),
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {}
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {}
 
-                with caplog.at_level(logging.INFO, logger="openviper.auth"):
-                    await sync_content_types()
+            with caplog.at_level(logging.INFO, logger="openviper.auth"):
+                await sync_content_types()
 
     stale_ct.delete.assert_called_once()
 
@@ -342,16 +355,18 @@ async def test_sync_content_types_skips_base_model_placeholder():
     mock_ct_objects.all = AsyncMock(return_value=[])
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models"):
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models"),
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {
-                    "default.Model": base_model,
-                    "myapp.Article": real_model,
-                }
-                await sync_content_types()
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {
+                "default.Model": base_model,
+                "myapp.Article": real_model,
+            }
+            await sync_content_types()
 
     # Only Article should be created, not the base placeholder
     mock_ct_objects.create.assert_called_once_with(app_label="myapp", model="Article")
@@ -365,15 +380,17 @@ async def test_sync_content_types_db_unavailable_returns_early(caplog):
     mock_ct_objects.all = AsyncMock(side_effect=Exception("no such table"))
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models"):
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models"),
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {}
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {}
 
-                with caplog.at_level(logging.DEBUG, logger="openviper.auth"):
-                    await sync_content_types()
+            with caplog.at_level(logging.DEBUG, logger="openviper.auth"):
+                await sync_content_types()
 
     mock_ct_objects.create.assert_not_called()
     assert any("Could not fetch" in r.message for r in caplog.records)
@@ -395,15 +412,17 @@ async def test_sync_content_types_no_changes_does_not_log_info(caplog):
     mock_ct_objects.all = AsyncMock(return_value=[existing_ct])
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models"):
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models"),
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {"myapp.Thing": model_a}
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {"myapp.Thing": model_a}
 
-                with caplog.at_level(logging.INFO, logger="openviper.auth"):
-                    await sync_content_types()
+            with caplog.at_level(logging.INFO, logger="openviper.auth"):
+                await sync_content_types()
 
     info_records = [r for r in caplog.records if r.levelno == logging.INFO]
     assert len(info_records) == 0
@@ -417,12 +436,14 @@ async def test_sync_content_types_calls_discover_models():
     mock_ct_objects.all = AsyncMock(return_value=[])
     mock_ct_objects.create = AsyncMock()
 
-    with patch("openviper.auth.utils.discover_models") as mock_discover:
-        with patch("openviper.auth.models.ContentType") as mock_ct_cls:
-            mock_ct_cls.objects = mock_ct_objects
+    with (
+        patch("openviper.auth.utils.discover_models") as mock_discover,
+        patch("openviper.auth.models.ContentType") as mock_ct_cls,
+    ):
+        mock_ct_cls.objects = mock_ct_objects
 
-            with patch("openviper.db.models.ModelMeta") as mock_model_meta:
-                mock_model_meta.registry = {}
-                await sync_content_types()
+        with patch("openviper.db.models.ModelMeta") as mock_model_meta:
+            mock_model_meta.registry = {}
+            await sync_content_types()
 
     mock_discover.assert_called_once()

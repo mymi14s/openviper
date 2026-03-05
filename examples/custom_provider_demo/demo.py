@@ -34,7 +34,7 @@ if DEMO_DIR not in sys.path:
 # works without a full openviper project.
 # ---------------------------------------------------------------------------
 
-import openviper
+import openviper  # noqa: E402
 
 openviper.setup(
     {
@@ -49,9 +49,9 @@ openviper.setup(
 # Imports (after setup)
 # ---------------------------------------------------------------------------
 
-from openviper.ai.exceptions import ModelCollisionError, ModelNotFoundError
-from openviper.ai.registry import ProviderRegistry
-from openviper.ai.router import ModelRouter
+from openviper.ai.exceptions import ModelCollisionError, ModelNotFoundError  # noqa: E402
+from openviper.ai.registry import ProviderRegistry  # noqa: E402
+from openviper.ai.router import ModelRouter  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers

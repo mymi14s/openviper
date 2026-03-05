@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -88,7 +88,6 @@ def test_scheduler_remove_unregisters_entry():
 
 
 def test_scheduler_run_now_raises_type_error_for_plain_function():
-    """Lines 126-135: run_now() raises TypeError if actor has no .send."""
     scheduler = Scheduler()
 
     def plain_fn():
@@ -120,12 +119,11 @@ def test_scheduler_run_now_sends_actor_no_args():
 
 
 def test_scheduler_tick_enqueues_due_entries():
-    """Lines 166-174: tick() calls send on due entries and records last_run_at."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     actor_a = _make_actor("actor_a")
     actor_b = _make_actor("actor_b")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     custom_reg.register("task_a", actor_a, _make_schedule(True))
     custom_reg.register("task_b", actor_b, _make_schedule(False))
@@ -137,7 +135,6 @@ def test_scheduler_tick_enqueues_due_entries():
 
 
 def test_scheduler_tick_handles_send_failure():
-    """Lines 175-180: exceptions in actor.send() are logged, not re-raised."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     failing_actor = _make_actor("failing")
@@ -145,7 +142,7 @@ def test_scheduler_tick_handles_send_failure():
 
     custom_reg.register("failing_task", failing_actor, _make_schedule(True))
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     enqueued = scheduler.tick(now=now)
 
     # tick() should not raise — failed entry is excluded from result

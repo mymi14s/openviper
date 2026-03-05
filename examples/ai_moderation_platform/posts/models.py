@@ -6,8 +6,6 @@ import logging
 import os
 from typing import Any
 
-from moderation.models import ModerationLog
-
 from openviper.auth import get_user_model
 from openviper.db import Model
 from openviper.db.fields import (

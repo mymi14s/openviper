@@ -93,7 +93,6 @@ def test_csrf_middleware_secret_fallback():
     class MockSettings:
         SECRET_KEY = "settings-secret"
 
-    import sys
     from unittest.mock import patch
 
     mw = CSRFMiddleware(None)

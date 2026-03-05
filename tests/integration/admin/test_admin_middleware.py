@@ -10,7 +10,7 @@ from tests.utils.admin_client import AdminClient
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_admin_db():
-    from openviper.db.connection import close_db, init_db
+    from openviper.db.connection import close_db
 
     await init_db(drop_first=True)
     admin_registry.clear()
@@ -50,7 +50,6 @@ async def test_admin_access_check_middleware(client):
 @pytest.mark.asyncio
 async def test_admin_model_permission_middleware(client):
     # This tests openviper.admin.middleware.check_model_permission
-    from openviper.auth.models import Role
 
     user = await create_admin_user()
     client.login(user)

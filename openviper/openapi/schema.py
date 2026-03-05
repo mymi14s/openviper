@@ -7,7 +7,7 @@ import inspect
 import re
 import textwrap
 import typing
-from typing import TYPE_CHECKING, Any, get_type_hints
+from typing import TYPE_CHECKING, Any, cast, get_type_hints
 
 if TYPE_CHECKING:
     from openviper.routing.router import Route
@@ -53,7 +53,7 @@ def _python_type_to_schema(annotation: Any) -> dict[str, Any]:
 
     # Pydantic model
     if hasattr(annotation, "model_json_schema"):
-        return annotation.model_json_schema()
+        return cast("dict[str, Any]", annotation.model_json_schema())
 
     return {"type": "string"}  # fallback
 
@@ -153,7 +153,7 @@ def _detect_serializer_from_source(handler: Any) -> type | None:
         handler_globals = getattr(handler, "__globals__", {})
         cls = handler_globals.get(cls_name)
         if cls is not None and hasattr(cls, "model_json_schema"):
-            return cls
+            return cast("type", cls)
 
     return None
 
@@ -170,14 +170,14 @@ def _resolve_request_schema(handler: Any) -> type | None:
     # 1. Explicit decorator
     schema_cls = getattr(handler, "_request_schema", None)
     if schema_cls is not None:
-        return schema_cls
+        return cast("type", schema_cls)
 
     # 2. Class-based view with serializer_class
     view_cls = getattr(handler, "view_class", None)
     if view_cls is not None:
         schema_cls = getattr(view_cls, "serializer_class", None)
         if schema_cls is not None:
-            return schema_cls
+            return cast("type", schema_cls)
 
         # Scan the view class's mutating methods for serializer usage
         for method_name in ("post", "put", "patch"):

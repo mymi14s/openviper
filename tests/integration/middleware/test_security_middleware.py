@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import dataclasses
-from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
-import pytest_asyncio
 
 from openviper.conf.settings import settings
 from openviper.middleware.security import SecurityMiddleware

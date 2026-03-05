@@ -140,11 +140,11 @@ class TooManyRequests(HTTPException):
 
     __slots__ = ()
 
-    def __init__(self, retry_after: int | None = None) -> None:
+    def __init__(self, retry_after: int | None = None, detail: str | None = None) -> None:
         headers: dict[str, str] = {}
         if retry_after is not None:
             headers["Retry-After"] = str(retry_after)
-        super().__init__(429, "Too many requests.", headers)
+        super().__init__(429, detail or "Too many requests.", headers)
 
 
 class ServiceUnavailable(HTTPException):

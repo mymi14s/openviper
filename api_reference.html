@@ -7,16 +7,16 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>API Reference &mdash; OpenViper 0.0.1 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5349f25f" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="static/pygments.css?v=5349f25f" />
+      <link rel="stylesheet" type="text/css" href="static/css/theme.css?v=9edc463e" />
 
   
-      <script src="_static/jquery.js?v=5d32c60e"></script>
-      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=d45e8c67"></script>
-      <script src="_static/doctools.js?v=fd6eb6e6"></script>
-      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script src="_static/js/theme.js"></script>
+      <script src="static/jquery.js?v=5d32c60e"></script>
+      <script src="static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="static/documentation_options.js?v=d45e8c67"></script>
+      <script src="static/doctools.js?v=fd6eb6e6"></script>
+      <script src="static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="prev" title="Deployment" href="deployment.html" /> 
@@ -953,7 +953,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#openviper.staticfiles.handlers.StaticFilesMiddleware.directories"><code class="docutils literal notranslate"><span class="pre">StaticFilesMiddleware.directories</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#openviper.staticfiles.handlers.collect_static"><code class="docutils literal notranslate"><span class="pre">collect_static()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#openviper.staticfiles.handlers.collectstatic"><code class="docutils literal notranslate"><span class="pre">collectstatic()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#module-openviper.storage.base">openviper.storage</a><ul>
@@ -13290,8 +13290,8 @@ serves — there is no second <code class="docutils literal notranslate"><span c
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="openviper.staticfiles.handlers.collect_static">
-<span class="sig-prename descclassname"><span class="pre">openviper.staticfiles.handlers.</span></span><span class="sig-name descname"><span class="pre">collect_static</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_dirs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_dir</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">clear</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openviper/staticfiles/handlers.html#collect_static"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#openviper.staticfiles.handlers.collect_static" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="openviper.staticfiles.handlers.collectstatic">
+<span class="sig-prename descclassname"><span class="pre">openviper.staticfiles.handlers.</span></span><span class="sig-name descname"><span class="pre">collectstatic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_dirs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dest_dir</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">clear</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openviper/staticfiles/handlers.html#collectstatic"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#openviper.staticfiles.handlers.collectstatic" title="Link to this definition"></a></dt>
 <dd><p>Copy static files from <em>source_dirs</em> and installed apps into <em>dest_dir</em>.</p>
 <p>Static content is copied exactly as it exists in each source:</p>
 <ol class="arabic simple">

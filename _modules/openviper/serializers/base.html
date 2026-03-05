@@ -1558,10 +1558,11 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create or update a model instance and return serialized data.</span>
 
 <span class="sd">        Behaviour:</span>
-<span class="sd">        * If *instance* is provided explicitly → update that instance.</span>
-<span class="sd">        * If the validated data contains a non-``None`` ``id`` / ``pk``</span>
-<span class="sd">          → fetch the existing record and update it.</span>
-<span class="sd">        * Otherwise → create a new record.</span>
+
+<span class="sd">        * If *instance* is provided explicitly, update that instance.</span>
+<span class="sd">        * If the validated data contains a non-``None`` ``id`` / ``pk``,</span>
+<span class="sd">          fetch the existing record and update it.</span>
+<span class="sd">        * Otherwise, create a new record.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A JSON-safe ``dict`` of the persisted model instance.</span>

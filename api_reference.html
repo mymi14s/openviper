@@ -6687,14 +6687,12 @@ your schema definition.</p>
 <dt class="sig sig-object py" id="openviper.serializers.base.ModelSerializer.save">
 <span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">instance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/openviper/serializers/base.html#ModelSerializer.save"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#openviper.serializers.base.ModelSerializer.save" title="Link to this definition"></a></dt>
 <dd><p>Create or update a model instance and return serialized data.</p>
-<p>Behaviour:
-* If <em>instance</em> is provided explicitly → update that instance.
-* If the validated data contains a non-<code class="docutils literal notranslate"><span class="pre">None</span></code> <code class="docutils literal notranslate"><span class="pre">id</span></code> / <code class="docutils literal notranslate"><span class="pre">pk</span></code></p>
-<blockquote>
-<div><p>→ fetch the existing record and update it.</p>
-</div></blockquote>
+<p>Behaviour:</p>
 <ul class="simple">
-<li><p>Otherwise → create a new record.</p></li>
+<li><p>If <em>instance</em> is provided explicitly, update that instance.</p></li>
+<li><p>If the validated data contains a non-<code class="docutils literal notranslate"><span class="pre">None</span></code> <code class="docutils literal notranslate"><span class="pre">id</span></code> / <code class="docutils literal notranslate"><span class="pre">pk</span></code>,
+fetch the existing record and update it.</p></li>
+<li><p>Otherwise, create a new record.</p></li>
 </ul>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>

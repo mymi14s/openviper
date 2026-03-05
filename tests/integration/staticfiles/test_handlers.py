@@ -83,21 +83,23 @@ async def test_admin_static_routes_not_mounted_in_production():
         app = OpenViper(debug=False)
         app.include_router(get_admin_site(), prefix="/admin")
 
-    async with app.test_client() as client:
-        # These routes ARE mounted now
-        resp = await client.get("/admin/")
-        assert resp.status_code in (200, 404)
-        if resp.status_code == 404:
-            assert "Admin Not Built" not in resp.text
+        async with app.test_client() as client:
+            # These routes ARE mounted now
+            resp = await client.get("/admin/")
+            assert resp.status_code in (200, 404)
+            if resp.status_code == 404:
+                assert "Admin Not Built" not in resp.text
 
-        asset_resp = await client.get("/admin/assets/index.js")
-        assert asset_resp.status_code in (200, 404)
-        if asset_resp.status_code == 404:
-            assert "Asset not found" not in asset_resp.text
+            asset_resp = await client.get("/admin/assets/index.js")
+            assert asset_resp.status_code in (200, 404)
+            if asset_resp.status_code == 404:
+                assert "Asset not found" not in asset_resp.text
 
-        # API routes ARE always mounted
-        resp = await client.post("/admin/api/auth/login/", json={"username": "x", "password": "x"})
-        assert resp.status_code != 404, "Admin API must always be reachable"
+            # API routes ARE always mounted
+            resp = await client.post(
+                "/admin/api/auth/login/", json={"username": "x", "password": "x"}
+            )
+            assert resp.status_code != 404, "Admin API must always be reachable"
 
 
 @pytest.mark.asyncio
@@ -112,7 +114,7 @@ async def test_admin_assets_fallback_in_development():
         app = OpenViper(debug=True)
         app.include_router(get_admin_site(), prefix="/admin")
 
-    async with app.test_client() as client:
-        response = await client.get("/admin/assets/nonexistent_file_xyz.js")
-        assert response.status_code == 404
-        assert "Asset not found" in response.text
+        async with app.test_client() as client:
+            response = await client.get("/admin/assets/nonexistent_file_xyz.js")
+            assert response.status_code == 404
+            assert "Asset not found" in response.text

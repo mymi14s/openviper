@@ -58,7 +58,7 @@ jobs:
           pip install -e .
           pip install -r requirements-dev.txt
       - name: mypy
-        run: mypy openviper
+        run: mypy openviper/*.py
 
   # ── Tests ─────────────────────────────────────────────────────────────
   test:

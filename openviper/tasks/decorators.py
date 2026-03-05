@@ -45,7 +45,7 @@ def task(
     max_backoff: int = 300_000,
     time_limit: int | None = None,
     actor_name: str | None = None,
-) -> Callable:
+) -> Callable[..., Any]:
     """Decorator that registers a callable as a Dramatiq background task.
 
     Args:
@@ -69,7 +69,7 @@ def task(
         ``.delay()`` alias on ``.send()``.
     """
 
-    def decorator(fn: Callable) -> Any:
+    def decorator(fn: Callable[..., Any]) -> Any:
         # Ensure the broker (and its middleware) are initialised before the
         # actor is registered — safe to call multiple times.
         get_broker()
@@ -90,7 +90,7 @@ def task(
         actor = dramatiq.actor(fn, **actor_kwargs)
 
         # Convenience alias so both .send() and .delay() work.
-        actor.delay = actor.send
+        setattr(actor, "delay", actor.send)
 
         logger.debug(
             "Registered task %r  actor_name=%r  queue=%s  max_retries=%d",

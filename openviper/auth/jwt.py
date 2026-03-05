@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import datetime
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from jose import JWTError, jwt
 
@@ -47,7 +47,7 @@ def create_access_token(
     }
     if extra_claims:
         claims.update(extra_claims)
-    return jwt.encode(claims, _secret(), algorithm=_algorithm())
+    return cast(str, jwt.encode(claims, _secret(), algorithm=_algorithm()))
 
 
 def create_refresh_token(user_id: int | str) -> str:
@@ -60,7 +60,7 @@ def create_refresh_token(user_id: int | str) -> str:
         "exp": expire,
         "type": "refresh",
     }
-    return jwt.encode(claims, _secret(), algorithm=_algorithm())
+    return cast(str, jwt.encode(claims, _secret(), algorithm=_algorithm()))
 
 
 def decode_token_unverified(token: str) -> dict[str, Any]:
@@ -76,7 +76,7 @@ def decode_token_unverified(token: str) -> dict[str, Any]:
         Unverified claims dict, or an empty dict if the token is malformed.
     """
     try:
-        return jwt.get_unverified_claims(token)
+        return cast(dict[str, Any], jwt.get_unverified_claims(token))
     except Exception:
         return {}
 
@@ -98,7 +98,7 @@ def decode_access_token(token: str) -> dict[str, Any]:
         payload = jwt.decode(token, _secret(), algorithms=[_algorithm()])
         if payload.get("type") != "access":
             raise AuthenticationFailed("Invalid token type.")
-        return payload
+        return cast(dict[str, Any], payload)
     except JWTError as exc:
         if "expired" in str(exc).lower():
             raise TokenExpired() from exc
@@ -122,7 +122,7 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
         payload = jwt.decode(token, _secret(), algorithms=[_algorithm()])
         if payload.get("type") != "refresh":
             raise AuthenticationFailed("Invalid token type.")
-        return payload
+        return cast(dict[str, Any], payload)
     except JWTError as exc:
         if "expired" in str(exc).lower():
             raise TokenExpired() from exc

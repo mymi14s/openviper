@@ -68,7 +68,7 @@ def build_middleware_stack(
     for entry in reversed(middleware_classes):
         if isinstance(entry, tuple):
             cls, kwargs = entry
-            app = cls(app, **kwargs)  # type: ignore[call-arg]
+            app = cls(app, **kwargs)
         else:
             app = entry(app)
     return app

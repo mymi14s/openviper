@@ -4,6 +4,7 @@ with modern async capabilities.
 """
 
 from importlib.metadata import version as _version
+from typing import Any
 
 from openviper.app import OpenViper
 from openviper.exceptions import (
@@ -36,7 +37,7 @@ _LAZY_SUBPACKAGES = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     """Lazily import heavy sub-packages only when they are accessed."""
     import importlib
     import sys

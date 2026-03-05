@@ -119,7 +119,6 @@ _moderators: dict[str, AIContentModerator] = {}
 
 def get_moderator(model_name: str = "granite-code:3b") -> AIContentModerator:
     """Return a cached :class:`AIContentModerator` for *model_name*."""
-    global _moderators
     if model_name not in _moderators:
         _moderators[model_name] = AIContentModerator(model_name=model_name)
     return _moderators[model_name]

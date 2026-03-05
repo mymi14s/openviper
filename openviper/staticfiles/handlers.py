@@ -18,8 +18,7 @@ from openviper.http.response import Response
 class NotModifiedResponse(Response):
     status_code = 304
 
-    # type: ignore[override]
-    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         await send(
             {
                 "type": "http.response.start",
@@ -61,7 +60,7 @@ class StaticFilesMiddleware:
         self.url_path = url_path.rstrip("/")
         self.directories: list[Path] = [Path(d) for d in (directories or ["static"])]
 
-    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] not in ("http", "https"):
             await self.app(scope, receive, send)
             return
@@ -103,7 +102,7 @@ class StaticFilesMiddleware:
                 return candidate
         return None
 
-    async def _serve_file(self, scope: dict, send: Any, path: Path, method: str) -> None:
+    async def _serve_file(self, scope: dict[str, Any], send: Any, path: Path, method: str) -> None:
         stat_result = path.stat()
         file_size = stat_result.st_size
         last_modified = stat_result.st_mtime

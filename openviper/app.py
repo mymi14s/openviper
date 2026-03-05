@@ -26,7 +26,7 @@ import logging
 import traceback
 import typing
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import uvicorn
@@ -51,7 +51,7 @@ logger = logging.getLogger("openviper.app")
 
 @functools.lru_cache(maxsize=512)
 def _get_handler_signature(
-    handler: Callable,
+    handler: Callable[..., Any],
 ) -> tuple[inspect.Signature, dict[str, Any]]:
     """Return ``(signature, type_hints)`` for *handler*, cached by identity.
 
@@ -134,13 +134,18 @@ class OpenViper:
         redoc_url: str | None = None,
     ) -> None:
         self.debug = debug if debug is not None else getattr(settings, "DEBUG", True)
-        self.title = title or getattr(settings, "OPENAPI_TITLE", "OpenViper API")
-        self.version = version or getattr(settings, "OPENAPI_VERSION", "0.0.1")
-        self.openapi_url = openapi_url or getattr(
-            settings, "OPENAPI_SCHEMA_URL", "/open-api/openapi.json"
+        self.title = cast(str, title or getattr(settings, "OPENAPI_TITLE", "OpenViper API"))
+        self.version = cast(str, version or getattr(settings, "OPENAPI_VERSION", "0.0.1"))
+        self.openapi_url = cast(
+            str,
+            openapi_url or getattr(settings, "OPENAPI_SCHEMA_URL", "/open-api/openapi.json"),
         )
-        self.docs_url = docs_url or getattr(settings, "OPENAPI_DOCS_URL", "/open-api/docs")
-        self.redoc_url = redoc_url or getattr(settings, "OPENAPI_REDOC_URL", "/open-api/redoc")
+        self.docs_url = cast(
+            str, docs_url or getattr(settings, "OPENAPI_DOCS_URL", "/open-api/docs")
+        )
+        self.redoc_url = cast(
+            str, redoc_url or getattr(settings, "OPENAPI_REDOC_URL", "/open-api/redoc")
+        )
 
         self.router = Router()
         self._extra_middleware: list[Any] = middleware or []
@@ -157,25 +162,25 @@ class OpenViper:
 
     # ── Route registration (delegate to router) ───────────────────────────
 
-    def get(self, path: str, **kwargs: Any) -> Callable:
+    def get(self, path: str, **kwargs: Any) -> Callable[..., Any]:
         return self.router.get(path, **kwargs)
 
-    def post(self, path: str, **kwargs: Any) -> Callable:
+    def post(self, path: str, **kwargs: Any) -> Callable[..., Any]:
         return self.router.post(path, **kwargs)
 
-    def put(self, path: str, **kwargs: Any) -> Callable:
+    def put(self, path: str, **kwargs: Any) -> Callable[..., Any]:
         return self.router.put(path, **kwargs)
 
-    def patch(self, path: str, **kwargs: Any) -> Callable:
+    def patch(self, path: str, **kwargs: Any) -> Callable[..., Any]:
         return self.router.patch(path, **kwargs)
 
-    def delete(self, path: str, **kwargs: Any) -> Callable:
+    def delete(self, path: str, **kwargs: Any) -> Callable[..., Any]:
         return self.router.delete(path, **kwargs)
 
-    def options(self, path: str, **kwargs: Any) -> Callable:
+    def options(self, path: str, **kwargs: Any) -> Callable[..., Any]:
         return self.router.options(path, **kwargs)
 
-    def route(self, path: str, methods: list[str], **kwargs: Any) -> Callable:
+    def route(self, path: str, methods: list[str], **kwargs: Any) -> Callable[..., Any]:
         return self.router.route(path, methods, **kwargs)
 
     def include_router(self, router: Router, prefix: str = "") -> None:
@@ -192,19 +197,19 @@ class OpenViper:
 
     # ── Lifecycle hooks ───────────────────────────────────────────────────
 
-    def on_startup(self, func: Callable) -> Callable:
+    def on_startup(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Register a startup handler."""
         self._startup_handlers.append(func)
         return func
 
-    def on_shutdown(self, func: Callable) -> Callable:
+    def on_shutdown(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Register a shutdown handler."""
         self._shutdown_handlers.append(func)
         return func
 
     # ── Exception handlers ────────────────────────────────────────────────
 
-    def exception_handler(self, exc_class: type[Exception]) -> Callable:
+    def exception_handler(self, exc_class: type[Exception]) -> Callable[..., Any]:
         """Decorator to register a custom exception handler.
 
         Example:
@@ -213,7 +218,7 @@ class OpenViper:
             ...     return JSONResponse({"error": str(exc)}, status_code=400)
         """
 
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             self._exception_handlers[exc_class] = func
             return func
 
@@ -315,7 +320,7 @@ class OpenViper:
             if static_root not in discovered:
                 discovered.append(static_root)
 
-            app = StaticFilesMiddleware(app, url_path=static_url, directories=discovered)
+            app = StaticFilesMiddleware(app, url_path=static_url, directories=discovered)  # type: ignore[arg-type]
             logger.debug("StaticFilesMiddleware enabled for %s", static_url)
 
             media_url = getattr(settings, "MEDIA_URL", "/media/").rstrip("/")
@@ -365,7 +370,7 @@ class OpenViper:
             # Build handler middleware chain (per-route middlewares)
             handler = route.handler
             for mw in reversed(route.middlewares):
-                handler = mw(handler)  # type: ignore[assignment]
+                handler = mw(handler)  # type: ignore[assignment,call-arg]
 
             response = await self._call_handler(handler, request)
         except Exception as exc:
@@ -373,7 +378,7 @@ class OpenViper:
 
         await response(scope, receive, send)
 
-    async def _call_handler(self, handler: Callable, request: Request) -> Response:
+    async def _call_handler(self, handler: Callable[..., Any], request: Request) -> Response:
         """Call a view handler, performing automatic response coercion."""
         sig, hints = _get_handler_signature(handler)
 
@@ -429,7 +434,7 @@ class OpenViper:
         for exc_type in type(exc).__mro__:
             if exc_type in self._exception_handlers:
                 handler = self._exception_handlers[exc_type]
-                result = handler(request, exc)
+                result: Any = handler(request, exc)
                 if inspect.isawaitable(result):
                     result = await result
                 return self._coerce_response(result)
@@ -462,11 +467,11 @@ class OpenViper:
         request: Request,
         content: dict[str, Any],
         status_code: int,
-        headers: dict | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Response:
         """Create an error response (HTML or JSON) based on the Accept header."""
         accept = request.headers.get("accept", "")
-        if "text/html" in accept:
+        if accept and "text/html" in accept:
             # Simple HTML error page
             title = content.get("detail", "Error")
             html = f"<html><head><title>{title}</title></head><body>"
@@ -566,7 +571,7 @@ class OpenViper:
         """Return an httpx.AsyncClient configured for this app."""
         base_url = kwargs.pop("base_url", "http://testserver")
         return httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=self),
+            transport=httpx.ASGITransport(app=self),  # type: ignore[arg-type]
             base_url=base_url,
             **kwargs,
         )

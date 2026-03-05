@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
+from typing import cast
 
 logger = logging.getLogger("openviper.tasks")
 
@@ -241,7 +242,7 @@ class CronSchedule(Schedule):
             next_run = it.get_next(datetime)
             if next_run.tzinfo is None:
                 next_run = next_run.replace(tzinfo=UTC)
-            return now >= next_run
+            return cast(bool, now >= next_run)
         except Exception as exc:
             logger.warning("croniter error for %r: %s — falling back to stdlib", self.expr, exc)
             if self._fields is None:
@@ -260,7 +261,7 @@ class CronSchedule(Schedule):
 def _try_import_croniter() -> bool:
     """Return ``True`` if ``croniter`` is importable."""
     try:
-        import croniter  # type: ignore[import-untyped]  # noqa: F401
+        import croniter  # noqa: F401
 
         return True
     except ImportError:

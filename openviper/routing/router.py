@@ -285,7 +285,8 @@ class Router:
         """
         if self._index is None:
             _ = self.routes  # trigger lazy build
-        index = self._index  # type: ignore[assignment]
+        index = self._index
+        assert index is not None
 
         stripped = path.lstrip("/")
         seg = stripped.split("/")[0]

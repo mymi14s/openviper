@@ -13,10 +13,10 @@ import stat
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import aiofiles
-import orjson as _orjson  # type: ignore[import]
+import orjson as _orjson
 
 from openviper.conf import settings
 from openviper.utils.datastructures import MutableHeaders
@@ -24,8 +24,8 @@ from openviper.utils.datastructures import MutableHeaders
 try:
     from jinja2 import Environment, FileSystemLoader
 except ImportError:
-    Environment = None  # type: ignore[misc,assignment]
-    FileSystemLoader = None  # type: ignore[misc,assignment]
+    Environment = None  # type: ignore[misc, assignment]
+    FileSystemLoader = None  # type: ignore[misc, assignment]
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +245,7 @@ class HTMLResponse(Response):
                 continue
 
         env = _get_jinja2_env(tuple(search_paths))
-        return env.get_template(template).render(**context)
+        return cast(str, env.get_template(template).render(**context))
 
 
 class PlainTextResponse(Response):
@@ -299,10 +299,10 @@ class StreamingResponse(Response):
         if callable(iterator):
             iterator = iterator()
         if hasattr(iterator, "__aiter__"):
-            async for chunk in iterator:  # type: ignore[union-attr]
+            async for chunk in iterator:
                 await send({"type": "http.response.body", "body": chunk, "more_body": True})
         else:
-            for chunk in iterator:  # type: ignore[union-attr]
+            for chunk in iterator:
                 await send({"type": "http.response.body", "body": chunk, "more_body": True})
         await send({"type": "http.response.body", "body": b"", "more_body": False})
 

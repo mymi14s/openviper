@@ -14,7 +14,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from openviper.conf import settings
 from openviper.exceptions import TooManyRequests
@@ -135,7 +135,7 @@ class RateLimitMiddleware(BaseMiddleware):
         app: Any,
         max_requests: int | None = None,
         window_seconds: float | None = None,
-        key_func: Callable[[dict], str] | None = None,
+        key_func: Callable[[dict[str, Any]], str] | None = None,
     ) -> None:
         super().__init__(app)
         self.max_requests: int = (
@@ -152,19 +152,19 @@ class RateLimitMiddleware(BaseMiddleware):
         self._key_func = key_func or self._default_key
 
     @staticmethod
-    def _default_key(scope: dict) -> str:
+    def _default_key(scope: dict[str, Any]) -> str:
         """Key = client IP address."""
         client = scope.get("client")
         if client:
-            return client[0]
+            return cast(str, client[0])
         for name, value in scope.get("headers", []):
             if name == b"x-forwarded-for":
                 forwarded_for = value.decode()
                 if forwarded_for:
-                    return forwarded_for.split(",")[0].strip()
+                    return str(forwarded_for.split(",")[0].strip())
         return "unknown"
 
-    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] not in ("http", "https"):
             await self.app(scope, receive, send)
             return
@@ -191,7 +191,7 @@ class RateLimitMiddleware(BaseMiddleware):
         limit_b = str(self.max_requests).encode()
         remaining_b = str(remaining).encode()
 
-        async def send_with_headers(message: dict) -> None:
+        async def send_with_headers(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers.append((b"x-ratelimit-limit", limit_b))
@@ -207,7 +207,7 @@ class RateLimitMiddleware(BaseMiddleware):
 # ---------------------------------------------------------------------------
 
 
-def rate_limit(max_requests: int = 60, window_seconds: float = 60.0) -> Callable:
+def rate_limit(max_requests: int = 60, window_seconds: float = 60.0) -> Callable[..., Any]:
     """Decorator to apply per-view rate limiting based on client IP.
 
     Usage::
@@ -219,7 +219,7 @@ def rate_limit(max_requests: int = 60, window_seconds: float = 60.0) -> Callable
     """
     counter = _SlidingWindowCounter(max_requests, window_seconds)
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             request: Request | None = None
@@ -235,7 +235,8 @@ def rate_limit(max_requests: int = 60, window_seconds: float = 60.0) -> Callable
                 allowed, _remaining = await counter.is_allowed(key)
                 if not allowed:
                     raise TooManyRequests(
-                        f"Rate limit exceeded: {max_requests} requests per {window_seconds}s"
+                        retry_after=int(window_seconds),
+                        detail=f"Rate limit exceeded: {max_requests} requests per {window_seconds}s",
                     )
             return await func(*args, **kwargs)
 

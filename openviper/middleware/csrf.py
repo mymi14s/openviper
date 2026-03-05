@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-from typing import Any
+from typing import Any, cast
 
 from openviper.conf import settings
 from openviper.http.response import JSONResponse
@@ -71,7 +71,7 @@ class CSRFMiddleware(BaseMiddleware):
         if self._secret:
             return self._secret
         try:
-            return settings.SECRET_KEY
+            return cast(str, settings.SECRET_KEY)
         except Exception:
             return "fallback-secret"
 

@@ -15,13 +15,14 @@ in ``StaticFilesMiddleware`` for ``DEBUG=True`` (development).  In production
 """
 
 from openviper.staticfiles.handlers import StaticFilesMiddleware, collect_static
+from typing import Any
 
 # Internal flags — set by calling static() / media() in routes.py
 _static_serving_enabled: bool = False
 _media_serving_enabled: bool = False
 
 
-def static() -> list:
+def static() -> list[Any]:
     """Enable framework static file serving in DEBUG mode.
 
     Call this in your ``route_paths`` (or anywhere at import time) to signal
@@ -47,7 +48,7 @@ def is_static_enabled() -> bool:
     return _static_serving_enabled
 
 
-def media() -> list:
+def media() -> list[Any]:
     """Enable framework media file serving in DEBUG mode.
 
     Call this in your ``route_paths`` to serve user-uploaded files at

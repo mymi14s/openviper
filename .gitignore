@@ -166,6 +166,7 @@ TECHDOC.MD
 AGENT.md
 benchmarks
 clean-cython.sh
+file:res*
 
 # ===============================
 # Node Modules

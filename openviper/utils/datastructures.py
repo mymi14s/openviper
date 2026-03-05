@@ -27,9 +27,7 @@ class Headers:
 
     def __init__(self, raw: list[list[bytes]] | list[tuple[bytes, bytes]]) -> None:
         # Lowercased bytes pairs — preserved for the raw ASGI property.
-        self._list: list[tuple[bytes, bytes]] = [
-            (k.lower(), v) for k, v in raw  # type: ignore[misc]
-        ]
+        self._list: list[tuple[bytes, bytes]] = [(k.lower(), v) for k, v in raw]
         # C-backed case-insensitive store for O(1) lookups.
         self._store: CIMultiDict[str] = CIMultiDict(
             (k.decode("latin-1"), v.decode("latin-1")) for k, v in self._list

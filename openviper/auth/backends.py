@@ -21,7 +21,7 @@ async def get_user_by_id(user_id: int) -> Any | None:
     """
     try:
         User = get_user_model()  # noqa: N806
-        return await User.objects.get_or_none(id=user_id, ignore_permissions=True)
+        return await User.objects.get_or_none(id=user_id, ignore_permissions=True)  # type: ignore[attr-defined]
     except Exception:
         return None
 
@@ -41,11 +41,11 @@ async def authenticate(username: str, password: str) -> Any:
     """
     User = get_user_model()  # noqa: N806
     # Try username first, then email
-    user = await User.objects.get_or_none(
+    user = await User.objects.get_or_none(  # type: ignore[attr-defined]
         username=username, is_active=True, ignore_permissions=True
     )
     if user is None:
-        user = await User.objects.get_or_none(
+        user = await User.objects.get_or_none(  # type: ignore[attr-defined]
             email=username, is_active=True, ignore_permissions=True
         )
     if user is None:

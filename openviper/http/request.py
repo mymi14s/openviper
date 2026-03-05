@@ -6,7 +6,7 @@ import asyncio
 import json
 import urllib.parse
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, cast
 
 from openviper.utils.datastructures import Headers, ImmutableMultiDict, QueryParams
 
@@ -90,7 +90,7 @@ class Request:
 
     @property
     def method(self) -> str:
-        return self._scope["method"].upper()
+        return cast(str, self._scope["method"]).upper()
 
     @property
     def url(self) -> URL:
@@ -98,11 +98,11 @@ class Request:
 
     @property
     def path(self) -> str:
-        return self._scope.get("path", "/")
+        return cast(str, self._scope.get("path", "/"))
 
     @property
     def root_path(self) -> str:
-        return self._scope.get("root_path", "")
+        return cast(str, self._scope.get("root_path", ""))
 
     @property
     def headers(self) -> Headers:
@@ -177,7 +177,7 @@ class Request:
         if self._form is None:
             content_type = self.headers.get("content-type", "")
             raw = await self.body()
-            if "application/x-www-form-urlencoded" in content_type:
+            if content_type and "application/x-www-form-urlencoded" in content_type:
                 parsed = urllib.parse.parse_qs(raw.decode("utf-8"), keep_blank_values=True)
                 items = [(k, v) for k, vals in parsed.items() for v in vals]
                 self._form = ImmutableMultiDict(items)
@@ -219,7 +219,7 @@ class URL:
 
     @property
     def scheme(self) -> str:
-        return self._scope.get("scheme", "http")
+        return cast(str, self._scope.get("scheme", "http"))
 
     @property
     def host(self) -> str:
@@ -227,21 +227,21 @@ class URL:
         if server:
             host, port = server
             if (self.scheme == "https" and port == 443) or (self.scheme == "http" and port == 80):
-                return host
+                return cast(str, host)
             return f"{host}:{port}"
         # Fall back to Host header
         for name, value in self._scope.get("headers", []):
             if name == b"host":
-                return value.decode("latin-1")
+                return cast(bytes, value).decode("latin-1")
         return "localhost"
 
     @property
     def path(self) -> str:
-        return self._scope.get("path", "/")
+        return cast(str, self._scope.get("path", "/"))
 
     @property
     def query_string(self) -> str:
-        return self._scope.get("query_string", b"").decode("latin-1")
+        return cast(bytes, self._scope.get("query_string", b"")).decode("latin-1")
 
     def __str__(self) -> str:
         if self._cached_str is None:

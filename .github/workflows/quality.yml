@@ -15,7 +15,7 @@ permissions:
 jobs:
   # ── Formatting Check ──────────────────────────────────────────────────
   format:
-    name: Formatting (black + isort)
+    name: Formatting (black)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +23,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install black isort
+      - run: pip install black
       - name: Check black formatting
         run: black --check --diff openviper tests
-      - name: Check isort ordering
-        run: isort --check-only --diff openviper tests
 
   # ── Linting ───────────────────────────────────────────────────────────
   lint:

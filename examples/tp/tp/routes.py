@@ -1,7 +1,8 @@
 """Top-level routes for tp."""
 
-from openviper.admin import get_admin_site
 from tp.views import router as root_router
+
+from openviper.admin import get_admin_site
 
 route_paths = [
     ("/admin", get_admin_site()),

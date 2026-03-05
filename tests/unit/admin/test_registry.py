@@ -6,8 +6,7 @@ import pytest
 
 from openviper.admin import admin as admin1
 from openviper.admin.options import ModelAdmin
-from openviper.admin.registry import AdminRegistry
-from openviper.admin.registry import admin as admin2
+from openviper.admin.registry import AdminRegistry, admin as admin2
 
 
 class MockModel:

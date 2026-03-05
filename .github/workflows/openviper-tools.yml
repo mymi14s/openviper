@@ -10,7 +10,8 @@ jobs:
       github.event.issue.pull_request &&
       (contains(github.event.comment.body, 'openviper-tool test this please') ||
        contains(github.event.comment.body, 'openviper-tool build') ||
-       contains(github.event.comment.body, 'openviper-tool deploy'))
+       contains(github.event.comment.body, 'openviper-tool deploy') ||
+       contains(github.event.comment.body, 'openviper-tool publish docs'))
     name: Openviper Tool Action
     runs-on: ubuntu-latest
     steps:
@@ -32,11 +33,20 @@ jobs:
         run: |
           if [[ "${{ github.event.comment.body }}" == *"test this please"* ]]; then
             echo "action=test" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.comment.body }}" == *"publish docs"* ]]; then
+            echo "action=publish-docs" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.comment.body }}" == *"build"* ]]; then
             echo "action=build" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.comment.body }}" == *"deploy"* ]]; then
             echo "action=deploy" >> $GITHUB_OUTPUT
           fi
+
+      # ── Publish Docs Action ────────────────────────────────────────────────
+      - name: Trigger Docs Deployment
+        if: steps.cmd.outputs.action == 'publish-docs'
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: docs.yml
 
       # ── Test Action ────────────────────────────────────────────────────────
       - name: Trigger Test Workflow

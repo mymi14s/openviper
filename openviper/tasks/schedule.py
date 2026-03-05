@@ -242,7 +242,7 @@ class CronSchedule(Schedule):
             next_run = it.get_next(datetime)
             if next_run.tzinfo is None:
                 next_run = next_run.replace(tzinfo=UTC)
-            return cast(bool, now >= next_run)
+            return cast("bool", now >= next_run)
         except Exception as exc:
             logger.warning("croniter error for %r: %s — falling back to stdlib", self.expr, exc)
             if self._fields is None:

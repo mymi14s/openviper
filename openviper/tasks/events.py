@@ -271,15 +271,15 @@ def get_dispatcher() -> ModelEventDispatcher | None:
     global _dispatcher_cache
     # Fast path (lock-free): already built (None or a dispatcher).
     if _dispatcher_cache is not _UNSET:
-        return cast(ModelEventDispatcher | None, _dispatcher_cache)
+        return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
     with _init_lock:
         # Double-check after acquiring the lock.
         if _dispatcher_cache is not _UNSET:
-            return cast(ModelEventDispatcher | None, _dispatcher_cache)
+            return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
         _dispatcher_cache = _build_dispatcher()
-        return cast(ModelEventDispatcher | None, _dispatcher_cache)
+        return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
 
 def reset_dispatcher() -> None:

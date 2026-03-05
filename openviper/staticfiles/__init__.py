@@ -14,8 +14,9 @@ in ``StaticFilesMiddleware`` for ``DEBUG=True`` (development).  In production
 (``DEBUG=False``) no static serving is configured here — use nginx or a CDN.
 """
 
-from openviper.staticfiles.handlers import StaticFilesMiddleware, collect_static
 from typing import Any
+
+from openviper.staticfiles.handlers import StaticFilesMiddleware, collect_static
 
 # Internal flags — set by calling static() / media() in routes.py
 _static_serving_enabled: bool = False

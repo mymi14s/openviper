@@ -130,7 +130,7 @@ class SecurityMiddleware(BaseMiddleware):
                 return raw.rsplit(":", 1)[0] if ":" in raw else raw
         server = scope.get("server")
         if server:
-            return cast(str, server[0])
+            return cast("str", server[0])
         return ""
 
     async def _send_400(self, send: Any, host: str) -> None:

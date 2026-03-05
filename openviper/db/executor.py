@@ -128,7 +128,7 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
     metadata = get_metadata()
     columns: list[sa.Column[Any]] = []
     added_columns: set[str] = set()
-    for _name, field in cast(Any, model_cls)._fields.items():
+    for _name, field in cast("Any", model_cls)._fields.items():
         if field._column_type == "":
             continue  # ManyToMany — no column
 
@@ -459,7 +459,7 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
         stmt = sa.insert(table).values(**data)
         async with engine.begin() as conn:
             result = await conn.execute(stmt)
-            instance.id = cast(Any, result).inserted_primary_key[0]
+            instance.id = cast("Any", result).inserted_primary_key[0]
     else:
         upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**data)
         async with engine.begin() as conn:

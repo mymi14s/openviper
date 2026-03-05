@@ -134,17 +134,17 @@ class OpenViper:
         redoc_url: str | None = None,
     ) -> None:
         self.debug = debug if debug is not None else getattr(settings, "DEBUG", True)
-        self.title = cast(str, title or getattr(settings, "OPENAPI_TITLE", "OpenViper API"))
-        self.version = cast(str, version or getattr(settings, "OPENAPI_VERSION", "0.0.1"))
+        self.title = cast("str", title or getattr(settings, "OPENAPI_TITLE", "OpenViper API"))
+        self.version = cast("str", version or getattr(settings, "OPENAPI_VERSION", "0.0.1"))
         self.openapi_url = cast(
-            str,
+            "str",
             openapi_url or getattr(settings, "OPENAPI_SCHEMA_URL", "/open-api/openapi.json"),
         )
         self.docs_url = cast(
-            str, docs_url or getattr(settings, "OPENAPI_DOCS_URL", "/open-api/docs")
+            "str", docs_url or getattr(settings, "OPENAPI_DOCS_URL", "/open-api/docs")
         )
         self.redoc_url = cast(
-            str, redoc_url or getattr(settings, "OPENAPI_REDOC_URL", "/open-api/redoc")
+            "str", redoc_url or getattr(settings, "OPENAPI_REDOC_URL", "/open-api/redoc")
         )
 
         self.router = Router()

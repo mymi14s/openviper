@@ -111,10 +111,10 @@ class ModelMeta(type):
         is_abstract = getattr(meta, "abstract", False) if meta else False
 
         if name != "Model" and not is_abstract:
-            manager = Manager(cast(Any, cls))
-            setattr(cls, "objects", manager)
-            get_table(cast(Any, cls))
-            mcs.registry[f"{app_name}.{name}"] = cast(Any, cls)
+            manager = Manager(cast("Any", cls))
+            cls.objects = manager  # type: ignore[attr-defined]
+            get_table(cast("Any", cls))
+            mcs.registry[f"{app_name}.{name}"] = cast("Any", cls)
 
         return cls
 
@@ -530,12 +530,12 @@ class Model(metaclass=ModelMeta):
 
         Format: 'app_label.model_name' (e.g., 'auth.User').
         """
-        return f"{cast(Any, self)._app_name}.{cast(Any, self)._model_name}"
+        return f"{cast('Any', self)._app_name}.{cast('Any', self)._model_name}"
 
     @classmethod
     def get_content_type_label(cls) -> str:
         """Return the content type identifier for this model class."""
-        return f"{cast(Any, cls)._app_name}.{cast(Any, cls)._model_name}"
+        return f"{cast('Any', cls)._app_name}.{cast('Any', cls)._model_name}"
 
     # ── Change detection ──────────────────────────────────────────────────
 

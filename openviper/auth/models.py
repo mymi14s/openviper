@@ -206,7 +206,7 @@ class AbstractUser(Model):
         """Verify raw_password against the stored hash."""
         if not self.password:
             return False
-        return check_password(raw_password, cast(str, self.password))
+        return check_password(raw_password, cast("str", self.password))
 
     # ── Permission checks ─────────────────────────────────────────────────
 

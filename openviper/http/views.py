@@ -82,9 +82,9 @@ class View:
         """
         method = request.method.lower()
         if method not in self.http_method_names:
-            return cast(Resp, self.http_method_not_allowed(request))
+            return cast("Resp", self.http_method_not_allowed(request))
         handler = getattr(self, method, self.http_method_not_allowed)
-        return cast(Resp, await handler(request, **kwargs))
+        return cast("Resp", await handler(request, **kwargs))
 
     def http_method_not_allowed(self, request: Request, **kwargs: Any) -> Any:
         """Return a 405 Method Not Allowed error."""

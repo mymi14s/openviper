@@ -24,7 +24,7 @@ def get_user_model() -> type:
         try:
             from openviper.utils import import_string
 
-            return cast(type, import_string(custom_user))
+            return cast("type", import_string(custom_user))
         except (ImportError, AttributeError):
             pass
 

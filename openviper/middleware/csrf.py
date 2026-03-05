@@ -71,7 +71,7 @@ class CSRFMiddleware(BaseMiddleware):
         if self._secret:
             return self._secret
         try:
-            return cast(str, settings.SECRET_KEY)
+            return cast("str", settings.SECRET_KEY)
         except Exception:
             return "fallback-secret"
 

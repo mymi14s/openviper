@@ -156,7 +156,7 @@ class RateLimitMiddleware(BaseMiddleware):
         """Key = client IP address."""
         client = scope.get("client")
         if client:
-            return cast(str, client[0])
+            return cast("str", client[0])
         for name, value in scope.get("headers", []):
             if name == b"x-forwarded-for":
                 forwarded_for = value.decode()
@@ -236,7 +236,9 @@ def rate_limit(max_requests: int = 60, window_seconds: float = 60.0) -> Callable
                 if not allowed:
                     raise TooManyRequests(
                         retry_after=int(window_seconds),
-                        detail=f"Rate limit exceeded: {max_requests} requests per {window_seconds}s",
+                        detail=(
+                            f"Rate limit exceeded: {max_requests} requests per {window_seconds}s"
+                        ),
                     )
             return await func(*args, **kwargs)
 

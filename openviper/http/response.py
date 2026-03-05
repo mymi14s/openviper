@@ -245,7 +245,7 @@ class HTMLResponse(Response):
                 continue
 
         env = _get_jinja2_env(tuple(search_paths))
-        return cast(str, env.get_template(template).render(**context))
+        return cast("str", env.get_template(template).render(**context))
 
 
 class PlainTextResponse(Response):

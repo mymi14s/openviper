@@ -90,7 +90,7 @@ def task(
         actor = dramatiq.actor(fn, **actor_kwargs)
 
         # Convenience alias so both .send() and .delay() work.
-        setattr(actor, "delay", actor.send)
+        actor.delay = actor.send  # type: ignore[attr-defined]
 
         logger.debug(
             "Registered task %r  actor_name=%r  queue=%s  max_retries=%d",

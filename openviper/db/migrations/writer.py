@@ -49,7 +49,7 @@ def _format_columns(model_cls: type[Model]) -> str:
         if isinstance(field, ForeignKey):
             target_model = field.resolve_target()
             if target_model:
-                col["target_table"] = cast(Any, target_model)._table_name
+                col["target_table"] = cast("Any", target_model)._table_name
             elif isinstance(field.to, str):
                 # Fallback to string name if not yet resolvable
                 # But we need the table name. If it's 'auth.User', we might not know the table.

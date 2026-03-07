@@ -158,9 +158,7 @@ secrets/
 # Openviper Specific
 # ===============================
 instance/
-static/
-!openviper/admin/static/
-
+openviper/admin/static/
 openviper.egg-info
 *worker_debug*.txt
 test_*.txt

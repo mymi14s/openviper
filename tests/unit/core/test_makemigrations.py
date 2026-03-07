@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import argparse
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from openviper.core.management.commands.makemigrations import Command, _auto_migration_name
+from openviper.core.management.commands.makemigrations import (
+    _MAX_NAME_LENGTH,
+    Command,
+    _auto_migration_name,
+)
 from openviper.db.migrations.executor import (
     AddColumn,
     AlterColumn,
@@ -64,7 +69,6 @@ class TestAutoMigrationName:
         assert "remove_old_field" in result
 
     def test_long_name_truncated_to_max(self):
-        from openviper.core.management.commands.makemigrations import _MAX_NAME_LENGTH
 
         op = AddColumn(table_name="t", column_name="x" * 50, column_type="TEXT")
         result = _auto_migration_name([op])
@@ -83,7 +87,6 @@ class TestAutoMigrationName:
 
 
 def test_add_arguments_parses_all_flags():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -98,7 +101,6 @@ def test_add_arguments_parses_all_flags():
 
 
 def test_add_arguments_defaults():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()

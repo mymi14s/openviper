@@ -144,8 +144,6 @@ async def test_action_decorator_no_count():
 
 
 def test_admin_action_has_permission_with_has_perm_user():
-    """Line 92: user has has_perm attr → for loop completes → return True."""
-
     class CustomAction(AdminAction):
         pass
 

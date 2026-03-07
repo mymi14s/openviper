@@ -9,13 +9,19 @@ dependencies = []
 
 operations = [
     migrations.CreateTable(
-        table_name='miniapp_todos',
+        table_name="miniapp_todos",
         columns=[
-        {'name': 'id', 'type': 'INTEGER', 'nullable': False, 'primary_key': True, 'autoincrement': True},
-        {'name': 'title', 'type': 'VARCHAR', 'nullable': False},
-        {'name': 'done', 'type': 'BOOLEAN', 'nullable': False, 'default': False},
-        {'name': 'owner_id', 'type': 'INTEGER', 'nullable': False},
-        {'name': 'created_at', 'type': 'DATETIME', 'nullable': True},
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "nullable": False,
+                "primary_key": True,
+                "autoincrement": True,
+            },
+            {"name": "title", "type": "VARCHAR", "nullable": False},
+            {"name": "done", "type": "BOOLEAN", "nullable": False, "default": False},
+            {"name": "owner_id", "type": "INTEGER", "nullable": False},
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
         ],
     ),
 ]

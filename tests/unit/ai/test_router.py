@@ -32,13 +32,7 @@ def _make_router(model_id: str = "test-model") -> tuple[ModelRouter, MagicMock]:
     return router, provider
 
 
-# ---------------------------------------------------------------------------
-# set_model / get_model (lines 66-72)
-# ---------------------------------------------------------------------------
-
-
 def test_set_model_updates_active_model():
-    """Line 66-67: set_model() changes the active model."""
     router, _ = _make_router()
     router.set_model("new-model")
     assert router.get_model() == "new-model"
@@ -89,13 +83,7 @@ def test_get_model_is_thread_safe():
     assert all(r == "stable-model" for r in results)
 
 
-# ---------------------------------------------------------------------------
-# _get_provider (lines 93-102)
-# ---------------------------------------------------------------------------
-
-
 def test_get_provider_with_explicit_model():
-    """Line 93-94: explicit model override bypasses active model."""
     router, provider = _make_router("default-model")
     router._get_provider(model="override-model")
     router._registry.get_by_model.assert_called_with("override-model")
@@ -114,13 +102,7 @@ def test_get_provider_raises_runtime_error_when_no_model_set():
         router._get_provider()
 
 
-# ---------------------------------------------------------------------------
-# generate (line 117)
-# ---------------------------------------------------------------------------
-
-
 def test_generate_delegates_to_provider():
-    """Line 117: generate() calls provider.generate()."""
     router, provider = _make_router()
 
     async def _run():
@@ -140,11 +122,6 @@ def test_generate_with_model_override():
 
     asyncio.run(_run())
     router._registry.get_by_model.assert_called_with("gpt-4o")
-
-
-# ---------------------------------------------------------------------------
-# stream (lines 132-133)
-# ---------------------------------------------------------------------------
 
 
 def test_stream_yields_chunks_from_provider():
@@ -171,13 +148,7 @@ def test_stream_yields_chunks_from_provider():
     assert result == ["Hello", " world"]
 
 
-# ---------------------------------------------------------------------------
-# moderate (line 148)
-# ---------------------------------------------------------------------------
-
-
 def test_moderate_delegates_to_provider():
-    """Line 148: moderate() calls provider.moderate()."""
     router, provider = _make_router()
 
     async def _run():
@@ -188,13 +159,7 @@ def test_moderate_delegates_to_provider():
     provider.moderate.assert_called_once_with("some content")
 
 
-# ---------------------------------------------------------------------------
-# embed (line 163)
-# ---------------------------------------------------------------------------
-
-
 def test_embed_delegates_to_provider():
-    """Line 163: embed() calls provider.embed()."""
     router, provider = _make_router()
 
     async def _run():
@@ -205,13 +170,7 @@ def test_embed_delegates_to_provider():
     provider.embed.assert_called_once_with("some text")
 
 
-# ---------------------------------------------------------------------------
-# list_models (line 169)
-# ---------------------------------------------------------------------------
-
-
 def test_list_models_delegates_to_registry():
-    """Line 169: list_models() delegates to registry.list_models()."""
     router, _ = _make_router("my-model")
     models = router.list_models()
     assert "my-model" in models

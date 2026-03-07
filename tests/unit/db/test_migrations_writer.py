@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from openviper.db import fields
+from openviper.db.fields import ForeignKey
 from openviper.db.migrations import writer
 from openviper.db.migrations.executor import (
     AddColumn,
@@ -15,6 +16,7 @@ from openviper.db.migrations.executor import (
     RenameColumn,
     RestoreColumn,
 )
+from openviper.db.migrations.writer import _sort_models_topologically
 from openviper.db.models import Model
 
 
@@ -356,3 +358,38 @@ def test_format_operation_extended():
             pass
 
     assert "Unsupported" in writer._format_operation(FakeOp())
+
+
+def test_format_columns_with_fk():
+
+    class ParentModel(Model):
+        class Meta:
+            table_name = "writer_parent_tbl"
+
+    class ChildModel(Model):
+        parent = ForeignKey(ParentModel, on_delete="CASCADE")
+
+        class Meta:
+            table_name = "writer_child_tbl"
+
+    cols = writer._format_columns(ChildModel)
+    assert "writer_parent_tbl" in cols
+    assert "CASCADE" in cols
+
+
+def test_sort_models_topologically_with_fk_dep():
+
+    class ParentTopo(Model):
+        class Meta:
+            table_name = "topo_parent"
+
+    class ChildTopo(Model):
+        parent = ForeignKey(ParentTopo, on_delete="CASCADE")
+
+        class Meta:
+            table_name = "topo_child"
+
+    result = _sort_models_topologically([ChildTopo, ParentTopo])
+    parent_idx = result.index(ParentTopo)
+    child_idx = result.index(ChildTopo)
+    assert parent_idx < child_idx

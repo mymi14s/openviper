@@ -30,11 +30,6 @@ def _restore_tasks_module(original_module):
         _ov_pkg.tasks = original_module
 
 
-# ---------------------------------------------------------------------------
-# Lines 75-85: OPENVIPER_WORKER env var block — success path
-# ---------------------------------------------------------------------------
-
-
 def test_openviper_worker_env_triggers_broker_setup():
     _ensure_broker_loaded()
     original_module = sys.modules.get("openviper.tasks")
@@ -55,11 +50,6 @@ def test_openviper_worker_env_triggers_broker_setup():
         else:
             os.environ["OPENVIPER_WORKER"] = original_env
         _restore_tasks_module(original_module)
-
-
-# ---------------------------------------------------------------------------
-# Lines 86-89: OPENVIPER_WORKER env var block — exception path
-# ---------------------------------------------------------------------------
 
 
 def test_openviper_worker_env_broker_setup_exception_is_swallowed():
@@ -84,13 +74,7 @@ def test_openviper_worker_env_broker_setup_exception_is_swallowed():
         _restore_tasks_module(original_module)
 
 
-# ---------------------------------------------------------------------------
-# Lines 75 (false branch): OPENVIPER_WORKER NOT set → block is skipped
-# ---------------------------------------------------------------------------
-
-
 def test_no_openviper_worker_env_skips_broker_setup():
-    """Line 75: without OPENVIPER_WORKER, the conditional block is NOT entered."""
     _ensure_broker_loaded()
     original_module = sys.modules.get("openviper.tasks")
     original_env = os.environ.pop("OPENVIPER_WORKER", None)

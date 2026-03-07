@@ -4,9 +4,9 @@ and the serialize_json / serialize_many_json / PaginatedSerializer path.
 These cover the previously uncovered lines 222-225, 237-242, 480-548.
 """
 
-from __future__ import annotations
-
 import io
+import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -62,7 +62,6 @@ def test_serialize_json_returns_bytes():
     s = WriteonlySerializer(password="secret", token="abc123")
     result = s.serialize_json()
     assert isinstance(result, bytes)
-    import json
 
     data = json.loads(result)
     assert "password" in data
@@ -72,7 +71,6 @@ def test_serialize_json_returns_bytes():
 def test_serialize_json_with_extra_exclude():
     s = WriteonlySerializer(password="secret", token="abc123")
     result = s.serialize_json(exclude={"password"})
-    import json
 
     data = json.loads(result)
     assert "password" not in data
@@ -90,11 +88,9 @@ class SimpleSerial(Serializer):
 
 
 def test_serialize_many_json_returns_json_array():
-    from types import SimpleNamespace
 
     objs = [SimpleNamespace(id=1, name="alice"), SimpleNamespace(id=2, name="bob")]
     result = SimpleSerial.serialize_many_json(objs)
-    import json
 
     data = json.loads(result)
     assert len(data) == 2
@@ -109,7 +105,6 @@ def test_serialize_many_json_with_write_only_excluded():
 
     objs = [MagicMock(id=1, secret="s1"), MagicMock(id=2, secret="s2")]
     result = SecureSerial.serialize_many_json(objs)
-    import json
 
     data = json.loads(result)
     for item in data:
@@ -268,11 +263,11 @@ async def test_model_serializer_save_updates_when_pk_found_in_db():
     )
 
     class PostSerializer(ModelSerializer):
-        id: int | None = None
+        id: int
 
         class Meta:
             model = Model
-            fields = ["title"]
+            fields = ["id", "title"]
 
     existing = MagicMock(id=42, title="old")
     existing.save = AsyncMock()
@@ -302,11 +297,11 @@ async def test_model_serializer_save_creates_when_pk_not_found():
     )
 
     class PostSerializer(ModelSerializer):
-        id: int | None = None
+        id: int
 
         class Meta:
             model = Model
-            fields = ["title"]
+            fields = ["id", "title"]
 
     Model.objects.get = AsyncMock(side_effect=DoesNotExist)
     created = MagicMock(id=99, title="New")

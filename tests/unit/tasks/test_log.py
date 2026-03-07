@@ -65,7 +65,6 @@ def test_configure_worker_logging_idempotent(tmp_path):
 
 
 def test_configure_worker_logging_json_format(tmp_path):
-    """Line 63: json format sets a JSON-style file formatter."""
     configure_worker_logging(log_format="json")
     # The global flag was set — idempotency implies this branch ran
     assert log_module._LOGGING_CONFIGURED is True
@@ -84,11 +83,6 @@ def test_configure_worker_logging_sets_log_level():
     configure_worker_logging(log_level="WARNING")
     lg = logging.getLogger("openviper.tasks")
     assert lg.level == logging.WARNING
-
-
-# ---------------------------------------------------------------------------
-# configure_worker_logging — log_to_file=True (lines 80-100, 121)
-# ---------------------------------------------------------------------------
 
 
 def test_configure_worker_logging_to_file_creates_handlers(tmp_path):
@@ -116,7 +110,6 @@ def test_configure_worker_logging_to_file_creates_worker_log(tmp_path):
 
 
 def test_configure_worker_logging_to_file_log_info_message(tmp_path, caplog):
-    """Line 121: info message logged when log_to_file=True."""
     with caplog.at_level(logging.INFO, logger="openviper.tasks"):
         configure_worker_logging(log_dir=str(tmp_path), log_to_file=True)
     # The log message should reference the path
@@ -193,7 +186,6 @@ def test_configure_worker_logging_from_settings_exception_swallowed(caplog):
 
 
 def test_configure_worker_logging_from_settings_env_var_overrides(monkeypatch):
-    """Line 164: OPENVIPER_WORKER_LOG_LEVEL env var overrides TASKS log_level."""
     monkeypatch.setenv("OPENVIPER_WORKER_LOG_LEVEL", "DEBUG")
 
     with patch("openviper.tasks.log.configure_worker_logging") as mock_cfg:

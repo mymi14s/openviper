@@ -37,14 +37,12 @@ def _make_actor(name: str = "actor") -> MagicMock:
 
 
 def test_scheduler_with_custom_registry():
-    """Line 56: when registry is not None, uses provided registry."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     assert scheduler._registry is custom_reg
 
 
 def test_scheduler_default_registry_uses_singleton():
-    """Line 56: when registry is None, uses process-level singleton."""
     from openviper.tasks.registry import get_registry
 
     scheduler = Scheduler()
@@ -57,7 +55,6 @@ def test_scheduler_default_registry_uses_singleton():
 
 
 def test_scheduler_add_registers_entry():
-    """Line 88: add() delegates to registry.register() and returns entry."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     actor = _make_actor()
@@ -72,7 +69,6 @@ def test_scheduler_add_registers_entry():
 
 
 def test_scheduler_remove_unregisters_entry():
-    """Line 100: remove() delegates to registry.unregister()."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     actor = _make_actor()
@@ -98,7 +94,6 @@ def test_scheduler_run_now_raises_type_error_for_plain_function():
 
 
 def test_scheduler_run_now_sends_actor():
-    """Line 142: run_now() calls actor.send() with all args and kwargs."""
     scheduler = Scheduler()
     actor = _make_actor("my_actor")
     scheduler.run_now(actor, 1, 2, key="value")
@@ -175,14 +170,12 @@ def test_scheduler_tick_uses_utcnow_by_default():
 
 
 def test_scheduler_get_registry():
-    """Line 190: get_registry() returns the underlying ScheduleRegistry."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     assert scheduler.get_registry() is custom_reg
 
 
 def test_scheduler_all_entries():
-    """Line 194: all_entries() returns list of all registered entries."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     actor = _make_actor()
@@ -193,7 +186,6 @@ def test_scheduler_all_entries():
 
 
 def test_scheduler_len():
-    """Line 197: __len__ returns count from registry."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     assert len(scheduler) == 0
@@ -202,7 +194,6 @@ def test_scheduler_len():
 
 
 def test_scheduler_repr():
-    """Line 200: __repr__ includes 'Scheduler' and entry count."""
     custom_reg = ScheduleRegistry()
     scheduler = Scheduler(registry=custom_reg)
     r = repr(scheduler)

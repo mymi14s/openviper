@@ -11,6 +11,7 @@ from openviper.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
+    __test__ = False  # tell pytest not to collect this class
     help = "Run the project test suite using pytest."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:

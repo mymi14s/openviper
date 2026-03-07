@@ -103,9 +103,6 @@ async def test_auth_session_valid(mock_session):
     mock_session.assert_called_once_with("session=123")
 
 
-# ── Cache hit (line 55) ───────────────────────────────────────────────────────
-
-
 @pytest.mark.asyncio
 @patch("openviper.middleware.auth.decode_access_token")
 @patch("openviper.middleware.auth.get_user_by_id")
@@ -196,9 +193,6 @@ async def test_cache_eviction_insertion_order(mock_get_user, mock_decode):
     assert 77 in _USER_CACHE
 
 
-# ── TokenExpired path (line 149-150) ─────────────────────────────────────────
-
-
 @pytest.mark.asyncio
 @patch("openviper.middleware.auth.decode_access_token")
 async def test_auth_jwt_token_expired(mock_decode):
@@ -234,9 +228,6 @@ async def test_auth_session_exception(mock_session):
 
     assert isinstance(scope["user"], AnonymousUser)
     assert scope["auth"] == {"type": "none"}
-
-
-# ── Cache hit but expired (line 56) ──────────────────────────────────────────
 
 
 @pytest.mark.asyncio

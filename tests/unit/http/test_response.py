@@ -1,12 +1,17 @@
+import builtins
 import datetime
+import importlib
 import json
 import os
+import sys
 import tempfile
+import types
 import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import openviper.http.response as resp_mod
 from openviper.http.response import (
     FileResponse,
     GZipResponse,
@@ -16,6 +21,8 @@ from openviper.http.response import (
     RedirectResponse,
     Response,
     StreamingResponse,
+    _get_jinja2_env,
+    _json_encode,
 )
 
 
@@ -208,3 +215,127 @@ async def test_gzip_response():
     sends.clear()
     await r2({}, None, fake_send)
     assert sends[1]["body"] == b"a" * 100  # unchanged
+
+
+def test_response_module_no_jinja2():
+
+    original_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "jinja2":
+            raise ImportError("Simulated missing jinja2")
+        return original_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", side_effect=mock_import):
+        importlib.reload(resp_mod)
+    try:
+        assert resp_mod.Environment is None
+        assert resp_mod.FileSystemLoader is None
+    finally:
+        importlib.reload(resp_mod)  # restore with real jinja2
+
+
+def test_json_encode_non_2_indent():
+
+    encoded = _json_encode({"key": "value"}, default=None, indent=4)
+    parsed = json.loads(encoded)
+    assert parsed == {"key": "value"}
+    assert b"\n" in encoded  # json.dumps with indent produces newlines
+
+
+def test_get_jinja2_env_no_jinja2():
+    from openviper.http.response import _get_jinja2_env
+
+    _get_jinja2_env.cache_clear()
+    with patch("openviper.http.response.Environment", None):
+        with pytest.raises(ImportError, match="jinja2 is required"):
+            _get_jinja2_env(("unique_test_path_no_jinja2_abc",))
+    _get_jinja2_env.cache_clear()
+
+
+def test_response_cookie_expires():
+    r = Response("body")
+    r.set_cookie("sid", "abc", expires=1735689600)
+    cookies = r.headers.getlist("set-cookie")
+    assert any("Expires=1735689600" in c for c in cookies)
+
+
+def test_json_response_default_encoder_directly():
+    encoder = JSONResponse._default_encoder
+
+    dt = datetime.datetime(2024, 3, 7, 12, 0, 0)
+    assert encoder(dt) == "2024-03-07T12:00:00"
+
+    d = datetime.date(2024, 3, 7)
+    assert encoder(d) == "2024-03-07"
+
+    uid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+    assert encoder(uid) == "12345678-1234-5678-1234-567812345678"
+
+
+def test_html_response_template_installed_app_import_error():
+
+    _get_jinja2_env.cache_clear()
+
+    _orig_import = importlib.import_module  # save real function before patching
+
+    mock_env = MagicMock()
+    mock_template = MagicMock()
+    mock_template.render.return_value = "rendered"
+    mock_env.get_template.return_value = mock_template
+
+    def _import_error_for_bad_app(name, *args, **kwargs):
+        if name == "invalid_app_xyz":
+            raise ImportError("no such app")
+        return _orig_import(name, *args, **kwargs)
+
+    with (
+        patch("openviper.http.response.settings") as mock_settings,
+        patch(
+            "openviper.http.response.importlib.import_module",
+            side_effect=_import_error_for_bad_app,
+        ),
+        patch("openviper.http.response._get_jinja2_env", return_value=mock_env),
+    ):
+        mock_settings.INSTALLED_APPS = ("invalid_app_xyz",)
+        r = HTMLResponse(template="test.html", context={})
+
+    assert r.body == b"rendered"
+    _get_jinja2_env.cache_clear()
+
+
+def test_html_response_template_installed_app_templates_found(tmp_path):
+
+    _get_jinja2_env.cache_clear()
+
+    fake_mod_name = "fake_app_with_templates_openviper_test"
+    fake_mod = types.ModuleType(fake_mod_name)
+    app_dir = tmp_path / fake_mod_name
+    app_dir.mkdir()
+    (app_dir / "templates").mkdir()
+    fake_mod.__file__ = str(app_dir / "__init__.py")
+    sys.modules[fake_mod_name] = fake_mod
+
+    captured_paths: list[str] = []
+
+    def fake_jinja2_env(paths: tuple) -> MagicMock:
+        captured_paths.extend(paths)
+        env = MagicMock()
+        tmpl = MagicMock()
+        tmpl.render.return_value = "ok"
+        env.get_template.return_value = tmpl
+        return env
+
+    try:
+        with (
+            patch("openviper.http.response.settings") as mock_settings,
+            patch("openviper.http.response._get_jinja2_env", side_effect=fake_jinja2_env),
+        ):
+            mock_settings.INSTALLED_APPS = (fake_mod_name,)
+            r = HTMLResponse(template="hello.html", context={})
+
+        assert r.body == b"ok"
+        assert str(app_dir / "templates") in captured_paths
+    finally:
+        sys.modules.pop(fake_mod_name, None)
+        _get_jinja2_env.cache_clear()

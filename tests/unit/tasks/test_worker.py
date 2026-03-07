@@ -66,7 +66,6 @@ def test_run_worker(mock_signal, mock_worker_cls, mock_setup_broker, mock_discov
 
 
 def test_discover_tasks_skips_openviper_internal_apps():
-    """Line 80: apps starting with 'openviper.' are skipped silently."""
     with patch("openviper.tasks.worker.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = ["openviper.auth", "openviper.tasks", "myapp"]
 
@@ -196,13 +195,7 @@ def test_run_worker_with_scheduler_enabled(
     mock_stop_scheduler.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# discover_tasks — line 92 (files in _SKIP_FILES are skipped)
-# ---------------------------------------------------------------------------
-
-
 def test_discover_tasks_skips_files_in_skip_files_set():
-    """Line 92: filenames in _SKIP_FILES trigger continue (e.g. models.py skipped)."""
     import openviper.tasks.worker
 
     with patch("openviper.tasks.worker.settings") as mock_settings:
@@ -225,14 +218,8 @@ def test_discover_tasks_skips_files_in_skip_files_set():
 
                 with patch("openviper.tasks.worker.importlib.import_module") as mock_import:
                     result = discover_tasks()
-                    # Only tasks.py is imported (models.py skipped via line 92 continue)
                     mock_import.assert_called_once_with("myapp.tasks")
                     assert result == ["myapp.tasks"]
-
-
-# ---------------------------------------------------------------------------
-# discover_tasks — lines 109-110 (extra module import success)
-# ---------------------------------------------------------------------------
 
 
 def test_discover_tasks_extra_modules_success():
@@ -246,11 +233,6 @@ def test_discover_tasks_extra_modules_success():
             result = discover_tasks(extra_modules=["myapp.tasks"])
             mock_import.assert_called_once_with("myapp.tasks")
             assert result == ["myapp.tasks"]
-
-
-# ---------------------------------------------------------------------------
-# run_worker — lines 178-180 (_shutdown signal handler calls sys.exit)
-# ---------------------------------------------------------------------------
 
 
 @patch("openviper.tasks.worker.configure_worker_logging_from_settings")
@@ -285,11 +267,6 @@ def test_run_worker_shutdown_signal_handler_calls_sys_exit(
         captured_handlers[signal_module.SIGINT](signal_module.SIGINT, None)
 
     mock_exit.assert_called_once_with(0)
-
-
-# ---------------------------------------------------------------------------
-# run_worker — lines 208-209 (worker.stop() exception is swallowed)
-# ---------------------------------------------------------------------------
 
 
 @patch("openviper.tasks.worker.configure_worker_logging_from_settings")

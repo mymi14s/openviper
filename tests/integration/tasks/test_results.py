@@ -9,8 +9,11 @@ import pytest
 
 from openviper.tasks.results import (
     batch_upsert_results,
+    clean_old_results,
+    delete_task_result,
     get_task_result,
     get_task_result_sync,
+    get_task_stats,
     list_task_results,
     list_task_results_sync,
     reset_engine,
@@ -130,13 +133,6 @@ def test_datetime_serialization():
     assert isinstance(row["enqueued_at"], str)
     # Basic ISO format check
     assert "T" in row["enqueued_at"]
-
-
-from openviper.tasks.results import (
-    clean_old_results,
-    delete_task_result,
-    get_task_stats,
-)
 
 
 def test_delete_result():

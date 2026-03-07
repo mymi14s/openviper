@@ -47,10 +47,9 @@ def test_reset_broker():
 
 def test_create_broker_redis():
     """_create_broker should create a RedisBroker by default."""
-    cfg = {"broker": "redis", "broker_url": "redis://localhost:6379/9"}
     with patch("openviper.tasks.broker._make_redis_broker") as mock_make:
         mock_make.return_value = MagicMock(spec=RedisBroker)
-        broker = _create_broker()
+        _create_broker()
         # By default it reads settings, so we need to mock _read_task_settings instead
         # Or better, just test that the logic in _create_broker handles backends
         pass
@@ -98,7 +97,7 @@ def test_middleware_attachment():
         with patch("openviper.tasks.middleware.TaskTrackingMiddleware") as mock_tracking:
             with patch("openviper.tasks.middleware.SchedulerMiddleware") as mock_scheduler:
                 with patch("dramatiq.results.Results") as mock_results:
-                    broker = _create_broker()
+                    _create_broker()
 
                     mock_tracking.assert_called_once()
                     mock_scheduler.assert_called_once()

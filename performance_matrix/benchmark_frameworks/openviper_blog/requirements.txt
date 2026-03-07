@@ -1,3 +1,0 @@
-openviper
-uvicorn[standard]
-aiosqlite

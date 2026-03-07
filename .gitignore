@@ -169,6 +169,7 @@ clean-cython.sh
 file:res*
 docs/*/_build/
 uv.lock
+performance_matrix
 
 # ===============================
 # Node Modules

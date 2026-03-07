@@ -39,8 +39,6 @@ def test_task_execution_stub():
 
 
 def test_task_with_time_limit():
-    """Line 88: time_limit is added to actor_kwargs when not None."""
-
     @task(time_limit=5000)
     def limited_task():
         pass

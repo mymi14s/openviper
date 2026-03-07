@@ -1,3 +1,4 @@
+from openviper.ai.exceptions import ModelNotFoundError
 from openviper.exceptions import (
     AuthenticationFailed,
     Conflict,
@@ -104,8 +105,6 @@ def test_base_exceptions_instantiation():
 
 
 def test_model_not_found_error_with_available_list():
-    """Line 248: ModelNotFoundError with available models appends them to message."""
-    from openviper.ai.exceptions import ModelNotFoundError
 
     err = ModelNotFoundError("gpt-4", available=["gpt-3.5", "claude-3"])
     assert "gpt-4" in str(err)
@@ -116,7 +115,6 @@ def test_model_not_found_error_with_available_list():
 
 def test_model_not_found_error_without_available_list():
     """ModelNotFoundError without available list has empty .available."""
-    from openviper.ai.exceptions import ModelNotFoundError
 
     err = ModelNotFoundError("unknown-model")
     assert "unknown-model" in str(err)

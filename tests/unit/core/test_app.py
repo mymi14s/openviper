@@ -1,5 +1,6 @@
 import contextlib
 import json
+from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel
@@ -9,6 +10,7 @@ from openviper.exceptions import HTTPException
 from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse
 from openviper.routing.router import Router
 from tests.factories.app_factory import create_application
+from tests.factories.http_factory import create_request
 
 
 @pytest.mark.asyncio
@@ -90,8 +92,6 @@ async def test_app_exception_handling():
     async def handle_value_error(request, exc):
         return JSONResponse({"error": str(exc)}, status_code=400)
 
-    from tests.factories.http_factory import create_request
-
     request = create_request()
 
     response = await app._handle_exception(request, ValueError("bad value"))
@@ -114,7 +114,6 @@ async def test_app_exception_handling():
 @pytest.mark.asyncio
 async def test_app_error_response_html_vs_json():
     app = OpenViper(debug=True)
-    from tests.factories.http_factory import create_request
 
     # JSON request
     req_json = create_request(headers=[(b"accept", b"application/json")])
@@ -147,11 +146,9 @@ async def test_app_middleware_builder():
     app = create_application()
     app.debug = False  # trigger static disabled logs
 
-    # 225 line: settings.MIDDLEWARE failing
     app._build_middleware_stack()  # standard build
 
     # Force settings mock
-    from unittest.mock import patch
 
     with patch("openviper.app.settings") as mock_settings:
         mock_settings.MIDDLEWARE = ["invalid.noexist.Mw"]
@@ -253,7 +250,6 @@ async def test_handle_lifespan_failures():
 
 def test_app_run_wrapper():
     app = create_application()
-    from unittest.mock import patch
 
     with patch("openviper.app.uvicorn.run") as mock_run:
         app.run(host="0.0.0.0", port=9000, reload=False, workers=2)
@@ -283,13 +279,7 @@ async def test_app_openapi_routes(test_client):
     assert "ReDoc" in resp_redoc.text
 
 
-# ---------------------------------------------------------------------------
-# _coerce_response — uncovered branches (lines 417, 419, 423)
-# ---------------------------------------------------------------------------
-
-
 def test_coerce_response_none_returns_204():
-    """Line 417: None → Response with status_code=204."""
     app = create_application()
     result = app._coerce_response(None)
     assert result.status_code == 204
@@ -297,7 +287,6 @@ def test_coerce_response_none_returns_204():
 
 
 def test_coerce_response_string_returns_plain_text():
-    """Line 419: str → PlainTextResponse."""
     app = create_application()
     result = app._coerce_response("hello world")
     assert isinstance(result, PlainTextResponse)
@@ -305,7 +294,6 @@ def test_coerce_response_string_returns_plain_text():
 
 
 def test_coerce_response_bytes_returns_plain_text():
-    """Line 419: bytes → PlainTextResponse."""
     app = create_application()
     result = app._coerce_response(b"raw bytes")
     assert isinstance(result, PlainTextResponse)
@@ -313,16 +301,10 @@ def test_coerce_response_bytes_returns_plain_text():
 
 
 def test_coerce_response_fallback_json():
-    """Line 423: non-dict/list/None/str/bytes value → fallback JSONResponse."""
     app = create_application()
     # An integer hits the final fallback `return JSONResponse(result)`
     result = app._coerce_response(42)
     assert isinstance(result, JSONResponse)
-
-
-# ---------------------------------------------------------------------------
-# _core_app — websocket dispatch (lines 350-352)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -342,14 +324,7 @@ async def test_core_app_dispatches_websocket():
     assert any(m.get("type") == "websocket.close" for m in sent)
 
 
-# ---------------------------------------------------------------------------
-# _build_middleware_stack — valid MIDDLEWARE entry (line 276)
-# ---------------------------------------------------------------------------
-
-
 def test_build_middleware_stack_valid_middleware():
-    """Line 276: valid cls is appended to raw_middleware."""
-    from unittest.mock import patch
 
     app = create_application()
     app.debug = False
@@ -362,14 +337,8 @@ def test_build_middleware_stack_valid_middleware():
     assert result is not None
 
 
-# ---------------------------------------------------------------------------
-# _handle_http — per-route middleware (line 367)
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_handle_http_per_route_middleware():
-    """Line 367: per-route middleware wraps the handler."""
 
     app = create_application()
     middleware_called = []

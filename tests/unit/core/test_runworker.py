@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import subprocess
 from unittest.mock import MagicMock, patch
@@ -16,7 +17,6 @@ from openviper.core.management.commands.runworker import Command
 
 
 def test_add_arguments_defaults():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -30,7 +30,6 @@ def test_add_arguments_defaults():
 
 
 def test_add_arguments_all_options():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -310,14 +309,8 @@ class TestHandleAutoDiscovery:
         proc.kill.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# Auto-discovery — _SKIP_FILES (line 114)
-# ---------------------------------------------------------------------------
-
-
 class TestHandleSkipFiles:
     def test_skip_files_in_skip_files_set_not_included(self, tmp_path):
-        """Line 114: files in _SKIP_FILES (e.g. models.py) are skipped."""
         # Create a models.py (in _SKIP_FILES) and a tasks.py (not skipped)
         (tmp_path / "models.py").write_text("# models\n")
         (tmp_path / "tasks.py").write_text("# tasks\n")

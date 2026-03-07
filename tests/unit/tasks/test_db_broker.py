@@ -444,11 +444,6 @@ class TestDatabaseConsumerInit:
         assert c.timeout == 10_000
 
 
-# ---------------------------------------------------------------------------
-# _DatabaseConsumer — _supports_skip_locked path (line 153)
-# ---------------------------------------------------------------------------
-
-
 class TestSkipLocked:
     def _real_encoded_message(self):
         from dramatiq.message import Message
@@ -463,7 +458,6 @@ class TestSkipLocked:
         return msg.encode()
 
     def test_with_for_update_called_when_supports_skip_locked_true(self, consumer, mock_engine):
-        """Line 153: with_for_update(skip_locked=True) applied when _supports_skip_locked true."""
         import sqlalchemy as sa
 
         # Enable SKIP LOCKED on the broker

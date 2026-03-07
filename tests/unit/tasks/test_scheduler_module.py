@@ -216,7 +216,6 @@ def test_start_scheduler_enqueues_run_on_start_entry():
 
 
 def test_start_scheduler_logs_plural_tasks():
-    """Line 179-180: 'tasks' (plural) used when more than one entry."""
     actor1 = _mock_actor("t1")
     actor2 = _mock_actor("t2")
     for actor in (actor1, actor2):
@@ -245,7 +244,6 @@ def test_start_scheduler_logs_plural_tasks():
 
 
 def test_stop_scheduler_sets_stop_event():
-    """Line 190: _stop_event is set."""
     assert not sched_module._stop_event.is_set()
     stop_scheduler()
     assert sched_module._stop_event.is_set()
@@ -354,7 +352,6 @@ def test_tick_loop_calls_scheduler_tick():
 
 
 def test_tick_loop_logs_each_fired_task():
-    """Line 224: logger.debug fired for each entry name."""
     mock_sched = MagicMock()
     mock_sched.tick.return_value = ["alpha", "beta"]
 
@@ -405,7 +402,6 @@ def test_enqueue_calls_actor_send():
 
 
 def test_enqueue_logs_warning_on_exception():
-    """Line 240: exception from actor.send() logs a warning and does not propagate."""
     actor = MagicMock()
     actor.send.side_effect = RuntimeError("broker down")
 

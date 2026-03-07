@@ -1,11 +1,13 @@
-"""Unit tests for openviper/admin/site.py — get_admin_site() and its inner handlers."""
-
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from openviper.admin.site import get_admin_site
+from openviper.exceptions import NotFound
+from openviper.http.response import FileResponse, HTMLResponse
 from openviper.routing.router import Router
 
 # ---------------------------------------------------------------------------
@@ -43,8 +45,6 @@ def _call_get_admin_site(debug: bool = True):
     ):
         mock_settings.DEBUG = debug
         mock_settings.STATIC_ROOT = "static"  # default-ish value
-        from openviper.admin.site import get_admin_site
-
         router = get_admin_site()
 
     return router, mock_admin_router
@@ -175,8 +175,6 @@ class TestListExtensions:
         with patch("openviper.admin.site.discover_extensions", return_value=mock_exts):
             response = await handler(_mock_request())
 
-        import json
-
         body = json.loads(response.body)
         assert "extensions" in body
         assert len(body["extensions"]) == 1
@@ -193,8 +191,6 @@ class TestListExtensions:
 
         with patch("openviper.admin.site.discover_extensions", return_value=[]):
             response = await handler(_mock_request())
-
-        import json
 
         body = json.loads(response.body)
         assert body["extensions"] == []
@@ -217,9 +213,17 @@ class TestListExtensions:
         with patch("openviper.admin.site.discover_extensions", return_value=mock_exts):
             response = await handler(_mock_request())
 
+        # In some versions of JSONResponse, body is accessed via .body or ._body
+        # We'll try to find the correct way to access it in this project.
+        # Based on the error, it's not ._body. Let's try .body
+        try:
+            raw_body = response.body
+        except AttributeError:
+            raw_body = response._body
+
         import json
 
-        body = json.loads(response.body)
+        body = json.loads(raw_body.decode())
         ext = body["extensions"][0]
         assert "path" not in ext
         assert set(ext.keys()) == {"app", "file", "url", "type"}
@@ -248,8 +252,6 @@ class TestServeExtensionFile:
         with patch("openviper.admin.site.importlib.util.find_spec", return_value=mock_spec):
             response = await handler(_mock_request(), app_name="myapp", path="plugin.js")
 
-        from openviper.http.response import FileResponse
-
         assert isinstance(response, FileResponse)
 
     @pytest.mark.asyncio
@@ -268,8 +270,6 @@ class TestServeExtensionFile:
         with patch("openviper.admin.site.importlib.util.find_spec", return_value=mock_spec):
             response = await handler(_mock_request(), app_name="myapp", path="Widget.vue")
 
-        from openviper.http.response import FileResponse
-
         assert isinstance(response, FileResponse)
 
     @pytest.mark.asyncio
@@ -278,8 +278,6 @@ class TestServeExtensionFile:
         handler = _find_handler(router, "serve_extension_file")
 
         with patch("openviper.admin.site.importlib.util.find_spec", return_value=None):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound):
                 await handler(_mock_request(), app_name="missing_app", path="plugin.js")
 
@@ -292,8 +290,6 @@ class TestServeExtensionFile:
         mock_spec.origin = None
 
         with patch("openviper.admin.site.importlib.util.find_spec", return_value=mock_spec):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound):
                 await handler(_mock_request(), app_name="myapp", path="plugin.js")
 
@@ -306,8 +302,6 @@ class TestServeExtensionFile:
         mock_spec.origin = str(tmp_path / "__init__.py")  # admin_extensions dir not created
 
         with patch("openviper.admin.site.importlib.util.find_spec", return_value=mock_spec):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound):
                 await handler(_mock_request(), app_name="myapp", path="nonexistent.js")
 
@@ -325,8 +319,6 @@ class TestServeExtensionFile:
         mock_spec.origin = str(tmp_path / "__init__.py")
 
         with patch("openviper.admin.site.importlib.util.find_spec", return_value=mock_spec):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound, match="Only .js and .vue"):
                 await handler(_mock_request(), app_name="myapp", path="secrets.env")
 
@@ -339,8 +331,6 @@ class TestServeExtensionFile:
             "openviper.admin.site.importlib.util.find_spec",
             side_effect=RuntimeError("unexpected"),
         ):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound):
                 await handler(_mock_request(), app_name="myapp", path="plugin.js")
 
@@ -407,8 +397,6 @@ class TestServeAdminIndex:
             mock_settings.DEBUG = True
             response = await handler(_mock_request())
 
-        from openviper.http.response import HTMLResponse
-
         assert isinstance(response, HTMLResponse)
         assert response.status_code == 500
 
@@ -450,8 +438,6 @@ class TestServeAdminSpa:
             mock_settings.DEBUG = True
             response = await handler(_mock_request(), path="dashboard/users")
 
-        from openviper.http.response import FileResponse
-
         assert isinstance(response, FileResponse)
 
     @pytest.mark.asyncio
@@ -468,8 +454,6 @@ class TestServeAdminSpa:
             mock_settings.STATIC_ROOT = str(tmp_path / "no_project")
             mock_settings.DEBUG = True
             response = await handler(_mock_request(), path="some/path")
-
-        from openviper.http.response import HTMLResponse
 
         assert isinstance(response, HTMLResponse)
         assert response.status_code == 500
@@ -507,8 +491,6 @@ class TestServeAdminSpa:
             mock_settings.DEBUG = True
             response = await handler(_mock_request(), path="settings")
 
-        from openviper.http.response import FileResponse
-
         assert isinstance(response, FileResponse)
 
 
@@ -532,8 +514,6 @@ class TestServeAdminAsset:
         with patch("openviper.admin.site.ADMIN_STATIC_DIR", tmp_path):
             response = await handler(_mock_request(), path="main.css")
 
-        from openviper.http.response import FileResponse
-
         assert isinstance(response, FileResponse)
 
     @pytest.mark.asyncio
@@ -542,8 +522,6 @@ class TestServeAdminAsset:
         handler = _find_handler(router, "serve_admin_asset")
 
         with patch("openviper.admin.site.ADMIN_STATIC_DIR", tmp_path):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound, match="Asset not found"):
                 await handler(_mock_request(), path="does_not_exist.js")
 
@@ -559,7 +537,5 @@ class TestServeAdminAsset:
         subdir.mkdir()  # this is a directory, not a file
 
         with patch("openviper.admin.site.ADMIN_STATIC_DIR", tmp_path):
-            from openviper.exceptions import NotFound
-
             with pytest.raises(NotFound, match="Asset not found"):
                 await handler(_mock_request(), path="fonts")

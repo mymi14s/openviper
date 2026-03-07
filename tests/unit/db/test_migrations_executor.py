@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from openviper.db.migrations.executor import (
     AddColumn,
     AlterColumn,
+    CreateIndex,
     CreateTable,
     DropTable,
     MigrationExecutor,
@@ -16,11 +17,18 @@ from openviper.db.migrations.executor import (
     RemoveColumn,
     RenameColumn,
     RestoreColumn,
+    RunSQL,
+    _count_null_values,
+    _count_total_rows,
     _get_dialect,
+    _get_existing_columns_sync,
+    _get_soft_removed_info,
     _map_column_type,
     _MigrationLogger,
     _should_skip_backward,
+    _should_skip_forward,
     _types_compatible,
+    discover_migrations,
     validate_restore_column,
 )
 
@@ -113,7 +121,6 @@ def test_add_remove_column():
 
 @patch("openviper.db.migrations.executor._get_dialect", return_value="postgresql")
 def test_alter_rename_restore(mock_dialect):
-    from openviper.db.migrations.executor import CreateIndex, RunSQL
 
     idx = CreateIndex("t", "idx_t", ["c"], unique=True)
     assert "CREATE UNIQUE INDEX" in idx.forward_sql()[0]
@@ -205,14 +212,8 @@ async def test_validate_restore_column():
 async def test_should_skip_funcs():
     conn = MagicMock()
 
-    def inspector_mock(*args):
-        insp = MagicMock()
-        insp.has_table.return_value = True
-        insp.get_columns.return_value = [{"name": "c"}]
-        return insp
-
-    # Test internal exception fallback
-    from openviper.db.migrations.executor import _get_existing_columns_sync, _should_skip_forward
+    inspector_mock = MagicMock()
+    inspector_mock.return_value.get_columns.return_value = [{"name": "c"}]
 
     assert _get_existing_columns_sync(conn, "t") == set()  # without mock, raised exception
 
@@ -231,8 +232,7 @@ async def test_should_skip_funcs():
         with patch("sqlalchemy.inspect") as mk:
             insp2 = MagicMock()
             insp2.get_columns.return_value = [{"name": "c"}]
-            mk.return_value = inspector_mock()
-            mk.return_value.get_columns.return_value = []
+            mk.return_value = insp2
             assert await _should_skip_backward(conn, op2) is True
 
         assert await _should_skip_backward(conn, DropTable("t")) is False
@@ -244,13 +244,11 @@ async def test_should_skip_funcs():
         )  # nonexistent doesn't exist, don't skip adding it
 
         rp = RemoveColumn("t", "nonexistent")
+        rp_c = RemoveColumn("t", "c")
         assert (
             await _should_skip_forward(conn, rp) is True
         )  # nonexistent doesn't exist, skip removing it
-        rp_c = RemoveColumn("t", "c")
         assert await _should_skip_forward(conn, rp_c) is False  # c exists, don't skip removing it
-
-        from openviper.db.migrations.executor import RunSQL
 
         assert await _should_skip_forward(conn, RunSQL("A")) is False
 
@@ -280,6 +278,9 @@ def memory_engine():
         engine = create_async_engine("sqlite+aiosqlite:///:memory:")
         mk.return_value = engine
         yield engine
+        # Dispose synchronously to prevent ResourceWarning from sqlite3
+        # connections in the pool being GC'd without explicit close.
+        engine.dispose()
 
 
 @pytest.fixture
@@ -320,7 +321,6 @@ async def test_migration_executor_migrate(memory_engine, mock_discover):
     assert not applied_target  # Since mock_discover only has "app'
 
     # Validation errors
-    from openviper.db.migrations.executor import RestoreColumn
 
     mock_discover[0].operations.append(RestoreColumn("t", "c"))
 
@@ -343,7 +343,6 @@ async def test_migration_executor_migrate(memory_engine, mock_discover):
 @pytest.mark.asyncio
 async def test_migration_executor_rollback_skip(memory_engine):
     executor = MigrationExecutor()
-    from openviper.db.migrations.executor import AddColumn
 
     rec = MigrationRecord("app", "skip_bk", [], [AddColumn("t", "c", "TEXT")], "path")
     with patch("openviper.db.migrations.executor.discover_migrations", return_value=[rec]):
@@ -354,7 +353,6 @@ async def test_migration_executor_rollback_skip(memory_engine):
 
 
 def test_discover_migrations():
-    from openviper.db.migrations.executor import discover_migrations
 
     recs = discover_migrations()
     assert len(recs) > 0
@@ -397,7 +395,6 @@ def test_discover_migrations():
 @pytest.mark.asyncio
 async def test_migration_executor_errors(memory_engine):
     # Test error during migration
-    from openviper.db.migrations.executor import RunSQL
 
     bad_rec = MigrationRecord("app", "002", [], [RunSQL("SELECT SYNTAX ERROR")], "path")
 
@@ -405,3 +402,93 @@ async def test_migration_executor_errors(memory_engine):
         executor = MigrationExecutor()
         applied = await executor.migrate()
         assert not applied
+
+
+def test_get_dialect_settings_raises():
+    with patch("openviper.db.migrations.executor.settings") as mk:
+        mk.DATABASE_URL = 42  # int has no .lower(); triggers except Exception
+        assert _get_dialect() == "sqlite"
+
+
+def test_rename_table_backward_sql_non_mysql():
+    from openviper.db.migrations.executor import RenameTable
+
+    rt = RenameTable("old_tbl", "new_tbl")
+    sql = rt.backward_sql()
+    assert sql == ['ALTER TABLE "new_tbl" RENAME TO "old_tbl"']
+
+
+@pytest.mark.asyncio
+async def test_get_soft_removed_info_row_found():
+
+    conn = MagicMock()
+    result = MagicMock()
+    row = MagicMock()
+    row.table_name = "mytable"
+    row.column_name = "mycol"
+    row.column_type = "TEXT"
+    result.first.return_value = row
+    conn.execute = AsyncMock(return_value=result)
+
+    info = await _get_soft_removed_info(conn, "mytable", "mycol")
+    assert info == {"table_name": "mytable", "column_name": "mycol", "column_type": "TEXT"}
+
+
+@pytest.mark.asyncio
+async def test_count_null_values_with_row():
+
+    conn = MagicMock()
+    result = MagicMock()
+    row = MagicMock()
+    row.__getitem__ = MagicMock(return_value=7)
+    result.first.return_value = row
+    conn.execute = AsyncMock(return_value=result)
+
+    count = await _count_null_values(conn, "mytable", "mycol")
+    assert count == 7
+
+
+@pytest.mark.asyncio
+async def test_count_total_rows_with_row():
+
+    conn = MagicMock()
+    result = MagicMock()
+    row = MagicMock()
+    row.__getitem__ = MagicMock(return_value=42)
+    result.first.return_value = row
+    conn.execute = AsyncMock(return_value=result)
+
+    count = await _count_total_rows(conn, "mytable")
+    assert count == 42
+
+
+@pytest.mark.asyncio
+async def test_migration_skip_forward_continue(memory_engine):
+    rec1 = MigrationRecord(
+        "app",
+        "skip_fwd_001",
+        [],
+        [
+            CreateTable(
+                "skip_fwd_tbl",
+                [
+                    {"name": "id", "type": "INT", "primary_key": True},
+                    {"name": "existing_col", "type": "TEXT"},
+                ],
+            )
+        ],
+        "path",
+    )
+    # AddColumn for a column that will already exist after rec1 runs → _should_skip_forward → True
+    rec2 = MigrationRecord(
+        "app",
+        "skip_fwd_002",
+        [],
+        [AddColumn("skip_fwd_tbl", "existing_col", "TEXT")],
+        "path",
+    )
+    executor = MigrationExecutor()
+    with patch("openviper.db.migrations.executor.discover_migrations", return_value=[rec1, rec2]):
+        applied = await executor.migrate()
+    assert "skip_fwd_001" in applied
+    assert "skip_fwd_002" in applied

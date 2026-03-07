@@ -39,7 +39,6 @@ def test_try_import_croniter_returns_false_when_not_installed():
 
 
 def test_try_import_croniter_returns_true_when_installed():
-    """Line 265: returns True when croniter IS importable."""
     mock_mod = MagicMock()
     with patch.dict(sys.modules, {"croniter": mock_mod}):
         result = _try_import_croniter()
@@ -98,11 +97,6 @@ def test_expand_field_step_zero_raises_value_error():
         _expand_field("*/0", 0, 59)
 
 
-# ---------------------------------------------------------------------------
-# IntervalSchedule — __init__ validation (lines 82-84)
-# ---------------------------------------------------------------------------
-
-
 def test_interval_schedule_raises_on_zero_seconds():
     with pytest.raises(ValueError, match="must be > 0"):
         IntervalSchedule(0)
@@ -119,19 +113,12 @@ def test_interval_schedule_positive_seconds_ok():
     assert s.seconds == 30
 
 
-# ---------------------------------------------------------------------------
-# IntervalSchedule — is_due (lines 88-97)
-# ---------------------------------------------------------------------------
-
-
 def test_interval_schedule_is_due_last_run_none():
-    """Line 88-89: None last_run_at → always due."""
     s = IntervalSchedule(60)
     assert s.is_due(None) is True
 
 
 def test_interval_schedule_is_due_defaults_now_to_utcnow():
-    """Line 90: when now=None, datetime.now(utc) is used."""
     s = IntervalSchedule(1)
     past = datetime.now(_UTC) - timedelta(seconds=10)
     assert s.is_due(past) is True  # 10s > 1s threshold
@@ -154,7 +141,6 @@ def test_interval_schedule_not_due_yet():
 
 
 def test_interval_schedule_naive_now_gets_utc_tzinfo():
-    """Line 92-93: naive 'now' gets UTC tzinfo attached."""
     s = IntervalSchedule(1)
     naive_last = datetime(2024, 1, 1, 0, 0, 0)  # no tzinfo
     naive_now = datetime(2024, 1, 1, 0, 0, 10)  # 10s later, no tzinfo
@@ -162,7 +148,6 @@ def test_interval_schedule_naive_now_gets_utc_tzinfo():
 
 
 def test_interval_schedule_naive_last_run_at_gets_utc_tzinfo():
-    """Line 94-95: naive last_run_at gets UTC tzinfo attached."""
     s = IntervalSchedule(1)
     naive_last = datetime(2024, 1, 1, 0, 0, 0)  # no tzinfo
     aware_now = datetime(2024, 1, 1, 0, 0, 10, tzinfo=_UTC)
@@ -173,13 +158,7 @@ def test_interval_schedule_repr():
     assert repr(IntervalSchedule(90)) == "IntervalSchedule(seconds=90)"
 
 
-# ---------------------------------------------------------------------------
-# CronSchedule — __init__ and _parse (lines 175-192)
-# ---------------------------------------------------------------------------
-
-
 def test_cron_schedule_init_strips_whitespace():
-    """Line 175: expr is stripped of leading/trailing whitespace."""
     s = CronSchedule("  * * * * *  ")
     assert s.expr == "* * * * *"
 
@@ -200,16 +179,10 @@ def test_cron_schedule_parse_wrong_field_count_raises():
 
 
 def test_cron_schedule_parse_all_star():
-    """'* * * * *' matches every minute/hour/dom/month/dow."""
     s = CronSchedule("* * * * *")
     assert s._fields is not None
     assert len(s._fields["minute"]) == 60
     assert len(s._fields["hour"]) == 24
-
-
-# ---------------------------------------------------------------------------
-# CronSchedule — _stdlib_is_due (lines 199-209)
-# ---------------------------------------------------------------------------
 
 
 def test_cron_schedule_stdlib_is_due_true():
@@ -238,13 +211,7 @@ def test_cron_schedule_stdlib_is_due_dow_conversion():
     assert s._stdlib_is_due(None, tuesday) is False
 
 
-# ---------------------------------------------------------------------------
-# CronSchedule — is_due (lines 223-229)
-# ---------------------------------------------------------------------------
-
-
 def test_cron_schedule_is_due_defaults_now_to_utcnow():
-    """Line 223: now=None → datetime.now(utc) is used (doesn't raise)."""
     s = CronSchedule("* * * * *")
     # Should not raise; result depends on current time
     result = s.is_due(None)
@@ -260,7 +227,6 @@ def test_cron_schedule_is_due_naive_now_gets_tzinfo():
 
 
 def test_cron_schedule_is_due_dispatches_to_stdlib():
-    """Line 229: when _use_croniter is False, _stdlib_is_due is called."""
     s = CronSchedule("0 0 * * *")  # midnight only
     midnight = _dt(hour=0, minute=0)
     noon = _dt(hour=12, minute=0)
@@ -270,11 +236,6 @@ def test_cron_schedule_is_due_dispatches_to_stdlib():
 
 def test_cron_schedule_repr():
     assert repr(CronSchedule("*/5 * * * *")) == "CronSchedule('*/5 * * * *')"
-
-
-# ---------------------------------------------------------------------------
-# CronSchedule — _croniter_is_due (lines 232-249)
-# ---------------------------------------------------------------------------
 
 
 def _make_croniter_module(next_run: datetime) -> MagicMock:
@@ -288,7 +249,6 @@ def _make_croniter_module(next_run: datetime) -> MagicMock:
 
 
 def test_croniter_is_due_last_run_none_returns_true():
-    """Line 235-237: last_run_at=None → True immediately (never run before)."""
     mock_croniter_mod = _make_croniter_module(_dt(minute=5))
 
     with patch.dict(sys.modules, {"croniter": mock_croniter_mod}):
@@ -384,7 +344,6 @@ def test_croniter_is_due_exception_parses_fields_when_none():
 
 
 def test_cron_schedule_is_due_uses_croniter_when_available():
-    """Line 228: when _use_croniter is True, _croniter_is_due is called."""
     past_next = _dt(minute=0)
     mock_mod = _make_croniter_module(past_next)
 

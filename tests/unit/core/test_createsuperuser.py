@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -478,7 +479,6 @@ class TestHandleInteractive:
 
 
 def test_add_arguments():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()

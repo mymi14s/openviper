@@ -6,16 +6,21 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import httpx
 import pytest
 
 from openviper.app import OpenViper
+from openviper.http.response import JSONResponse
 from openviper.staticfiles.handlers import (
     StaticFilesMiddleware,
     collect_static,
 )
+
+if TYPE_CHECKING:
+    from openviper.http.request import Request
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,8 +79,6 @@ async def test_returns_404_for_missing_file():
 async def test_non_static_path_passes_through_to_app():
     with tempfile.TemporaryDirectory() as tmp:
         inner = OpenViper()
-        from openviper.http.request import Request
-        from openviper.http.response import JSONResponse
 
         @inner.get("/api/data")
         async def data(request: Request):

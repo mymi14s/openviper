@@ -8,6 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import openviper.ai.providers.gemini_provider as gmod
+from openviper.ai.providers.gemini_provider import (
+    GeminiAuthError,
+    GeminiError,
+    GeminiProvider,
+    GeminiRateLimitError,
+)
+
 # ---------------------------------------------------------------------------
 # Helpers: build a mock google-genai environment and a provider instance
 # ---------------------------------------------------------------------------
@@ -44,13 +52,11 @@ def _make_provider(config: dict[str, Any] | None = None):
             "google.genai.types": mock_types,
         },
     ):
-        from openviper.ai.providers.gemini_provider import GeminiProvider
-
         provider = GeminiProvider(extra)
 
     # After __init__, the module globals genai/types are set. Override them so
     # method calls later in tests use our mocks.
-    import openviper.ai.providers.gemini_provider as gmod
+    # test internal fallback
 
     gmod.genai = mock_genai
     gmod.types = mock_types
@@ -79,9 +85,8 @@ class TestGeminiProviderInit:
                 "google.genai.types": mock_types,
             },
         ):
-            from openviper.ai.providers.gemini_provider import GeminiProvider
-
-            provider = GeminiProvider({})  # no api_key in config
+            with monkeypatch.context():
+                provider = GeminiProvider({})  # no api_key in config
         assert provider._api_key == "env-key"
 
     def test_init_raises_auth_error_when_no_key(self, monkeypatch):
@@ -95,10 +100,9 @@ class TestGeminiProviderInit:
                 "google.genai.types": mock_types,
             },
         ):
-            from openviper.ai.providers.gemini_provider import GeminiAuthError, GeminiProvider
-
-            with pytest.raises(GeminiAuthError, match="Gemini API key is required"):
-                GeminiProvider({})
+            with monkeypatch.context():
+                with pytest.raises(GeminiAuthError, match="Gemini API key is required"):
+                    GeminiProvider({})
 
     def test_init_default_model(self):
         provider, _, _ = _make_provider()
@@ -206,15 +210,11 @@ class TestMakeConfig:
 class TestBuildContents:
     def test_build_contents_text_only(self):
         _, _, mock_types = _make_provider()
-        from openviper.ai.providers.gemini_provider import GeminiProvider
-
         contents = GeminiProvider._build_contents("hello")
         assert contents == ["hello"]
 
     def test_build_contents_with_data_image(self):
         _, _, mock_types = _make_provider()
-        from openviper.ai.providers.gemini_provider import GeminiProvider
-
         raw = b"\xff\xd8\xff"
         contents = GeminiProvider._build_contents(
             "describe", images=[{"data": raw, "mime_type": "image/jpeg"}]
@@ -225,8 +225,6 @@ class TestBuildContents:
 
     def test_build_contents_with_url_image(self):
         _, _, mock_types = _make_provider()
-        from openviper.ai.providers.gemini_provider import GeminiProvider
-
         contents = GeminiProvider._build_contents(
             "describe",
             images=[{"url": "https://img.example.com/photo.jpg", "mime_type": "image/jpeg"}],
@@ -238,8 +236,6 @@ class TestBuildContents:
 
     def test_build_contents_defaults_mime_type(self):
         _, _, mock_types = _make_provider()
-        from openviper.ai.providers.gemini_provider import GeminiProvider
-
         # No mime_type in image dict; should default to image/jpeg
         GeminiProvider._build_contents("x", images=[{"data": b"bytes"}])
         mock_types.Part.from_bytes.assert_called_once_with(data=b"bytes", mime_type="image/jpeg")
@@ -252,14 +248,12 @@ class TestBuildContents:
 
 class TestWrapError:
     def _get_wrap_error(self):
-        from openviper.ai.providers.gemini_provider import (
+        return (
+            GeminiProvider._wrap_error,
             GeminiAuthError,
-            GeminiError,
-            GeminiProvider,
             GeminiRateLimitError,
+            GeminiError,
         )
-
-        return GeminiProvider._wrap_error, GeminiAuthError, GeminiRateLimitError, GeminiError
 
     def test_wrap_error_api_key_invalid(self):
         wrap, GeminiAuthError, _, _ = self._get_wrap_error()
@@ -360,8 +354,6 @@ class TestComplete:
 
     @pytest.mark.asyncio
     async def test_complete_wraps_auth_error(self):
-        from openviper.ai.providers.gemini_provider import GeminiAuthError
-
         provider, mock_genai, _ = _make_provider()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
@@ -374,8 +366,6 @@ class TestComplete:
 
     @pytest.mark.asyncio
     async def test_complete_wraps_rate_limit_error(self):
-        from openviper.ai.providers.gemini_provider import GeminiRateLimitError
-
         provider, mock_genai, _ = _make_provider()
         mock_client = MagicMock()
         mock_genai.Client.return_value = mock_client
@@ -388,7 +378,6 @@ class TestComplete:
 
     @pytest.mark.asyncio
     async def test_complete_wraps_generic_error(self):
-        from openviper.ai.providers.gemini_provider import GeminiError
 
         provider, mock_genai, _ = _make_provider()
         mock_client = MagicMock()
@@ -464,7 +453,6 @@ class TestStreamComplete:
 
     @pytest.mark.asyncio
     async def test_stream_complete_wraps_error(self):
-        from openviper.ai.providers.gemini_provider import GeminiAuthError
 
         provider, mock_genai, _ = _make_provider()
         mock_client = MagicMock()
@@ -578,7 +566,6 @@ class TestEmbed:
 
     @pytest.mark.asyncio
     async def test_embed_wraps_error(self):
-        from openviper.ai.providers.gemini_provider import GeminiError
 
         provider, mock_genai, _ = _make_provider()
         mock_client = MagicMock()

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from openviper.db import fields
-from openviper.db.models import AbstractModel, Model, QuerySet
+from openviper.db.models import AbstractModel, Model, ModelMeta, QuerySet, _call_hook
 from openviper.exceptions import DoesNotExist, MultipleObjectsReturned
 
 
@@ -19,6 +19,7 @@ class BaseModel(AbstractModel):
 
 
 class TestModel(BaseModel):
+    __test__ = False  # tell pytest not to collect this as a test class
     title = fields.CharField(max_length=10)
     user_id = fields.ForeignKey(to="auth.User")
 
@@ -239,7 +240,6 @@ async def test_model_refresh_from_db(mock_get):
 
 
 def test_model_extract_app_name():
-    from openviper.db.models import ModelMeta
 
     assert ModelMeta._extract_app_name("apps.blog.models", "Post") == "blog"
     assert ModelMeta._extract_app_name("openviper.auth.models", "User") == "auth"
@@ -249,7 +249,6 @@ def test_model_extract_app_name():
 
 @pytest.mark.asyncio
 async def test_call_hook_sync_async():
-    from openviper.db.models import _call_hook
 
     def sync_hook():
         return 42
@@ -351,7 +350,6 @@ async def test_model_update_lifecycle(mock_save):
 
 
 def test_model_kwargs_init():
-    # line 436 coverage
     m = EmptyModel(id=1, name="hi")
     EmptyModel(
         id=1, name="hi", extra_arg="ignored"
@@ -390,7 +388,6 @@ async def test_validate_skip_auto_date():
     assert m.created is not None
     assert m.updated is not None
 
-    # line 507 soft_removed coverage
     with patch("openviper.db.models.get_soft_removed_columns", return_value=["name"]):
         await EmptyModel(
             id=1, name="hi"

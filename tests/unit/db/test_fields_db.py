@@ -373,15 +373,15 @@ def test_binary_field_types():
 
 def test_missing_line_coverage():
     b = fields.BooleanField()
-    assert b.to_db(None) is None  # line 183
+    assert b.to_db(None) is None
 
     dt = fields.DateTimeField()
-    assert dt.to_python(None) is None  # line 205
-    assert dt.to_db(None) is None  # line 222
+    assert dt.to_python(None) is None
+    assert dt.to_db(None) is None
 
     class BadSettings:
         MAX_FILE_SIZE = "invalid_int"
 
     with patch("openviper.db.fields.settings", BadSettings):
         f = fields.FileField()
-        assert f.max_file_size == 10485760  # line 462-463
+        assert f.max_file_size == 10485760

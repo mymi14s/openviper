@@ -3,6 +3,9 @@ from openviper.admin.auth_admin import (
     register_auth_models,
 )
 from openviper.admin.history import ChangeHistory
+from openviper.admin.registry import admin
+from openviper.auth import get_user_model
+from openviper.auth.models import Permission, Role, RolePermission, UserRole
 
 
 def test_change_history_admin_permissions():
@@ -14,7 +17,6 @@ def test_change_history_admin_permissions():
 
 def test_register_auth_models():
     # We clear the global registry or use a mock
-    from openviper.admin.registry import admin
 
     # Store original state if any, or just clear
     admin._registry.clear()
@@ -23,9 +25,6 @@ def test_register_auth_models():
     register_auth_models()
 
     # Check that the models are registered
-    from openviper.admin.history import ChangeHistory
-    from openviper.auth import get_user_model
-    from openviper.auth.models import Permission, Role, RolePermission, UserRole
 
     assert admin.is_registered(get_user_model())
     assert admin.is_registered(Permission)

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
+import builtins
 import os
+import sys
 from unittest.mock import MagicMock, patch
 
 from openviper.core.management.commands.runserver import Command, _clear_pycache
@@ -38,7 +41,6 @@ class TestClearPycache:
 
 
 def test_add_arguments_defaults():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -53,7 +55,6 @@ def test_add_arguments_defaults():
 
 
 def test_add_arguments_all_options():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -112,8 +113,6 @@ class TestHandleUvicornMissing:
         """When uvicorn isn't importable, an error message is printed."""
         cmd = Command()
         err_output = []
-
-        import builtins
 
         real_import = builtins.__import__
 
@@ -174,7 +173,6 @@ class TestReloadDirs:
         mock_openviper = MagicMock()
         mock_openviper.__file__ = mock_file
         with patch.dict("sys.modules", {"openviper": mock_openviper}):
-            import sys
 
             sys.modules["openviper"] = mock_openviper
             result = cmd._reload_dirs("/my/project")
@@ -194,7 +192,6 @@ class TestReloadDirs:
             mock_path_inst = MagicMock()
             mock_path_inst.parent.parent.resolve.return_value = mock_resolved
             mock_path_cls.return_value = mock_path_inst
-            import builtins
 
             real_import = builtins.__import__
 
@@ -268,9 +265,14 @@ class TestCheckPendingMigrations:
             mock_resolver = MagicMock()
             mock_resolver.resolve_all_apps.return_value = {"found": {}, "not_found": []}
             mock_resolver_cls.return_value = mock_resolver
+
+            def _close_and_return_empty(coro):
+                coro.close()
+                return []
+
             with patch(
                 "openviper.core.management.commands.runserver.asyncio.run",
-                return_value=[],  # no pending
+                side_effect=_close_and_return_empty,
             ):
                 with patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)):
                     cmd._check_pending_migrations()
@@ -284,10 +286,15 @@ class TestCheckPendingMigrations:
             mock_resolver = MagicMock()
             mock_resolver.resolve_all_apps.return_value = {"found": {}, "not_found": []}
             mock_resolver_cls.return_value = mock_resolver
+
+            def _close_and_return_pending(coro):
+                coro.close()
+                return ["myapp.0001_initial"]
+
             with (
                 patch(
                     "openviper.core.management.commands.runserver.asyncio.run",
-                    return_value=["myapp.0001_initial"],
+                    side_effect=_close_and_return_pending,
                 ),
                 patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)),
             ):

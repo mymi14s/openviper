@@ -1,14 +1,9 @@
-"""Tests for openviper.ai.registry — ProviderRegistry rewrite.
-
-Covers:
-- ``ProviderConfig`` frozen dataclass
-- ``ProviderRegistry`` CRUD, locking, and settings load
-- ``_resolve_provider_class`` helper
-- ``_LegacyAIRegistry`` deprecation shim via ``ai_registry``
-"""
-
 from __future__ import annotations
 
+import dataclasses
+import logging
+import sys
+import types
 import warnings
 from unittest.mock import MagicMock, patch
 
@@ -77,8 +72,6 @@ def test_provider_config_defaults():
 
 def test_provider_config_is_frozen():
     cfg = ProviderConfig(provider_type="openai", api_key="sk-test")
-    import dataclasses
-
     with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):
         cfg.api_key = "changed"  # type: ignore[misc]
 
@@ -127,8 +120,6 @@ def test_get_by_model_raises_model_not_found(isolated_registry):
 
 
 def test_register_override_logs_warning(isolated_registry, caplog):
-    import logging
-
     reg = isolated_registry
     p1 = MockProvider({"models": ["model-x"], "name": "provider-a"})
     p2 = MockProvider({"models": ["model-x"], "name": "provider-b"})
@@ -335,14 +326,7 @@ def test_ai_registry_delegates_attribute_to_provider_registry(isolated_registry)
     assert fn == provider_registry.list_models
 
 
-# ---------------------------------------------------------------------------
-# register_provider — default_model fallback (line 152)
-# ---------------------------------------------------------------------------
-
-
 def test_register_provider_uses_default_model_when_no_supported_models(isolated_registry):
-    """Line 152: when provider.supported_models() returns [] but default_model set,
-    use default_model as the registry key."""
     reg = isolated_registry
 
     class _EmptyModelsProvider(AIProvider):
@@ -364,14 +348,7 @@ def test_register_provider_uses_default_model_when_no_supported_models(isolated_
     assert reg.get_by_model("my-fallback-model") is p
 
 
-# ---------------------------------------------------------------------------
-# register_from_module (lines 186-207)
-# ---------------------------------------------------------------------------
-
-
 def test_register_from_module_via_get_providers(isolated_registry, tmp_path):
-    import sys
-    import types
 
     reg = isolated_registry
     provider = MockProvider({"models": ["from-module-model"]})
@@ -392,8 +369,6 @@ def test_register_from_module_via_get_providers(isolated_registry, tmp_path):
 
 def test_register_from_module_via_providers_list(isolated_registry):
     """register_from_module uses PROVIDERS variable when get_providers absent."""
-    import sys
-    import types
 
     reg = isolated_registry
     provider = MockProvider({"models": ["providers-var-model"]})
@@ -412,8 +387,6 @@ def test_register_from_module_via_providers_list(isolated_registry):
 
 def test_register_from_module_ignores_non_provider_instances(isolated_registry):
     """Non-AIProvider items in get_providers() return value are silently skipped."""
-    import sys
-    import types
 
     reg = isolated_registry
     fake_module = types.ModuleType("fake_non_provider_module")
@@ -428,14 +401,8 @@ def test_register_from_module_ignores_non_provider_instances(isolated_registry):
     assert count == 0
 
 
-# ---------------------------------------------------------------------------
-# load_plugins (lines 231-270)
-# ---------------------------------------------------------------------------
-
-
 def test_load_plugins_not_a_directory(isolated_registry, caplog):
     """load_plugins with non-existent directory returns 0 and logs a warning."""
-    import logging
 
     reg = isolated_registry
     with caplog.at_level(logging.WARNING, logger="openviper.ai"):
@@ -468,11 +435,6 @@ def test_load_plugins_skips_files_starting_with_underscore(isolated_registry, tm
     assert result == 0  # _private.py was skipped
 
 
-# ---------------------------------------------------------------------------
-# discover_entrypoints (lines 296-328)
-# ---------------------------------------------------------------------------
-
-
 def test_discover_entrypoints_returns_zero_when_none(isolated_registry):
     """No entry-points for the group → returns 0."""
     with patch("importlib.metadata.entry_points", return_value=[]):
@@ -498,7 +460,6 @@ def test_discover_entrypoints_registers_providers(isolated_registry):
 
 def test_discover_entrypoints_logs_warning_on_failure(isolated_registry, caplog):
     """Exception from entry-point factory is caught and logged."""
-    import logging
 
     mock_ep = MagicMock()
     mock_ep.name = "bad_ep"
@@ -514,11 +475,6 @@ def test_discover_entrypoints_logs_warning_on_failure(isolated_registry, caplog)
     assert "bad_ep" in caplog.text or "failed" in caplog.text.lower()
 
 
-# ---------------------------------------------------------------------------
-# _load_from_settings — type inference from provider name (lines 393-396)
-# ---------------------------------------------------------------------------
-
-
 def test_load_from_settings_infers_provider_type_from_name(isolated_registry):
     mock_cls = MagicMock(return_value=MockProvider({"models": ["inferred-model"]}))
     cfg = {"my-openai-provider": {"api_key": "sk-x"}}  # no 'provider' key but name has 'openai'
@@ -532,7 +488,6 @@ def test_load_from_settings_infers_provider_type_from_name(isolated_registry):
 
 
 def test_load_from_settings_logs_warning_on_init_exception(isolated_registry, caplog):
-    import logging
 
     class _BrokenProvider:
         def __init__(self, cfg):

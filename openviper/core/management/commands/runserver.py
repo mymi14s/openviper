@@ -11,6 +11,7 @@ from pathlib import Path
 
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import get_banner
 from openviper.db.migrations.executor import MigrationExecutor, discover_migrations
 
 logger = logging.getLogger("openviper.runserver")
@@ -67,7 +68,7 @@ class Command(BaseCommand):
         reload = options["reload"]
         workers = options.get("workers", 1)
 
-        self._print_banner(host, port)
+        get_banner(self, host, port)
 
         if reload:
             self._run_with_cache_clear(uvicorn, app_path, host, port)
@@ -158,21 +159,6 @@ class Command(BaseCommand):
 
         cwd_name = os.path.basename(os.getcwd())
         return f"{cwd_name}.asgi:app"
-
-    def _print_banner(self, host: str, port: int) -> None:
-        """Display the startup banner."""
-        self.stdout(self.style_success(rf"""
-
- OOOOO  PPPPP   EEEEE  N   N  V   V  III  PPPPP  EEEEE  RRRR
-O     O P    P  E      NN  N  V   V   I   P    P E      R   R
-O     O PPPPP   EEEE   N N N   V V    I   PPPPP  EEEE   RRRR
-O     O P       E      N  NN    V V    I   P      E      R  R
- OOOOO  P       EEEEE  N   N     V     III  P      EEEEE  R   R
-
-
-            OpenViper development server running at http://{host}:{port}/
-            Use Ctrl+C to stop.
-            """))
 
     def _check_pending_migrations(self) -> None:
         """Detect unapplied migrations and print a red warning at startup."""

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+from openviper.core.management import (
+    _find_command,
+    _list_commands,
+    execute_from_command_line,
+)
 from openviper.core.management.base import BaseCommand, CommandError
 
 # ---------------------------------------------------------------------------
@@ -202,59 +207,50 @@ class TestBaseCommandHandleAbstract:
 
 class TestManagementDispatcher:
     def test_find_builtin_migrate_command(self):
-        from openviper.core.management import _find_command
 
         cmd = _find_command("migrate")
         assert cmd is not None
 
     def test_find_builtin_createsuperuser(self):
-        from openviper.core.management import _find_command
 
         cmd = _find_command("createsuperuser")
         assert cmd is not None
 
     def test_find_unknown_command_raises(self):
-        from openviper.core.management import _find_command
 
         with pytest.raises(CommandError):
             _find_command("nonexistent_command_xyz")
 
     def test_list_commands_returns_list(self):
-        from openviper.core.management import _list_commands
 
         commands = _list_commands()
         assert isinstance(commands, list)
         assert len(commands) > 0
 
     def test_list_commands_includes_migrate(self):
-        from openviper.core.management import _list_commands
 
         commands = _list_commands()
         assert "migrate" in commands or "makemigrations" in commands
 
     def test_execute_from_command_line_help_exits(self):
-        from openviper.core.management import execute_from_command_line
 
         with pytest.raises(SystemExit) as exc_info:
             execute_from_command_line(["viperctl.py", "help"])
         assert exc_info.value.code == 0
 
     def test_execute_from_command_line_no_args_shows_help(self):
-        from openviper.core.management import execute_from_command_line
 
         with pytest.raises(SystemExit) as exc_info:
             execute_from_command_line(["viperctl.py"])
         assert exc_info.value.code == 0
 
     def test_execute_from_command_line_unknown_exits_nonzero(self, capsys):
-        from openviper.core.management import execute_from_command_line
 
         with pytest.raises(SystemExit) as exc_info:
             execute_from_command_line(["viperctl.py", "no_such_command_xyz"])
         assert exc_info.value.code != 0
 
     def test_execute_from_command_line_dash_h_exits_0(self):
-        from openviper.core.management import execute_from_command_line
 
         with pytest.raises(SystemExit) as exc_info:
             execute_from_command_line(["viperctl.py", "-h"])

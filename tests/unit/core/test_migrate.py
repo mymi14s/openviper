@@ -1,7 +1,7 @@
 """Unit tests for the migrate management command."""
-
 from __future__ import annotations
 
+import argparse
 from unittest.mock import MagicMock, patch
 
 from openviper.core.management.commands.migrate import Command
@@ -25,7 +25,6 @@ def _make_resolver(resolved_apps=None, not_found=True, resolve_app_result=None):
 
 
 def test_add_arguments_defaults():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -39,7 +38,6 @@ def test_add_arguments_defaults():
 
 
 def test_add_arguments_all_options():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()

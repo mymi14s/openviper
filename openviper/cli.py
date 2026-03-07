@@ -25,6 +25,9 @@ except ImportError:
 
 import openviper
 from openviper.conf.settings import generate_secret_key
+from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import get_banner
+from openviper.viperctl import viperctl as _viperctl_cmd
 
 
 def _print(msg: str, style: str = "") -> None:
@@ -374,6 +377,7 @@ def run_cmd(target: str, host: str, port: int, reload: bool, workers: int) -> No
     if cwd not in sys.path:
         sys.path.insert(0, cwd)
 
+    get_banner(BaseCommand(), host, port)
     uvicorn.run(
         f"{module_str}:{attr_str}",
         host=host,
@@ -394,6 +398,13 @@ def version_cmd() -> None:
     """Print OpenViper version."""
 
     click.echo(f"OpenViper {openviper.__version__}")
+
+
+# ---------------------------------------------------------------------------
+# viperctl
+# ---------------------------------------------------------------------------
+
+cli.add_command(_viperctl_cmd)
 
 
 if __name__ == "__main__":

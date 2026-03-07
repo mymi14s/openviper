@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -51,7 +52,6 @@ def _user_not_found():
 
 
 def test_add_arguments_parses_positional_and_flag():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()
@@ -63,7 +63,6 @@ def test_add_arguments_parses_positional_and_flag():
 
 
 def test_add_arguments_defaults_are_none():
-    import argparse
 
     cmd = Command()
     parser = argparse.ArgumentParser()

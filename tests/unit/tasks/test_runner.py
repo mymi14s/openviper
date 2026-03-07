@@ -55,7 +55,6 @@ def test_run_scheduler_explicit_scheduler_system_exit():
 
 
 def test_run_scheduler_creates_default_scheduler_when_none_provided():
-    """scheduler=None → a fresh Scheduler() is created (line 56 else branch)."""
     from openviper.tasks.runner import run_scheduler
 
     mock_sched = _make_scheduler()
@@ -72,7 +71,6 @@ def test_run_scheduler_creates_default_scheduler_when_none_provided():
 
 
 def test_run_scheduler_logs_enqueued_tasks():
-    """Line 79: when tick() returns non-empty list, debug log fires."""
     from openviper.tasks.runner import run_scheduler
 
     scheduler = _make_scheduler(tick_return=["task_a", "task_b"])

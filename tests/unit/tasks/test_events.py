@@ -534,16 +534,10 @@ class TestBuildDispatcherActivation:
         reset_dispatcher()
 
 
-# ---------------------------------------------------------------------------
-# get_dispatcher — double-check locking (line 278)
-# ---------------------------------------------------------------------------
-
-
 class TestGetDispatcherDoubleCheckLock:
     """Verify that the double-check inside the lock prevents building twice."""
 
     def test_second_thread_sees_cached_value(self):
-        """Line 278: when two threads race to build, only one calls _build_dispatcher."""
         reset_dispatcher()
         build_calls = []
 
@@ -571,11 +565,6 @@ class TestGetDispatcherDoubleCheckLock:
         assert len(build_calls) >= 1
         assert all(r is None for r in results)
         reset_dispatcher()
-
-
-# ---------------------------------------------------------------------------
-# _call_handler — async path (lines 367-375)
-# ---------------------------------------------------------------------------
 
 
 class TestCallHandler:
@@ -620,11 +609,6 @@ class TestCallHandler:
 
         asyncio.run(_run())
         assert tasks_created == [True]
-
-
-# ---------------------------------------------------------------------------
-# _dispatch_decorator_handlers (lines 393-409)
-# ---------------------------------------------------------------------------
 
 
 class TestDispatchDecoratorHandlers:
@@ -681,11 +665,6 @@ class TestDispatchDecoratorHandlers:
         assert "good" in calls
 
 
-# ---------------------------------------------------------------------------
-# _ModelEventProxy.trigger (lines 452-466)
-# ---------------------------------------------------------------------------
-
-
 class TestModelEventProxyTrigger:
     def setup_method(self):
         _events_module._decorator_registry.clear()
@@ -714,7 +693,6 @@ class TestModelEventProxyTrigger:
         assert result is handler
 
     def test_trigger_no_dot_raises_value_error(self):
-        """Line 452-457: path without a dot raises ValueError."""
         with pytest.raises(ValueError, match="dotted path"):
             model_event.trigger("no_dot_here")
 

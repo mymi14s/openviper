@@ -12,7 +12,7 @@ import importlib
 import os
 import pkgutil
 import sys
-from typing import NoReturn
+from typing import NoReturn, cast
 
 from openviper.conf import settings
 from openviper.core.management.base import BaseCommand, CommandError
@@ -30,7 +30,7 @@ def _find_command(name: str) -> BaseCommand:
     # 1. Built-in commands
     try:
         module = importlib.import_module(f"{_BUILTIN_COMMANDS_PACKAGE}.{module_name}")
-        return module.Command()  # type: ignore[attr-defined]
+        return cast("BaseCommand", module.Command())
     except ModuleNotFoundError:
         pass
 
@@ -43,7 +43,7 @@ def _find_command(name: str) -> BaseCommand:
     for app in installed:
         try:
             module = importlib.import_module(f"{app}.management.commands.{module_name}")
-            return module.Command()  # type: ignore[attr-defined]
+            return cast("BaseCommand", module.Command())
         except ModuleNotFoundError:
             continue
 
@@ -56,7 +56,7 @@ def _find_command(name: str) -> BaseCommand:
 def _list_commands() -> list[str]:
     """Return sorted list of available built-in command names."""
     pkg = importlib.import_module(_BUILTIN_COMMANDS_PACKAGE)
-    pkg_path = pkg.__path__  # type: ignore[attr-defined]
+    pkg_path = pkg.__path__
     names = [
         name.replace("_", "-")
         for _finder, name, _ispkg in pkgutil.iter_modules(pkg_path)

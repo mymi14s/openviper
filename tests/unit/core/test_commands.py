@@ -1,4 +1,9 @@
+import argparse
 import contextlib
+import os
+import sys
+import tempfile
+import types
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -70,7 +75,6 @@ def test_test_command():
 
 @patch("openviper.core.management.commands.makemigrations.os.path.exists", return_value=True)
 def test_makemigrations_command(mock_exists):
-    import sys
 
     alembic_stub = MagicMock()
     with patch.dict(sys.modules, {"alembic": alembic_stub, "alembic.command": alembic_stub}):
@@ -81,7 +85,6 @@ def test_makemigrations_command(mock_exists):
 
 @patch("openviper.core.management.commands.migrate.os.path.exists", return_value=True)
 def test_migrate_command(mock_exists):
-    import sys
 
     alembic_stub = MagicMock()
     with patch.dict(sys.modules, {"alembic": alembic_stub, "alembic.command": alembic_stub}):
@@ -136,7 +139,6 @@ def test_createsuperuser_command():
 
 
 def test_all_commands_add_arguments():
-    import argparse
 
     for CommandClass in [
         RunserverCommand,
@@ -157,7 +159,6 @@ def test_all_commands_add_arguments():
 
 def test_shell_command_discover_models():
     cmd = ShellCommand()
-    from unittest.mock import patch
 
     with patch("openviper.core.management.commands.shell.settings") as mock_settings:
         mock_settings.INSTALLED_APPS = ["openviper.db", "invalid.app.here"]
@@ -181,9 +182,6 @@ def test_runserver_helpers():
         cmd._check_pending_migrations()
 
     # Test _clear_pycache
-    import os
-    import tempfile
-
     from openviper.core.management.commands.runserver import _clear_pycache
 
     with tempfile.TemporaryDirectory() as td:
@@ -192,13 +190,7 @@ def test_runserver_helpers():
         assert not os.path.exists(os.path.join(td, "__pycache__"))
 
 
-# ---------------------------------------------------------------------------
-# Additional test.py command coverage (lines 47, 56)
-# ---------------------------------------------------------------------------
-
-
 def test_test_command_verbose_flag():
-    """Line 47: verbose flag -vv appended for verbose_count=2."""
     cmd = TestCommand()
     with (
         patch("openviper.core.management.commands.test.subprocess.run") as mock_run,
@@ -211,7 +203,6 @@ def test_test_command_verbose_flag():
 
 
 def test_test_command_py_colon_normalization():
-    """Line 56: 'foo.py:SomeClass' is rewritten to 'foo.py::SomeClass'."""
     cmd = TestCommand()
     with (
         patch("openviper.core.management.commands.test.subprocess.run") as mock_run,
@@ -242,7 +233,6 @@ def test_test_command_py_double_colon_not_altered():
 
 
 def test_shell_command_build_banner_with_models():
-    """Line 92: banner includes model names when model_names is non-empty."""
     cmd = ShellCommand()
     banner = cmd._build_banner(["Post", "Comment"])
     assert "Post" in banner
@@ -278,7 +268,6 @@ def test_shell_command_ipython_import_error():
 
 
 def test_shell_command_discover_models_type_error(tmp_path):
-    import types
 
     cmd = ShellCommand()
 

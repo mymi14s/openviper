@@ -12,6 +12,7 @@ from openviper.admin.api.views import (
     _serialize_instance_with_children,
     get_admin_router,
 )
+from openviper.admin.registry import NotRegistered
 from openviper.exceptions import NotFound, PermissionDenied, ValidationError
 
 # ---------------------------------------------------------------------------
@@ -705,7 +706,6 @@ class TestUpdateInstanceByApp:
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        from openviper.admin.registry import NotRegistered
 
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
@@ -1157,7 +1157,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_sort_param_applied(self):
-        """Line 1050: explicit sort param used."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1183,7 +1182,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_model_admin_ordering_applied(self):
-        """Line 1054: model_admin.get_ordering used when no sort param."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1244,7 +1242,6 @@ class TestListInstancesExtra:
 
     @pytest.mark.asyncio
     async def test_non_primitive_value_to_str(self):
-        """Line 1078: non-primitive value converted to str."""
         router = _make_router()
         handler = _get_handler(router, "list_instances")
 
@@ -1351,7 +1348,6 @@ class TestCreateInstanceExtra:
 
     @pytest.mark.asyncio
     async def test_isoformat_in_response(self):
-        """Line 1151: datetime field value isoformatted in create response."""
         router = _make_router()
         handler = _get_handler(router, "create_instance")
 
@@ -1863,7 +1859,6 @@ class TestBulkAction:
 class TestSearchInstances:
     @pytest.mark.asyncio
     async def test_delegates_to_list_instances(self):
-        """Line 1387: search_instances just calls list_instances."""
         router = _make_router()
         handler = _get_handler(router, "search_instances")
 
@@ -1950,7 +1945,6 @@ class TestGetFilterOptionsExtra:
 
     @pytest.mark.asyncio
     async def test_field_without_choices_gets_empty_list(self):
-        """Line 1424: field without choices gets empty choices list."""
         router = _make_router()
         handler = _get_handler(router, "get_filter_options")
 
@@ -2066,7 +2060,6 @@ class TestExportInstances:
 
     @pytest.mark.asyncio
     async def test_datetime_field_isoformatted_in_csv(self):
-        """Line 1468: datetime values in CSV are isoformatted."""
         router = _make_router()
         handler = _get_handler(router, "export_instances")
 
@@ -2298,7 +2291,6 @@ class TestFkSearch:
 
     @pytest.mark.asyncio
     async def test_model_not_found_anywhere_raises_not_found(self):
-        """Line 1559-1560: model not found anywhere raises NotFound."""
         from openviper.admin.registry import NotRegistered
 
         router = _make_router()
@@ -2384,7 +2376,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_skips_models_without_permission(self):
-        """Line 1633-1634: model without view permission is skipped."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2468,7 +2459,6 @@ class TestGlobalSearch:
 
     @pytest.mark.asyncio
     async def test_skips_model_with_no_usable_search_fields(self):
-        """Line 1646-1647: model without usable fields is skipped entirely."""
         router = _make_router()
         handler = _get_handler(router, "global_search")
 
@@ -2499,8 +2489,6 @@ class TestGlobalSearch:
 class TestSerializeChildNonPrimitive:
     @pytest.mark.asyncio
     async def test_child_non_primitive_converted_to_str(self):
-        """Line 121: non-primitive child field value is str()-converted."""
-
         class ObjVal:
             def __str__(self):
                 return "child_str"
@@ -2858,7 +2846,6 @@ class TestUpdateInstanceByAppWithFields:
 
     @pytest.mark.asyncio
     async def test_readonly_field_skipped_in_update(self):
-        """Line 740: readonly fields skipped during update field coercion."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3186,7 +3173,6 @@ class TestCreateInstanceNotRegistered:
 class TestGetInstanceLegacyExtra:
     @pytest.mark.asyncio
     async def test_no_admin_access_raises_permission_denied(self):
-        """Line 1174: no admin access raises PermissionDenied."""
         router = _make_router()
         handler = _get_handler(router, "get_instance")
 
@@ -3324,7 +3310,6 @@ class TestUpdateInstanceLegacyExtra:
 
     @pytest.mark.asyncio
     async def test_readonly_field_skipped_in_legacy_update(self):
-        """Line 1245: readonly field skipped in legacy update."""
         router = _make_router()
         handler = _get_handler(router, "update_instance")
 
@@ -3373,7 +3358,6 @@ class TestUpdateInstanceLegacyExtra:
 class TestDeleteInstanceNoAccess:
     @pytest.mark.asyncio
     async def test_no_admin_access_raises_permission_denied(self):
-        """Line 1283: no admin access raises PermissionDenied in delete_instance."""
         router = _make_router()
         handler = _get_handler(router, "delete_instance")
 
@@ -3392,7 +3376,6 @@ class TestDeleteInstanceNoAccess:
 class TestGetFilterOptionsChoices:
     @pytest.mark.asyncio
     async def test_field_with_choices_returns_them(self):
-        """Line 1438: field with choices returns serialized choices list."""
         router = _make_router()
         handler = _get_handler(router, "get_filter_options")
 
@@ -3559,7 +3542,6 @@ class TestCreateInstanceByAppChildFKAutoDiscover:
 
     @pytest.mark.asyncio
     async def test_fk_name_not_found_skips_inline(self):
-        """Line 629: when fk_name cannot be auto-discovered, inline is skipped."""
         router = _make_router()
         handler = _get_handler(router, "create_instance_by_app")
 
@@ -3708,7 +3690,6 @@ class TestUpdateInstanceByAppChildFKAutoDiscover:
 
     @pytest.mark.asyncio
     async def test_fk_name_not_found_skips_inline_in_update(self):
-        """Line 772: when fk_name cannot be auto-discovered, inline skipped in update."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3776,7 +3757,6 @@ class TestUpdateInstanceByAppChildFKAutoDiscover:
 class TestUpdateInstanceByAppChildExtraFilters:
     @pytest.mark.asyncio
     async def test_extra_filters_applied_to_existing_records_query(self):
-        """Line 780: extra_filters merged into child records query."""
         router = _make_router()
         handler = _get_handler(router, "update_instance_by_app")
 
@@ -3951,7 +3931,6 @@ class TestUpdateInstanceByAppChildExtraFilters:
 class TestCreateInstanceReadonlySkipped:
     @pytest.mark.asyncio
     async def test_readonly_field_skipped_in_legacy_create(self):
-        """Line 1140: readonly fields skipped in legacy create_instance."""
         router = _make_router()
         handler = _get_handler(router, "create_instance")
 

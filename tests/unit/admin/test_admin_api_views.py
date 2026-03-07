@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,6 +13,8 @@ from openviper.admin.api.views import (
     _serialize_instance_with_children,
     get_admin_router,
 )
+from openviper.admin.registry import NotRegistered
+from openviper.auth import get_user_model
 from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, ValidationError
 
 # ---------------------------------------------------------------------------
@@ -55,7 +58,6 @@ def _make_router():
 
 class TestIsAuthUserModel:
     def test_user_model_returns_true(self):
-        from openviper.auth import get_user_model
 
         User = get_user_model()
         assert _is_auth_user_model(User) is True
@@ -110,7 +112,6 @@ class TestSerializeInstanceWithChildren:
 
     @pytest.mark.asyncio
     async def test_datetime_serialized_to_isoformat(self):
-        from datetime import datetime
 
         model_admin = MagicMock()
         model_admin.child_tables = []
@@ -799,7 +800,6 @@ class TestGetModelConfig:
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        from openviper.admin.registry import NotRegistered
 
         router = _make_router()
         handler = _get_handler(router, "get_model_config")
@@ -896,7 +896,6 @@ class TestListInstancesByApp:
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        from openviper.admin.registry import NotRegistered
 
         router = _make_router()
         handler = _get_handler(router, "list_instances_by_app")
@@ -1443,8 +1442,6 @@ class TestGetInstanceHistoryByApp:
         router = _make_router()
         handler = _get_handler(router, "get_instance_history_by_app")
 
-        from datetime import datetime
-
         mock_instance = MagicMock()
         mock_model = MagicMock()
         mock_model.objects.get_or_none = AsyncMock(return_value=mock_instance)
@@ -1496,7 +1493,6 @@ class TestListInstances:
 
     @pytest.mark.asyncio
     async def test_not_registered_raises_not_found(self):
-        from openviper.admin.registry import NotRegistered
 
         router = _make_router()
         handler = _get_handler(router, "list_instances")

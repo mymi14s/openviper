@@ -172,3 +172,22 @@ async def test_request_stream():
         chunks2.append(chunk)
 
     assert chunks2 == [b"chunk1chunk2"]
+
+
+def test_request_header_method():
+    scope = {
+        "type": "http",
+        "method": "get",
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"x-custom", b"hello"),
+        ],
+    }
+    req = Request(scope)
+
+    # First call: _headers_map is None → builds the map
+    assert req.header(b"content-type") == b"application/json"
+    # Second call: uses cached map
+    assert req.header(b"x-custom") == b"hello"
+    # Absent header returns None
+    assert req.header(b"x-missing") is None

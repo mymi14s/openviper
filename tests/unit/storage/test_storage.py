@@ -1,8 +1,12 @@
+from __future__ import annotations
+
+import io
 import shutil
 from pathlib import Path
 
 import pytest
 
+import openviper
 from openviper.storage import FileSystemStorage, default_storage
 
 
@@ -19,6 +23,15 @@ def storage():
     # Cleanup
     if tmp_media.exists():
         shutil.rmtree(tmp_media)
+
+
+@pytest.mark.asyncio
+async def test_lazy_getattr_loads_known_subpackage():
+    """openviper.__getattr__ lazily imports a known subpackage and caches it."""
+
+    tasks_module = openviper.__getattr__("tasks")
+    assert tasks_module is openviper.tasks
+    assert "tasks" in openviper.__dict__
 
 
 @pytest.mark.asyncio
@@ -67,6 +80,15 @@ def test_storage_url(storage):
 
 
 @pytest.mark.asyncio
+async def test_setup_runs_without_error():
+    """openviper.setup() calls settings._setup() without raising."""
+
+    # Should not raise even when called repeatedly (force=False is idempotent)
+    openviper.setup()
+    openviper.setup()
+
+
+@pytest.mark.asyncio
 async def test_storage_size(storage):
     content = b"some data"
     path = await storage.save("size.txt", content)
@@ -75,8 +97,6 @@ async def test_storage_size(storage):
 
 @pytest.mark.asyncio
 async def test_storage_file_like_save(storage):
-    import io
-
     bio = io.BytesIO(b"streamed content")
     path = await storage.save("stream.txt", bio)
     assert (Path(storage.location) / path).read_bytes() == b"streamed content"
@@ -91,7 +111,6 @@ def test_default_storage_proxy():
 
 @pytest.mark.asyncio
 async def test_storage_save_with_async_read(storage):
-    """Line 118: content.read() returns a coroutine — awaited to get bytes."""
     content_bytes = b"async content data"
 
     class AsyncReadContent:

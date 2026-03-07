@@ -2,36 +2,36 @@
 
 from __future__ import annotations
 
-import sys
+from typing import Any
+
+from openviper.core.management.base import BaseCommand
 
 
-def get_banner(host: str, port: int) -> str:
-    """OpenViper startup banner."""
-    return rf"""
+def get_banner(cmd_obj: Any, host: str, port: int) -> None:
+    """Display the startup banner."""
+    cmd_obj.stdout(cmd_obj.style_success(rf"""
 
- OOOOO  PPPPP   EEEEE  N   N  V   V  III  PPPPP  EEEEE  RRRR
-O     O P    P  E      NN  N  V   V   I   P    P E      R   R
-O     O PPPPP   EEEE   N N N  V   V   I   PPPPP  EEEE   RRRR
-O     O P       E      N  NN   V V    I   P      E      R  R
- OOOOO  P       EEEEE  N   N    V    III  P      EEEEE  R   R
+            OOOOO  PPPPP   EEEEE  N   N  V   V  III  PPPPP  EEEEE  RRRR
+           O     O P    P  E      NN  N  V   V   I   P    P E      R   R
+           O     O PPPPP   EEEE   N N N  V   V   I   PPPPP  EEEE   RRRR
+           O     O P       E      N  NN   V v    I   P      E      R  R
+            OOOOO  P       EEEEE  N   N    V    III  P      EEEEE  R   R
 
 
             OpenViper development server running at http://{host}:{port}/
             Use Ctrl+C to stop.
-"""
+            """))
 
 
-def print_banner(host: str, port: int, style_func=None) -> None:
+def print_banner(host: str, port: int, cmd_obj: Any = None) -> None:
     """Print the startup banner to stdout.
 
     Args:
         host: Server host
         port: Server port
-        style_func: Optional function to wrap the banner in (e.g. style_success)
+        cmd_obj: Optional command object with .stdout() and .style_success()
     """
-    banner = get_banner(host, port)
-    if style_func:
-        banner = style_func(banner)
+    if cmd_obj is None:
+        cmd_obj = BaseCommand()
 
-    sys.stdout.write(banner)
-    sys.stdout.flush()
+    get_banner(cmd_obj, host, port)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from httpx import ASGITransport, AsyncClient
+
 from openviper.auth.jwt import create_access_token
 
 
@@ -57,7 +59,6 @@ class AdminClient:
         # This is a bit simplified, but enough for our integration tests
         # The real app uses ASGI, so we'd normally use httpx.AsyncClient(app=app)
         # But for absolute lifecycle control without external libs in this specific way:
-        from httpx import ASGITransport, AsyncClient
 
         async with AsyncClient(
             transport=ASGITransport(app=self.app), base_url="http://test"

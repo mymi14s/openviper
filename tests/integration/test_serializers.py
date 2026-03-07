@@ -70,7 +70,7 @@ class TestSerializerValidateJsonString:
             SimpleSerializer.validate_json_string('{"name": "Alice", "age": "bad"}')
 
     def test_malformed_json_raises_validation_error(self):
-        with pytest.raises(ValidationError, match=""):
+        with pytest.raises(ValidationError):
             SimpleSerializer.validate_json_string("{not valid json")
 
 

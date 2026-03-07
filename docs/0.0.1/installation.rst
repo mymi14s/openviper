@@ -101,10 +101,7 @@ server with either:
 .. code-block:: bash
 
    # Via management command (from inside a project)
-   python viperctl.py runserver
-
-   # Or directly with uvicorn
-   uvicorn myproject.asgi:app --reload --host 127.0.0.1 --port 8000
+   python viperctl.py runserver --reload # --host 127.0.0.1 --port 8000
 
 .. seealso::
 

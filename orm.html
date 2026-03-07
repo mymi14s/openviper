@@ -7,16 +7,16 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ORM System &mdash; OpenViper 0.0.1 documentation</title>
-      <link rel="stylesheet" type="text/css" href="static/pygments.css?v=5349f25f" />
-      <link rel="stylesheet" type="text/css" href="static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5349f25f" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
-      <script src="static/jquery.js?v=5d32c60e"></script>
-      <script src="static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="static/documentation_options.js?v=d45e8c67"></script>
-      <script src="static/doctools.js?v=fd6eb6e6"></script>
-      <script src="static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script src="static/js/theme.js"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=d45e8c67"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Serializer System" href="serializers.html" />
@@ -46,10 +46,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#requirements">Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#installing-openviper">Installing OpenViper</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="installation.html#optional-extras">Optional Extras</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installing-openviper">Installing OpenViper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#database-url-format">Database URL Format</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#redis-configuration">Redis Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#verifying-the-installation">Verifying the Installation</a></li>
@@ -689,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -953,7 +951,7 @@
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.staticfiles.handlers.StaticFilesMiddleware.directories"><code class="docutils literal notranslate"><span class="pre">StaticFilesMiddleware.directories</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="api_reference.html#openviper.staticfiles.handlers.collectstatic"><code class="docutils literal notranslate"><span class="pre">collectstatic()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api_reference.html#openviper.staticfiles.handlers.collect_static"><code class="docutils literal notranslate"><span class="pre">collect_static()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="api_reference.html#module-openviper.storage.base">openviper.storage</a><ul>
@@ -1631,7 +1629,7 @@ Use <a class="reference internal" href="api_reference.html#openviper.auth.decora
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, OpenViper Contributors.</p>
+    <p>&#169; Copyright 2026, OpenViper Contributors.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

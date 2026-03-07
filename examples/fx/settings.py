@@ -24,7 +24,8 @@ class FxSettings(Settings):
     DEBUG: bool = True
     DATABASE_URL: str = os.environ.get(
         "DATABASE_URL",
-        f"sqlite+aiosqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db.sqlite3')}",
+        f"sqlite+aiosqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), \
+            'db.sqlite3')}",
     )
     SECRET_KEY: str = "viperctl-demo-key-do-not-use-in-production"
     INSTALLED_APPS: tuple[str, ...] = ()

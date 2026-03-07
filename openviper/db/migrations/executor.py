@@ -1031,6 +1031,7 @@ class MigrationExecutor:
         target_name: str | None = None,
         *,
         verbose: bool = True,
+        ignore_errors: bool = False,
     ) -> list[str]:
         """Apply all pending migrations with enhanced logging.
 
@@ -1111,7 +1112,8 @@ class MigrationExecutor:
                     _MigrationLogger.log_status(MigrationStatus.ERROR, str(e))
                 migration_log.append((record.app, record.name, MigrationStatus.ERROR))
                 logger.error("Failed to apply %s/%s: %s", record.app, record.name, e)
-                # Continue with remaining migrations instead of stopping
+                if not ignore_errors:
+                    raise
                 continue
 
         if verbose and migration_log:

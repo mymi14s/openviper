@@ -291,6 +291,19 @@ class Command(BaseCommand):
 
             # Calculate actual dependencies for the migration file
             deps = []
+
+            # 1. Intra-app dependency: Always depend on the previous migration in the same app
+            if int(num) > 1:
+                previous_num = int(num) - 1
+                existing_in_app = [
+                    f.stem for f in Path(migrations_dir).glob("*.py") if not f.stem.startswith("_")
+                ]
+                for name in sorted(existing_in_app):
+                    if name.startswith(f"{previous_num:04d}_"):
+                        deps.append((app_module, name))
+                        break
+
+            # 2. Inter-app dependencies: via ForeignKeys
             if not empty:
                 for cls in model_classes:
                     for field in cls._fields.values():

@@ -170,6 +170,7 @@ file:res*
 docs/*/_build/
 uv.lock
 performance_matrix
+docs/*/_build
 
 # ===============================
 # Node Modules

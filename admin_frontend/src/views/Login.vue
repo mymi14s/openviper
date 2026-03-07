@@ -48,11 +48,7 @@ onMounted(() => {
   <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
     <div class="w-full max-w-md">
       <div class="text-center mb-8">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-600 mb-4">
-          <svg class="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-        </div>
+        <div class="inline-flex items-center justify-center w-32 h-32 rounded-full bg-primary-100 mb-4 text-6xl">🐍</div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ adminStore.config.admin_footer_title  || 'OpenViper Admin' }}</h1>
         <p class="text-gray-500 dark:text-gray-400 mt-1">Sign in to your account</p>
       </div>

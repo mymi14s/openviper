@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from openviper.auth.models import User as BaseUser
+from openviper.db import fields
 
 
 class User(BaseUser):
@@ -15,6 +16,8 @@ class User(BaseUser):
     """
 
     _app_name = "users"
+
+    hobby = fields.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         table_name = "users_user"

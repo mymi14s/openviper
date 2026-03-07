@@ -4,11 +4,15 @@
 
 set -e
 
-echo "→ Collecting static files..."
-python viperctl.py collectstatic --no-input
+if [ -z "$SKIP_COLLECTSTATIC" ]; then
+    echo "→ Collecting static files..."
+    python viperctl.py collectstatic --no-input
+fi
 
-echo "→ Migrating database..."
-python viperctl.py migrate
+if [ -z "$SKIP_MIGRATIONS" ]; then
+    echo "→ Migrating database..."
+    python viperctl.py migrate
+fi
 
 # If a custom command is passed, run it instead of uvicorn
 if [ $# -gt 0 ]; then

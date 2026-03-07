@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
   issues: write
 
 jobs:
@@ -14,7 +14,10 @@ jobs:
     if: >
       github.event.issue.pull_request &&
       github.event.comment.user.type != 'Bot' &&
-      (contains(github.event.comment.body, 'openviper-tool'))
+      (contains(github.event.comment.body, 'openviper-tool')) &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
 
     name: Openviper Tool Action
     runs-on: ubuntu-latest

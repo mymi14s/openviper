@@ -50,14 +50,14 @@ overkill.
    @app.post("/items")
    async def create_item(request: Request):
        data = await request.json()
-       return {"created": data}, 201
+       return {"created": data, 200}
 
 **Run:**
 
 .. code-block:: bash
 
-   openviper run main
-   # INFO:     Uvicorn running on http://127.0.0.1:8000
+   openviper run main --host [IP_ADDRESS] --port 8000 --reload
+   # INFO:     Uvicorn running on http://[IP_ADDRESS]:8000
 
 **Try it:**
 
@@ -72,8 +72,7 @@ overkill.
    # OpenAPI docs
    open http://127.0.0.1:8000/open-api/docs
 
-When your microservice grows, you can split handlers into separate files and
-mount them with ``app.include_router()``. When it outgrows a single module
+When your microservice grows, you can split handlers into separate files. When it outgrows a single module
 entirely, migrate to the Standard layout below.
 
 ----
@@ -81,7 +80,7 @@ entirely, migrate to the Standard layout below.
 Standard — Project Structure
 =============================
 
-The recommended layout for production services. Code is organised into *apps*
+The recommended layout services. Code is organised into *apps*
 (feature modules) with dedicated files for models, serializers, views, routes,
 and admin. Scaffolded by the ``openviper`` CLI.
 
@@ -144,6 +143,8 @@ This creates:
    ├── views.py
    ├── routes.py
    ├── admin.py
+   ├── tasks.py
+   ├── events.py
    └── migrations/
 
 Define a Model
@@ -169,6 +170,15 @@ Edit ``blog/models.py``:
            table_name = "blog_posts"
 
 Create and apply the migration:
+Before migrations, you need to add the app to INSTALLED_APPS in your settings module.
+
+.. code-block:: python
+
+   INSTALLED_APPS = [
+      #"openviper.auth",
+      #"openviper.admin",
+      "blog",
+   ]
 
 .. code-block:: bash
 
@@ -214,8 +224,8 @@ Edit ``blog/views.py``:
        post_data = await serializer.save()
        return JSONResponse(post_data, status_code=201)
 
-   async def get_post(request: Request, post_id: int):
-       post = await Post.objects.get_or_none(id=post_id)
+   async def get_post(request: Request, id: int):
+       post = await Post.objects.get_or_none(id=id)
        if post is None:
            raise NotFound("Post not found")
        return JSONResponse(PostSerializer.from_orm(post).serialize())
@@ -227,24 +237,39 @@ Edit ``blog/routes.py``:
 
 .. code-block:: python
 
-   from openviper.routing.router import Router
+   from openviper.routing import Router
+
    from . import views
 
-   router = Router()
+   router = Router(prefix="")
 
-   router.get("/posts",            views.list_posts)
-   router.post("/posts",           views.create_post)
-   router.get("/posts/{post_id}",  views.get_post)
+   # Post routes
+   router.add("", views.list_posts, methods=["GET"])
+   router.add("/posts", views.create_post, methods=["POST"])
+   router.add("/posts/{id:int}", views.get_post, methods=["POST", "GET"])
 
 Then include the blog router in your project's ``myproject/routes.py``:
 
 .. code-block:: python
 
-   from openviper.routing.router import Router
+   from openviper.conf import settings
+   from openviper.admin import get_admin_site
+   from openviper.staticfiles import media, static
+
+   from myproject.views import router as root_router
    from blog.routes import router as blog_router
 
-   router = Router()
-   router.include_router(blog_router)
+
+   route_paths = [
+      ("/admin", get_admin_site()),
+      ("/root", root_router),
+      ("/blog", blog_router)
+   ]
+
+
+   # to force static files serving in production, not recommended
+   if not settings.DEBUG:
+      route_paths += static() + media()
 
 Register with Admin
 -------------------
@@ -253,8 +278,7 @@ Edit ``blog/admin.py``:
 
 .. code-block:: python
 
-   from openviper.admin import admin
-   from openviper.admin.options import ModelAdmin
+   from openviper.admin import admin, ModelAdmin
    from .models import Post
 
    @admin.register(Post)
@@ -278,10 +302,10 @@ Test the API
 .. code-block:: bash
 
    # List posts
-   curl http://127.0.0.1:8000/posts
+   curl http://127.0.0.1:8000/blog
 
    # Create a post
-   curl -X POST http://127.0.0.1:8000/posts \
+   curl -X POST http://127.0.0.1:8000/blog/posts \
         -H "Content-Type: application/json" \
         -d '{"title":"Hello","body":"World","published":true}'
 

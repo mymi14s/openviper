@@ -43,10 +43,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#requirements">Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../installation.html#installing-openviper">Installing OpenViper</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../installation.html#optional-extras">Optional Extras</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../installation.html#installing-openviper">Installing OpenViper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#database-url-format">Database URL Format</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#redis-configuration">Redis Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#verifying-the-installation">Verifying the Installation</a></li>
@@ -1558,11 +1555,10 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Create or update a model instance and return serialized data.</span>
 
 <span class="sd">        Behaviour:</span>
-
-<span class="sd">        * If *instance* is provided explicitly, update that instance.</span>
-<span class="sd">        * If the validated data contains a non-``None`` ``id`` / ``pk``,</span>
-<span class="sd">          fetch the existing record and update it.</span>
-<span class="sd">        * Otherwise, create a new record.</span>
+<span class="sd">        * If *instance* is provided explicitly → update that instance.</span>
+<span class="sd">        * If the validated data contains a non-``None`` ``id`` / ``pk``</span>
+<span class="sd">          → fetch the existing record and update it.</span>
+<span class="sd">        * Otherwise → create a new record.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            A JSON-safe ``dict`` of the persisted model instance.</span>

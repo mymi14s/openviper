@@ -46,10 +46,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#requirements">Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#installing-openviper">Installing OpenViper</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="installation.html#optional-extras">Optional Extras</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#installing-openviper">Installing OpenViper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#database-url-format">Database URL Format</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#redis-configuration">Redis Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="installation.html#verifying-the-installation">Verifying the Installation</a></li>
@@ -689,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -1047,12 +1045,12 @@ overkill.</p>
 <span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/items&quot;</span><span class="p">)</span>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">create_item</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
     <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">request</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
-    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;created&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">},</span> <span class="mi">201</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;created&quot;</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span> <span class="mi">200</span><span class="p">}</span>
 </pre></div>
 </div>
 <p><strong>Run:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>openviper<span class="w"> </span>run<span class="w"> </span>main
-<span class="c1"># INFO:     Uvicorn running on http://127.0.0.1:8000</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>openviper<span class="w"> </span>run<span class="w"> </span>main<span class="w"> </span>--host<span class="w"> </span><span class="o">[</span>IP_ADDRESS<span class="o">]</span><span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span><span class="w"> </span>--reload
+<span class="c1"># INFO:     Uvicorn running on http://[IP_ADDRESS]:8000</span>
 </pre></div>
 </div>
 <p><strong>Try it:</strong></p>
@@ -1066,14 +1064,13 @@ curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </spa
 open<span class="w"> </span>http://127.0.0.1:8000/open-api/docs
 </pre></div>
 </div>
-<p>When your microservice grows, you can split handlers into separate files and
-mount them with <code class="docutils literal notranslate"><span class="pre">app.include_router()</span></code>. When it outgrows a single module
+<p>When your microservice grows, you can split handlers into separate files. When it outgrows a single module
 entirely, migrate to the Standard layout below.</p>
 </section>
 <hr class="docutils" />
 <section id="standard-project-structure">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Standard — Project Structure</a><a class="headerlink" href="#standard-project-structure" title="Link to this heading"></a></h2>
-<p>The recommended layout for production services. Code is organised into <em>apps</em>
+<p>The recommended layout services. Code is organised into <em>apps</em>
 (feature modules) with dedicated files for models, serializers, views, routes,
 and admin. Scaffolded by the <code class="docutils literal notranslate"><span class="pre">openviper</span></code> CLI.</p>
 <section id="create-a-project">
@@ -1122,6 +1119,8 @@ and admin. Scaffolded by the <code class="docutils literal notranslate"><span cl
 ├── views.py
 ├── routes.py
 ├── admin.py
+├── tasks.py
+├── events.py
 └── migrations/
 </pre></div>
 </div>
@@ -1145,7 +1144,15 @@ and admin. Scaffolded by the <code class="docutils literal notranslate"><span cl
         <span class="n">table_name</span> <span class="o">=</span> <span class="s2">&quot;blog_posts&quot;</span>
 </pre></div>
 </div>
-<p>Create and apply the migration:</p>
+<p>Create and apply the migration:
+Before migrations, you need to add the app to INSTALLED_APPS in your settings module.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">INSTALLED_APPS</span> <span class="o">=</span> <span class="p">[</span>
+   <span class="c1">#&quot;openviper.auth&quot;,</span>
+   <span class="c1">#&quot;openviper.admin&quot;,</span>
+   <span class="s2">&quot;blog&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</pre></div>
+</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>viperctl.py<span class="w"> </span>makemigrations<span class="w"> </span>blog
 python<span class="w"> </span>viperctl.py<span class="w"> </span>migrate
 </pre></div>
@@ -1184,8 +1191,8 @@ python<span class="w"> </span>viperctl.py<span class="w"> </span>migrate
     <span class="n">post_data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">post_data</span><span class="p">,</span> <span class="n">status_code</span><span class="o">=</span><span class="mi">201</span><span class="p">)</span>
 
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_post</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">post_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-    <span class="n">post</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_none</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">post_id</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_post</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="nb">id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+    <span class="n">post</span> <span class="o">=</span> <span class="k">await</span> <span class="n">Post</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_none</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="nb">id</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">post</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">raise</span> <span class="n">NotFound</span><span class="p">(</span><span class="s2">&quot;Post not found&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">JSONResponse</span><span class="p">(</span><span class="n">PostSerializer</span><span class="o">.</span><span class="n">from_orm</span><span class="p">(</span><span class="n">post</span><span class="p">)</span><span class="o">.</span><span class="n">serialize</span><span class="p">())</span>
@@ -1195,30 +1202,44 @@ python<span class="w"> </span>viperctl.py<span class="w"> </span>migrate
 <section id="register-routes">
 <h3>Register Routes<a class="headerlink" href="#register-routes" title="Link to this heading"></a></h3>
 <p>Edit <code class="docutils literal notranslate"><span class="pre">blog/routes.py</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">openviper.routing.router</span><span class="w"> </span><span class="kn">import</span> <span class="n">Router</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">openviper.routing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Router</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">views</span>
 
-<span class="n">router</span> <span class="o">=</span> <span class="n">Router</span><span class="p">()</span>
+<span class="n">router</span> <span class="o">=</span> <span class="n">Router</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 
-<span class="n">router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/posts&quot;</span><span class="p">,</span>            <span class="n">views</span><span class="o">.</span><span class="n">list_posts</span><span class="p">)</span>
-<span class="n">router</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;/posts&quot;</span><span class="p">,</span>           <span class="n">views</span><span class="o">.</span><span class="n">create_post</span><span class="p">)</span>
-<span class="n">router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/posts/</span><span class="si">{post_id}</span><span class="s2">&quot;</span><span class="p">,</span>  <span class="n">views</span><span class="o">.</span><span class="n">get_post</span><span class="p">)</span>
+<span class="c1"># Post routes</span>
+<span class="n">router</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">list_posts</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;GET&quot;</span><span class="p">])</span>
+<span class="n">router</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;/posts&quot;</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">create_post</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="n">router</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;/posts/{id:int}&quot;</span><span class="p">,</span> <span class="n">views</span><span class="o">.</span><span class="n">get_post</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;POST&quot;</span><span class="p">,</span> <span class="s2">&quot;GET&quot;</span><span class="p">])</span>
 </pre></div>
 </div>
 <p>Then include the blog router in your project’s <code class="docutils literal notranslate"><span class="pre">myproject/routes.py</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">openviper.routing.router</span><span class="w"> </span><span class="kn">import</span> <span class="n">Router</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">openviper.conf</span><span class="w"> </span><span class="kn">import</span> <span class="n">settings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">openviper.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_admin_site</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">openviper.staticfiles</span><span class="w"> </span><span class="kn">import</span> <span class="n">media</span><span class="p">,</span> <span class="n">static</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">myproject.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">router</span> <span class="k">as</span> <span class="n">root_router</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">blog.routes</span><span class="w"> </span><span class="kn">import</span> <span class="n">router</span> <span class="k">as</span> <span class="n">blog_router</span>
 
-<span class="n">router</span> <span class="o">=</span> <span class="n">Router</span><span class="p">()</span>
-<span class="n">router</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">blog_router</span><span class="p">)</span>
+
+<span class="n">route_paths</span> <span class="o">=</span> <span class="p">[</span>
+   <span class="p">(</span><span class="s2">&quot;/admin&quot;</span><span class="p">,</span> <span class="n">get_admin_site</span><span class="p">()),</span>
+   <span class="p">(</span><span class="s2">&quot;/root&quot;</span><span class="p">,</span> <span class="n">root_router</span><span class="p">),</span>
+   <span class="p">(</span><span class="s2">&quot;/blog&quot;</span><span class="p">,</span> <span class="n">blog_router</span><span class="p">)</span>
+<span class="p">]</span>
+
+
+<span class="c1"># to force static files serving in production, not recommended</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">settings</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">:</span>
+   <span class="n">route_paths</span> <span class="o">+=</span> <span class="n">static</span><span class="p">()</span> <span class="o">+</span> <span class="n">media</span><span class="p">()</span>
 </pre></div>
 </div>
 </section>
 <section id="register-with-admin">
 <h3>Register with Admin<a class="headerlink" href="#register-with-admin" title="Link to this heading"></a></h3>
 <p>Edit <code class="docutils literal notranslate"><span class="pre">blog/admin.py</span></code>:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">openviper.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">admin</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">openviper.admin.options</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelAdmin</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">openviper.admin</span><span class="w"> </span><span class="kn">import</span> <span class="n">admin</span><span class="p">,</span> <span class="n">ModelAdmin</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Post</span>
 
 <span class="nd">@admin</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">Post</span><span class="p">)</span>
@@ -1239,10 +1260,10 @@ python<span class="w"> </span>viperctl.py<span class="w"> </span>migrate
 <section id="test-the-api">
 <h3>Test the API<a class="headerlink" href="#test-the-api" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># List posts</span>
-curl<span class="w"> </span>http://127.0.0.1:8000/posts
+curl<span class="w"> </span>http://127.0.0.1:8000/blog
 
 <span class="c1"># Create a post</span>
-curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/posts<span class="w"> </span><span class="se">\</span>
+curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/blog/posts<span class="w"> </span><span class="se">\</span>
 <span class="w">     </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">     </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;title&quot;:&quot;Hello&quot;,&quot;body&quot;:&quot;World&quot;,&quot;published&quot;:true}&#39;</span>
 

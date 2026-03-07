@@ -20,7 +20,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Quick Start" href="quickstart.html" />
-    <link rel="prev" title="OpenViper 0.0.1 Documentation" href="index.html" /> 
+    <link rel="prev" title="OpenViper Documentation" href="index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -46,10 +46,7 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#installing-openviper">Installing OpenViper</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#optional-extras">Optional Extras</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#installing-openviper">Installing OpenViper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#database-url-format">Database URL Format</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#redis-configuration">Redis Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#verifying-the-installation">Verifying the Installation</a></li>
@@ -689,6 +686,7 @@
 <li class="toctree-l3"><a class="reference internal" href="api_reference.html#module-openviper.tasks.worker">Worker</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#discovery-strategy">Discovery strategy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.discover_tasks"><code class="docutils literal notranslate"><span class="pre">discover_tasks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.create_worker"><code class="docutils literal notranslate"><span class="pre">create_worker()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="api_reference.html#openviper.tasks.worker.run_worker"><code class="docutils literal notranslate"><span class="pre">run_worker()</span></code></a></li>
 </ul>
 </li>
@@ -1012,8 +1010,6 @@
 <ul class="simple">
 <li><p><strong>Python</strong> ≥ 3.14</p></li>
 <li><p>A supported <strong>async database driver</strong> (see below)</p></li>
-<li><p><strong>Redis</strong> 6+ (required when using background tasks or the Dramatiq broker)</p></li>
-<li><p><strong>Uvicorn</strong> (included as a dependency, used to serve the ASGI application)</p></li>
 </ul>
 </section>
 <section id="installing-openviper">
@@ -1022,30 +1018,6 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>openviper
 </pre></div>
 </div>
-<p>This installs the core framework with all mandatory dependencies.</p>
-<section id="optional-extras">
-<h3>Optional Extras<a class="headerlink" href="#optional-extras" title="Link to this heading"></a></h3>
-<p>OpenViper ships optional dependency groups that you can install on demand:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># PostgreSQL async driver (asyncpg)</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;openviper[postgresql]&quot;</span>
-
-<span class="c1"># MariaDB / MySQL async driver (aiomysql)</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;openviper[mariadb]&quot;</span>
-
-<span class="c1"># AI provider SDKs (openai, anthropic, google-generativeai, …)</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;openviper[ai]&quot;</span>
-
-<span class="c1"># Background task broker and worker (dramatiq + redis)</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;openviper[tasks]&quot;</span>
-
-<span class="c1"># Admin panel Vue SPA and API (already bundled but listed for clarity)</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;openviper[admin]&quot;</span>
-
-<span class="c1"># Everything at once</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;openviper[all]&quot;</span>
-</pre></div>
-</div>
-</section>
 </section>
 <section id="database-url-format">
 <h2>Database URL Format<a class="headerlink" href="#database-url-format" title="Link to this heading"></a></h2>
@@ -1076,13 +1048,32 @@ pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot
 </section>
 <section id="redis-configuration">
 <h2>Redis Configuration<a class="headerlink" href="#redis-configuration" title="Link to this heading"></a></h2>
-<p>Background tasks and rate-limiting require Redis.  Set the URL via the
+<p>Background tasks and rate-limiting require Redis.
+Install redis:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>redis<span class="w"> </span><span class="c1"># Linux</span>
+brew<span class="w"> </span>install<span class="w"> </span>redis<span class="w"> </span><span class="c1"># MacOS</span>
+sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>redis<span class="w"> </span><span class="c1"># Fedora</span>
+</pre></div>
+</div>
+<p>Set the URL via the
 <code class="docutils literal notranslate"><span class="pre">CACHE_URL</span></code> / broker settings in <code class="docutils literal notranslate"><span class="pre">settings.py</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">CACHE_URL</span> <span class="o">=</span> <span class="s2">&quot;redis://localhost:6379/0&quot;</span>
 
-<span class="n">TASKS</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">&quot;broker_url&quot;</span><span class="p">:</span> <span class="s2">&quot;redis://localhost:6379/1&quot;</span><span class="p">,</span>
-<span class="p">}</span>
+<span class="c1"># Background Tasks</span>
+<span class="n">TASKS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">dataclasses</span><span class="o">.</span><span class="n">field</span><span class="p">(</span>
+    <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;enabled&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">&quot;scheduler_enabled&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">&quot;tracking_enabled&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">&quot;log_to_file&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">&quot;log_level&quot;</span><span class="p">:</span> <span class="s2">&quot;DEBUG&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;log_format&quot;</span><span class="p">:</span> <span class="s2">&quot;json&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;log_dir&quot;</span><span class="p">:</span> <span class="s2">&quot;logs&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;broker&quot;</span><span class="p">:</span> <span class="s2">&quot;redis&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;broker_url&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;REDIS_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;redis://localhost:6379/0&quot;</span><span class="p">),</span>
+        <span class="s2">&quot;backend_url&quot;</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;REDIS_BACKEND_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;redis://localhost:6379/1&quot;</span><span class="p">),</span>
+     <span class="p">}</span>
+ <span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -1121,7 +1112,7 @@ uvicorn<span class="w"> </span>myproject.asgi:app<span class="w"> </span>--reloa
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="OpenViper 0.0.1 Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="index.html" class="btn btn-neutral float-left" title="OpenViper Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="quickstart.html" class="btn btn-neutral float-right" title="Quick Start" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

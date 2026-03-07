@@ -43,10 +43,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#requirements">Requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../installation.html#installing-openviper">Installing OpenViper</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../../../installation.html#optional-extras">Optional Extras</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../installation.html#installing-openviper">Installing OpenViper</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#database-url-format">Database URL Format</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#redis-configuration">Redis Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../installation.html#verifying-the-installation">Verifying the Installation</a></li>
@@ -1506,6 +1503,7 @@
         <span class="n">clone</span><span class="o">.</span><span class="n">_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_offset</span>
         <span class="n">clone</span><span class="o">.</span><span class="n">_select_related</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_select_related</span><span class="p">)</span>
         <span class="n">clone</span><span class="o">.</span><span class="n">_prefetch_related</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prefetch_related</span><span class="p">)</span>
+        <span class="n">clone</span><span class="o">.</span><span class="n">_ignore_permissions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ignore_permissions</span>
         <span class="k">return</span> <span class="n">clone</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>

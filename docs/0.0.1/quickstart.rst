@@ -50,14 +50,14 @@ overkill.
    @app.post("/items")
    async def create_item(request: Request):
        data = await request.json()
-       return {"created": data}, 201
+       return {"created": data, 200}
 
 **Run:**
 
 .. code-block:: bash
 
-   openviper run main
-   # INFO:     Uvicorn running on http://127.0.0.1:8000
+   openviper run main --host [IP_ADDRESS] --port 8000 --reload
+   # INFO:     Uvicorn running on http://[IP_ADDRESS]:8000
 
 **Try it:**
 
@@ -72,8 +72,7 @@ overkill.
    # OpenAPI docs
    open http://127.0.0.1:8000/open-api/docs
 
-When your microservice grows, you can split handlers into separate files and
-mount them with ``app.include_router()``. When it outgrows a single module
+When your microservice grows, you can split handlers into separate files. When it outgrows a single module
 entirely, migrate to the Standard layout below.
 
 ----
@@ -81,7 +80,7 @@ entirely, migrate to the Standard layout below.
 Standard — Project Structure
 =============================
 
-The recommended layout for production services. Code is organised into *apps*
+The recommended layout services. Code is organised into *apps*
 (feature modules) with dedicated files for models, serializers, views, routes,
 and admin. Scaffolded by the ``openviper`` CLI.
 
@@ -144,6 +143,8 @@ This creates:
    ├── views.py
    ├── routes.py
    ├── admin.py
+   ├── tasks.py
+   ├── events.py
    └── migrations/
 
 Define a Model
@@ -169,6 +170,15 @@ Edit ``blog/models.py``:
            table_name = "blog_posts"
 
 Create and apply the migration:
+Before migrations, you need to add the app to INSTALLED_APPS in your settings module.
+
+.. code-block:: python
+
+   INSTALLED_APPS = [
+      #"openviper.auth",
+      #"openviper.admin",
+      "blog",
+   ]
 
 .. code-block:: bash
 

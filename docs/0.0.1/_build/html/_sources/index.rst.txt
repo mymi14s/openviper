@@ -3,7 +3,7 @@
 .. _index:
 
 =====================================
-OpenViper |version| Documentation
+OpenViper Documentation
 =====================================
 
 **OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be

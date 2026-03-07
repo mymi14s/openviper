@@ -224,8 +224,8 @@ Edit ``blog/views.py``:
        post_data = await serializer.save()
        return JSONResponse(post_data, status_code=201)
 
-   async def get_post(request: Request, post_id: int):
-       post = await Post.objects.get_or_none(id=post_id)
+   async def get_post(request: Request, id: int):
+       post = await Post.objects.get_or_none(id=id)
        if post is None:
            raise NotFound("Post not found")
        return JSONResponse(PostSerializer.from_orm(post).serialize())
@@ -237,24 +237,39 @@ Edit ``blog/routes.py``:
 
 .. code-block:: python
 
-   from openviper.routing.router import Router
+   from openviper.routing import Router
+
    from . import views
 
-   router = Router()
+   router = Router(prefix="")
 
-   router.get("/posts",            views.list_posts)
-   router.post("/posts",           views.create_post)
-   router.get("/posts/{post_id}",  views.get_post)
+   # Post routes
+   router.add("", views.list_posts, methods=["GET"])
+   router.add("/posts", views.create_post, methods=["POST"])
+   router.add("/posts/{id:int}", views.get_post, methods=["POST", "GET"])
 
 Then include the blog router in your project's ``myproject/routes.py``:
 
 .. code-block:: python
 
-   from openviper.routing.router import Router
+   from openviper.conf import settings
+   from openviper.admin import get_admin_site
+   from openviper.staticfiles import media, static
+
+   from myproject.views import router as root_router
    from blog.routes import router as blog_router
 
-   router = Router()
-   router.include_router(blog_router)
+
+   route_paths = [
+      ("/admin", get_admin_site()),
+      ("/root", root_router),
+      ("/blog", blog_router)
+   ]
+
+
+   # to force static files serving in production, not recommended
+   if not settings.DEBUG:
+      route_paths += static() + media()
 
 Register with Admin
 -------------------
@@ -263,8 +278,7 @@ Edit ``blog/admin.py``:
 
 .. code-block:: python
 
-   from openviper.admin import admin
-   from openviper.admin.options import ModelAdmin
+   from openviper.admin import admin, ModelAdmin
    from .models import Post
 
    @admin.register(Post)
@@ -288,10 +302,10 @@ Test the API
 .. code-block:: bash
 
    # List posts
-   curl http://127.0.0.1:8000/posts
+   curl http://127.0.0.1:8000/blog
 
    # Create a post
-   curl -X POST http://127.0.0.1:8000/posts \
+   curl -X POST http://127.0.0.1:8000/blog/posts \
         -H "Content-Type: application/json" \
         -d '{"title":"Hello","body":"World","published":true}'
 

@@ -69,28 +69,33 @@ if __name__ == "__main__":
 
 _SETTINGS_TEMPLATE = '''\
 """Settings for {project_name}."""
+from __future__ import annotations
 
-import os
 import dataclasses
+import os
+from datetime import timedelta
+from typing import Any
 
 from openviper.conf.settings import Settings
 
 
+@dataclasses.dataclass(frozen=True)
 class ProjectSettings(Settings):
     PROJECT_NAME: str = "{project_name}"
     DEBUG: bool = bool(os.environ.get("DEBUG", "1"))
     DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3")
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "{secret_key}")
-    INSTALLED_APPS: list = [
+    INSTALLED_APPS: tuple[str, ...] = (
         "openviper.auth",
-    ]
-    MIDDLEWARE: list = [
+        "openviper.admin",
+    )
+    MIDDLEWARE: tuple[str, ...] = (
         "openviper.middleware.security.SecurityMiddleware",
         "openviper.middleware.cors.CORSMiddleware",
         "openviper.middleware.auth.AuthenticationMiddleware",
         "openviper.admin.middleware.AdminMiddleware",
-    ]
-    ALLOWED_HOSTS: list = ["*"]
+    )
+    ALLOWED_HOSTS: tuple[str, ...] = ("*",)
     STATIC_ROOT: str = os.environ.get("STATIC_ROOT", "static")
     STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
     MEDIA_ROOT: str = os.environ.get("MEDIA_ROOT", "media")
@@ -99,7 +104,7 @@ class ProjectSettings(Settings):
 
     # # Background Tasks
     # TASKS: dict[str, Any] = dataclasses.field(
-    #     default_factory=lambda: {{
+    #     default_factory=lambda: {
     #         "enabled": 0,
     #         "scheduler_enabled": 0,
     #         "tracking_enabled": 1,
@@ -110,19 +115,19 @@ class ProjectSettings(Settings):
     #         "broker": "redis",
     #         "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
     #         "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
-    #     }}
+    #     }
     # )
 
     # # Model events configuration: maps "app.model" to event hooks to lists of
     # # "app.events.func" paths.
     # MODEL_EVENTS: dict = dataclasses.field(
-    #     default_factory=lambda: {{
-    #         "posts.models.Post": {{
+    #     default_factory=lambda: {
+    #         "posts.models.Post": {
     #             "after_insert": ["posts.events.create_likes"],
     #             "after_delete": ["posts.events.cleanup_comments"],
     #             "on_update": ["posts.events.handle_post_update"],
-    #         }},
-    #     }}
+    #         },
+    #     }
     # )
 '''
 

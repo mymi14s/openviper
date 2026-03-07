@@ -9,8 +9,6 @@ Requirements
 
 * **Python** ≥ 3.14
 * A supported **async database driver** (see below)
-* **Redis** 6+ (required when using background tasks or the Dramatiq broker)
-* **Uvicorn** (included as a dependency, used to serve the ASGI application)
 
 Installing OpenViper
 --------------------

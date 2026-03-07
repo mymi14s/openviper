@@ -65,7 +65,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    
+
 '''
 
 _SETTINGS_TEMPLATE = '''\
@@ -105,7 +105,7 @@ class ProjectSettings(Settings):
 
     # # Background Tasks
     # TASKS: dict[str, Any] = dataclasses.field(
-    #     default_factory=lambda: {
+    #     default_factory=lambda: {{
     #         "enabled": 0,
     #         "scheduler_enabled": 0,
     #         "tracking_enabled": 1,
@@ -116,19 +116,19 @@ class ProjectSettings(Settings):
     #         "broker": "redis",
     #         "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
     #         "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
-    #     }
+    #     }}
     # )
 
     # # Model events configuration: maps "app.model" to event hooks to lists of
     # # "app.events.func" paths.
     # MODEL_EVENTS: dict = dataclasses.field(
-    #     default_factory=lambda: {
-    #         "posts.models.Post": {
+    #     default_factory=lambda: {{
+    #         "posts.models.Post": {{
     #             "after_insert": ["posts.events.create_likes"],
     #             "after_delete": ["posts.events.cleanup_comments"],
     #             "on_update": ["posts.events.handle_post_update"],
-    #         },
-    #     }
+    #         }},
+    #     }}
     # )
 '''
 
@@ -191,22 +191,22 @@ from openviper.routing import Router
 
 async def home(request):
     """Home page view."""
-    context = {{
+    context = {{{{
         "title": "Welcome to {project_name}",
         "project_name": "{project_name}",
         "message": "Your OpenViper project is running successfully."
-    }}
+    }}}}
     return HTMLResponse(template="home.html", context=context)
 
 
 async def api_index(request):
     """API endpoint view that handles both GET and POST."""
     if request.method == "GET":
-        return JSONResponse({{"message": "Welcome to {project_name} API!", "status": "success"}})
+        return JSONResponse({{{{ "message": "Welcome to {project_name} API!", "status": "success" }}}})
     elif request.method == "POST":
-        return JSONResponse({{"message": "Data received", "status": "success", "method": "POST"}})
+        return JSONResponse({{{{ "message": "Data received", "status": "success", "method": "POST" }}}})
     else:
-        return JSONResponse({{"error": "Method not allowed", "status": "error"}}, status_code=405)
+        return JSONResponse({{{{ "error": "Method not allowed", "status": "error" }}}}, status_code=405)
 
 
 # Routes for apps should be in each app's routes.py file

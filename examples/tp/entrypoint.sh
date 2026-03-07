@@ -4,11 +4,15 @@
 
 set -e
 
-echo "→ Collecting static files..."
-python viperctl.py collectstatic --no-input
+if [ -z "$SKIP_COLLECTSTATIC" ]; then
+    echo "→ Collecting static files..."
+    python viperctl.py collectstatic --no-input
+fi
 
-echo "→ Migrating database..."
-python viperctl.py migrate
+if [ -z "$SKIP_MIGRATIONS" ]; then
+    echo "→ Migrating database..."
+    python viperctl.py migrate
+fi
 
 echo "→ Starting uvicorn on 0.0.0.0:8000..."
 exec python -m uvicorn tp.asgi:app \

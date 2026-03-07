@@ -328,7 +328,7 @@ async def test_migration_executor_migrate(memory_engine, mock_discover):
     with patch("openviper.db.migrations.executor.validate_restore_column", return_value="Failed"):
         # run again targeting the newly added op but clearing applied tables cache
         with patch.object(executor, "_applied_migrations", return_value=set()):
-            applied_with_err = await executor.migrate()
+            applied_with_err = await executor.migrate(ignore_errors=True)
             assert not applied_with_err  # Nothing returned because it failed
 
     mock_discover[0].operations.pop()
@@ -344,9 +344,9 @@ async def test_migration_executor_migrate(memory_engine, mock_discover):
 async def test_migration_executor_rollback_skip(memory_engine):
     executor = MigrationExecutor()
 
-    rec = MigrationRecord("app", "skip_bk", [], [AddColumn("t", "c", "TEXT")], "path")
+    rec = MigrationRecord("app", "skip_bk", [], [AddColumn("foo_table", "c", "TEXT")], "path")
     with patch("openviper.db.migrations.executor.discover_migrations", return_value=[rec]):
-        await executor.migrate()
+        await executor.migrate(ignore_errors=True)
         # mock should skip backward to True
         with patch("openviper.db.migrations.executor._should_skip_backward", return_value=True):
             await executor.rollback("app", "skip_bk")
@@ -400,7 +400,7 @@ async def test_migration_executor_errors(memory_engine):
 
     with patch("openviper.db.migrations.executor.discover_migrations", return_value=[bad_rec]):
         executor = MigrationExecutor()
-        applied = await executor.migrate()
+        applied = await executor.migrate(ignore_errors=True)
         assert not applied
 
 

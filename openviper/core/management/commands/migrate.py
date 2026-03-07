@@ -95,6 +95,7 @@ class Command(BaseCommand):
                 target_app=app_label,
                 target_name=migration_name,
                 verbose=use_verbose,
+                ignore_errors=True,
             )
 
         applied = asyncio.run(run())

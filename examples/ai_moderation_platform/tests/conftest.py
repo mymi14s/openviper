@@ -7,6 +7,7 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["OPENVIPER_SETTINGS_MODULE"] = "ai_moderation_platform.settings"
 
 from ai_moderation_platform.asgi import app  # noqa: E402
+
 from openviper.db.connection import _metadata, get_engine, init_db  # noqa: E402
 
 

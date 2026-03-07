@@ -1,4 +1,5 @@
 """Unit tests for the migrate management command."""
+
 from __future__ import annotations
 
 import argparse

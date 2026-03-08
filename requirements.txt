@@ -12,7 +12,7 @@ bcrypt==5.0.0
 brotli==1.2.0
 click==8.3.1
 dramatiq==2.0.1
-google-genai==1.65.0
+google-genai==1.66.0
 httptools==0.7.1
 httpx==0.28.1
 ipython==9.9.0

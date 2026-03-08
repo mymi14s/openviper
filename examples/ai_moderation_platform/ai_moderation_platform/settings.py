@@ -64,7 +64,6 @@ class ProjectSettings(Settings):
             "ollama": {
                 "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
                 "models": {
-                    "default": "granite-code:3b",
                     "Granite Code 3B": "granite-code:3b",
                     "Llama 3": "llama3",
                     "Mistral": "mistral",
@@ -74,10 +73,13 @@ class ProjectSettings(Settings):
             "gemini": {
                 "api_key": os.environ.get("GEMINI_API_KEY"),
                 "model": {
-                    "default": "gemini-2.0-flash",
-                    "Gemini 2.0 Flash": "gemini-2.0-flash",
-                    "Gemini 1.5 Flash": "gemini-1.5-flash",
-                    "Gemini 1.5 Pro": "gemini-1.5-pro",
+                    "GEMINI 2.5 FLASH": "gemini-2.5-flash",
+                    "GEMINI 3 PRO PREVIEW": "gemini-3-pro-preview",
+                    "GEMINI 3 FLASH PREVIEW": "gemini-3-flash-preview",
+                    "GEMINI 3.1 PRO PREVIEW": "gemini-3.1-pro-preview",
+                    "GEMINI 3.1 PRO PREVIEW CUSTOMTOOLS": "gemini-3.1-pro-preview-customtools",
+                    "GEMINI 3.1 FLASH LITE PREVIEW": "gemini-3.1-flash-lite-preview",
+                    "GEMINI 3 PRO IMAGE PREVIEW": "gemini-3-pro-image-preview"
                 },
                 "embed_model": "models/text-embedding-004",
                 "temperature": 1.0,

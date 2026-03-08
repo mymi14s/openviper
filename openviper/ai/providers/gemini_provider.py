@@ -99,9 +99,15 @@ class GeminiProvider(AIProvider):
         # Use default_model from base class if found, else DEFAULT_MODEL
         self._default_model: str = self.default_model or ""
 
-        global genai, types
-        from google import genai
-        from google.genai import types
+        try:
+            global genai, types
+            from google import genai
+            from google.genai import types
+        except ImportError as exc:
+            raise ImportError(
+                "google-genai could not be imported. "
+                "Try upgrading: pip install --upgrade google-genai"
+            ) from exc
 
         self._client: genai.Client | None = None
 

@@ -91,16 +91,16 @@ Create the custom user model:
             """Log when a user's email is changed."""
             print("User updated: %s" % self.username)
 
-------
+------------------------------------------
 Create Migrations and Migrate the Database
------------------------------------------
+------------------------------------------
 
 .. code-block:: bash
 
    python viperctl.py makemigrations users
    python viperctl.py migrate # apply migrations
 
-----
+-----------------------
 Add User model to admin
 -----------------------
 
@@ -130,7 +130,7 @@ Edit ``users/admin.py``:
             return super().get_sensitive_fields(request, obj) + ["password"] # fields ro remove from admin
 
 
--------
+------------------
 Create a Superuser
 ------------------
 
@@ -138,7 +138,7 @@ Create a Superuser
 
    python viperctl.py createsuperuser
 
-------
+------------------------
 Login to the admin panel
 ------------------------
 
@@ -170,7 +170,7 @@ Edit ``myblog/settings.py`` to add the app:
 ----
 
 Define the Post Model
--------------
+---------------------
 
 Edit ``blog/models.py``:
 
@@ -238,8 +238,8 @@ Create and apply the migration:
 ----
 
 
-Create the Serializer (Optional) # Serializer is not required but recommended
--------------------------------
+Create the Serializer (Optional)
+--------------------------------
 
 Edit ``blog/serializers.py``:
 
@@ -356,11 +356,12 @@ Edit ``blog/routes.py``:
     router = Router(prefix="")
 
     router.add("/posts", views.list_posts, methods=["GET"]) # methods can be GET, POST, PUT, PATCH, DELETE
-    router.add("/posts", views.create_post, methods=["POST"])
+    router.add("/posts/create", views.create_post, methods=["POST"])
 
-    router.add("/posts/{post_id:int}", views.get_post, methods=["GET"])
-    router.add("/posts/{post_id:int}", views.update_post, methods=["PUT"])
-    router.add("/posts/{post_id:int}", views.delete_post, methods=["DELETE"])
+    router.add("/posts/id/{post_id:int}", views.get_post, methods=["GET"])
+    router.add("/posts/update/{post_id:int}", views.update_post, methods=["PUT"])
+    router.add("/posts/delete/{post_id:int}", views.delete_post, methods=["DELETE"])
+
 
 Include the router in ``myblog/routes.py``:
 
@@ -372,10 +373,12 @@ Include the router in ``myblog/routes.py``:
     from openviper.admin import get_admin_site
     from openviper.staticfiles import media, static
 
+    from myblog.views import router as root_router
     from blog.routes import router as blog_router
 
     route_paths = [
         ("/admin", get_admin_site()),
+        ("/root", root_router),
         ("/blog", blog_router)
     ]
 
@@ -409,14 +412,16 @@ Edit ``blog/admin.py``:
        readonly_fields = ["slug", "published_at", "created_at", "updated_at"]
        list_per_page = 20
 
-----
+----------------------------------------------------------------------------------
 Start the server and navigate to admin, see the left sidebar. create Post records.
+----------------------------------------------------------------------------------
 
 
 Step 7 — Task and Events
 ---------------------------------------
 Ensure redis is installed.
 .. code-block:: bash
+
     sudo apt install redis # Linux
     brew install redis # Mac
 
@@ -526,7 +531,6 @@ Enable the AI registry in ``myblog/settings.py``:
             "ollama": {
                 "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
                 "models": {
-                    "default": "granite-code:3b",
                     "Granite Code 3B": "granite-code:3b",
                     "Llama 3": "llama3",
                     "Mistral": "mistral",
@@ -537,10 +541,11 @@ Enable the AI registry in ``myblog/settings.py``:
                 "api_key": os.environ.get("GEMINI_API_KEY"),
                 "project_number": os.environ.get("GEMINI_PROJECT_NUMBER")
                 "model": {
-                    "default": "gemini-2.0-flash",
-                    "Gemini 2.0 Flash": "gemini-2.0-flash",
-                    "Gemini 1.5 Flash": "gemini-1.5-flash",
-                    "Gemini 1.5 Pro": "gemini-1.5-pro",
+                    "GEMINNI 2.5 FLASH": "gemini-2.5-flash",
+                    "GEMINI 3 PRO PREVIEW": "gemini-3-pro-preview",
+                    "GEMINI 3 FLASH PREVIEW": "gemini-3-flash-preview",
+                    "GEMINI 3.1 PRO PREVIEW": "gemini-3.1-pro-preview",
+                    "GEMINI 3.1 FLASH LITE PREVIEW": "gemini-3.1-flash-lite-preview",
                 },
                 "embed_model": "models/text-embedding-004",
                 "temperature": 1.0,
@@ -553,55 +558,106 @@ Enable the AI registry in ``myblog/settings.py``:
     )
 
 
+
+Explore the Tools
+-----------------
+
+OpenViper provides several management tools via the shell.
+The framework also provides a registry extension generator to add more AI providers.
+See: ``python viperctl.py create-provider --help``
+
+.. note::
+
+   Supported AI providers include Ollama, Gemini, OpenAI, Anthropic, and Grok.
+
+.. code-block:: bash
+
+    python viperctl.py shell
+
+    In [9]: from openviper.ai.registry import provider_registry
+
+    In [10]: provider_registry.list_provider_names()
+    Out[10]: ['gemini', 'ollama']
+
+    In [11]: provider_registry.list_models()
+    Out[11]: 
+    ['codellama',
+    'gemini-2.5-flash',
+    'gemini-3-flash-preview',
+    'gemini-3-pro-image-preview',
+    'gemini-3-pro-preview',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-3.1-pro-preview',
+    'gemini-3.1-pro-preview-customtools',
+    'granite-code:3b',
+    'llama3',
+    'mistral']
+
+    In [12]: provider = provider_registry.get_by_model("gemini-2.5-flash")
+
+    In [13]: draft = await provider.generate(
+        ...:     f"Write a 50-word blog post introduction about: Python Programming"
+        ...: )
+
+    In [14]: draft
+    Out[14]: 'Welcome to the exciting world of Python programming! Renowned for its clear syntax and versatility, Python is the perfect language for beginners and seasoned developers alike. From web development and data science to AI and automation, Python simplifies complex tasks, making coding intuitive and fun. Get ready to unlock incredible possibilities and supercharge your projects with this powerful language!'
+
+    In [15]: 
+
 Add an AI-assisted view in ``blog/views.py``:
 
 .. code-block:: python
 
    from openviper.ai.registry import provider_registry
-   from openviper.auth.decorators import login_required
 
 
    @login_required
    async def ai_draft(request: Request):
-       """Generate a blog post draft from a topic."""
-       body = await request.json()
-       topic = body.get("topic", "")
-       if not topic:
-           return JSONResponse({"error": "topic is required"}, status_code=400)
+        """Generate a blog post draft from a topic."""
+        body = await request.json()
+        topic = body.get("topic", "")
+        if not topic:
+            return JSONResponse({"error": "topic is required"}, status_code=400)
 
-       provider = provider_registry.get_by_model("gpt-4o")
+        provider = provider_registry.get_by_model("gemini-2.5-flash")
         draft = await provider.generate(
             f"Write a 200-word blog post introduction about: {topic}"
         )
        return JSONResponse({"draft": draft})
 
 Register the endpoint:
+``blog.routes``
 
 .. code-block:: python
 
-   router.post("/posts/ai-draft", views.ai_draft)
+   router.add("/posts/ai/draft", views.ai_draft, methods=["POST"])
 
 ----
 
-Running the Complete Application
-----------------------------------
+Testing with Swagger UI (OpenAPI)
+---------------------------------
 
-.. code-block:: bash
+1. Open http://127.0.0.1:8000/open-api/docs
+2. Use the admin login endpoint ``/admin/api/auth/login/`` to authenticate:
 
-   # Terminal 1 — web server
-   python viperctl.py runserver
+.. code-block:: json
 
-   # Terminal 2 — background worker
-   python viperctl.py runworker --queues notifications,scheduler
+   {
+       "username": "username",
+       "password": "password"
+   }
 
-   # Terminal 3 — (optional) scheduler tick every minute
-   # The scheduler runs inside the worker process automatically when tasks are enqueued
+3. Copy the ``access_token`` from the response and use it in the ``Authorization`` header.
+4. Use the ``/posts/ai/draft`` endpoint to generate a draft:
 
-Create a superuser and visit:
+.. code-block:: json
 
-* ``http://127.0.0.1:8000/posts`` — public post list
-* ``http://127.0.0.1:8000/open-api/docs`` — Swagger UI
-* ``http://127.0.0.1:8000/admin`` — admin panel
+   {
+       "topic": "software engineering"
+   }
+
+Well Done!
+----------
 
 .. seealso::
 

@@ -516,7 +516,8 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
         Behaviour:
 
         * If *instance* is provided explicitly -> update that instance.
-        * If the validated data contains a non-``None`` ``id`` / ``pk`` -> fetch the existing record and update it.
+        * If the validated data contains a non-``None`` ``id`` / ``pk`` ->
+          fetch the existing record and update it.
         * Otherwise -> create a new record.
 
         Returns:

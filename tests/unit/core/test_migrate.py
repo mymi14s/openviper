@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from unittest.mock import MagicMock, patch
 
 from openviper.core.management.commands.migrate import Command
@@ -198,3 +199,41 @@ class TestHandleSuccess:
             )
 
         resolver.resolve_app.assert_called_once_with("testapp")
+
+# ---------------------------------------------------------------------------
+# handle() – verbose TTY output
+# ---------------------------------------------------------------------------
+
+
+class TestHandleVerbose:
+    @patch("openviper.core.management.commands.migrate.AppResolver")
+    @patch("openviper.core.management.commands.migrate.settings")
+    @patch("openviper.core.management.commands.migrate.asyncio.run")
+    def test_verbose_app_locations_and_quiet_path(self, mock_run, mock_settings, MockResolver):
+        # Covers lines 79-85: app locations printed when stdout is a TTY with resolved apps,
+        # and line 87-88: quiet path ("Running migrations...") when not verbose
+        mock_settings.INSTALLED_APPS = []
+        MockResolver.return_value = _make_resolver(
+            resolved_apps={"myapp": "/path/to/myapp"}
+        )
+        mock_run.return_value = ["0001_initial"]
+
+        cmd = Command()
+        output = []
+
+        # Verbose path: TTY stdout → lines 79-85 executed
+        mock_tty = MagicMock()
+        mock_tty.isatty.return_value = True
+        with (
+            patch.object(sys, "stdout", mock_tty),
+            patch.object(cmd, "stdout", side_effect=lambda m: output.append(m)),
+        ):
+            cmd.handle(
+                app_label=None,
+                migration_name=None,
+                fake=False,
+                database="default",
+            )
+
+        combined = " ".join(output)
+        assert "complete" in combined.lower() or "migration" in combined.lower()

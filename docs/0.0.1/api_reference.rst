@@ -326,7 +326,7 @@ Registry
 Events
 ~~~~~~
 
-.. automodule:: openviper.tasks.events
+.. automodule:: openviper.db.events
    :members:
    :undoc-members:
    :show-inheritance:

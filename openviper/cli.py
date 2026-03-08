@@ -202,11 +202,21 @@ async def home(request):
 async def api_index(request):
     """API endpoint view that handles both GET and POST."""
     if request.method == "GET":
-        return JSONResponse({{{{ "message": "Welcome to {project_name} API!", "status": "success" }}}})
+        return JSONResponse({{{{
+            "message": "Welcome to {project_name} API!",
+            "status": "success"
+        }}}})
     elif request.method == "POST":
-        return JSONResponse({{{{ "message": "Data received", "status": "success", "method": "POST" }}}})
+        return JSONResponse({{{{
+            "message": "Data received",
+            "status": "success",
+            "method": "POST"
+        }}}})
     else:
-        return JSONResponse({{{{ "error": "Method not allowed", "status": "error" }}}}, status_code=405)
+        return JSONResponse({{{{
+            "error": "Method not allowed",
+            "status": "error"
+        }}}}, status_code=405)
 
 
 # Routes for apps should be in each app's routes.py file
@@ -340,7 +350,9 @@ def create_app(name: str, directory: str | None) -> None:
 @click.argument("target")
 @click.option("--host", "-h", default="127.0.0.1", show_default=True, help="Bind host.")
 @click.option("--port", "-p", default=8000, show_default=True, type=int, help="Bind port.")
-@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload on file changes.")
+@click.option(
+    "--reload/--no-reload",
+    default=True, help="Enable/disable auto-reload on file changes (default: --reload).")
 @click.option(
     "--workers",
     "-w",

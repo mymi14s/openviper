@@ -23,7 +23,7 @@ import click
 if TYPE_CHECKING:
     from openviper.utils.module_resolver import ResolvedModule
 
-logger = logging.getLogger("openviper.management.flexible_adapter")
+logger = logging.getLogger("openviper.core.flexible_adapter")
 
 
 def bootstrap_and_run(

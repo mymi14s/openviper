@@ -1,12 +1,10 @@
-"""Model event dispatcher for OpenViper tasks.
+"""Model event dispatcher for OpenViper.
 
 Allows per-model lifecycle event hooks to be declared in project settings via
 ``MODEL_EVENTS`` and automatically fired from :class:`~openviper.db.models.Model`
 ``save()`` / ``delete()`` calls.
 
-The dispatcher is only active when ``TASKS['enabled']`` evaluates to ``True``.
-When the task system is disabled ``get_dispatcher()`` returns ``None`` and
-:meth:`Model._trigger_event` becomes a no-op.
+The dispatcher is active whenever ``MODEL_EVENTS`` is configured in settings.
 
 Settings
 --------
@@ -92,13 +90,11 @@ import logging
 import threading
 from typing import Any, cast
 
-# Module-level reference so tests can patch ``openviper.tasks.events.settings``
+# Module-level reference so tests can patch ``openviper.db.events.settings``
 # without having to reach into ``openviper.conf.settings``.
-# ``settings`` is a _LazySettings proxy — importing it here does not trigger
-# settings loading; attributes are accessed lazily at call time.
-from openviper.conf.settings import settings  # noqa: E402
+from openviper.conf.settings import settings
 
-logger = logging.getLogger("openviper.tasks")
+logger = logging.getLogger("openviper.db")
 
 # Sentinel for "not yet initialised" — avoids confusing None (disabled) with
 # "not yet set".
@@ -114,7 +110,7 @@ _dispatcher_cache: Any = _UNSET
 # Populated by @model_event.trigger(...).  Keyed by model_path → event_name
 # → list of callables.  Intentionally separate from the settings-based
 # dispatcher so that decorator-registered handlers fire even when
-# TASKS['enabled'] is falsy.
+# MODEL_EVENTS is empty.
 _decorator_registry: dict[str, dict[str, list[Any]]] = {}
 _dec_registry_lock = threading.Lock()
 
@@ -220,23 +216,22 @@ class ModelEventDispatcher:
             instance:   The model instance that triggered the event.
             **kwargs:   Extra context forwarded verbatim to every handler.
         """
+        # Dispatch settings-based handlers (MODEL_EVENTS).
         event_map = self._handlers.get(model_path)
-        if event_map is None:
-            return
-        handlers = event_map.get(event_name)
-        if not handlers:
-            return
-        for handler in handlers:
-            try:
-                _call_handler(handler, instance, event_name, **kwargs)
-            except Exception as exc:
-                logger.warning(
-                    "MODEL_EVENTS handler %r raised for %s.%s: %s",
-                    getattr(handler, "__qualname__", repr(handler)),
-                    model_path,
-                    event_name,
-                    exc,
-                )
+        if event_map:
+            handlers = event_map.get(event_name)
+            if handlers:
+                for handler in handlers:
+                    try:
+                        _call_handler(handler, instance, event_name, **kwargs)
+                    except Exception as exc:
+                        logger.warning(
+                            "MODEL_EVENTS handler %r raised for %s.%s: %s",
+                            getattr(handler, "__qualname__", repr(handler)),
+                            model_path,
+                            event_name,
+                            exc,
+                        )
 
         # Dispatch decorator-registered handlers (from @model_event.trigger).
         _dispatch_decorator_handlers(model_path, event_name, instance, **kwargs)
@@ -265,8 +260,8 @@ def get_dispatcher() -> ModelEventDispatcher | None:
     with a lock-free fast path.
 
     Returns:
-        ``None`` when the task system is disabled (``TASKS['enabled']`` is
-        falsy) or ``MODEL_EVENTS`` is empty.
+        An empty (falsy) :class:`ModelEventDispatcher` when ``MODEL_EVENTS``
+        is empty or no handlers can be resolved.
     """
     global _dispatcher_cache
     # Fast path (lock-free): already built (None or a dispatcher).
@@ -301,22 +296,15 @@ def reset_dispatcher() -> None:
 def _build_dispatcher() -> ModelEventDispatcher | None:
     """Create and return a dispatcher from current settings, or ``None``."""
     try:
-        task_cfg: dict[str, Any] = dict(getattr(settings, "TASKS", {}) or {})
-        if not task_cfg.get("enabled", False):
-            logger.debug("MODEL_EVENTS dispatcher not created: TASKS['enabled'] is falsy.")
-            return None
-
         model_events: dict[str, Any] = dict(getattr(settings, "MODEL_EVENTS", {}) or {})
-        if not model_events:
-            return None
-
         dispatcher = ModelEventDispatcher(model_events)
+
         if dispatcher:
             logger.info(
                 "MODEL_EVENTS dispatcher ready — %d model(s) registered.",
                 len(dispatcher._handlers),
             )
-        return dispatcher or None
+        return dispatcher
 
     except Exception as exc:
         logger.warning("MODEL_EVENTS: could not build dispatcher: %s", exc)
@@ -383,9 +371,9 @@ def _dispatch_decorator_handlers(
     """Fire all handlers registered via ``@model_event.trigger(...)`` for
     *model_path* / *event_name*.
 
-    Called both from :meth:`ModelEventDispatcher.trigger` (task system on) and
-    directly from ``Model._trigger_event`` (task system off), so decorator
-    handlers always fire regardless of ``TASKS['enabled']``.
+    Called both from :meth:`ModelEventDispatcher.trigger` (settings on) and
+    directly from ``Model._trigger_event`` (settings off), so decorator
+    handlers always fire.
     """
     event_map = _decorator_registry.get(model_path)
     if not event_map:
@@ -412,7 +400,7 @@ class _ModelEventProxy:
     Register an inline handler for a model lifecycle event without adding an
     entry to ``MODEL_EVENTS`` in ``settings.py``::
 
-        from openviper.tasks.events import model_event
+        from openviper.db.events import model_event
 
         @model_event.trigger("posts.models.Post.after_insert")
         async def send_welcome_email(post, *, event):
@@ -423,8 +411,7 @@ class _ModelEventProxy:
     ``"{module}.{ClassName}.{event_name}"``.  The last segment is the event
     name; everything before it is the model key (matching ``MODEL_EVENTS``).
 
-    Decorator-registered handlers fire even when ``TASKS['enabled']`` is
-    ``False`` or ``MODEL_EVENTS`` is empty.
+    Decorator-registered handlers fire even when ``MODEL_EVENTS`` is empty.
     """
 
     __slots__ = ()

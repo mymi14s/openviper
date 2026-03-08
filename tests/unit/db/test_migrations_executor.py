@@ -1,3 +1,5 @@
+import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,6 +18,7 @@ from openviper.db.migrations.executor import (
     Operation,
     RemoveColumn,
     RenameColumn,
+    RenameTable,
     RestoreColumn,
     RunSQL,
     _count_null_values,
@@ -29,6 +32,7 @@ from openviper.db.migrations.executor import (
     _should_skip_forward,
     _types_compatible,
     discover_migrations,
+    sort_migrations,
     validate_restore_column,
 )
 
@@ -360,9 +364,6 @@ def test_discover_migrations():
     assert "auth" in names  # Built-in app
 
     # Test resolved apps
-    import tempfile
-    from pathlib import Path
-
     with tempfile.TemporaryDirectory() as td:
         tdp = Path(td)
         mig_dir = tdp / "migrations"
@@ -411,7 +412,6 @@ def test_get_dialect_settings_raises():
 
 
 def test_rename_table_backward_sql_non_mysql():
-    from openviper.db.migrations.executor import RenameTable
 
     rt = RenameTable("old_tbl", "new_tbl")
     sql = rt.backward_sql()
@@ -492,3 +492,128 @@ async def test_migration_skip_forward_continue(memory_engine):
         applied = await executor.migrate()
     assert "skip_fwd_001" in applied
     assert "skip_fwd_002" in applied
+
+
+# ── New branch-coverage tests ──────────────────────────────────────────────────
+
+
+def test_colorize_with_color_support():
+    with patch.object(_MigrationLogger, "_supports_color", return_value=True):
+        result = _MigrationLogger._colorize("hello", "GREEN")
+        assert "\033[" in result
+        assert "hello" in result
+        assert _MigrationLogger.COLORS["END"] in result
+
+
+def test_map_column_type_unknown_dialect():
+    assert _map_column_type("DATETIME", "unknown_dialect") == "DATETIME"
+    assert _map_column_type("VARCHAR(10)", "unknown_dialect") == "VARCHAR(10)"
+
+
+def test_rename_table_forward_sql_mysql():
+    with patch("openviper.db.migrations.executor._get_dialect", return_value="mysql"):
+        rt = RenameTable("old_tbl", "new_tbl")
+        sql = rt.forward_sql()
+        assert sql == ["RENAME TABLE `old_tbl` TO `new_tbl`"]
+
+
+def test_rename_table_backward_sql_mysql():
+    with patch("openviper.db.migrations.executor._get_dialect", return_value="mysql"):
+        rt = RenameTable("old_tbl", "new_tbl")
+        sql = rt.backward_sql()
+        assert sql == ["RENAME TABLE `new_tbl` TO `old_tbl`"]
+
+
+def test_alter_column_sqlite_type_change():
+    with patch("openviper.db.migrations.executor._get_dialect", return_value="sqlite"):
+        alt = AlterColumn("t", "c", column_type="TEXT", old_type="INTEGER")
+        fwd = alt.forward_sql()
+        assert any('ALTER TABLE "t" ALTER COLUMN "c" TYPE TEXT' in x for x in fwd)
+
+
+@pytest.mark.asyncio
+async def test_get_soft_removed_info_exception():
+    conn = MagicMock()
+    conn.execute = AsyncMock(side_effect=Exception("db error"))
+    result = await _get_soft_removed_info(conn, "table", "col")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_count_null_values_exception():
+    conn = MagicMock()
+    conn.execute = AsyncMock(side_effect=Exception("db error"))
+    result = await _count_null_values(conn, "table", "col")
+    assert result == 0
+
+
+def test_sort_migrations_circular():
+    rec1 = MigrationRecord("app", "circ_001", [("app", "circ_002")], [], "path1")
+    rec2 = MigrationRecord("app", "circ_002", [("app", "circ_001")], [], "path2")
+    result = sort_migrations([rec1, rec2])
+    assert len(result) == 2
+    names = {r.name for r in result}
+    assert names == {"circ_001", "circ_002"}
+
+
+def test_discover_migrations_spec_none(tmp_path):
+
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    (mig_dir / "001_test.py").write_text("operations = []\n")
+
+    with patch("importlib.util.spec_from_file_location", return_value=None):
+        recs = discover_migrations(resolved_apps={"dummy": str(tmp_path)})
+        dummy_recs = [r for r in recs if r.app == "dummy"]
+        assert len(dummy_recs) == 0
+
+
+def test_discover_migrations_import_error():
+    with patch("importlib.import_module", side_effect=ImportError("no module")):
+        recs = discover_migrations()
+        assert isinstance(recs, list)
+
+
+def test_discover_migrations_pkg_no_file():
+    mock_pkg = MagicMock()
+    mock_pkg.__file__ = None
+    with patch("importlib.import_module", return_value=mock_pkg):
+        recs = discover_migrations()
+        assert isinstance(recs, list)
+
+
+@pytest.mark.asyncio
+async def test_migration_executor_raises_on_error(memory_engine):
+    bad_rec = MigrationRecord("app", "raises_001", [], [RunSQL("INVALID SQL THAT FAILS")], "path")
+    with patch("openviper.db.migrations.executor.discover_migrations", return_value=[bad_rec]):
+        executor = MigrationExecutor()
+        with pytest.raises(sa.exc.SQLAlchemyError):
+            await executor.migrate(ignore_errors=False)
+
+
+@pytest.mark.asyncio
+async def test_migration_executor_sync_content_types_auth(memory_engine, mock_discover):
+    executor = MigrationExecutor()
+    sync_mock = AsyncMock()
+    auth_utils_mock = MagicMock()
+    auth_utils_mock.sync_content_types = sync_mock
+    with patch("openviper.db.migrations.executor.settings") as mock_settings:
+        mock_settings.INSTALLED_APPS = ["auth"]
+        mock_settings.DATABASE_URL = "sqlite:///:memory:"
+        with patch.dict("sys.modules", {"openviper.auth.utils": auth_utils_mock}):
+            await executor.migrate()
+    sync_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_migration_executor_sync_content_types_exception(memory_engine, mock_discover):
+    executor = MigrationExecutor()
+    auth_utils_mock = MagicMock()
+    auth_utils_mock.sync_content_types = AsyncMock(side_effect=Exception("sync failed"))
+    with patch("openviper.db.migrations.executor.settings") as mock_settings:
+        mock_settings.INSTALLED_APPS = ["openviper.auth"]
+        mock_settings.DATABASE_URL = "sqlite:///:memory:"
+        with patch.dict("sys.modules", {"openviper.auth.utils": auth_utils_mock}):
+            applied = await executor.migrate()
+    # Exception is swallowed; return value is still valid
+    assert isinstance(applied, list)

@@ -69,7 +69,7 @@ from openviper.tasks import task
 ''',
     "events.py": '''"""{{ app_label }} model events."""
 
-from openviper.tasks.events import model_event
+from openviper.db.events import model_event
 
 
 # Define your background events here.

@@ -60,6 +60,7 @@ class Post(Model):
 
     async def on_update(self) -> None:
         """On update hook."""
+        print("I am in model update")
 
     async def on_change(self, previous_state: dict[str, Any]) -> None:
         """On change hook."""

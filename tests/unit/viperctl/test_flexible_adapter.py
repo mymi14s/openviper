@@ -1,4 +1,4 @@
-"""Tests for openviper.management.flexible_adapter."""
+"""Tests for openviper.core.flexible_adapter."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from openviper.conf.settings import Settings, _LazySettings
-from openviper.management.flexible_adapter import (
+from openviper.core.flexible_adapter import (
     _ensure_models_imported,
     _ensure_sys_path,
     _inject_app_into_settings,
@@ -183,7 +183,7 @@ class TestEnsureModelsImported:
             models_module="myapp.models",
         )
         with patch(
-            "openviper.management.flexible_adapter.importlib.import_module",
+            "openviper.core.flexible_adapter.importlib.import_module",
             side_effect=ImportError("no module"),
         ):
             # Must not raise; just logs at DEBUG level and returns early.
@@ -250,9 +250,9 @@ class TestBootstrapAndRun:
             raise SystemExit(0)
 
         with (
-            patch("openviper.management.flexible_adapter._ensure_sys_path"),
-            patch("openviper.management.flexible_adapter._inject_app_into_settings"),
-            patch("openviper.management.flexible_adapter._ensure_models_imported"),
+            patch("openviper.core.flexible_adapter._ensure_sys_path"),
+            patch("openviper.core.flexible_adapter._inject_app_into_settings"),
+            patch("openviper.core.flexible_adapter._ensure_models_imported"),
             patch("openviper.setup"),
             patch(
                 "openviper.core.management.execute_from_command_line",
@@ -286,9 +286,9 @@ class TestBootstrapAndRun:
             raise SystemExit(0)
 
         with (
-            patch("openviper.management.flexible_adapter._ensure_sys_path"),
-            patch("openviper.management.flexible_adapter._inject_app_into_settings"),
-            patch("openviper.management.flexible_adapter._ensure_models_imported"),
+            patch("openviper.core.flexible_adapter._ensure_sys_path"),
+            patch("openviper.core.flexible_adapter._inject_app_into_settings"),
+            patch("openviper.core.flexible_adapter._ensure_models_imported"),
             patch("openviper.setup"),
             patch(
                 "openviper.core.management.execute_from_command_line",
@@ -322,9 +322,9 @@ class TestBootstrapAndRun:
             raise SystemExit(0)
 
         with (
-            patch("openviper.management.flexible_adapter._prepare_root_layout"),
-            patch("openviper.management.flexible_adapter._inject_app_into_settings"),
-            patch("openviper.management.flexible_adapter._ensure_models_imported"),
+            patch("openviper.core.flexible_adapter._prepare_root_layout"),
+            patch("openviper.core.flexible_adapter._inject_app_into_settings"),
+            patch("openviper.core.flexible_adapter._ensure_models_imported"),
             patch("openviper.setup"),
             patch(
                 "openviper.core.management.execute_from_command_line",

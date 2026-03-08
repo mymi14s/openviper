@@ -1,4 +1,4 @@
-from openviper.tasks.events import model_event
+from openviper.db.events import model_event
 
 
 async def send_email(user, event):
@@ -10,5 +10,5 @@ async def send_email(user, event):
 @model_event.trigger("users.models.User.on_update")
 async def on_user_updated(user, *, event):
     """Event handler for when a new user is created."""
-    print(f"New user created: {user.username}")
+    print(f"User updated: {user.username}")
     print("Triggering email notification...", event)

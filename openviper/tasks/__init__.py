@@ -38,14 +38,14 @@ from __future__ import annotations
 
 import os
 
-from openviper.tasks.broker import get_broker, reset_broker, setup_broker
-from openviper.tasks.core import Scheduler
-from openviper.tasks.decorators import task
-from openviper.tasks.events import (
+from openviper.db.events import (
     ModelEventDispatcher,
     get_dispatcher,
     reset_dispatcher,
 )
+from openviper.tasks.broker import get_broker, reset_broker, setup_broker
+from openviper.tasks.core import Scheduler
+from openviper.tasks.decorators import task
 from openviper.tasks.middleware import reset_tracking_buffer
 from openviper.tasks.registry import (
     ScheduleEntry,

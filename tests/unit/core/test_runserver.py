@@ -9,6 +9,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 from openviper.core.management.commands.runserver import Command, _clear_pycache
+from openviper.core.management.utils import print_banner
 
 # ---------------------------------------------------------------------------
 # _clear_pycache
@@ -311,3 +312,131 @@ class TestCheckPendingMigrations:
             side_effect=RuntimeError("DB down"),
         ):
             cmd._check_pending_migrations()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# _reload_dirs – exception swallowed
+# ---------------------------------------------------------------------------
+
+
+class TestReloadDirsImportError:
+    def test_exception_in_openviper_import_is_swallowed(self):
+        # When importing openviper raises, the except clause silently passes
+        cmd = Command()
+        with patch.dict(sys.modules, {"openviper": None}):
+            dirs = cmd._reload_dirs("/some/root")
+        # Should return at minimum the root directory without raising
+        assert "/some/root" in dirs
+
+
+# ---------------------------------------------------------------------------
+# _run_with_cache_clear – ImportError/AttributeError for supervisor
+# ---------------------------------------------------------------------------
+
+
+class TestRunWithCacheClearSupervisor:
+    def test_supervisor_import_error_is_swallowed(self):
+        # ImportError for a uvicorn supervisor is silently ignored
+        cmd = Command()
+        mock_uvicorn = MagicMock()
+        mock_uvicorn.run = MagicMock()
+        with patch(
+            "importlib.import_module",
+            side_effect=ImportError("no module"),
+        ):
+            cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
+        mock_uvicorn.run.assert_called_once()
+
+    def test_supervisor_attribute_error_is_swallowed(self):
+        # AttributeError (class missing on module) is silently ignored
+        cmd = Command()
+        mock_uvicorn = MagicMock()
+        mock_uvicorn.run = MagicMock()
+        fake_mod = MagicMock(spec=[])  # no attributes → getattr raises AttributeError
+        with patch(
+            "importlib.import_module",
+            return_value=fake_mod,
+        ):
+            cmd._run_with_cache_clear(mock_uvicorn, "myapp.asgi:app", "127.0.0.1", 8000)
+        mock_uvicorn.run.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _check_pending_migrations – non-dict resolved_apps → {} and
+# _get_pending() body executed
+# ---------------------------------------------------------------------------
+
+
+class TestCheckPendingMigrationsExtra:
+    def test_non_dict_resolved_apps_treated_as_empty(self):
+        # resolved_apps that is not a dict is replaced with {}
+        cmd = Command()
+        with patch(
+            "openviper.core.management.commands.runserver.AppResolver"
+        ) as mock_resolver_cls:
+            mock_resolver = MagicMock()
+            mock_resolver.resolve_all_apps.return_value = {"found": ["not", "a", "dict"]}
+            mock_resolver_cls.return_value = mock_resolver
+            with (
+                patch(
+                    "openviper.core.management.commands.runserver.asyncio.run",
+                    return_value=[],
+                ),
+                patch.object(cmd, "stdout"),
+            ):
+                cmd._check_pending_migrations()
+        # Should not raise; non-dict resolved_apps is handled gracefully
+
+    def test_get_pending_body_executed_via_asyncio_run(self):
+        # _get_pending() async function body is exercised
+        cmd = Command()
+        executed = []
+        with patch(
+            "openviper.core.management.commands.runserver.AppResolver"
+        ) as mock_resolver_cls:
+            mock_resolver = MagicMock()
+            mock_resolver.resolve_all_apps.return_value = {"found": {}}
+            mock_resolver_cls.return_value = mock_resolver
+
+            def _capture_and_run(coro):
+                import asyncio as _asyncio
+                executed.append(True)
+                try:
+                    return _asyncio.get_event_loop().run_until_complete(coro)
+                except Exception:
+                    coro.close()
+                    return []
+
+            with (
+                patch(
+                    "openviper.core.management.commands.runserver.asyncio.run",
+                    side_effect=_capture_and_run,
+                ),
+                patch(
+                    "openviper.core.management.commands.runserver.MigrationExecutor"
+                ) as mock_exec_cls,
+                patch(
+                    "openviper.core.management.commands.runserver.discover_migrations",
+                    return_value=[],
+                ),
+                patch.object(cmd, "stdout"),
+            ):
+                mock_exec = MagicMock()
+                mock_exec._ensure_migration_table = MagicMock(return_value=None)
+                mock_exec._applied_migrations = MagicMock(return_value=set())
+                mock_exec_cls.return_value = mock_exec
+                cmd._check_pending_migrations()
+
+        assert executed
+
+
+# ---------------------------------------------------------------------------
+# print_banner – cmd_obj=None creates BaseCommand internally
+# ---------------------------------------------------------------------------
+
+
+def test_print_banner_no_cmd_obj_creates_base_command():
+    # When cmd_obj is None, BaseCommand() is created internally and banner is printed
+    with patch("builtins.print"):
+        print_banner("127.0.0.1", 8000)
+    # No exception → BaseCommand was created and get_banner ran

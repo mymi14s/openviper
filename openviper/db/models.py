@@ -693,7 +693,7 @@ class Model(metaclass=ModelMeta):
                         ``"after_insert"``, ``"on_change"``, ``"after_delete"``).
         """
         try:
-            from openviper.tasks.events import (  # deferred; avoids circular import
+            from openviper.db.events import (  # deferred; avoids circular import
                 _dispatch_decorator_handlers,
                 get_dispatcher,
             )

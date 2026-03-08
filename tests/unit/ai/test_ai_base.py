@@ -108,7 +108,7 @@ async def test_complete_passes_kwargs_to_subclass():
     assert provider.last_kwargs["max_tokens"] == 256
 
 
-# ── stream_complete() (lines 49-50) ──────────────────────────────────────────
+# ── stream_complete()  ──────────────────────────────────────────
 
 
 async def test_stream_complete_yields_at_least_one_chunk():
@@ -191,7 +191,7 @@ async def test_embed_error_message_mentions_embeddings():
         await provider.embed("text")
 
 
-# ── before_inference() (line 74) ─────────────────────────────────────────────
+# ── before_inference()  ─────────────────────────────────────────────
 
 
 async def test_before_inference_returns_tuple():
@@ -244,7 +244,7 @@ async def test_before_inference_with_empty_prompt():
     assert k == {}
 
 
-# ── after_inference() (line 86) ──────────────────────────────────────────────
+# ── after_inference()  ──────────────────────────────────────────────
 
 
 async def test_after_inference_returns_response():

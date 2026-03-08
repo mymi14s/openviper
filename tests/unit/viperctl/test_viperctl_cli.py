@@ -38,7 +38,7 @@ class TestViperctlCommand:
         ]
         for cmd in valid_commands:
             with (
-                patch("openviper.management.flexible_adapter.bootstrap_and_run") as mock_run,
+                patch("openviper.core.flexible_adapter.bootstrap_and_run") as mock_run,
                 patch("openviper.utils.module_resolver.resolve_target") as mock_resolve,
                 patch(
                     "openviper.utils.settings_discovery.discover_settings_module"
@@ -64,7 +64,7 @@ class TestViperctlCommand:
     ) -> None:
         """--settings value is forwarded to discover_settings_module."""
         with (
-            patch("openviper.management.flexible_adapter.bootstrap_and_run"),
+            patch("openviper.core.flexible_adapter.bootstrap_and_run"),
             patch("openviper.utils.module_resolver.resolve_target") as mock_resolve,
             patch("openviper.utils.settings_discovery.discover_settings_module") as mock_discover,
         ):
@@ -91,7 +91,7 @@ class TestViperctlCommand:
     ) -> None:
         """Target argument is forwarded to resolve_target."""
         with (
-            patch("openviper.management.flexible_adapter.bootstrap_and_run"),
+            patch("openviper.core.flexible_adapter.bootstrap_and_run"),
             patch("openviper.utils.module_resolver.resolve_target") as mock_resolve,
             patch("openviper.utils.settings_discovery.discover_settings_module"),
         ):
@@ -116,7 +116,7 @@ class TestViperctlCommand:
     ) -> None:
         """When no target is provided, defaults to '.'."""
         with (
-            patch("openviper.management.flexible_adapter.bootstrap_and_run"),
+            patch("openviper.core.flexible_adapter.bootstrap_and_run"),
             patch("openviper.utils.module_resolver.resolve_target") as mock_resolve,
             patch("openviper.utils.settings_discovery.discover_settings_module"),
         ):
@@ -141,7 +141,7 @@ class TestViperctlCommand:
     ) -> None:
         """Extra CLI arguments are passed through as command_args."""
         with (
-            patch("openviper.management.flexible_adapter.bootstrap_and_run") as mock_run,
+            patch("openviper.core.flexible_adapter.bootstrap_and_run") as mock_run,
             patch("openviper.utils.module_resolver.resolve_target") as mock_resolve,
             patch("openviper.utils.settings_discovery.discover_settings_module"),
         ):

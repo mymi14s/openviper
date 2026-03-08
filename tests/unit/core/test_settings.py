@@ -18,11 +18,13 @@ import pytest
 from openviper.conf.settings import (
     Settings,
     _apply_env_overrides,
+    _auto_include_project_app,
+    _cast_env_value,
     _LazySettings,
     generate_secret_key,
     validate_settings,
 )
-from openviper.exceptions import SettingsValidationError
+from openviper.exceptions import ImproperlyConfigured, SettingsValidationError
 
 # ---------------------------------------------------------------------------
 # Settings dataclass behaviour
@@ -353,3 +355,101 @@ def test_lazy_settings_no_dotenv():
         mod = importlib.reload(sys.modules["openviper.conf.settings"])
         assert not mod._HAS_DOTENV
     importlib.reload(sys.modules["openviper.conf.settings"])
+
+
+# ---------------------------------------------------------------------------
+# _cast_env_value – dict type returns None
+# ---------------------------------------------------------------------------
+
+
+def test_cast_env_value_dict_type_returns_none():
+    # dict is not in _ENV_CASTERS so caster is None → returns None
+    result = _cast_env_value({"key": "val"}, "anything")
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _auto_include_project_app – early returns
+# ---------------------------------------------------------------------------
+
+
+def test_auto_include_project_app_already_present():
+    # project_app already in INSTALLED_APPS → returns instance unchanged
+    s = dataclasses.replace(Settings(), INSTALLED_APPS=("myproject",))
+    result = _auto_include_project_app(s, "myproject.settings")
+    assert result is s
+
+
+def test_auto_include_project_app_prepends_when_absent():
+    # project_app not in INSTALLED_APPS → prepended
+    s = Settings()
+    result = _auto_include_project_app(s, "myproject.settings")
+    assert result.INSTALLED_APPS[0] == "myproject"
+
+
+# ---------------------------------------------------------------------------
+# _LazySettings._setup – double-check lock inner branch
+# ---------------------------------------------------------------------------
+
+
+def test_lazy_settings_setup_double_check_skips_when_configured_inside_lock():
+    # Simulate another thread configuring inside the lock before we reach body.
+    lazy = _LazySettings()
+
+    class _MockLock:
+        def __enter__(self):
+            # Mark as configured while holding the lock — inner double-check returns early
+            object.__setattr__(lazy, "_configured", True)
+            object.__setattr__(lazy, "_instance", Settings())
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    with patch.object(lazy, "_lock", _MockLock()):
+        lazy._setup()
+
+    assert lazy._configured is True
+
+
+# ---------------------------------------------------------------------------
+# _LazySettings._setup – ImportError from OPENVIPER_SETTINGS_MODULE
+# ---------------------------------------------------------------------------
+
+
+def test_lazy_settings_setup_import_error_falls_back_to_defaults():
+    lazy = _LazySettings()
+    with (
+        patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "no_such_module_xyz"}),
+        patch("openviper.conf.settings.importlib.import_module", side_effect=ImportError("fail")),
+    ):
+        lazy._setup()
+    # After ImportError, _setup falls back to a default Settings instance
+    assert lazy._instance is not None
+    assert dataclasses.is_dataclass(lazy._instance)
+    assert lazy._configured is True
+
+
+# ---------------------------------------------------------------------------
+# _LazySettings.__getattr__ – _instance is None raises ImproperlyConfigured
+# ---------------------------------------------------------------------------
+
+
+def test_lazy_settings_getattr_none_instance_raises():
+    lazy = _LazySettings()
+    object.__setattr__(lazy, "_configured", True)
+    # _instance is already None from __init__; with _configured=True _setup() is not called
+    with pytest.raises(ImproperlyConfigured):
+        _ = lazy.DEBUG
+
+
+# ---------------------------------------------------------------------------
+# _apply_env_overrides – override applied via _setup
+# ---------------------------------------------------------------------------
+
+
+def test_lazy_settings_setup_applies_env_overrides():
+    lazy = _LazySettings()
+    with patch.dict("os.environ", {"DEBUG": "0"}):
+        lazy._setup()
+    assert lazy._instance.DEBUG is False

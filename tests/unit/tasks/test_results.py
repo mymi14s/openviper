@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
@@ -11,10 +12,13 @@ import pytest
 import openviper.tasks.results as results_module
 from openviper.tasks.results import (
     _build_upsert_fn,
+    _get_engine,
     _resolve_db_url,
     _row_to_dict,
     _to_sync_url,
     batch_upsert_results,
+    clean_old_results,
+    delete_task_result,
     get_task_result,
     get_task_result_sync,
     list_task_results,
@@ -394,3 +398,149 @@ class TestRowToDict:
         )
         d = _row_to_dict(row)
         assert d["enqueued_at"] is None
+
+
+# ---------------------------------------------------------------------------
+# _get_engine – pool kwargs
+# ---------------------------------------------------------------------------
+
+
+class TestGetEnginePoolKwargs:
+    def test_no_pool_kwargs_for_memory_url(self):
+        # :memory: URL skips pool_size/max_overflow
+        reset_engine()
+        with (
+            patch("openviper.tasks.results._resolve_db_url", return_value="sqlite:///:memory:"),
+            patch("openviper.tasks.results.create_engine") as mock_ce,
+        ):
+            mock_engine = MagicMock()
+            mock_engine.dialect.name = "sqlite"
+            mock_ce.return_value = mock_engine
+            _get_engine()
+        reset_engine()
+        _, call_kwargs = mock_ce.call_args
+        assert "pool_size" not in call_kwargs
+        assert "max_overflow" not in call_kwargs
+
+    def test_pool_kwargs_set_for_non_memory_url(self):
+        # Non-memory URL sets pool_size=10 and max_overflow=5
+        reset_engine()
+        with (
+            patch("openviper.tasks.results._resolve_db_url", return_value="sqlite:///test_branch.db"),
+            patch("openviper.tasks.results.create_engine") as mock_ce,
+        ):
+            mock_engine = MagicMock()
+            mock_engine.dialect.name = "sqlite"
+            mock_ce.return_value = mock_engine
+            _get_engine()
+        reset_engine()
+        _, call_kwargs = mock_ce.call_args
+        assert call_kwargs.get("pool_size") == 10
+        assert call_kwargs.get("max_overflow") == 5
+
+
+# ---------------------------------------------------------------------------
+# _build_upsert_fn – callable bodies
+# ---------------------------------------------------------------------------
+
+
+class TestUpsertFnBodies:
+    def test_postgresql_upsert_fn_executes(self):
+        # Covers the _pg closure body
+        pg_stub = MagicMock()
+        insert_stmt = MagicMock()
+        insert_stmt.return_value = insert_stmt
+        insert_stmt.on_conflict_do_update.return_value = insert_stmt
+        pg_stub.insert.return_value = insert_stmt
+        with patch.dict(sys.modules, {"sqlalchemy.dialects.postgresql": pg_stub}):
+            fn = _build_upsert_fn("postgresql")
+        conn = MagicMock()
+        fn(conn, "pg-msg-001", {"status": "success"})
+        conn.execute.assert_called_once()
+
+    def test_mysql_upsert_fn_with_update_data(self):
+        # Covers the _mysql closure body with update data
+        fn = _build_upsert_fn("mysql")
+        conn = MagicMock()
+        fn(conn, "mysql-msg-001", {"status": "success"})
+        conn.execute.assert_called_once()
+
+    def test_mysql_upsert_fn_without_update_data(self):
+        # Covers the prefix_with("IGNORE") path
+        fn = _build_upsert_fn("mysql")
+        conn = MagicMock()
+        fn(conn, "mysql-msg-002", {})
+        conn.execute.assert_called_once()
+
+    def test_generic_upsert_fn_inserts_new_row(self):
+        # Covers _generic when no existing row found
+        fn = _build_upsert_fn("unknown_dialect")
+        conn = MagicMock()
+        conn.execute.return_value.fetchone.return_value = None
+        fn(conn, "generic-msg-new", {"error": "none"})
+        assert conn.execute.call_count == 2  # SELECT + INSERT
+
+    def test_generic_upsert_fn_updates_existing_row(self):
+        # Covers _generic when existing row found
+        fn = _build_upsert_fn("unknown_dialect")
+        conn = MagicMock()
+        conn.execute.return_value.fetchone.return_value = MagicMock()
+        fn(conn, "generic-msg-exists", {"status": "success"})
+        assert conn.execute.call_count == 2  # SELECT + UPDATE
+
+
+# ---------------------------------------------------------------------------
+# upsert_result – JSON exception repr fallback and transaction exception
+# ---------------------------------------------------------------------------
+
+
+class TestUpsertResultEdgeCases:
+    def test_json_exception_falls_back_to_repr(self, sqlite_engine):
+        # JSON serialisation failure → repr() stored
+        class _Unserializable:
+            def __repr__(self):
+                return "<Unserializable>"
+
+        upsert_result("msg-repr-001", args=_Unserializable())
+        row = get_task_result_sync("msg-repr-001")
+        assert row is not None
+        assert "<Unserializable>" in str(row.get("args", ""))
+
+    def test_transaction_exception_swallowed(self, sqlite_engine):
+        # Exception inside engine.begin() is swallowed with warning
+        with patch("openviper.tasks.results._upsert_fn", side_effect=Exception("db fail")):
+            upsert_result("msg-exc-001", status="pending")
+        # Must not raise
+
+
+# ---------------------------------------------------------------------------
+# list_task_results_sync – queue_name filter
+# ---------------------------------------------------------------------------
+
+
+class TestListTaskResultsQueueFilter:
+    def test_filters_by_queue_name(self, sqlite_engine):
+        upsert_result("msg-q001", status="success", queue_name="high")
+        upsert_result("msg-q002", status="success", queue_name="low")
+        rows = list_task_results_sync(queue_name="high")
+        assert len(rows) == 1
+        assert rows[0]["queue_name"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# delete_task_result / clean_old_results – RuntimeError paths
+# ---------------------------------------------------------------------------
+
+
+class TestManagementNoEngine:
+    def test_delete_task_result_no_engine_returns_false(self):
+        reset_engine()
+        with patch("openviper.tasks.results._resolve_db_url", return_value=""):
+            result = delete_task_result("nonexistent")
+        assert result is False
+
+    def test_clean_old_results_no_engine_returns_zero(self):
+        reset_engine()
+        with patch("openviper.tasks.results._resolve_db_url", return_value=""):
+            count = clean_old_results(days=7)
+        assert count == 0

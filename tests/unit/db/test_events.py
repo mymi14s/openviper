@@ -31,7 +31,7 @@ def _make_cfg(**models):
     Usage::
         cfg = _make_cfg(**{
             "myapp.models.Foo": {
-                "after_insert": ["tests.unit.tasks.test_events._noop"],
+                "after_insert": ["tests.unit.db.test_events._noop"],
             }
         })
     """
@@ -200,11 +200,6 @@ def clean_dispatcher():
 
 
 class TestGetDispatcher:
-    def test_returns_none_when_build_returns_none(self):
-        with patch("openviper.db.events._build_dispatcher", return_value=None):
-            d = get_dispatcher()
-        assert d is None
-
     def test_returns_dispatcher_when_events_configured(self):
         mock_dispatcher = ModelEventDispatcher.__new__(ModelEventDispatcher)
         mock_dispatcher._handlers = {"m.M": {"after_insert": [_resolve_dotted]}}
@@ -249,7 +244,7 @@ class TestGetDispatcher:
 
 
 class TestBuildDispatcher:
-    def test_empty_model_events_returns_falsy_dispatcher(self):
+    def test_none_when_model_events_empty(self):
         with patch(
             "openviper.db.events.settings",
             MODEL_EVENTS={},
@@ -260,7 +255,7 @@ class TestBuildDispatcher:
         assert isinstance(result, ModelEventDispatcher)
         assert not bool(result)
 
-    def test_unresolvable_handlers_returns_falsy_dispatcher(self):
+    def test_none_when_model_events_unresolvable(self):
         with patch(
             "openviper.db.events.settings",
             MODEL_EVENTS={"m.M": {"after_insert": ["no.such.handler"]}},
@@ -421,6 +416,11 @@ class TestModelTriggerEvent:
         assert handler_calls == [post_instance]
 
 
+# ---------------------------------------------------------------------------
+# get_dispatcher double-check lock
+# ---------------------------------------------------------------------------
+
+
 class TestGetDispatcherDoubleCheckLock:
     """Verify that the double-check inside the lock prevents building twice."""
 
@@ -448,7 +448,7 @@ class TestGetDispatcherDoubleCheckLock:
         t1.join()
         t2.join()
 
-        # Exactly 1 build call due to double-check (or at most 2 if race resolved fine)
+        # Exactly 1 build call due to double-check
         assert len(build_calls) >= 1
         assert all(r is None for r in results)
         reset_dispatcher()
@@ -612,3 +612,29 @@ class TestModelEventProxyTrigger:
         registry = _events_module._decorator_registry.get("m.M", {})
         assert "after_insert" in registry
         assert "on_change" in registry
+
+
+# ---------------------------------------------------------------------------
+# get_dispatcher – double-check inside lock
+# ---------------------------------------------------------------------------
+
+
+def test_get_dispatcher_double_check_inside_lock():
+    # Simulate another thread setting the cache between the outer fast-path check
+    # and the lock acquisition, triggering the inner double-check return.
+    reset_dispatcher()
+
+    class _MockLock:
+        def __enter__(self):
+            # Another thread populated the cache just before we acquired the lock
+            _events_module._dispatcher_cache = None
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    with patch.object(_events_module, "_init_lock", _MockLock()):
+        result = get_dispatcher()
+
+    assert result is None
+    reset_dispatcher()

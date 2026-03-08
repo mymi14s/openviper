@@ -59,7 +59,7 @@ def _make_qs(items=None, total=0, delete_count=0):
 
 
 # ---------------------------------------------------------------------------
-# _serialize_instance_with_children – child table path (lines 87-122)
+# _serialize_instance_with_children – child table path
 # ---------------------------------------------------------------------------
 
 
@@ -229,7 +229,7 @@ class TestSerializeWithChildren:
 
 
 # ---------------------------------------------------------------------------
-# admin_change_user_password – validation paths (lines 332, 335, 338)
+# admin_change_user_password – validation paths
 # ---------------------------------------------------------------------------
 
 
@@ -274,7 +274,7 @@ class TestAdminChangeUserPasswordValidation:
 
 
 # ---------------------------------------------------------------------------
-# admin_dashboard – model count exception path (lines 366-367, 374)
+# admin_dashboard – model count exception path
 # ---------------------------------------------------------------------------
 
 
@@ -656,7 +656,7 @@ class TestCreateInstanceByAppExtra:
 
 
 # ---------------------------------------------------------------------------
-# get_instance_by_app – no view permission path (lines 664-665, 672)
+# get_instance_by_app – no view permission path
 # ---------------------------------------------------------------------------
 
 
@@ -688,7 +688,7 @@ class TestGetInstanceByAppExtra:
 
 
 # ---------------------------------------------------------------------------
-# update_instance_by_app – full coverage (lines 696-822)
+# update_instance_by_app – full coverage
 # ---------------------------------------------------------------------------
 
 
@@ -868,7 +868,7 @@ class TestUpdateInstanceByApp:
 
 
 # ---------------------------------------------------------------------------
-# delete_instance_by_app – NotRegistered path (lines 835-836)
+# delete_instance_by_app – NotRegistered path
 # ---------------------------------------------------------------------------
 
 
@@ -890,7 +890,7 @@ class TestDeleteInstanceByAppExtra:
 
 
 # ---------------------------------------------------------------------------
-# bulk_action_by_app – NotRegistered path (lines 870-871)
+# bulk_action_by_app – NotRegistered path
 # ---------------------------------------------------------------------------
 
 
@@ -942,7 +942,7 @@ class TestBulkActionByAppExtra:
 
 
 # ---------------------------------------------------------------------------
-# export_instances_by_app – ids param and datetime (lines 914-915, 944)
+# export_instances_by_app – ids param and datetime
 # ---------------------------------------------------------------------------
 
 
@@ -1039,7 +1039,7 @@ class TestExportInstancesByAppExtra:
 
 
 # ---------------------------------------------------------------------------
-# get_instance_history_by_app – NotRegistered (lines 970-971)
+# get_instance_history_by_app – NotRegistered
 # ---------------------------------------------------------------------------
 
 
@@ -1387,7 +1387,7 @@ class TestCreateInstanceExtra:
 
 
 # ---------------------------------------------------------------------------
-# get_instance (legacy) – extra paths (lines 1163-1180)
+# get_instance (legacy) – extra paths
 # ---------------------------------------------------------------------------
 
 
@@ -1449,7 +1449,7 @@ class TestGetInstanceExtra:
 
 
 # ---------------------------------------------------------------------------
-# update_instance (legacy PATCH) – full coverage (lines 1192-1254)
+# update_instance (legacy PATCH) – full coverage
 # ---------------------------------------------------------------------------
 
 
@@ -1545,7 +1545,7 @@ class TestUpdateInstance:
 
 
 # ---------------------------------------------------------------------------
-# delete_instance (legacy) – extra paths (lines 1260-1273)
+# delete_instance (legacy) – extra paths
 # ---------------------------------------------------------------------------
 
 
@@ -1607,7 +1607,7 @@ class TestDeleteInstanceExtra:
 
 
 # ---------------------------------------------------------------------------
-# bulk_delete (lines 1295-1332)
+# bulk_delete
 # ---------------------------------------------------------------------------
 
 
@@ -1702,7 +1702,7 @@ class TestBulkDelete:
 
 
 # ---------------------------------------------------------------------------
-# bulk_action (legacy) – full coverage (lines 1337-1379)
+# bulk_action (legacy) – full coverage
 # ---------------------------------------------------------------------------
 
 
@@ -1852,7 +1852,7 @@ class TestBulkAction:
 
 
 # ---------------------------------------------------------------------------
-# search_instances – delegates to list_instances (line 1387)
+# search_instances – delegates to list_instances
 # ---------------------------------------------------------------------------
 
 
@@ -1890,7 +1890,7 @@ class TestSearchInstances:
 
 
 # ---------------------------------------------------------------------------
-# get_filter_options – BooleanField and no-choices paths (lines 1406-1426)
+# get_filter_options – BooleanField and no-choices paths
 # ---------------------------------------------------------------------------
 
 
@@ -1975,7 +1975,7 @@ class TestGetFilterOptionsExtra:
 
 
 # ---------------------------------------------------------------------------
-# export_instances (legacy POST) – full coverage (lines 1435-1482)
+# export_instances (legacy POST) – full coverage
 # ---------------------------------------------------------------------------
 
 
@@ -2092,7 +2092,7 @@ class TestExportInstances:
 
 
 # ---------------------------------------------------------------------------
-# get_instance_history (legacy) – full coverage (lines 1489-1518)
+# get_instance_history (legacy) – full coverage
 # ---------------------------------------------------------------------------
 
 
@@ -2171,7 +2171,7 @@ class TestGetInstanceHistoryLegacy:
 
 
 # ---------------------------------------------------------------------------
-# fk_search – full coverage (lines 1533-1597)
+# fk_search – full coverage
 # ---------------------------------------------------------------------------
 
 
@@ -2347,7 +2347,7 @@ class TestFkSearch:
 
 
 # ---------------------------------------------------------------------------
-# global_search (lines 1620-1674)
+# global_search
 # ---------------------------------------------------------------------------
 
 
@@ -2482,7 +2482,7 @@ class TestGlobalSearch:
 
 
 # ---------------------------------------------------------------------------
-# _serialize_instance_with_children – non-primitive child field str() (line 121)
+# _serialize_instance_with_children – non-primitive child field str()
 # ---------------------------------------------------------------------------
 
 
@@ -2532,7 +2532,7 @@ class TestSerializeChildNonPrimitive:
 
 
 # ---------------------------------------------------------------------------
-# create_instance_by_app – NotRegistered path (lines 584-585)
+# create_instance_by_app – NotRegistered path
 # ---------------------------------------------------------------------------
 
 
@@ -2554,7 +2554,7 @@ class TestCreateInstanceByAppNotRegistered:
 
 
 # ---------------------------------------------------------------------------
-# create_instance_by_app – child sync path (lines 614-644)
+# create_instance_by_app – child sync path
 # ---------------------------------------------------------------------------
 
 
@@ -2693,7 +2693,7 @@ class TestCreateInstanceByAppChildSync:
 
 
 # ---------------------------------------------------------------------------
-# create_instance_by_app – IntegrityError path (lines 647-649)
+# create_instance_by_app – IntegrityError path
 # ---------------------------------------------------------------------------
 
 
@@ -2750,7 +2750,7 @@ class TestCreateInstanceByAppIntegrityError:
 
 
 # ---------------------------------------------------------------------------
-# get_instance_by_app – NotRegistered path (lines 678-679)
+# get_instance_by_app – NotRegistered path
 # ---------------------------------------------------------------------------
 
 
@@ -2772,7 +2772,7 @@ class TestGetInstanceByAppNotRegistered:
 
 
 # ---------------------------------------------------------------------------
-# update_instance_by_app – with non-empty fields (lines 732, 740, 742-744)
+# update_instance_by_app – with non-empty fields
 # ---------------------------------------------------------------------------
 
 
@@ -2906,7 +2906,7 @@ class TestUpdateInstanceByAppWithFields:
 
 
 # ---------------------------------------------------------------------------
-# update_instance_by_app – child sync (lines 757-814)
+# update_instance_by_app – child sync
 # ---------------------------------------------------------------------------
 
 
@@ -3084,7 +3084,7 @@ class TestUpdateInstanceByAppChildSync:
 
 
 # ---------------------------------------------------------------------------
-# update_instance_by_app – IntegrityError path (lines 818-820)
+# update_instance_by_app – IntegrityError path
 # ---------------------------------------------------------------------------
 
 
@@ -3143,7 +3143,7 @@ class TestUpdateInstanceByAppIntegrityError:
 
 
 # ---------------------------------------------------------------------------
-# create_instance (legacy) – NotRegistered path (lines 1125-1126)
+# create_instance (legacy) – NotRegistered path
 # ---------------------------------------------------------------------------
 
 
@@ -3166,7 +3166,6 @@ class TestCreateInstanceNotRegistered:
 
 # ---------------------------------------------------------------------------
 # get_instance (legacy) – no access + NotRegistered + serialization
-# (lines 1174, 1179-1198)
 # ---------------------------------------------------------------------------
 
 
@@ -3236,7 +3235,6 @@ class TestGetInstanceLegacyExtra:
 
 # ---------------------------------------------------------------------------
 # update_instance (legacy) – NotRegistered + field ops + response
-# (lines 1221-1275)
 # ---------------------------------------------------------------------------
 
 
@@ -3351,7 +3349,7 @@ class TestUpdateInstanceLegacyExtra:
 
 
 # ---------------------------------------------------------------------------
-# delete_instance (legacy) – no admin access (line 1283)
+# delete_instance (legacy) – no admin access
 # ---------------------------------------------------------------------------
 
 
@@ -3369,7 +3367,7 @@ class TestDeleteInstanceNoAccess:
 
 
 # ---------------------------------------------------------------------------
-# get_filter_options – field with choices (line 1438)
+# get_filter_options – field with choices
 # ---------------------------------------------------------------------------
 
 
@@ -3410,7 +3408,7 @@ class TestGetFilterOptionsChoices:
 
 
 # ---------------------------------------------------------------------------
-# global_search – cap at 50 results (lines 1694, 1697)
+# global_search – cap at 50 results
 # ---------------------------------------------------------------------------
 
 
@@ -3458,7 +3456,7 @@ class TestGlobalSearchCap:
 
 
 # ---------------------------------------------------------------------------
-# create_instance_by_app – FK auto-discovery in child sync (lines 619-629)
+# create_instance_by_app – FK auto-discovery in child sync
 # ---------------------------------------------------------------------------
 
 
@@ -3593,7 +3591,7 @@ class TestCreateInstanceByAppChildFKAutoDiscover:
 
 
 # ---------------------------------------------------------------------------
-# update_instance_by_app – FK auto-discovery in child sync (lines 762-772)
+# update_instance_by_app – FK auto-discovery in child sync
 # ---------------------------------------------------------------------------
 
 
@@ -3750,7 +3748,7 @@ class TestUpdateInstanceByAppChildFKAutoDiscover:
 
 
 # ---------------------------------------------------------------------------
-# update_instance_by_app – extra_filters in child sync (lines 780, 805-806)
+# update_instance_by_app – extra_filters in child sync
 # ---------------------------------------------------------------------------
 
 
@@ -3777,7 +3775,7 @@ class TestUpdateInstanceByAppChildExtraFilters:
         inline = MagicMock()
         inline.model = child_model
         inline.fk_name = "parent_id"
-        inline.extra_filters = {"active": True}  # truthy → hits line 780
+        inline.extra_filters = {"active": True}  # truthy → hits
 
         inline_class = MagicMock(return_value=inline)
 
@@ -3861,7 +3859,7 @@ class TestUpdateInstanceByAppChildExtraFilters:
         inline = MagicMock()
         inline.model = child_model
         inline.fk_name = "article_id"
-        inline.extra_filters = {"status": "active"}  # truthy → hits lines 805-806
+        inline.extra_filters = {"status": "active"}  # truthy → hits
 
         inline_class = MagicMock(return_value=inline)
 
@@ -3924,7 +3922,7 @@ class TestUpdateInstanceByAppChildExtraFilters:
 
 
 # ---------------------------------------------------------------------------
-# create_instance (legacy) – readonly field skipped (line 1140)
+# create_instance (legacy) – readonly field skipped
 # ---------------------------------------------------------------------------
 
 
@@ -3968,7 +3966,7 @@ class TestCreateInstanceReadonlySkipped:
 
 
 # ---------------------------------------------------------------------------
-# get_instance (legacy) – non-primitive field value in response (lines 1196-1197)
+# get_instance (legacy) – non-primitive field value in response
 # ---------------------------------------------------------------------------
 
 

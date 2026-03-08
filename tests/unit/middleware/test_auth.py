@@ -128,7 +128,7 @@ async def test_auth_jwt_cache_hit(mock_get_user, mock_decode):
     mock_get_user.assert_not_called()
 
 
-# ── Cache eviction — expired entries first (lines 67-69) ─────────────────────
+# ── Cache eviction — expired entries first  ─────────────────────
 
 
 @pytest.mark.asyncio
@@ -161,7 +161,7 @@ async def test_cache_eviction_expired_entries(mock_get_user, mock_decode):
     assert 99 in _USER_CACHE
 
 
-# ── Cache eviction — insertion order (lines 70-71) ───────────────────────────
+# ── Cache eviction — insertion order ───────────────────────────
 
 
 @pytest.mark.asyncio
@@ -210,7 +210,7 @@ async def test_auth_jwt_token_expired(mock_decode):
     assert scope["auth"] == {"type": "none"}
 
 
-# ── Session exception path (lines 161-162) ───────────────────────────────────
+# ── Session exception path  ───────────────────────────────────
 
 
 @pytest.mark.asyncio

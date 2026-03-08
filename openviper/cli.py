@@ -65,32 +65,38 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 '''
 
 _SETTINGS_TEMPLATE = '''\
 """Settings for {project_name}."""
+from __future__ import annotations
 
-import os
 import dataclasses
+import os
+from datetime import timedelta
+from typing import Any
 
 from openviper.conf.settings import Settings
 
 
+@dataclasses.dataclass(frozen=True)
 class ProjectSettings(Settings):
     PROJECT_NAME: str = "{project_name}"
     DEBUG: bool = bool(os.environ.get("DEBUG", "1"))
     DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3")
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "{secret_key}")
-    INSTALLED_APPS: list = [
+    INSTALLED_APPS: tuple[str, ...] = (
         "openviper.auth",
-    ]
-    MIDDLEWARE: list = [
+        "openviper.admin",
+    )
+    MIDDLEWARE: tuple[str, ...] = (
         "openviper.middleware.security.SecurityMiddleware",
         "openviper.middleware.cors.CORSMiddleware",
         "openviper.middleware.auth.AuthenticationMiddleware",
         "openviper.admin.middleware.AdminMiddleware",
-    ]
-    ALLOWED_HOSTS: list = ["*"]
+    )
+    ALLOWED_HOSTS: tuple[str, ...] = ("*",)
     STATIC_ROOT: str = os.environ.get("STATIC_ROOT", "static")
     STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
     MEDIA_ROOT: str = os.environ.get("MEDIA_ROOT", "media")
@@ -185,22 +191,32 @@ from openviper.routing import Router
 
 async def home(request):
     """Home page view."""
-    context = {{
+    context = {{{{
         "title": "Welcome to {project_name}",
         "project_name": "{project_name}",
         "message": "Your OpenViper project is running successfully."
-    }}
+    }}}}
     return HTMLResponse(template="home.html", context=context)
 
 
 async def api_index(request):
     """API endpoint view that handles both GET and POST."""
     if request.method == "GET":
-        return JSONResponse({{"message": "Welcome to {project_name} API!", "status": "success"}})
+        return JSONResponse({{{{
+            "message": "Welcome to {project_name} API!",
+            "status": "success"
+        }}}})
     elif request.method == "POST":
-        return JSONResponse({{"message": "Data received", "status": "success", "method": "POST"}})
+        return JSONResponse({{{{
+            "message": "Data received",
+            "status": "success",
+            "method": "POST"
+        }}}})
     else:
-        return JSONResponse({{"error": "Method not allowed", "status": "error"}}, status_code=405)
+        return JSONResponse({{{{
+            "error": "Method not allowed",
+            "status": "error"
+        }}}}, status_code=405)
 
 
 # Routes for apps should be in each app's routes.py file
@@ -334,7 +350,11 @@ def create_app(name: str, directory: str | None) -> None:
 @click.argument("target")
 @click.option("--host", "-h", default="127.0.0.1", show_default=True, help="Bind host.")
 @click.option("--port", "-p", default=8000, show_default=True, type=int, help="Bind port.")
-@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload on file changes.")
+@click.option(
+    "--reload/--no-reload",
+    default=True,
+    help="Enable/disable auto-reload on file changes (default: --reload).",
+)
 @click.option(
     "--workers",
     "-w",

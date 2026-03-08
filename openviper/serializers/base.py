@@ -514,10 +514,11 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
         """Create or update a model instance and return serialized data.
 
         Behaviour:
-        * If *instance* is provided explicitly → update that instance.
-        * If the validated data contains a non-``None`` ``id`` / ``pk``
-          → fetch the existing record and update it.
-        * Otherwise → create a new record.
+
+        * If *instance* is provided explicitly -> update that instance.
+        * If the validated data contains a non-``None`` ``id`` / ``pk`` ->
+          fetch the existing record and update it.
+        * Otherwise -> create a new record.
 
         Returns:
             A JSON-safe ``dict`` of the persisted model instance.

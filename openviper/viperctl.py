@@ -86,7 +86,7 @@ def viperctl(
         raise click.ClickException(f"Unknown command '{command}'. Valid commands: {valid}")
 
     # Lazy imports -- only incur the cost when viperctl is actually invoked.
-    from openviper.management.flexible_adapter import bootstrap_and_run
+    from openviper.core.flexible_adapter import bootstrap_and_run
     from openviper.utils.module_resolver import resolve_target
     from openviper.utils.settings_discovery import discover_settings_module
 

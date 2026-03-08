@@ -9,8 +9,6 @@ Requirements
 
 * **Python** ≥ 3.14
 * A supported **async database driver** (see below)
-* **Redis** 6+ (required when using background tasks or the Dramatiq broker)
-* **Uvicorn** (included as a dependency, used to serve the ASGI application)
 
 Installing OpenViper
 --------------------
@@ -21,32 +19,6 @@ Install from PyPI using ``pip``:
 
    pip install openviper
 
-This installs the core framework with all mandatory dependencies.
-
-Optional Extras
-~~~~~~~~~~~~~~~
-
-OpenViper ships optional dependency groups that you can install on demand:
-
-.. code-block:: bash
-
-   # PostgreSQL async driver (asyncpg)
-   pip install "openviper[postgresql]"
-
-   # MariaDB / MySQL async driver (aiomysql)
-   pip install "openviper[mariadb]"
-
-   # AI provider SDKs (openai, anthropic, google-generativeai, …)
-   pip install "openviper[ai]"
-
-   # Background task broker and worker (dramatiq + redis)
-   pip install "openviper[tasks]"
-
-   # Admin panel Vue SPA and API (already bundled but listed for clarity)
-   pip install "openviper[admin]"
-
-   # Everything at once
-   pip install "openviper[all]"
 
 Database URL Format
 -------------------
@@ -70,16 +42,38 @@ OpenViper uses SQLAlchemy Core connection strings.  Set ``DATABASE_URL`` in your
 Redis Configuration
 -------------------
 
-Background tasks and rate-limiting require Redis.  Set the URL via the
+Background tasks and rate-limiting require Redis.
+Install redis:
+
+.. code-block:: bash
+
+   sudo apt install redis # Linux
+   brew install redis # MacOS
+   sudo dnf install redis # Fedora
+
+
+Set the URL via the
 ``CACHE_URL`` / broker settings in ``settings.py``:
 
 .. code-block:: python
 
    CACHE_URL = "redis://localhost:6379/0"
 
-   TASKS = {
-       "broker_url": "redis://localhost:6379/1",
-   }
+   # Background Tasks
+   TASKS: dict[str, Any] = dataclasses.field(
+       default_factory=lambda: {
+           "enabled": 1,
+           "scheduler_enabled": 1,
+           "tracking_enabled": 1,
+           "log_to_file": 1,
+           "log_level": "DEBUG",
+           "log_format": "json",
+           "log_dir": "logs",
+           "broker": "redis",
+           "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+           "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
+        }
+    )
 
 Verifying the Installation
 ---------------------------
@@ -107,10 +101,7 @@ server with either:
 .. code-block:: bash
 
    # Via management command (from inside a project)
-   python viperctl.py runserver
-
-   # Or directly with uvicorn
-   uvicorn myproject.asgi:app --reload --host 127.0.0.1 --port 8000
+   python viperctl.py runserver --reload # --host 127.0.0.1 --port 8000
 
 .. seealso::
 

@@ -48,7 +48,7 @@ def test_periodic_raises_when_neither_every_nor_cron():
 
 
 # ---------------------------------------------------------------------------
-# periodic — decorator applied to an actor (lines 104-133)
+# periodic — decorator applied to an actor
 # ---------------------------------------------------------------------------
 
 
@@ -133,7 +133,7 @@ def test_periodic_auto_wraps_plain_function():
 
 
 # ---------------------------------------------------------------------------
-# start_scheduler — empty pending (lines 151-152)
+# start_scheduler — empty pending
 # ---------------------------------------------------------------------------
 
 
@@ -144,7 +144,7 @@ def test_start_scheduler_noop_when_pending_empty():
 
 
 # ---------------------------------------------------------------------------
-# start_scheduler — thread already running (lines 154-156)
+# start_scheduler — thread already running
 # ---------------------------------------------------------------------------
 
 
@@ -172,7 +172,7 @@ def test_start_scheduler_noop_when_thread_already_alive():
 
 
 # ---------------------------------------------------------------------------
-# start_scheduler — normal startup (lines 158-180)
+# start_scheduler — normal startup
 # ---------------------------------------------------------------------------
 
 
@@ -239,7 +239,7 @@ def test_start_scheduler_logs_plural_tasks():
 
 
 # ---------------------------------------------------------------------------
-# stop_scheduler (lines 190-197)
+# stop_scheduler
 # ---------------------------------------------------------------------------
 
 
@@ -277,7 +277,7 @@ def test_stop_scheduler_noop_when_no_thread():
 
 
 # ---------------------------------------------------------------------------
-# reset_scheduler (lines 206-208)
+# reset_scheduler
 # ---------------------------------------------------------------------------
 
 
@@ -323,7 +323,7 @@ def test_reset_scheduler_stops_running_thread():
 
 
 # ---------------------------------------------------------------------------
-# _tick_loop (lines 218-226)
+# _tick_loop
 # ---------------------------------------------------------------------------
 
 
@@ -391,7 +391,7 @@ def test_tick_loop_exits_when_scheduler_is_none():
 
 
 # ---------------------------------------------------------------------------
-# _enqueue (lines 236-240)
+# _enqueue
 # ---------------------------------------------------------------------------
 
 

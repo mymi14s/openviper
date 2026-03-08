@@ -47,6 +47,7 @@ def create_likes(post: Any, event: str | None = None) -> None:
         post.pk,
         getattr(post, "title", None),
     )
+    print("CREATING LIKES")
     # Placeholder — replace with your actual task .send() call:
     # init_like_counter.send(post_id=post.pk)
 

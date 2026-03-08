@@ -43,9 +43,7 @@ function formatAppLabel(label: string): string {
     <!-- Logo -->
     <div class="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
       <RouterLink @click="adminStore.closeSidebar" to="/dashboard" class="flex items-center gap-2">
-        <svg class="w-8 h-8 text-primary-600" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-        </svg>
+        🐍
         <span class="text-xl font-bold text-gray-900 dark:text-white">{{ adminStore.config.admin_header_title || 'OpenViper' }}</span>
       </RouterLink>
       

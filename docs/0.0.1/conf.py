@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath("../.."))
 # -- Project information -----------------------------------------------------
 
 project = "OpenViper"
-copyright = "2024, OpenViper Contributors"
+copyright = "2026, OpenViper Contributors"
 author = "E.A"
 release = "0.0.1"
 version = "0.0.1"

@@ -385,3 +385,58 @@ def test_missing_line_coverage():
     with patch("openviper.db.fields.settings", BadSettings):
         f = fields.FileField()
         assert f.max_file_size == 10485760
+
+
+def test_foreign_key_resolve_target_branches():
+    # callable target calls it and returns the resulting type
+    class TargetModel:
+        pass
+
+    fk_callable = fields.ForeignKey(to=lambda: TargetModel)
+    assert fk_callable.resolve_target() is TargetModel
+
+    # non-string, non-type, non-callable target returns None
+    fk_int = fields.ForeignKey(to=42)
+    assert fk_int.resolve_target() is None
+
+    # dotted string resolved via import_string to a callable returning a type
+    def _getter():
+        return TargetModel
+
+    with patch("openviper.utils.import_string", return_value=_getter):
+        fk_dotted = fields.ForeignKey(to="some.module.get_model")
+        assert fk_dotted.resolve_target() is TargetModel
+
+
+def test_foreign_key_resolve_target_registry_lookups():
+    from openviper.db.models import Model, ModelMeta
+
+    class SomeModel(Model):
+        class Meta:
+            table_name = "some_model_reg_test"
+
+    SomeModel._app_name = "testpkg"
+
+    # app_label prefix lookup
+    ModelMeta.registry["testpkg.SomeModel"] = SomeModel
+
+    class ParentModel(Model):
+        class Meta:
+            table_name = "parent_model_reg_test"
+
+    ParentModel._app_name = "testpkg"
+
+    fk_prefix = fields.ForeignKey(to="SomeModel")
+    fk_prefix.model_class = ParentModel
+    try:
+        assert fk_prefix.resolve_target() is SomeModel
+    finally:
+        ModelMeta.registry.pop("testpkg.SomeModel", None)
+
+    # brute-force name search — no dot in registry key
+    ModelMeta.registry["SomeModel"] = SomeModel
+    fk_direct = fields.ForeignKey(to="SomeModel")
+    try:
+        assert fk_direct.resolve_target() is SomeModel
+    finally:
+        ModelMeta.registry.pop("SomeModel", None)

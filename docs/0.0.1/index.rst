@@ -3,10 +3,10 @@
 .. _index:
 
 =====================================
-OpenViper |version| Documentation
+OpenViper Documentation
 =====================================
 
-**OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be
+**OpenViper** is a production-ready, async-first Python web framework designed to be
 both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when
 you want control, while also providing a rich, fully integrated stack when you want to move fast.
 
@@ -41,7 +41,7 @@ The ``examples/flexible/app.py`` or ``examples/todoapp/`` in the repo is the min
 .. code-block:: bash
 
    # Run it
-   openviper run app       # from examples/standard/
+   openviper run app --reload       # from examples/flexible/, --reload to watch file changes and hot reload
    # Open: http://localhost:8000
    # Swagger: http://localhost:8000/open-api/docs
 

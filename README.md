@@ -72,7 +72,7 @@ async def create_user(request: Request) -> JSONResponse:
 ```
 
 ```bash
-openviper run app
+openviper run app --reload
 ```
 
 Open in your browser:
@@ -241,7 +241,7 @@ python viperctl.py runworker
 
 ## 📖 Documentation
 
-Full reference documentation lives in [`docs/0.0.1/`](docs/0.0.1/).
+Full reference documentation lives in [`https://mymi14s.github.io/openviper/`](https://mymi14s.github.io/openviper/).
 
 
 ---

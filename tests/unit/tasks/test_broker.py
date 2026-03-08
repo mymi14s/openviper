@@ -347,7 +347,7 @@ def test_get_broker_concurrent_creates_broker_exactly_once():
 
 
 # ---------------------------------------------------------------------------
-# reset_broker exception suppression (lines 99-100)
+# reset_broker exception suppression
 # ---------------------------------------------------------------------------
 
 
@@ -368,7 +368,7 @@ def test_reset_broker_close_exception_is_suppressed():
 
 
 # ---------------------------------------------------------------------------
-# TaskTrackingMiddleware attachment exception (lines 145-146)
+# TaskTrackingMiddleware attachment exception
 # ---------------------------------------------------------------------------
 
 
@@ -386,7 +386,7 @@ def test_get_broker_tracking_middleware_exception_is_logged():
 
 
 # ---------------------------------------------------------------------------
-# SchedulerMiddleware attachment exception (lines 153-158)
+# SchedulerMiddleware attachment exception
 # ---------------------------------------------------------------------------
 
 
@@ -403,7 +403,7 @@ def test_get_broker_scheduler_middleware_exception_is_logged():
 
 
 # ---------------------------------------------------------------------------
-# Results backend attachment exception (lines 173-174)
+# Results backend attachment exception
 # ---------------------------------------------------------------------------
 
 

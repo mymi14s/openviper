@@ -41,7 +41,7 @@ def login_required(func: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        request = _get_request(args)
+        request = _get_request(args, kwargs)
         if request is None or not getattr(request.user, "is_authenticated", False):
             raise Unauthorized()
         result = func(*args, **kwargs)
@@ -64,7 +64,7 @@ def permission_required(codename: str) -> Callable[..., Any]:
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            request = _get_request(args)
+            request = _get_request(args, kwargs)
             if request is None or not getattr(request.user, "is_authenticated", False):
                 raise Unauthorized()
             has_perm = await request.user.has_perm(codename)
@@ -92,7 +92,7 @@ def role_required(role_name: str) -> Callable[..., Any]:
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            request = _get_request(args)
+            request = _get_request(args, kwargs)
             if request is None or not getattr(request.user, "is_authenticated", False):
                 raise Unauthorized()
             has_role = await request.user.has_role(role_name)
@@ -116,7 +116,7 @@ def superuser_required(func: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        request = _get_request(args)
+        request = _get_request(args, kwargs)
         if request is None or not getattr(request.user, "is_authenticated", False):
             raise Unauthorized()
         if not getattr(request.user, "is_superuser", False):
@@ -132,7 +132,7 @@ def staff_required(func: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        request = _get_request(args)
+        request = _get_request(args, kwargs)
         if request is None or not getattr(request.user, "is_authenticated", False):
             raise Unauthorized()
         if not getattr(request.user, "is_staff", False):
@@ -146,10 +146,14 @@ def staff_required(func: Callable[..., Any]) -> Callable[..., Any]:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _get_request(args: tuple[Any, ...]) -> Any | None:
-    """Extract a Request from positional arguments."""
+def _get_request(args: tuple[Any, ...], kwargs: dict[str, Any] | None = None) -> Any | None:
+    """Extract a Request from positional arguments or keyword arguments."""
 
     for arg in args:
         if isinstance(arg, Request):
             return arg
+    if kwargs:
+        for v in kwargs.values():
+            if isinstance(v, Request):
+                return v
     return None

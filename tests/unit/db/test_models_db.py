@@ -392,3 +392,58 @@ async def test_validate_skip_auto_date():
         await EmptyModel(
             id=1, name="hi"
         ).validate()  # name is soft removed, shouldn't raise even if invalid
+
+
+# ── New branch-coverage tests ──────────────────────────────────────────────────
+
+
+def test_queryset_filter_ignore_permissions():
+    qs = QuerySet(EmptyModel)
+    qs2 = qs.filter(ignore_permissions=True, name="test")
+    assert qs2._ignore_permissions is True
+    assert qs2._filters == [{"name": "test"}]
+
+    qs3 = qs.filter(ignore_permissions=False, name="other")
+    assert qs3._ignore_permissions is False
+
+
+@pytest.mark.asyncio
+async def test_validate_soft_removed_column_skipped():
+
+    class StrictModel(Model):
+        required_col = fields.CharField(max_length=50)  # null=False by default
+
+        class Meta:
+            table_name = "strict_model_for_validate"
+
+    col_name = StrictModel._fields["required_col"].column_name
+    m = StrictModel()  # required_col is None
+    with (
+        patch("openviper.db.models.get_soft_removed_columns", return_value=[col_name]),
+        patch("openviper.db.models._load_soft_removed_columns"),
+    ):
+        await m.validate()  # required_col is None but soft-removed; should not raise
+
+
+def test_trigger_event_dispatcher_none():
+    m = EmptyModel(id=1)
+    with patch("openviper.db.events.get_dispatcher", return_value=None):
+        with patch("openviper.db.events._dispatch_decorator_handlers") as mock_dispatch:
+            m._trigger_event("on_change")
+            assert mock_dispatch.called
+
+
+def test_trigger_event_exception_swallowed():
+    m = EmptyModel(id=1)
+    with patch("openviper.db.events.get_dispatcher") as mock_get:
+        mock_get.return_value.trigger.side_effect = Exception("event error")
+        # Should not propagate the exception
+        m._trigger_event("on_change")
+
+
+@pytest.mark.asyncio
+@patch("openviper.db.models.execute_delete_instance")
+async def test_model_delete_ignore_permissions(mock_delete):
+    m = EmptyModel(id=1)
+    await m.delete(ignore_permissions=True)
+    mock_delete.assert_called_once_with(m, ignore_permissions=True)

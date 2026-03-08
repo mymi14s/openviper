@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
+from unittest.mock import patch
 
 from openviper.admin.fields import (
     _serialize_default,
@@ -163,3 +164,30 @@ def test_coerce_field_value():
 
     # Default fallback
     assert coerce_field_value(CharField(), "text") == "text"
+
+
+def test_coerce_field_value_non_string_passthrough():
+    # DateTimeField, TimeField, UUIDField each short-circuit when value is not a string
+    dt = datetime(2023, 1, 1, 12, 0)
+    assert coerce_field_value(DateTimeField(), dt) == dt
+
+    t = time(12, 30)
+    assert coerce_field_value(TimeField(), t) == t
+
+    u = uuid.uuid4()
+    assert coerce_field_value(UUIDField(), u) == u
+
+
+def test_get_field_schema_fk_full_module_path_branches():
+    # Three-part reference: first tries "{parts[0]}.models" import,
+    # then falls back to full module path "{parts[:-1]}" .
+    # Neither succeeds for a non-existent module → resolved_model stays None.
+    fk_three = ForeignKey("myapp.models.User")
+    schema = get_field_schema(fk_three)
+    assert schema["related_model"] == "myapp/User"
+
+    # Also test ImportError on both paths to ensure lines 160 and 169-170 are hit
+    with patch("openviper.admin.fields.importlib.import_module", side_effect=ImportError("no mod")):
+        fk_import_err = ForeignKey("pkg.submod.MyModel")
+        schema_err = get_field_schema(fk_import_err)
+    assert schema_err["related_model"] == "pkg/MyModel"

@@ -1,7 +1,6 @@
 """Integration tests for ModelSerializer CRUD methods (create/update/save)
 and the serialize_json / serialize_many_json / PaginatedSerializer path.
 
-These cover the previously uncovered lines 222-225, 237-242, 480-548.
 """
 
 import io
@@ -47,7 +46,7 @@ def _make_field(cls_name, *, primary_key=False, null=False, default=None):
 
 
 # ---------------------------------------------------------------------------
-# serialize_json  (lines 222-225)
+# serialize_json
 # ---------------------------------------------------------------------------
 
 
@@ -78,7 +77,7 @@ def test_serialize_json_with_extra_exclude():
 
 
 # ---------------------------------------------------------------------------
-# serialize_many_json  (lines 237-242)
+# serialize_many_json
 # ---------------------------------------------------------------------------
 
 
@@ -112,7 +111,7 @@ def test_serialize_many_json_with_write_only_excluded():
 
 
 # ---------------------------------------------------------------------------
-# ModelSerializer.create  (lines 480-492)
+# ModelSerializer.create
 # ---------------------------------------------------------------------------
 
 
@@ -155,7 +154,7 @@ async def test_model_serializer_create_strips_pk_when_none():
 
 
 # ---------------------------------------------------------------------------
-# ModelSerializer.update  (lines 494-511)
+# ModelSerializer.update
 # ---------------------------------------------------------------------------
 
 
@@ -204,7 +203,7 @@ async def test_model_serializer_update_strips_read_only_fields():
 
 
 # ---------------------------------------------------------------------------
-# ModelSerializer.save  (lines 513-548)
+# ModelSerializer.save
 # ---------------------------------------------------------------------------
 
 
@@ -314,7 +313,7 @@ async def test_model_serializer_save_creates_when_pk_not_found():
 
 
 # ---------------------------------------------------------------------------
-# _validate_file_sizes  (lines 407-418)
+# _validate_file_sizes
 # ---------------------------------------------------------------------------
 
 
@@ -364,7 +363,7 @@ def test_validate_file_sizes_skips_string_and_none():
 
 
 # ---------------------------------------------------------------------------
-# PaginatedSerializer  (line 551-558 — ensure instantiation is tested)
+# PaginatedSerializer
 # ---------------------------------------------------------------------------
 
 
@@ -388,7 +387,7 @@ def test_paginated_serializer_with_urls():
 
 
 # ---------------------------------------------------------------------------
-# _persist_files — bytes / file-like / generic branch  (lines 451-469)
+# _persist_files — bytes / file-like / generic branch
 # ---------------------------------------------------------------------------
 
 

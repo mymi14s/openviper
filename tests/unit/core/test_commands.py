@@ -301,3 +301,32 @@ def test_shell_command_discover_models_type_error(tmp_path):
             result = cmd._discover_models()
     # Should not raise; TypeError from issubclass is silently continued
     assert isinstance(result, dict)
+
+
+def test_shell_build_namespace_include_models():
+    # _build_namespace with include_models=True calls _discover_models and
+    # returns sorted model names
+    cmd = ShellCommand()
+    fake_module = types.ModuleType("myapp.models")
+    fake_module.__name__ = "myapp.models"
+
+    with (
+        patch("openviper.core.management.commands.shell.settings") as ms,
+        patch(
+            "openviper.core.management.commands.shell.inspect.getmembers",
+            return_value=[],
+        ),
+        patch(
+            "openviper.core.management.commands.shell.get_user_model",
+            side_effect=Exception,
+        ),
+    ):
+        ms.INSTALLED_APPS = []
+        with patch(
+            "openviper.core.management.commands.shell.importlib.import_module",
+            return_value=fake_module,
+        ):
+            ns, model_names = cmd._build_namespace(include_models=True)
+
+    assert isinstance(model_names, list)
+    assert isinstance(ns, dict)

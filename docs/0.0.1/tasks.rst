@@ -244,7 +244,7 @@ prefer explicit registration over configuration:
 .. code-block:: python
 
    # posts/events.py
-   from openviper.tasks.events import model_event
+   from openviper.db.events import model_event
 
    @model_event.trigger("posts.models.Post.after_insert")
    async def send_email(post, *, event):
@@ -315,7 +315,7 @@ Import the ``model_event`` singleton from:
 
 .. code-block:: python
 
-   from openviper.tasks.events import model_event
+   from openviper.db.events import model_event
 
 Make sure the module containing the decorated functions is imported at
 application startup (e.g. import it in your app's ``__init__.py`` or

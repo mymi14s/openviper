@@ -1,5 +1,6 @@
+import ast
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,7 +17,7 @@ from openviper.db.migrations.executor import (
     RenameColumn,
     RestoreColumn,
 )
-from openviper.db.migrations.writer import _sort_models_topologically
+from openviper.db.migrations.writer import _parse_create_table, _sort_models_topologically
 from openviper.db.models import Model
 
 
@@ -393,3 +394,96 @@ def test_sort_models_topologically_with_fk_dep():
     parent_idx = result.index(ParentTopo)
     child_idx = result.index(ChildTopo)
     assert parent_idx < child_idx
+
+
+# ── New branch-coverage tests ──────────────────────────────────────────────────
+
+
+def test_format_columns_fk_unresolvable_string():
+
+    class UnresolvableChild(Model):
+        parent = ForeignKey(to="nonexistent.NonexistentModel", on_delete="CASCADE")
+
+        class Meta:
+            table_name = "unresolv_child_tbl"
+
+    # resolve_target() returns None for unknown string; on_delete is still serialized
+    cols = writer._format_columns(UnresolvableChild)
+    assert "CASCADE" in cols
+
+
+def test_sort_models_topologically_circular():
+
+    class ModelCircA(Model):
+        class Meta:
+            table_name = "topo_circ_a"
+
+    class ModelCircB(Model):
+        class Meta:
+            table_name = "topo_circ_b"
+
+    fk_a = MagicMock(spec=ForeignKey)
+    fk_a.resolve_target.return_value = ModelCircB
+
+    fk_b = MagicMock(spec=ForeignKey)
+    fk_b.resolve_target.return_value = ModelCircA
+
+    with patch.object(ModelCircA, "_fields", {"id": MagicMock(), "b": fk_a}):
+        with patch.object(ModelCircB, "_fields", {"id": MagicMock(), "a": fk_b}):
+            result = _sort_models_topologically([ModelCircA, ModelCircB])
+            assert len(result) == 2
+
+
+def test_parse_create_table_no_table_name():
+    node = ast.parse("CreateTable(columns=[])").body[0].value
+    state: dict = {}
+    _parse_create_table(node, state)
+    assert state == {}
+
+
+def test_parse_create_table_constant_dict_column():
+    node = ast.parse("CreateTable(table_name='synth', columns=[])").body[0].value
+    # Inject a synthetic ast.Constant whose value is a dict (defensive branch)
+    const_col = ast.Constant(value={"name": "synth_id", "type": "INT"})
+    for kw in node.keywords:
+        if kw.arg == "columns":
+            kw.value.elts.append(const_col)
+    state: dict = {}
+    _parse_create_table(node, state)
+    assert "synth" in state
+    assert any(c.get("name") == "synth_id" for c in state["synth"])
+
+
+def test_diff_states_new_tables_with_fk_dep():
+    existing: dict = {}
+    current = {
+        "parent_dep_tbl": [{"name": "id", "type": "INT", "primary_key": True}],
+        "child_dep_tbl": [
+            {"name": "id", "type": "INT", "primary_key": True},
+            {"name": "parent_id", "type": "INT", "target_table": "parent_dep_tbl"},
+        ],
+    }
+    ops = writer._diff_states(current, existing)
+    table_names = [op.table_name for op in ops if isinstance(op, CreateTable)]
+    assert "parent_dep_tbl" in table_names
+    assert "child_dep_tbl" in table_names
+    assert table_names.index("parent_dep_tbl") < table_names.index("child_dep_tbl")
+
+
+def test_diff_states_new_tables_circular_fk():
+    existing: dict = {}
+    current = {
+        "circ_tbl_a": [
+            {"name": "id", "type": "INT"},
+            {"name": "b_id", "type": "INT", "target_table": "circ_tbl_b"},
+        ],
+        "circ_tbl_b": [
+            {"name": "id", "type": "INT"},
+            {"name": "a_id", "type": "INT", "target_table": "circ_tbl_a"},
+        ],
+    }
+    ops = writer._diff_states(current, existing)
+    table_names = [op.table_name for op in ops if isinstance(op, CreateTable)]
+    assert len(table_names) == 2
+    assert "circ_tbl_a" in table_names
+    assert "circ_tbl_b" in table_names

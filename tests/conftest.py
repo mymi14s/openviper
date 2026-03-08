@@ -2,10 +2,12 @@ import asyncio
 import logging
 import shutil
 import tempfile
+import typing
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
 
+import httpx
 from openviper.app import OpenViper
 from openviper.conf import settings
 from openviper.conf.settings import Settings
@@ -20,7 +22,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def global_settings_fixture():
+def global_settings_fixture() -> Settings:
     """Configure test-specific settings, resetting any prior lazy init first."""
     object.__setattr__(settings, "_instance", None)
     object.__setattr__(settings, "_configured", False)
@@ -31,7 +33,7 @@ def global_settings_fixture():
             DATABASE_URL="sqlite+aiosqlite:///:memory:",
         )
     )
-    return settings
+    return typing.cast(Settings, settings)
 
 
 @pytest.fixture
@@ -50,14 +52,14 @@ async def app_fixture() -> OpenViper:
 
 
 @pytest.fixture
-async def test_client(app_fixture: OpenViper) -> AsyncGenerator:
+async def test_client(app_fixture: OpenViper) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Provide an httpx.AsyncClient for the app."""
     async with app_fixture.test_client() as client:
         yield client
 
 
 @pytest.fixture
-def logger_capture(caplog):
+def logger_capture(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
     """Fixture to capture logs."""
     caplog.set_level(logging.DEBUG)
     return caplog

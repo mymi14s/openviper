@@ -371,9 +371,7 @@ class TestCheckPendingMigrationsExtra:
     def test_non_dict_resolved_apps_treated_as_empty(self):
         # resolved_apps that is not a dict is replaced with {}
         cmd = Command()
-        with patch(
-            "openviper.core.management.commands.runserver.AppResolver"
-        ) as mock_resolver_cls:
+        with patch("openviper.core.management.commands.runserver.AppResolver") as mock_resolver_cls:
             mock_resolver = MagicMock()
             mock_resolver.resolve_all_apps.return_value = {"found": ["not", "a", "dict"]}
             mock_resolver_cls.return_value = mock_resolver
@@ -391,15 +389,14 @@ class TestCheckPendingMigrationsExtra:
         # _get_pending() async function body is exercised
         cmd = Command()
         executed = []
-        with patch(
-            "openviper.core.management.commands.runserver.AppResolver"
-        ) as mock_resolver_cls:
+        with patch("openviper.core.management.commands.runserver.AppResolver") as mock_resolver_cls:
             mock_resolver = MagicMock()
             mock_resolver.resolve_all_apps.return_value = {"found": {}}
             mock_resolver_cls.return_value = mock_resolver
 
             def _capture_and_run(coro):
                 import asyncio as _asyncio
+
                 executed.append(True)
                 try:
                     return _asyncio.get_event_loop().run_until_complete(coro)

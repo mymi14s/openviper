@@ -352,7 +352,9 @@ def create_app(name: str, directory: str | None) -> None:
 @click.option("--port", "-p", default=8000, show_default=True, type=int, help="Bind port.")
 @click.option(
     "--reload/--no-reload",
-    default=True, help="Enable/disable auto-reload on file changes (default: --reload).")
+    default=True,
+    help="Enable/disable auto-reload on file changes (default: --reload).",
+)
 @click.option(
     "--workers",
     "-w",

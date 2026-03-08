@@ -520,14 +520,38 @@ Enable the AI registry in ``myblog/settings.py``:
 
 .. code-block:: python
 
-   ENABLE_AI_PROVIDERS = True
-   AI_PROVIDERS = {
-       "openai": {
-           "provider": "openai",
-           "api_key": "your-openai-key",
-           "models": {"gpt-4o": "gpt-4o"},
-       },
-   }
+    ENABLE_AI_PROVIDERS = True
+    AI_PROVIDERS: dict[str, Any] = dataclasses.field(
+        default_factory=lambda: {
+            "ollama": {
+                "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+                "models": {
+                    "default": "granite-code:3b",
+                    "Granite Code 3B": "granite-code:3b",
+                    "Llama 3": "llama3",
+                    "Mistral": "mistral",
+                    "Code Llama": "codellama",
+                },
+            },
+            "gemini": {
+                "api_key": os.environ.get("GEMINI_API_KEY"),
+                "project_number": os.environ.get("GEMINI_PROJECT_NUMBER")
+                "model": {
+                    "default": "gemini-2.0-flash",
+                    "Gemini 2.0 Flash": "gemini-2.0-flash",
+                    "Gemini 1.5 Flash": "gemini-1.5-flash",
+                    "Gemini 1.5 Pro": "gemini-1.5-pro",
+                },
+                "embed_model": "models/text-embedding-004",
+                "temperature": 1.0,
+                "max_output_tokens": 2048,
+                "candidate_count": 1,
+                "top_p": 0.95,
+                "top_k": 40,
+            },
+        }
+    )
+
 
 Add an AI-assisted view in ``blog/views.py``:
 
@@ -546,9 +570,9 @@ Add an AI-assisted view in ``blog/views.py``:
            return JSONResponse({"error": "topic is required"}, status_code=400)
 
        provider = provider_registry.get_by_model("gpt-4o")
-       draft = await provider.generate(
-           f"Write a 200-word blog post introduction about: {topic}"
-       )
+        draft = await provider.generate(
+            f"Write a 200-word blog post introduction about: {topic}"
+        )
        return JSONResponse({"draft": draft})
 
 Register the endpoint:

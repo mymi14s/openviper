@@ -426,7 +426,9 @@ class TestGetEnginePoolKwargs:
         # Non-memory URL sets pool_size=10 and max_overflow=5
         reset_engine()
         with (
-            patch("openviper.tasks.results._resolve_db_url", return_value="sqlite:///test_branch.db"),
+            patch(
+                "openviper.tasks.results._resolve_db_url", return_value="sqlite:///test_branch.db"
+            ),
             patch("openviper.tasks.results.create_engine") as mock_ce,
         ):
             mock_engine = MagicMock()

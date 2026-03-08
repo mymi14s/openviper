@@ -200,6 +200,7 @@ class TestHandleSuccess:
 
         resolver.resolve_app.assert_called_once_with("testapp")
 
+
 # ---------------------------------------------------------------------------
 # handle() – verbose TTY output
 # ---------------------------------------------------------------------------
@@ -213,9 +214,7 @@ class TestHandleVerbose:
         # Covers lines 79-85: app locations printed when stdout is a TTY with resolved apps,
         # and line 87-88: quiet path ("Running migrations...") when not verbose
         mock_settings.INSTALLED_APPS = []
-        MockResolver.return_value = _make_resolver(
-            resolved_apps={"myapp": "/path/to/myapp"}
-        )
+        MockResolver.return_value = _make_resolver(resolved_apps={"myapp": "/path/to/myapp"})
         mock_run.return_value = ["0001_initial"]
 
         cmd = Command()

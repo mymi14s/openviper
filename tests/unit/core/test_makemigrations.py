@@ -906,9 +906,7 @@ class TestTopologicalSort:
     @patch(
         "openviper.core.management.commands.makemigrations.has_model_changes", return_value=False
     )
-    def test_multiple_apps_sorted_and_processed(
-        self, mock_hmc, mock_settings, MockResolver
-    ):
+    def test_multiple_apps_sorted_and_processed(self, mock_hmc, mock_settings, MockResolver):
         mock_settings.INSTALLED_APPS = []
         MockResolver.return_value = _make_resolver(
             resolved_apps={
@@ -1185,8 +1183,15 @@ class TestDependencyAnalysis:
         return_value=True,
     )
     def test_intra_app_prev_migration_dep_and_inter_app_fk_dep(
-        self, mock_hmc, mock_rms, mock_mss, mock_diff,
-        mock_write, mock_settings, MockResolver, tmp_path
+        self,
+        mock_hmc,
+        mock_rms,
+        mock_mss,
+        mock_diff,
+        mock_write,
+        mock_settings,
+        MockResolver,
+        tmp_path,
     ):
         # num=2 AND existing 0001 file → intra-app dep added
         # FK to other app with existing migrations → inter-app dep added

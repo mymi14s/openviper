@@ -387,7 +387,6 @@ def test_missing_line_coverage():
         assert f.max_file_size == 10485760
 
 
-
 def test_foreign_key_resolve_target_branches():
     # callable target calls it and returns the resulting type
     class TargetModel:

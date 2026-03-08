@@ -19,11 +19,9 @@ async def api_index(request):
     if request.method == "GET":
         return JSONResponse({"message": "Welcome to tp API!", "status": "success"})
     elif request.method == "POST":
-        return JSONResponse({
-            "message": "Data received", "status": "success", "method": "POST"})
+        return JSONResponse({"message": "Data received", "status": "success", "method": "POST"})
     else:
-        return JSONResponse({
-            "error": "Method not allowed", "status": "error"}, status_code=405)
+        return JSONResponse({"error": "Method not allowed", "status": "error"}, status_code=405)
 
 
 # Routes for apps should be in each app's routes.py file

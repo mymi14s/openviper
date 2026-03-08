@@ -303,8 +303,6 @@ def test_shell_command_discover_models_type_error(tmp_path):
     assert isinstance(result, dict)
 
 
-
-
 def test_shell_build_namespace_include_models():
     # _build_namespace with include_models=True calls _discover_models and
     # returns sorted model names

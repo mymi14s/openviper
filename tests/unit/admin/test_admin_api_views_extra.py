@@ -942,7 +942,7 @@ class TestBulkActionByAppExtra:
 
 
 # ---------------------------------------------------------------------------
-# export_instances_by_app – ids param and datetime 
+# export_instances_by_app – ids param and datetime
 # ---------------------------------------------------------------------------
 
 
@@ -2554,7 +2554,7 @@ class TestCreateInstanceByAppNotRegistered:
 
 
 # ---------------------------------------------------------------------------
-# create_instance_by_app – child sync path 
+# create_instance_by_app – child sync path
 # ---------------------------------------------------------------------------
 
 
@@ -2693,7 +2693,7 @@ class TestCreateInstanceByAppChildSync:
 
 
 # ---------------------------------------------------------------------------
-# create_instance_by_app – IntegrityError path 
+# create_instance_by_app – IntegrityError path
 # ---------------------------------------------------------------------------
 
 
@@ -2750,7 +2750,7 @@ class TestCreateInstanceByAppIntegrityError:
 
 
 # ---------------------------------------------------------------------------
-# get_instance_by_app – NotRegistered path 
+# get_instance_by_app – NotRegistered path
 # ---------------------------------------------------------------------------
 
 

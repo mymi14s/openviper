@@ -1,14 +1,14 @@
 """Additional compact tests for openviper.admin.api.views edge cases."""
 
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
 import contextlib
-import sqlalchemy.exc
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
+
+import pytest
+import sqlalchemy.exc
 
 from openviper.admin.registry import NotRegistered
 
@@ -109,6 +109,7 @@ class TestViewsEdgeCases:
     @pytest.mark.asyncio
     async def test_integrity_error_with_orig(self):
         """Test integrity error message extraction (line 844, 872)."""
+
         class MockOrig:
             def __str__(self):
                 return "Duplicate key constraint"
@@ -252,10 +253,7 @@ class TestBulkActionEdgeCases:
         ids = list(range(1001))
         max_allowed = 1000
 
-        if len(ids) > max_allowed:
-            error = True
-        else:
-            error = False
+        error = len(ids) > max_allowed
 
         assert error is True
 
@@ -264,10 +262,7 @@ class TestBulkActionEdgeCases:
         """Test bulk delete with > 1000 IDs (line 1602-1603)."""
         ids = list(range(1001))
 
-        if len(ids) > 1000:
-            error_detail = "Cannot delete more than 1000 items at once."
-        else:
-            error_detail = None
+        error_detail = "Cannot delete more than 1000 items at once." if len(ids) > 1000 else None
 
         assert error_detail is not None
 
@@ -319,13 +314,7 @@ class TestLegacyEndpointBranches:
         sort_field = ""
         ordering = ["-created_at"]
 
-        if sort_field:
-            final_ordering = [sort_field]
-        else:
-            if ordering:
-                final_ordering = ordering
-            else:
-                final_ordering = []
+        final_ordering = [sort_field] if sort_field else ordering or []
 
         assert final_ordering == ["-created_at"]
 
@@ -335,10 +324,7 @@ class TestLegacyEndpointBranches:
         """Test create returns PermissionDenied (lines 1371, 1380)."""
         has_add_permission = False
 
-        if not has_add_permission:
-            error = "No permission to add"
-        else:
-            error = None
+        error = "No permission to add" if not has_add_permission else None
 
         assert error is not None
 
@@ -369,10 +355,7 @@ class TestLegacyEndpointBranches:
     async def test_get_instance_admin_required(self):
         """Test get instance requires admin (line 1432)."""
         is_staff = False
-        if not is_staff:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_staff else None
         assert error is not None
 
     # Lines 1449-1462: get instance serialization
@@ -419,10 +402,7 @@ class TestLegacyEndpointBranches:
     async def test_update_change_permission(self):
         """Test update requires change permission (line 1489)."""
         has_change_permission = False
-        if not has_change_permission:
-            error = "No permission to change"
-        else:
-            error = None
+        error = "No permission to change" if not has_change_permission else None
         assert error is not None
 
     # Lines 1506, 1510-1511: update readonly fields and coercion
@@ -511,10 +491,7 @@ class TestLegacyEndpointBranches:
     async def test_bulk_action_limit_validation(self):
         """Test bulk action validates ID count (line 1654)."""
         ids = list(range(1001))
-        if len(ids) > 1000:
-            error = "Cannot act on more than 1000 items at once."
-        else:
-            error = None
+        error = "Cannot act on more than 1000 items at once." if len(ids) > 1000 else None
         assert error is not None
 
     # Line 1692: filter options admin required
@@ -563,10 +540,7 @@ class TestLegacyEndpointBranches:
     async def test_history_instance_not_found(self):
         """Test history returns 404 if instance not found (line 1799)."""
         instance = None
-        if not instance:
-            error = "not found"
-        else:
-            error = None
+        error = "not found" if not instance else None
         assert error is not None
 
     # Line 1833: fk search admin required
@@ -585,10 +559,7 @@ class TestPermissionChecks:
     async def test_get_instance_by_app_admin_check(self):
         """Test get_instance_by_app admin check (line 872)."""
         is_admin = False
-        if not is_admin:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_admin else None
         assert error == "Admin access required."
 
     # Line 952: update readonly skip
@@ -626,10 +597,7 @@ class TestPermissionChecks:
     async def test_delete_by_app_admin_check(self):
         """Test delete_by_app admin check (line 1088)."""
         is_admin = False
-        if not is_admin:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_admin else None
         assert error is not None
 
     # Line 1122: bulk action by app admin check
@@ -637,10 +605,7 @@ class TestPermissionChecks:
     async def test_bulk_action_by_app_admin_check(self):
         """Test bulk_action_by_app admin check (line 1122)."""
         is_admin = False
-        if not is_admin:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_admin else None
         assert error is not None
 
     # Line 1170: export by app admin check
@@ -648,10 +613,7 @@ class TestPermissionChecks:
     async def test_export_by_app_admin_check(self):
         """Test export_by_app admin check (line 1170)."""
         is_admin = False
-        if not is_admin:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_admin else None
         assert error is not None
 
     # Line 1205: export datetime field
@@ -670,10 +632,7 @@ class TestPermissionChecks:
     async def test_history_by_app_admin_check(self):
         """Test history admin check (line 1227)."""
         is_admin = False
-        if not is_admin:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_admin else None
         assert error is not None
 
     # Line 1263: legacy list admin check
@@ -681,10 +640,7 @@ class TestPermissionChecks:
     async def test_legacy_list_admin_check(self):
         """Test legacy list admin check (line 1263)."""
         is_admin = False
-        if not is_admin:
-            error = "Admin access required."
-        else:
-            error = None
+        error = "Admin access required." if not is_admin else None
         assert error is not None
 
 
@@ -713,10 +669,7 @@ class TestLegacyEndpointsUncovered:
         assert filters == {"status": "active", "category": "tech"}
 
         # Line 1316: apply filters
-        if filters:
-            applied = True
-        else:
-            applied = False
+        applied = bool(filters)
         assert applied is True
 
     # Line 1325: legacy list ordering
@@ -726,13 +679,7 @@ class TestLegacyEndpointsUncovered:
         sort_field = ""
         ordering = ["-id", "name"]
 
-        if sort_field:
-            result_order = sort_field
-        else:
-            if ordering:
-                result_order = ordering
-            else:
-                result_order = None
+        result_order = sort_field or (ordering or None)
 
         assert result_order == ["-id", "name"]
 
@@ -756,10 +703,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_create_admin_check(self):
         """Test admin check on legacy create (line 1371)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1380: legacy create add permission
@@ -767,10 +711,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_create_add_permission_check(self):
         """Test add permission check on legacy create (line 1380)."""
         has_add = False
-        if not has_add:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not has_add)
         assert permission_denied is True
 
     # Line 1392: legacy create readonly field skip
@@ -809,10 +750,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_get_instance_admin_check(self):
         """Test admin check on legacy get (line 1432)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Lines 1449-1462: legacy get instance serialization
@@ -842,10 +780,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_update_admin_check(self):
         """Test admin check on legacy update (line 1475)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1489: legacy update change permission
@@ -853,10 +788,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_update_change_permission(self):
         """Test change permission on legacy update (line 1489)."""
         has_change = False
-        if not has_change:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not has_change)
         assert permission_denied is True
 
     # Lines 1506, 1510-1511: legacy update readonly and field setting
@@ -915,10 +847,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_delete_admin_check(self):
         """Test admin check on legacy delete (line 1551)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1588: bulk delete admin check
@@ -926,10 +855,7 @@ class TestLegacyEndpointsUncovered:
     async def test_bulk_delete_admin_check(self):
         """Test admin check on bulk delete (line 1588)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1634: bulk action admin check
@@ -937,10 +863,7 @@ class TestLegacyEndpointsUncovered:
     async def test_bulk_action_admin_check(self):
         """Test admin check on bulk action (line 1634)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1654: bulk action over 1000 limit
@@ -948,10 +871,7 @@ class TestLegacyEndpointsUncovered:
     async def test_bulk_action_over_limit(self):
         """Test bulk action 1000 limit (line 1654)."""
         ids = list(range(1001))
-        if len(ids) > 1000:
-            error = "Cannot act on more than 1000 items at once."
-        else:
-            error = None
+        error = "Cannot act on more than 1000 items at once." if len(ids) > 1000 else None
         assert error is not None
 
     # Line 1692: get filter options admin check
@@ -959,10 +879,7 @@ class TestLegacyEndpointsUncovered:
     async def test_get_filter_options_admin_check(self):
         """Test admin check on get filter options (line 1692)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1735: export admin check
@@ -970,10 +887,7 @@ class TestLegacyEndpointsUncovered:
     async def test_export_admin_check(self):
         """Test admin check on export (line 1735)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1767: export isoformat serialization
@@ -991,10 +905,7 @@ class TestLegacyEndpointsUncovered:
     async def test_get_history_admin_check(self):
         """Test admin check on get history (line 1789)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
     # Line 1799: get history instance not found
@@ -1002,10 +913,7 @@ class TestLegacyEndpointsUncovered:
     async def test_get_history_not_found(self):
         """Test instance not found in get history (line 1799)."""
         instance = None
-        if not instance:
-            not_found = True
-        else:
-            not_found = False
+        not_found = bool(not instance)
         assert not_found is True
 
     # Line 1806: get history append record
@@ -1044,10 +952,7 @@ class TestLegacyEndpointsUncovered:
     async def test_autocomplete_admin_check(self):
         """Test admin check on autocomplete (line 1833)."""
         is_admin = False
-        if not is_admin:
-            permission_denied = True
-        else:
-            permission_denied = False
+        permission_denied = bool(not is_admin)
         assert permission_denied is True
 
 
@@ -1071,10 +976,7 @@ class TestChildTableProcessing:
 
         # Line 825: no fk_name found
         fk_name = None
-        if not fk_name:
-            skipped = True
-        else:
-            skipped = False
+        skipped = bool(not fk_name)
         assert skipped is True
 
     # Line 844: create ValueError handling
@@ -1094,12 +996,9 @@ class TestChildTableProcessing:
     @pytest.mark.asyncio
     async def test_app_endpoints_admin_checks(self):
         """Test admin checks on app endpoints (lines 872, 911)."""
-        for line in [872, 911]:
+        for _line in [872, 911]:
             is_admin = False
-            if not is_admin:
-                permission_denied = True
-            else:
-                permission_denied = False
+            permission_denied = bool(not is_admin)
             assert permission_denied is True
 
     # Lines 952, 990: update readonly skip, no fk_name continue
@@ -1109,7 +1008,7 @@ class TestChildTableProcessing:
         data = {"name": "New", "immutable": "skip"}
         readonly_fields = ["immutable"]
 
-        for field_name, value in data.items():
+        for field_name, _value in data.items():
             if field_name in readonly_fields:
                 skipped_readonly = True  # Line 952
                 continue
@@ -1118,10 +1017,7 @@ class TestChildTableProcessing:
 
         # Line 990
         fk_name = None
-        if not fk_name:
-            skipped_fk = True
-        else:
-            skipped_fk = False
+        skipped_fk = bool(not fk_name)
         assert skipped_fk is True
 
     # Lines 1040-1045: child serialization isoformat and str conversion
@@ -1151,7 +1047,7 @@ class TestChildTableProcessing:
     @pytest.mark.asyncio
     async def test_delete_bulk_admin_checks(self):
         """Test admin checks on delete/bulk (lines 1088, 1122)."""
-        for line in [1088, 1122]:
+        for _line in [1088, 1122]:
             is_admin = False
             if not is_admin:
                 permission_denied = True

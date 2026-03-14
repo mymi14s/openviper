@@ -374,7 +374,7 @@ class TestPermissionCheckerWithDifferentUsers:
         user = _make_user(is_authenticated=False)
         request = _make_request(user)
         checker = PermissionChecker(request)
-        model_class = _make_model_class()
+        _make_model_class()
 
         assert checker.has_admin_access is False
         assert checker.is_authenticated is False

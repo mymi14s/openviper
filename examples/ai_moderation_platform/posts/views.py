@@ -5,20 +5,18 @@ from __future__ import annotations
 import logging
 
 from openviper.http import JSONResponse, Request, Response
+from openviper.http.response import HTMLResponse
 from openviper.http.views import View
 
 from .models import Comment, CommentLike, Post, PostLike
 from .serializers import (
     CommentCreateSerializer,
-    CommentLikeSerializer,
     CommentResponseSerializer,
     PostCreateSerializer,
     PostResponseSerializer,
     ReplyCreateSerializer,
     UpdateCommentSerializer,
 )
-
-from openviper.http.response import HTMLResponse
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,10 @@ class PostListCreateView(View):
             # Fetch all non-hidden posts and filter in Python for OR search
             all_posts = []
             async for post in qs:
-                if search_query.lower() in post.title.lower() or search_query.lower() in post.content.lower():
+                if (
+                    search_query.lower() in post.title.lower()
+                    or search_query.lower() in post.content.lower()
+                ):
                     all_posts.append(post)
 
             # Get total count
@@ -62,7 +63,7 @@ class PostListCreateView(View):
 
             # Apply pagination manually
             offset = (page - 1) * page_size
-            posts = all_posts[offset:offset + page_size]
+            posts = all_posts[offset : offset + page_size]
         else:
             # Get total count before pagination
             total = await qs.count()
@@ -79,10 +80,7 @@ class PostListCreateView(View):
         user_id = request.user.id if request.user else None
         user_likes = set()
         if user_id:
-            user_likes = {
-                like.post_id
-                async for like in PostLike.objects.filter(user_id=user_id)
-            }
+            user_likes = {like.post_id async for like in PostLike.objects.filter(user_id=user_id)}
 
         # Serialize posts with user_liked flag
         serialized_posts = []
@@ -90,13 +88,15 @@ class PostListCreateView(View):
             post._user_liked = post.id in user_likes
             serialized_posts.append(_serialize_post(post, preview=True, user_id=user_id))
 
-        return JSONResponse({
-            "posts": serialized_posts,
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-            "total_pages": total_pages,
-        })
+        return JSONResponse(
+            {
+                "posts": serialized_posts,
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
+            }
+        )
 
     async def post(self, request: Request) -> Response:
         """Create a new post and moderate it."""
@@ -139,9 +139,7 @@ class PostDetailView(View):
 
         # Get comments count
         post.comments_count = await Comment.objects.filter(
-            post_id=post_id,
-            parent_comment_id=None,  # Top-level only
-            is_hidden=False
+            post_id=post_id, parent_comment_id=None, is_hidden=False  # Top-level only
         ).count()
 
         # Check if user liked this post
@@ -169,18 +167,17 @@ class CommentListCreateView(View):
 
         # Fetch top-level comments only (parent_comment IS NULL) and not hidden
         total = await Comment.objects.filter(
-            post_id=int(post_id),
-            parent_comment_id=None,  # Top-level only
-            is_hidden=False
+            post_id=int(post_id), parent_comment_id=None, is_hidden=False  # Top-level only
         ).count()
 
         offset = (page - 1) * page_size
         comments = [
-            c async for c in Comment.objects.filter(
-                post_id=int(post_id),
-                parent_comment_id=None,
-                is_hidden=False
-            ).offset(offset).limit(page_size)
+            c
+            async for c in Comment.objects.filter(
+                post_id=int(post_id), parent_comment_id=None, is_hidden=False
+            )
+            .offset(offset)
+            .limit(page_size)
         ]
 
         # Get user likes if authenticated
@@ -188,8 +185,7 @@ class CommentListCreateView(View):
         user_liked_comments = set()
         if user_id:
             user_liked_comments = {
-                like.comment_id
-                async for like in CommentLike.objects.filter(user_id=user_id)
+                like.comment_id async for like in CommentLike.objects.filter(user_id=user_id)
             }
 
         # Serialize comments
@@ -201,13 +197,15 @@ class CommentListCreateView(View):
 
         total_pages = (total + page_size - 1) // page_size
 
-        return JSONResponse({
-            "comments": result,
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-            "total_pages": total_pages,
-        })
+        return JSONResponse(
+            {
+                "comments": result,
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
+            }
+        )
 
     async def post(self, request: Request) -> Response:
         """Create a new comment."""
@@ -247,7 +245,10 @@ class BlogListView(View):
             # Fetch all non-hidden posts and filter in Python for OR search
             all_posts = []
             async for post in qs:
-                if search_query.lower() in post.title.lower() or search_query.lower() in post.content.lower():
+                if (
+                    search_query.lower() in post.title.lower()
+                    or search_query.lower() in post.content.lower()
+                ):
                     all_posts.append(post)
 
             # Get total count
@@ -255,7 +256,7 @@ class BlogListView(View):
 
             # Apply pagination manually
             offset = (page - 1) * page_size
-            posts = all_posts[offset:offset + page_size]
+            posts = all_posts[offset : offset + page_size]
         else:
             # Get total count before pagination
             total = await qs.count()
@@ -277,7 +278,7 @@ class BlogListView(View):
                 "total": total,
                 "total_pages": total_pages,
                 "search_query": search_query,
-            }
+            },
         )
 
 
@@ -301,13 +302,16 @@ class BlogListAPIView(View):
             # Fetch all non-hidden posts and filter in Python for OR search
             all_posts = []
             async for post in qs:
-                if search_query.lower() in post.title.lower() or search_query.lower() in post.content.lower():
+                if (
+                    search_query.lower() in post.title.lower()
+                    or search_query.lower() in post.content.lower()
+                ):
                     all_posts.append(post)
 
             # Get total count and apply pagination
             total = len(all_posts)
             offset = (page - 1) * page_size
-            posts = all_posts[offset:offset + page_size]
+            posts = all_posts[offset : offset + page_size]
         else:
             # Get total count before pagination
             total = await qs.count()
@@ -334,12 +338,14 @@ class BlogListAPIView(View):
             if search_query:
                 previous_url += f"&search={search_query}"
 
-        return JSONResponse({
-            "count": total,
-            "next": next_url,
-            "previous": previous_url,
-            "results": results,
-        })
+        return JSONResponse(
+            {
+                "count": total,
+                "next": next_url,
+                "previous": previous_url,
+                "results": results,
+            }
+        )
 
 
 class PostLikeToggleView(View):
@@ -373,10 +379,7 @@ class PostLikeToggleView(View):
             # Update and return likes count
             likes_count = await PostLike.objects.filter(post_id=post_id).count()
 
-            return JSONResponse({
-                "liked": liked,
-                "likes_count": likes_count
-            }, status_code=200)
+            return JSONResponse({"liked": liked, "likes_count": likes_count}, status_code=200)
         except Exception as e:
             logger.exception("Error in PostLikeToggleView.post")
             return JSONResponse({"error": str(e)}, status_code=500)
@@ -413,10 +416,7 @@ class CommentLikeToggleView(View):
             # Update and return likes count
             likes_count = await CommentLike.objects.filter(comment_id=comment_id).count()
 
-            return JSONResponse({
-                "liked": liked,
-                "likes_count": likes_count
-            }, status_code=200)
+            return JSONResponse({"liked": liked, "likes_count": likes_count}, status_code=200)
         except Exception as e:
             logger.exception("Error in CommentLikeToggleView.post")
             return JSONResponse({"error": str(e)}, status_code=500)
@@ -507,17 +507,14 @@ class ReplyListCreateView(View):
         page_size = int(request.query_params.get("page_size", 20))
 
         # Fetch replies (direct children only, not hidden)
-        total = await Comment.objects.filter(
-            parent_comment_id=comment_id,
-            is_hidden=False
-        ).count()
+        total = await Comment.objects.filter(parent_comment_id=comment_id, is_hidden=False).count()
 
         offset = (page - 1) * page_size
         replies = [
-            r async for r in Comment.objects.filter(
-                parent_comment_id=comment_id,
-                is_hidden=False
-            ).offset(offset).limit(page_size)
+            r
+            async for r in Comment.objects.filter(parent_comment_id=comment_id, is_hidden=False)
+            .offset(offset)
+            .limit(page_size)
         ]
 
         # Get user likes if authenticated
@@ -525,8 +522,7 @@ class ReplyListCreateView(View):
         user_liked_comments = set()
         if user_id:
             user_liked_comments = {
-                like.comment_id
-                async for like in CommentLike.objects.filter(user_id=user_id)
+                like.comment_id async for like in CommentLike.objects.filter(user_id=user_id)
             }
 
         # Serialize replies
@@ -538,13 +534,15 @@ class ReplyListCreateView(View):
 
         total_pages = (total + page_size - 1) // page_size
 
-        return JSONResponse({
-            "replies": result,
-            "page": page,
-            "page_size": page_size,
-            "total": total,
-            "total_pages": total_pages,
-        })
+        return JSONResponse(
+            {
+                "replies": result,
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": total_pages,
+            }
+        )
 
     async def post(self, request: Request, comment_id: int) -> Response:
         """Create a reply to a comment."""
@@ -569,11 +567,10 @@ class ReplyListCreateView(View):
             )
             await reply.save()
 
-            return JSONResponse({
-                "id": reply.id,
-                "content": reply.content,
-                "parent_comment_id": comment_id
-            }, status_code=201)
+            return JSONResponse(
+                {"id": reply.id, "content": reply.content, "parent_comment_id": comment_id},
+                status_code=201,
+            )
         except Exception as e:
             logger.exception("Error in ReplyListCreateView.post")
             return JSONResponse({"error": str(e)}, status_code=500)
@@ -591,13 +588,11 @@ class BlogDetailView(View):
 
         # Eagerly load comments with authors to avoid N+1 queries in template
         comments = [
-            c async for c in Comment.objects.select_related("author").filter(
-                post_id=post.id,
-                parent_comment_id=None,  # Top-level comments only
-                is_hidden=False
+            c
+            async for c in Comment.objects.select_related("author").filter(
+                post_id=post.id, parent_comment_id=None, is_hidden=False  # Top-level comments only
             )
         ]
         return HTMLResponse(
-            template="posts/blog_detail.html",
-            context={"post": post, "comments": comments}
+            template="posts/blog_detail.html", context={"post": post, "comments": comments}
         )

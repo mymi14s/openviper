@@ -117,7 +117,7 @@ class TestConfigureWorkerLogging:
 
         tasks_logger = logging.getLogger("openviper.tasks")
         # Only console handler should be present
-        handler_types = [type(h).__name__ for h in tasks_logger.handlers]
+        [type(h).__name__ for h in tasks_logger.handlers]
 
         # RotatingFileHandler should not be present
         file_handlers = [

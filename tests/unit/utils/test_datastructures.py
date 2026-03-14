@@ -1,4 +1,4 @@
-"""Unit tests for openviper.utils.datastructures — Headers, MutableHeaders, QueryParams, ImmutableMultiDict."""
+"""Unit tests for openviper.utils.datastructures — Headers, MutableHeaders, QueryParams, ImmutableMultiDict."""  # noqa: E501
 
 import pytest
 

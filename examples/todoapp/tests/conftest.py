@@ -20,12 +20,15 @@ os.environ["TEMPLATES_DIR"] = str(TODOAPP_DIR / "templates")
 sys.path.insert(0, str(TODOAPP_DIR))
 
 # Import app after env is configured (triggers openviper.setup(force=True))
+import models  # noqa: F401, E402  — registers Todo in SQLAlchemy metadata
 from app import app  # noqa: E402
 
-import models  # noqa: F401 — registers Todo in SQLAlchemy metadata
 from openviper.auth import get_user_model  # noqa: E402
 from openviper.db.connection import _metadata, get_engine, init_db  # noqa: E402
-from openviper.db.migrations.executor import _get_migration_table, _get_soft_removed_table  # noqa: E402
+from openviper.db.migrations.executor import (  # noqa: E402
+    _get_migration_table,
+    _get_soft_removed_table,
+)
 
 # ── Event loop (session-scoped for session-scoped async fixtures) ─────────────
 

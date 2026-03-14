@@ -30,8 +30,8 @@ if not any(
     _log_file = os.path.join(os.getcwd(), "posts.log")
     _fh = logging.FileHandler(_log_file)
     _fh.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-    logger.addHandler(_fh)    
-    
+    logger.addHandler(_fh)
+
 
 @periodic(every=60)
 async def vulgerity_scan() -> None:

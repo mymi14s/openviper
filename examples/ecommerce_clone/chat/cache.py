@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 
 from .models import ChatCache
@@ -22,7 +23,5 @@ async def store_answer(question: str, answer: str) -> None:
         question=question,
         answer=answer,
     )
-    try:
+    with contextlib.suppress(Exception):  # duplicate hash on concurrent requests — harmless
         await entry.save()
-    except Exception:
-        pass  # duplicate hash on concurrent requests — harmless

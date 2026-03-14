@@ -110,9 +110,13 @@ class TestEndpointPermissionChecks:
     def find_endpoint(self, path_pattern: str, method: str = "GET"):
         """Helper to find endpoint handler by path and method."""
         for route in self.router.routes:
-            if hasattr(route, "path") and str(route.path) == path_pattern:
-                if hasattr(route, "methods") and method in route.methods:
-                    return route.handler
+            if (
+                hasattr(route, "path")
+                and str(route.path) == path_pattern
+                and hasattr(route, "methods")
+                and method in route.methods
+            ):
+                return route.handler
         return None
 
     @pytest.mark.asyncio
@@ -174,10 +178,14 @@ class TestFormDataJsonParsing:
         router = get_admin_router()
         handler = None
         for route in router.routes:
-            if hasattr(route, "path") and str(route.path) == "/api/{model_name}/":
-                if hasattr(route, "methods") and "POST" in route.methods:
-                    handler = route.handler
-                    break
+            if (
+                hasattr(route, "path")
+                and str(route.path) == "/api/{model_name}/"
+                and hasattr(route, "methods")
+                and "POST" in route.methods
+            ):
+                handler = route.handler
+                break
 
         if handler:
             mock_request = MagicMock()
@@ -218,10 +226,14 @@ class TestFormDataJsonParsing:
         router = get_admin_router()
         handler = None
         for route in router.routes:
-            if hasattr(route, "path") and str(route.path) == "/api/{model_name}/{pk}/":
-                if hasattr(route, "methods") and "PUT" in route.methods:
-                    handler = route.handler
-                    break
+            if (
+                hasattr(route, "path")
+                and str(route.path) == "/api/{model_name}/{pk}/"
+                and hasattr(route, "methods")
+                and "PUT" in route.methods
+            ):
+                handler = route.handler
+                break
 
         if handler:
             mock_request = MagicMock()
@@ -271,10 +283,14 @@ class TestUpdateViewExceptionHandling:
         router = get_admin_router()
         handler = None
         for route in router.routes:
-            if hasattr(route, "path") and str(route.path) == "/api/{model_name}/{pk}/":
-                if hasattr(route, "methods") and "PUT" in route.methods:
-                    handler = route.handler
-                    break
+            if (
+                hasattr(route, "path")
+                and str(route.path) == "/api/{model_name}/{pk}/"
+                and hasattr(route, "methods")
+                and "PUT" in route.methods
+            ):
+                handler = route.handler
+                break
 
         if handler:
             mock_request = MagicMock()
@@ -315,10 +331,14 @@ class TestUpdateViewExceptionHandling:
         router = get_admin_router()
         handler = None
         for route in router.routes:
-            if hasattr(route, "path") and str(route.path) == "/api/{model_name}/{pk}/":
-                if hasattr(route, "methods") and "PUT" in route.methods:
-                    handler = route.handler
-                    break
+            if (
+                hasattr(route, "path")
+                and str(route.path) == "/api/{model_name}/{pk}/"
+                and hasattr(route, "methods")
+                and "PUT" in route.methods
+            ):
+                handler = route.handler
+                break
 
         if handler:
             mock_request = MagicMock()

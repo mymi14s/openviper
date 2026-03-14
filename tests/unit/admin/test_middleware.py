@@ -18,7 +18,7 @@ def _make_user(is_authenticated=True, is_staff=False, is_superuser=False, has_pe
     user.is_authenticated = is_authenticated
     user.is_staff = is_staff
     user.is_superuser = is_superuser
-    if hasattr(has_perm, "__call__"):
+    if callable(has_perm):
         user.has_perm = has_perm
     else:
         user.has_perm = MagicMock(return_value=has_perm)
@@ -384,7 +384,7 @@ class TestMiddlewareIntegration:
             ("/admin/static/", False),  # Not API path
         ]
 
-        for path, should_check_auth in test_cases:
+        for path, _should_check_auth in test_cases:
             scope = {"type": "http", "path": path, "user": user}
             receive = AsyncMock()
             send = AsyncMock()

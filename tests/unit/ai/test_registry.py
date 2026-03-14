@@ -189,7 +189,7 @@ class TestLegacyAIRegistry:
         legacy = _LegacyAIRegistry()
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            legacy.list_models
+            legacy.list_models  # noqa: B018
             assert len(w) == 1
             assert issubclass(w[0].category, DeprecationWarning)
             assert "deprecated" in str(w[0].message).lower()

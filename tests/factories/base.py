@@ -112,7 +112,7 @@ class MockUser:
     def __init__(
         self,
         *,
-        id: int = 1,
+        user_id: int = 1,
         username: str = "testuser",
         email: str = "test@example.com",
         is_authenticated: bool = True,
@@ -121,7 +121,7 @@ class MockUser:
         roles: list[str] | None = None,
         permissions: list[str] | None = None,
     ) -> None:
-        self.id = id
+        self.id = user_id
         self.username = username
         self.email = email
         self.is_authenticated = is_authenticated

@@ -3,13 +3,13 @@ Async endpoint tests for openviper.admin.api.views (admin REST API).
 Covers key endpoints for coverage and error handling.
 """
 
+import uuid
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from openviper.admin.api import views
-import uuid
-from datetime import datetime
 
 # Ensure router is initialized at module scope for coverage
 _router = views.get_admin_router()
@@ -240,7 +240,7 @@ async def test_update_by_app_readonly_skip(monkeypatch):
     req.json = AsyncMock(return_value={"name": "New", "immutable": "changed"})
 
     handler = get_handler("/models/{app_label}/{model_name}/{obj_id}/", "PUT")
-    resp = await handler(req, "testapp", "TestModel", "1")
+    await handler(req, "testapp", "TestModel", "1")
     # immutable should not be changed
     assert instance.immutable == "original"
 
@@ -592,7 +592,7 @@ async def test_legacy_update_readonly_and_set(monkeypatch):
     req.json = AsyncMock(return_value={"name": "New", "immutable": "changed"})
 
     handler = get_handler("/models/{model_name}/{obj_id}/", "PATCH")
-    resp = await handler(req, "TestModel", "1")
+    await handler(req, "TestModel", "1")
     # immutable should remain unchanged
     assert instance.immutable == "original"
     assert instance.name == "New"

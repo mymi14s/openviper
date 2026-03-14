@@ -11,10 +11,29 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from openviper.ai import extension
+from openviper.ai.base import AIProvider as BaseAIProvider
+from openviper.ai.extension import EXTENSION_API_VERSION
+from openviper.ai.extension import AIProvider as ExtAIProvider
+from openviper.ai.extension import provider_registry as ext_registry
+from openviper.ai.providers.anthropic_provider import AnthropicProvider
+from openviper.ai.providers.gemini_provider import _validate_image_url
+from openviper.ai.providers.grok_provider import (
+    GrokAuthError,
+    GrokError,
+    GrokProvider,
+    GrokRateLimitError,
+)
+from openviper.ai.providers.grok_provider import (
+    _validate_base_url as grok_validate_base_url,
+)
+from openviper.ai.providers.ollama_provider import OllamaProvider, _validate_base_url
+from openviper.ai.providers.openai_provider import _ALLOWED_GENERATE_KWARGS, OpenAIProvider
+from openviper.ai.registry import provider_registry as reg_registry
+
 # ---------------------------------------------------------------------------
 # Ollama — SSRF validation
 # ---------------------------------------------------------------------------
-from openviper.ai.providers.ollama_provider import OllamaProvider, _validate_base_url
 
 
 class TestOllamaValidateBaseUrl:
@@ -81,16 +100,6 @@ class TestOllamaProvider:
 # ---------------------------------------------------------------------------
 # Grok — SSRF, error handling, helpers
 # ---------------------------------------------------------------------------
-
-from openviper.ai.providers.grok_provider import (
-    GrokAuthError,
-    GrokError,
-    GrokProvider,
-    GrokRateLimitError,
-)
-from openviper.ai.providers.grok_provider import (
-    _validate_base_url as grok_validate_base_url,
-)
 
 
 class TestGrokValidateBaseUrl:
@@ -274,10 +283,6 @@ class TestGrokBuildExtraParams:
 # Gemini — SSRF, error wrapping, cost estimation
 # ---------------------------------------------------------------------------
 
-from openviper.ai.providers.gemini_provider import (
-    _validate_image_url,
-)
-
 
 class TestGeminiValidateImageUrl:
     def test_https_allowed(self):
@@ -309,8 +314,6 @@ class TestGeminiValidateImageUrl:
 # ---------------------------------------------------------------------------
 # OpenAI — kwarg filtering, temperature clamping
 # ---------------------------------------------------------------------------
-
-from openviper.ai.providers.openai_provider import _ALLOWED_GENERATE_KWARGS, OpenAIProvider
 
 
 class TestOpenAIFilterKwargs:
@@ -361,14 +364,6 @@ class TestOpenAIProviderInit:
 # ---------------------------------------------------------------------------
 # Anthropic — kwarg filtering, temperature clamping
 # ---------------------------------------------------------------------------
-
-from openviper.ai import extension
-from openviper.ai.base import AIProvider as BaseAIProvider
-from openviper.ai.extension import EXTENSION_API_VERSION
-from openviper.ai.extension import AIProvider as ExtAIProvider
-from openviper.ai.extension import provider_registry as ext_registry
-from openviper.ai.providers.anthropic_provider import AnthropicProvider
-from openviper.ai.registry import provider_registry as reg_registry
 
 
 class TestAnthropicClampTemperature:

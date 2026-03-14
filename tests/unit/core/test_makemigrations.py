@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,7 +21,6 @@ from openviper.db.migrations.executor import (
     RenameColumn,
     RestoreColumn,
 )
-from collections import deque
 
 # ---------------------------------------------------------------------------
 # _auto_migration_name tests
@@ -324,7 +324,7 @@ class TestDependencyAnalysis:
                 adj[dep].append(label)
                 in_degree[label] += 1
 
-        queue = deque(sorted([l for l, d in in_degree.items() if d == 0]))
+        queue = deque(sorted([lbl for lbl, d in in_degree.items() if d == 0]))
         sorted_labels = []
         while queue:
             curr = queue.popleft()
@@ -353,7 +353,7 @@ class TestDependencyAnalysis:
                     adj[dep].append(label)
                     in_degree[label] += 1
 
-        queue = deque(sorted([l for l, d in in_degree.items() if d == 0]))
+        queue = deque(sorted([lbl for lbl, d in in_degree.items() if d == 0]))
         sorted_labels = []
         while queue:
             curr = queue.popleft()
@@ -382,7 +382,7 @@ class TestDependencyAnalysis:
                     adj[dep].append(label)
                     in_degree[label] += 1
 
-        queue = deque(sorted([l for l, d in in_degree.items() if d == 0]))
+        queue = deque(sorted([lbl for lbl, d in in_degree.items() if d == 0]))
         sorted_labels = []
         while queue:
             curr = queue.popleft()
@@ -394,7 +394,7 @@ class TestDependencyAnalysis:
 
         # Handle remaining (cycles)
         if len(sorted_labels) < len(app_data):
-            remaining = sorted([l for l in app_data if l not in sorted_labels])
+            remaining = sorted([lbl for lbl in app_data if lbl not in sorted_labels])
             sorted_labels.extend(remaining)
 
         assert len(sorted_labels) == 2

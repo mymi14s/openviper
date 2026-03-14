@@ -1,10 +1,10 @@
 import os
 
 import pytest
+from users.models import User
 
 from openviper.auth.jwt import create_access_token
 from openviper.db.migrations.executor import _get_migration_table, _get_soft_removed_table
-from users.models import User
 
 # Use in-memory SQLite for tests
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"

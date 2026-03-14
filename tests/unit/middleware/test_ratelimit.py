@@ -1,4 +1,4 @@
-"""Unit tests for openviper.middleware.ratelimit — SlidingWindowCounter, RateLimitMiddleware, decorator."""
+"""Unit tests for openviper.middleware.ratelimit — SlidingWindowCounter, RateLimitMiddleware, decorator."""  # noqa: E501
 
 import asyncio
 

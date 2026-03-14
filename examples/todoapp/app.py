@@ -30,6 +30,7 @@ import admin  # noqa: E402, F401
 
 # Register Todo in SQLAlchemy metadata before init_db() runs.
 import models  # noqa: E402, F401
+from models import Todo  # noqa: E402
 
 # ── OpenViper imports (settings already loaded) ───────────────────────────────
 from openviper import OpenViper  # noqa: E402
@@ -39,7 +40,6 @@ from openviper.auth.backends import authenticate, login, logout  # noqa: E402
 from openviper.db import init_db  # noqa: E402
 from openviper.exceptions import AuthenticationFailed  # noqa: E402
 from openviper.http.response import HTMLResponse, RedirectResponse  # noqa: E402
-from models import Todo  # noqa: E402
 
 if TYPE_CHECKING:
     from openviper.http.request import Request

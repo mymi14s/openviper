@@ -1,17 +1,18 @@
 import datetime
 
+
 def timeago(value):
     """Return a human-readable relative time string."""
     if not isinstance(value, datetime.datetime):
         return str(value)
-    
+
     # Ensure value is offset-naive for comparison if utcnow returns naive
     if value.tzinfo is not None:
         value = value.replace(tzinfo=None)
-        
+
     delta = datetime.datetime.utcnow() - value
     seconds = int(delta.total_seconds())
-    
+
     if seconds < 0:
         return "just now"
     if seconds < 60:

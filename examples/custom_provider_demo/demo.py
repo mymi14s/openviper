@@ -50,6 +50,7 @@ openviper.setup(
 # ---------------------------------------------------------------------------
 
 from echo_provider.provider import EchoProvider  # noqa: E402
+
 from openviper.ai.devkit import SimpleProvider  # noqa: E402
 from openviper.ai.exceptions import ModelCollisionError, ModelNotFoundError  # noqa: E402
 from openviper.ai.registry import ProviderRegistry  # noqa: E402

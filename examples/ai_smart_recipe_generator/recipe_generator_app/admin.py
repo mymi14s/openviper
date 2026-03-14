@@ -1,7 +1,5 @@
 """recipe_generator_app admin configuration."""
 
-from openviper.admin import admin, ModelAdmin, register
-
 # Import your models
 # from .models import YourModel
 

@@ -135,7 +135,7 @@ class TestValidateName:
         assert result in {"uploads/secret", "secret"}
 
     def test_resolves_to_empty_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="resolves to an empty path"):
             self._v("../../..")
 
     def test_long_component_truncated(self):
@@ -258,18 +258,18 @@ class TestSavePathTraversal:
         # The saved path must be inside tmp_path, not the real /etc/passwd.
         full = (tmp_path / name).resolve()
         assert str(full).startswith(str(tmp_path.resolve()))
-        assert not (tmp_path / name).read_bytes() == b""  # file was actually written
+        assert (tmp_path / name).read_bytes() != b""  # file was actually written
 
     @pytest.mark.asyncio
     async def test_null_byte_in_name_raises(self, tmp_path):
         fs = make_fs(tmp_path)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="null bytes"):
             await fs.save("file\x00.txt", b"data")
 
     @pytest.mark.asyncio
     async def test_empty_name_raises(self, tmp_path):
         fs = make_fs(tmp_path)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="must not be empty"):
             await fs.save("", b"data")
 
 
@@ -383,11 +383,13 @@ class TestUrl:
 class TestSettingsFallback:
     def test_location_falls_back_to_settings(self):
         loc = FileSystemStorage().location
-        assert isinstance(loc, str) and loc
+        assert isinstance(loc, str)
+        assert loc
 
     def test_base_url_falls_back_to_settings(self):
         url = FileSystemStorage().base_url
-        assert isinstance(url, str) and url
+        assert isinstance(url, str)
+        assert url
 
     def test_explicit_location_overrides_settings(self, tmp_path):
         fs = FileSystemStorage(location=str(tmp_path))

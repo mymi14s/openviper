@@ -100,9 +100,9 @@ class TestBroker:
     def test_reset_broker_clears_cached(self):
         with patch("openviper.tasks.broker.settings") as mock_settings:
             mock_settings.TASKS = {"broker": "stub", "enabled": 1}
-            b1 = get_broker()
+            get_broker()
             reset_broker()
-            b2 = get_broker()
+            get_broker()
             # After reset, a new broker is created
             # b1 and b2 may differ or be equal depending on implementation
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,7 +11,6 @@ import pytest
 from openviper.core import app_resolver
 from openviper.core.management import _find_command
 from openviper.core.management.base import BaseCommand, CommandError
-import logging
 
 # ---------------------------------------------------------------------------
 # app_resolver.py — line 184 (cache eviction)
@@ -130,7 +130,6 @@ class TestChangePasswordBranches:
     def test_changepassword_no_valid_field(self):
         """Test user lookup with no valid field (lines 53-54)."""
         field_names = {"password"}  # No identity field
-        username = "testuser"
 
         user = None
         if "username" in field_names:
@@ -179,10 +178,7 @@ class TestCreatesuperuserBranches:
 
         preset = "invalid_email"
         err = _validate_email(preset)
-        if err:
-            error = CommandError(err)
-        else:
-            error = None
+        error = CommandError(err) if err else None
 
         assert error is not None
         assert "valid email" in str(error)
@@ -223,10 +219,7 @@ class TestCreatesuperuserBranches:
 
         username = "ab"  # Too short
         err = _validate_username(username)
-        if err:
-            error = CommandError(err)
-        else:
-            error = None
+        error = CommandError(err) if err else None
 
         assert error is not None
         assert "3 characters" in str(error)
@@ -295,10 +288,7 @@ class TestShellBranches:
         found = 5
         module_name = "myapp.models"
 
-        if found:
-            message = f"  ✓ {found} model(s) from {module_name}"
-        else:
-            message = None
+        message = f"  ✓ {found} model(s) from {module_name}" if found else None
 
         assert message is not None
         assert "5 model(s)" in message
@@ -330,10 +320,7 @@ class TestMigrateBranches:
         resolved_apps = {"myapp": MagicMock()}
 
         # Simulate the logic
-        if isinstance(resolved_apps, dict):
-            result = resolved_apps
-        else:
-            result = None
+        result = resolved_apps if isinstance(resolved_apps, dict) else None
 
         assert result is resolved_apps
 
@@ -341,10 +328,7 @@ class TestMigrateBranches:
         """Test migrate with non-dict resolved_apps."""
         resolved_apps = ["myapp"]  # List, not dict
 
-        if isinstance(resolved_apps, dict):
-            result = resolved_apps
-        else:
-            result = None
+        result = resolved_apps if isinstance(resolved_apps, dict) else None
 
         assert result is None
 
@@ -441,10 +425,7 @@ class TestAdditionalEdgeCases:
         """Test empty password is rejected."""
         password = ""
 
-        if not password:
-            error = "Password cannot be blank."
-        else:
-            error = None
+        error = "Password cannot be blank." if not password else None
 
         assert error is not None
 

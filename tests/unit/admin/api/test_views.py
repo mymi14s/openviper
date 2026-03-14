@@ -1,13 +1,23 @@
+import datetime as dt
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import sqlalchemy
+import sqlalchemy.exc
 
-from openviper.admin.api.views import get_admin_router
+import openviper.admin.api.views
+from openviper.admin.api import views
+from openviper.admin.api.views import (
+    _batch_load_children,
+    _is_auth_user_model,
+    _serialize_instance_with_children,
+    get_admin_router,
+)
 from openviper.admin.registry import NotRegistered
 from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, ValidationError
 from openviper.http.request import Request
+from openviper.routing.router import Router
 
 
 class TestAdminViews:
@@ -50,8 +60,6 @@ class TestAdminViews:
                         await handler(mock_request, app_label="test_app", model_name="MockModel")
 
 
-
-
 class MockUser:
     id = 1
     username = "testuser"
@@ -78,7 +86,7 @@ class MockModel:
     save = AsyncMock
     delete = AsyncMock
 
-    class objects:
+    class objects:  # noqa: N801
         all = MagicMock()
         filter = MagicMock()
         get_or_none = AsyncMock(return_value=None)
@@ -656,22 +664,6 @@ class TestAdminAPIViews:
 
             with pytest.raises(PermissionDenied):
                 await handler(mock_request, "test_app", "MockModel", 1)
-
-
-import datetime as dt
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
-import sqlalchemy.exc
-
-import openviper.admin.api.views
-from openviper.admin.api import views
-from openviper.admin.api.views import (
-    _batch_load_children,
-    _is_auth_user_model,
-    _serialize_instance_with_children,
-)
-from openviper.routing.router import Router
 
 
 def _make_request(method="GET", path="/", user=None, body=None):
@@ -3372,7 +3364,7 @@ class TestCheckAdminAccessCoverage:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "path,method,kwargs",
+        ("path", "method", "kwargs"),
         [
             ("/auth/change-password/", "POST", {}),
             ("/auth/change-user-password/1/", "POST", {}),
@@ -3405,27 +3397,23 @@ class TestCheckAdminAccessCoverage:
         self, router, mock_request, path, method, kwargs
     ):
         handler = _find_handler(router, path, method)
-        if hasattr(handler, "__call__"):
+        if callable(handler):
             with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+                route_params: dict = {}
+                if not kwargs:
+                    if "/x/y/" in path:
+                        route_params.update({"app_label": "x", "model_name": "y"})
+                    elif "/y/" in path and "/x/" not in path:
+                        route_params.update({"model_name": "y"})
+                    if "/1/" in path or path.endswith("/1/"):
+                        route_params["obj_id"] = 1
+                    if "change-user-password" in path:
+                        route_params["user_id"] = 1
+                    if "files/field" in path:
+                        route_params["field_name"] = "field"
+                call_kwargs = kwargs if kwargs else route_params
                 with pytest.raises(PermissionDenied, match="Admin access required"):
-                    if kwargs:
-                        await handler(mock_request, **kwargs)
-                    else:
-                        # Extract route params from path manually for test
-                        route_params = {}
-                        if "/x/y/" in path:
-                            route_params.update({"app_label": "x", "model_name": "y"})
-                        elif "/y/" in path and "/x/" not in path:
-                            route_params.update({"model_name": "y"})
-
-                        if "/1/" in path or path.endswith("/1/"):
-                            route_params["obj_id"] = 1
-                        if "change-user-password" in path:
-                            route_params["user_id"] = 1
-                        if "files/field" in path:
-                            route_params["field_name"] = "field"
-
-                        await handler(mock_request, **route_params)
+                    await handler(mock_request, **call_kwargs)
 
 
 class TestDashboardExceptions:

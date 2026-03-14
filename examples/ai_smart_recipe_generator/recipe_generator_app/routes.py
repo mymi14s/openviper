@@ -1,22 +1,21 @@
 """recipe_generator_app routes."""
 
 from openviper.routing import Router
-
 from recipe_generator_app.views import (
+    dashboard,
+    generate_recipes,
     home,
-    register_page,
+    ingredients_page,
     login_page,
     logout_page,
-    dashboard,
-    ingredients_page,
-    generate_recipes,
-    recipes_list,
+    mealplan_detail,
+    mealplan_page,
+    profile_page,
     recipe_detail,
     recipe_nutrition,
-    mealplan_page,
-    mealplan_detail,
+    recipes_list,
+    register_page,
     shopping_list,
-    profile_page,
 )
 
 router = Router(prefix="")

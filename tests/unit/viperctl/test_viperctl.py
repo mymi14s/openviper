@@ -97,7 +97,7 @@ class TestViperctlCommand:
             "openviper.core.flexible_adapter.bootstrap_and_run",
             side_effect=SystemExit(0),
         ):
-            result = runner.invoke(
+            runner.invoke(
                 viperctl,
                 ["--settings", "myapp.settings", "migrate", "myapp"],
                 catch_exceptions=True,

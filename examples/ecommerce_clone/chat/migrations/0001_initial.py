@@ -9,22 +9,22 @@ dependencies = []
 
 operations = [
     migrations.CreateTable(
-        table_name='chat_cache',
+        table_name="chat_cache",
         columns=[
-        {'name': 'id', 'type': 'UUID', 'nullable': False, 'primary_key': True},
-        {'name': 'question_hash', 'type': 'VARCHAR', 'nullable': False, 'unique': True},
-        {'name': 'question', 'type': 'TEXT', 'nullable': False},
-        {'name': 'answer', 'type': 'TEXT', 'nullable': False},
-        {'name': 'created_at', 'type': 'DATETIME', 'nullable': True},
+            {"name": "id", "type": "UUID", "nullable": False, "primary_key": True},
+            {"name": "question_hash", "type": "VARCHAR", "nullable": False, "unique": True},
+            {"name": "question", "type": "TEXT", "nullable": False},
+            {"name": "answer", "type": "TEXT", "nullable": False},
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
         ],
     ),
     migrations.CreateTable(
-        table_name='chat_product_summary',
+        table_name="chat_product_summary",
         columns=[
-        {'name': 'id', 'type': 'UUID', 'nullable': False, 'primary_key': True},
-        {'name': 'product_id', 'type': 'VARCHAR', 'nullable': False},
-        {'name': 'summary', 'type': 'TEXT', 'nullable': False},
-        {'name': 'created_at', 'type': 'DATETIME', 'nullable': True},
+            {"name": "id", "type": "UUID", "nullable": False, "primary_key": True},
+            {"name": "product_id", "type": "VARCHAR", "nullable": False},
+            {"name": "summary", "type": "TEXT", "nullable": False},
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
         ],
     ),
 ]

@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from openviper.auth import authenticate, get_user_model, login, logout
 from openviper.conf import settings
-from openviper.exceptions import AuthenticationFailed
-from openviper.http.request import Request
 from openviper.http.response import HTMLResponse, RedirectResponse, Response
-
-from recipe_generator_app.ai.recipe_generator import get_recipe_generator
 from recipe_generator_app.ai.mealplan_generator import get_mealplan_generator
 from recipe_generator_app.ai.nutrition_analyzer import get_nutrition_analyzer
+from recipe_generator_app.ai.recipe_generator import get_recipe_generator
 from recipe_generator_app.models import (
     MealPlan,
     NutritionInfo,
@@ -21,6 +19,9 @@ from recipe_generator_app.models import (
     ShoppingList,
     UserIngredients,
 )
+
+if TYPE_CHECKING:
+    from openviper.http.request import Request
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,11 @@ def _get_ai_model() -> str:
 
 
 def _is_authenticated(request: Request) -> bool:
-    return hasattr(request, "user") and request.user and getattr(request.user, "is_authenticated", False)
+    return (
+        hasattr(request, "user")
+        and request.user
+        and getattr(request.user, "is_authenticated", False)
+    )
 
 
 def _login_redirect() -> RedirectResponse:
@@ -146,7 +151,7 @@ async def logout_page(request: Request) -> Response:
 
 
 async def dashboard(request: Request) -> Response:
-    """User dashboard — session protected."""    
+    """User dashboard — session protected."""
     # The user might not have the cookie yet on immediate redirect after login,
     # but request.user should be set by the login() call
     if not _is_authenticated(request):

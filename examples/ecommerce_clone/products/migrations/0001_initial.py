@@ -9,24 +9,30 @@ dependencies = []
 
 operations = [
     migrations.CreateTable(
-        table_name='products_category',
+        table_name="products_category",
         columns=[
-        {'name': 'id', 'type': 'VARCHAR', 'nullable': False, 'primary_key': True},
-        {'name': 'created_at', 'type': 'DATETIME', 'nullable': True},
+            {"name": "id", "type": "VARCHAR", "nullable": False, "primary_key": True},
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
         ],
     ),
     migrations.CreateTable(
-        table_name='products_product',
+        table_name="products_product",
         columns=[
-        {'name': 'id', 'type': 'UUID', 'nullable': False, 'primary_key': True},
-        {'name': 'name', 'type': 'VARCHAR', 'nullable': False},
-        {'name': 'description', 'type': 'TEXT', 'nullable': True},
-        {'name': 'price', 'type': 'NUMERIC', 'nullable': False},
-        {'name': 'stock', 'type': 'INTEGER', 'nullable': False, 'default': 0},
-        {'name': 'category_id', 'type': 'VARCHAR', 'nullable': True, 'target_table': 'products_category', 'on_delete': 'SET NULL'},
-        {'name': 'image', 'type': 'VARCHAR', 'nullable': True},
-        {'name': 'image_url', 'type': 'VARCHAR', 'nullable': True},
-        {'name': 'created_at', 'type': 'DATETIME', 'nullable': True},
+            {"name": "id", "type": "UUID", "nullable": False, "primary_key": True},
+            {"name": "name", "type": "VARCHAR", "nullable": False},
+            {"name": "description", "type": "TEXT", "nullable": True},
+            {"name": "price", "type": "NUMERIC", "nullable": False},
+            {"name": "stock", "type": "INTEGER", "nullable": False, "default": 0},
+            {
+                "name": "category_id",
+                "type": "VARCHAR",
+                "nullable": True,
+                "target_table": "products_category",
+                "on_delete": "SET NULL",
+            },
+            {"name": "image", "type": "VARCHAR", "nullable": True},
+            {"name": "image_url", "type": "VARCHAR", "nullable": True},
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
         ],
     ),
 ]

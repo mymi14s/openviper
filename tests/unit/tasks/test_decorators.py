@@ -21,7 +21,7 @@ class TestTaskDecorator:
             pass
 
         original_fn = my_task
-        result = task()(my_task)
+        task()(my_task)
 
         # Should call get_broker to ensure broker is initialized
         mock_get_broker.assert_called_once()

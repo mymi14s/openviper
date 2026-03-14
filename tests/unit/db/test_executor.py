@@ -133,7 +133,7 @@ class TestBypassPermissions:
         assert _bypass_permissions.get() is False
 
     def test_resets_on_exception(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="boom"):
             with bypass_permissions():
                 raise ValueError("boom")
         assert _bypass_permissions.get() is False
@@ -502,7 +502,7 @@ class TestFExpressions:
         agg.func = "NOSUCHFUNC"
         agg.field = "price"
         agg.distinct = False
-        result = _ann_expr_as_sa(self.table, agg)
+        _ann_expr_as_sa(self.table, agg)
         # sa.func.nosuchfunc exists (dynamic), so this won't be None
         # but if the function doesn't exist as a SA built-in it still returns something
         # We just verify no exception

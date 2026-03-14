@@ -184,7 +184,7 @@ class TestAutoField:
 
 class TestIntegerField:
     @pytest.mark.parametrize(
-        "val,expected",
+        ("val", "expected"),
         [
             ("42", 42),
             (3.9, 3),
@@ -292,7 +292,7 @@ class TestPositiveIntegerField:
 
 class TestBooleanField:
     @pytest.mark.parametrize(
-        "val,expected",
+        ("val", "expected"),
         [
             (True, True),
             ("true", True),
@@ -675,7 +675,7 @@ class TestFileField:
             assert f.max_file_size == 500
 
     def test_max_file_size_default(self):
-        with patch("openviper.db.fields.settings", spec=[]) as mock_settings:
+        with patch("openviper.db.fields.settings", spec=[]):
             # mock_settings has no MAX_FILE_SIZE
             f = FileField()
             assert f.max_file_size == 10 * 1024 * 1024
@@ -705,7 +705,7 @@ class TestFileField:
 
         content = b"hello world"
         # Mock Path and aiofiles
-        with patch("openviper.db.fields.Path") as mock_path:
+        with patch("openviper.db.fields.Path"):
             with patch("openviper.db.fields.aiofiles.open") as mock_open:
                 mock_f = AsyncMock()
                 mock_open.return_value.__aenter__.return_value = mock_f
@@ -761,7 +761,7 @@ class TestFileField:
         f = FileField(max_length=5)
         f.name = "f"
         f.validate("abc")  # ok
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="max_length"):
             f.validate("too-long")
 
 

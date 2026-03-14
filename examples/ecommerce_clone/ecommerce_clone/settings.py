@@ -60,7 +60,6 @@ class ProjectSettings(Settings):
 
     MAX_QUERY_ROWS: int = 100_000
 
-
     AI_PROVIDERS: dict[str, Any] = dataclasses.field(
         default_factory=lambda: {
             "ollama": {
@@ -81,7 +80,7 @@ class ProjectSettings(Settings):
                     "GEMINI 3.1 PRO PREVIEW": "gemini-3.1-pro-preview",
                     "GEMINI 3.1 PRO PREVIEW CUSTOMTOOLS": "gemini-3.1-pro-preview-customtools",
                     "GEMINI 3.1 FLASH LITE PREVIEW": "gemini-3.1-flash-lite-preview",
-                    "GEMINI 3 PRO IMAGE PREVIEW": "gemini-3-pro-image-preview"
+                    "GEMINI 3 PRO IMAGE PREVIEW": "gemini-3-pro-image-preview",
                 },
                 "embed_model": "models/text-embedding-004",
                 "temperature": 1.0,

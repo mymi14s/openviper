@@ -18,16 +18,15 @@ import asyncio
 import random
 from decimal import Decimal
 
-from faker import Faker
-
-from openviper.core.management.base import BaseCommand
-from openviper.db import init_db
-
 from cart.models import Cart, CartItem
+from faker import Faker
 from orders.models import Order, OrderItem
 from products.models import Category, Product
 from reviews.models import Review
 from users.models import User
+
+from openviper.core.management.base import BaseCommand, CommandError
+from openviper.db import init_db
 
 _fake = Faker()
 
@@ -56,7 +55,9 @@ CATEGORY_IMAGES: dict[str, list[str]] = {
     "Books": [_PICSUM.format(id=x) for x in [24, 159, 240, 382, 415, 501, 513, 525]],
     "Home & Kitchen": [_PICSUM.format(id=x) for x in [30, 137, 196, 213, 431, 452, 461, 478]],
     "Sports & Outdoors": [_PICSUM.format(id=x) for x in [9, 76, 168, 257, 338, 362, 374, 387]],
-    "Beauty & Personal Care": [_PICSUM.format(id=x) for x in [26, 103, 191, 274, 355, 402, 416, 429]],
+    "Beauty & Personal Care": [
+        _PICSUM.format(id=x) for x in [26, 103, 191, 274, 355, 402, 416, 429]
+    ],
     "Toys & Games": [_PICSUM.format(id=x) for x in [37, 117, 203, 292, 371, 393, 421, 437]],
     "Automotive": [_PICSUM.format(id=x) for x in [42, 133, 214, 307, 390, 405, 419, 446]],
     "Grocery & Food": [_PICSUM.format(id=x) for x in [56, 145, 229, 312, 429, 449, 463, 476]],
@@ -66,28 +67,204 @@ CATEGORY_IMAGES: dict[str, list[str]] = {
 # Adjectives and nouns per category used for Faker-style product name generation
 _CATEGORY_ADJECTIVES: dict[str, list[str]] = {
     "Electronics": ["Smart", "Wireless", "Portable", "Ultra", "Pro", "Mini", "Digital", "Advanced"],
-    "Clothing": ["Slim-Fit", "Classic", "Premium", "Vintage", "Casual", "Elegant", "Organic", "Thermal"],
-    "Books": ["Essential", "Complete", "Practical", "Advanced", "Beginner's", "Modern", "Ultimate", "Expert"],
-    "Home & Kitchen": ["Stainless", "Bamboo", "Premium", "Non-Stick", "Electric", "Compact", "Heavy-Duty", "Eco"],
-    "Sports & Outdoors": ["Pro", "Lightweight", "Heavy-Duty", "Waterproof", "Adjustable", "Foldable", "Breathable", "Durable"],
-    "Beauty & Personal Care": ["Organic", "Natural", "Hydrating", "Anti-Aging", "Brightening", "Gentle", "Vegan", "Luxury"],
-    "Toys & Games": ["Creative", "Educational", "Interactive", "STEM", "Classic", "Deluxe", "Junior", "Magnetic"],
-    "Automotive": ["Universal", "Heavy-Duty", "Wireless", "Waterproof", "Compact", "Digital", "Premium", "Portable"],
-    "Grocery & Food": ["Organic", "Premium", "Natural", "Artisan", "Sugar-Free", "Gluten-Free", "Vegan", "Raw"],
-    "Office Supplies": ["Ergonomic", "Adjustable", "Compact", "Premium", "Smart", "Wireless", "Bamboo", "Heavy-Duty"],
+    "Clothing": [
+        "Slim-Fit",
+        "Classic",
+        "Premium",
+        "Vintage",
+        "Casual",
+        "Elegant",
+        "Organic",
+        "Thermal",
+    ],
+    "Books": [
+        "Essential",
+        "Complete",
+        "Practical",
+        "Advanced",
+        "Beginner's",
+        "Modern",
+        "Ultimate",
+        "Expert",
+    ],
+    "Home & Kitchen": [
+        "Stainless",
+        "Bamboo",
+        "Premium",
+        "Non-Stick",
+        "Electric",
+        "Compact",
+        "Heavy-Duty",
+        "Eco",
+    ],
+    "Sports & Outdoors": [
+        "Pro",
+        "Lightweight",
+        "Heavy-Duty",
+        "Waterproof",
+        "Adjustable",
+        "Foldable",
+        "Breathable",
+        "Durable",
+    ],
+    "Beauty & Personal Care": [
+        "Organic",
+        "Natural",
+        "Hydrating",
+        "Anti-Aging",
+        "Brightening",
+        "Gentle",
+        "Vegan",
+        "Luxury",
+    ],
+    "Toys & Games": [
+        "Creative",
+        "Educational",
+        "Interactive",
+        "STEM",
+        "Classic",
+        "Deluxe",
+        "Junior",
+        "Magnetic",
+    ],
+    "Automotive": [
+        "Universal",
+        "Heavy-Duty",
+        "Wireless",
+        "Waterproof",
+        "Compact",
+        "Digital",
+        "Premium",
+        "Portable",
+    ],
+    "Grocery & Food": [
+        "Organic",
+        "Premium",
+        "Natural",
+        "Artisan",
+        "Sugar-Free",
+        "Gluten-Free",
+        "Vegan",
+        "Raw",
+    ],
+    "Office Supplies": [
+        "Ergonomic",
+        "Adjustable",
+        "Compact",
+        "Premium",
+        "Smart",
+        "Wireless",
+        "Bamboo",
+        "Heavy-Duty",
+    ],
 }
 
 _CATEGORY_NOUNS: dict[str, list[str]] = {
-    "Electronics": ["Headphones", "Speaker", "Keyboard", "Mouse", "Webcam", "Charger", "Hub", "Monitor", "Earbuds", "Lamp"],
-    "Clothing": ["Shirt", "Pants", "Jacket", "Sweater", "Shorts", "Sneakers", "Hoodie", "Dress", "Coat", "Boots"],
-    "Books": ["Guide", "Handbook", "Manual", "Workbook", "Reference", "Collection", "Edition", "Anthology", "Journal"],
-    "Home & Kitchen": ["Cookware Set", "Coffee Maker", "Air Purifier", "Cutting Board", "Kettle", "Skillet", "Blender", "Toaster"],
-    "Sports & Outdoors": ["Yoga Mat", "Resistance Bands", "Dumbbells", "Running Belt", "Foam Roller", "Tent", "Backpack", "Gloves"],
-    "Beauty & Personal Care": ["Serum", "Face Cleanser", "Lip Balm", "Beard Kit", "Hair Mask", "Moisturizer", "Toner", "Sunscreen"],
-    "Toys & Games": ["Building Blocks", "Board Game", "RC Car", "Puzzle", "Paint Set", "Action Figure", "Drone", "Kite"],
-    "Automotive": ["Phone Mount", "Tire Inflator", "Car Vacuum", "Dash Cam", "Seat Organizer", "Jump Starter", "Inverter", "LED Lights"],
-    "Grocery & Food": ["Green Tea", "Mixed Nuts", "Olive Oil", "Protein Bar", "Hot Sauce", "Honey", "Granola", "Spice Set"],
-    "Office Supplies": ["Ergonomic Mouse", "Monitor Stand", "Pen Set", "Sticky Notes", "Desk Organizer", "Stapler", "Notebook", "Tape"],
+    "Electronics": [
+        "Headphones",
+        "Speaker",
+        "Keyboard",
+        "Mouse",
+        "Webcam",
+        "Charger",
+        "Hub",
+        "Monitor",
+        "Earbuds",
+        "Lamp",
+    ],
+    "Clothing": [
+        "Shirt",
+        "Pants",
+        "Jacket",
+        "Sweater",
+        "Shorts",
+        "Sneakers",
+        "Hoodie",
+        "Dress",
+        "Coat",
+        "Boots",
+    ],
+    "Books": [
+        "Guide",
+        "Handbook",
+        "Manual",
+        "Workbook",
+        "Reference",
+        "Collection",
+        "Edition",
+        "Anthology",
+        "Journal",
+    ],
+    "Home & Kitchen": [
+        "Cookware Set",
+        "Coffee Maker",
+        "Air Purifier",
+        "Cutting Board",
+        "Kettle",
+        "Skillet",
+        "Blender",
+        "Toaster",
+    ],
+    "Sports & Outdoors": [
+        "Yoga Mat",
+        "Resistance Bands",
+        "Dumbbells",
+        "Running Belt",
+        "Foam Roller",
+        "Tent",
+        "Backpack",
+        "Gloves",
+    ],
+    "Beauty & Personal Care": [
+        "Serum",
+        "Face Cleanser",
+        "Lip Balm",
+        "Beard Kit",
+        "Hair Mask",
+        "Moisturizer",
+        "Toner",
+        "Sunscreen",
+    ],
+    "Toys & Games": [
+        "Building Blocks",
+        "Board Game",
+        "RC Car",
+        "Puzzle",
+        "Paint Set",
+        "Action Figure",
+        "Drone",
+        "Kite",
+    ],
+    "Automotive": [
+        "Phone Mount",
+        "Tire Inflator",
+        "Car Vacuum",
+        "Dash Cam",
+        "Seat Organizer",
+        "Jump Starter",
+        "Inverter",
+        "LED Lights",
+    ],
+    "Grocery & Food": [
+        "Green Tea",
+        "Mixed Nuts",
+        "Olive Oil",
+        "Protein Bar",
+        "Hot Sauce",
+        "Honey",
+        "Granola",
+        "Spice Set",
+    ],
+    "Office Supplies": [
+        "Ergonomic Mouse",
+        "Monitor Stand",
+        "Pen Set",
+        "Sticky Notes",
+        "Desk Organizer",
+        "Stapler",
+        "Notebook",
+        "Tape",
+    ],
 }
 
 
@@ -130,6 +307,7 @@ def _fake_price(category: str) -> Decimal:
     lo, hi = price_ranges.get(category, (9.99, 99.99))
     return Decimal(f"{random.uniform(lo, hi):.2f}")
 
+
 REVIEW_COMMENTS = [
     "Really happy with this purchase. Excellent quality!",
     "Fast shipping and exactly as described. Will buy again.",
@@ -147,6 +325,7 @@ REVIEW_COMMENTS = [
 
 
 # ── Async seed logic ────────────────────────────────────────────────────────
+
 
 async def _clear_data(stdout) -> None:
     """Delete all seeded records."""
@@ -261,7 +440,11 @@ async def _seed(
                 user_id=str(user.id),
                 product_id=str(product.id),
                 rating=random.randint(3, 5),
-                comment=random.choice(REVIEW_COMMENTS) if random.random() < 0.5 else _fake.sentence(nb_words=12),
+                comment=(
+                    random.choice(REVIEW_COMMENTS)
+                    if random.random() < 0.5
+                    else _fake.sentence(nb_words=12)
+                ),
             )
             await review.save()
             review_count += 1
@@ -323,8 +506,9 @@ async def _seed(
 
 # ── Command ─────────────────────────────────────────────────────────────────
 
+
 class Command(BaseCommand):
-    help = "Populate the database with fake ecommerce data (categories, products, users, orders, reviews)."
+    help = "Populate the database with fake ecommerce data (categories, products, users, orders, reviews)."  # noqa: E501
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(

@@ -17,7 +17,7 @@ from openviper.middleware.csrf import (
     _verify_csrf_token,
 )
 from openviper.middleware.security import SecurityMiddleware
-from openviper.middleware.security import SecurityMiddleware as SM
+from openviper.middleware.security import SecurityMiddleware as SM  # noqa: N817
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -155,7 +155,6 @@ class TestCORSMiddleware:
 
     @pytest.mark.asyncio
     async def test_no_origin_header_passthrough(self):
-        messages = []
         mw = CORSMiddleware(dummy_app, allowed_origins=["*"])
         scope = make_scope()
         send = CaptureSend()

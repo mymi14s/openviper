@@ -406,10 +406,7 @@ async def test_validate_fk_alias_set_skips_null_check():
     obj._relation_cache = None  # noqa: SLF001
     obj.ref = None
     obj.ref_id = 5  # alias is set
-    try:
-        await obj.validate()
-    except ValueError as e:
-        assert "ref" not in str(e)
+    await obj.validate()  # Should not raise when FK alias ref_id is set
 
 
 # ── _apply_auto_fields ────────────────────────────────────────────────────────

@@ -354,7 +354,7 @@ class TestBootstrapAndRun:
     ):
         mock_synthesize.return_value = "_viperctl_settings"
 
-        with patch("openviper.setup") as mock_setup:
+        with patch("openviper.setup"):
             with patch("sys.exit"):
                 bootstrap_and_run(
                     resolved=mock_resolved,

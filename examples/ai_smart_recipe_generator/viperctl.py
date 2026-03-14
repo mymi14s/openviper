@@ -3,8 +3,10 @@
 
 import os
 import sys
+
 import openviper
 from openviper.core.management import execute_from_command_line
+
 
 def main() -> None:
     os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "ai_smart_recipe_generator.settings")
@@ -15,4 +17,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

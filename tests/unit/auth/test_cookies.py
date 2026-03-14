@@ -1,7 +1,7 @@
 """Unit tests for openviper.auth.utils.cookies module."""
 
-from unittest.mock import MagicMock, patch
 import datetime
+from unittest.mock import MagicMock, patch
 
 from openviper.auth.utils.cookies import (
     build_clear_cookie_header,
@@ -57,7 +57,7 @@ class TestParseSessionKey:
 
         with patch("openviper.auth.utils.cookies.settings", mock_settings):
             with patch("openviper.auth.utils.cookies.getattr", return_value="sessionid"):
-                result = parse_session_key("sessionid=test123")
+                parse_session_key("sessionid=test123")
 
         # Should still work with default
 
@@ -149,7 +149,6 @@ class TestBuildSetCookieHeader:
         assert "SameSite=Strict" in result
 
     def test_includes_max_age_from_timeout(self):
-
 
         mock_settings = MagicMock()
         mock_settings.SESSION_COOKIE_NAME = "sessionid"

@@ -1,7 +1,5 @@
 """Unit tests for openviper.auth.admin module."""
 
-
-
 from openviper.auth.admin import (
     ContentTypeAdmin,
     ContentTypePermissionInline,

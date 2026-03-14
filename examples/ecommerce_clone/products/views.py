@@ -56,13 +56,15 @@ class ProductListView(View):
         offset = (page - 1) * page_size
 
         products = await qs.order_by("name").limit(page_size).offset(offset).all()
-        return JSONResponse({
-            "items": [_product_to_dict(p) for p in products],
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "pages": pages,
-        })
+        return JSONResponse(
+            {
+                "items": [_product_to_dict(p) for p in products],
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "pages": pages,
+            }
+        )
 
 
 class ProductDetailView(View):

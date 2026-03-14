@@ -1,5 +1,6 @@
 """Unit tests for openviper.auth.utils module."""
 
+import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,7 +77,5 @@ class TestSyncContentTypes:
         with patch("openviper.auth.utils.discover_models"):
             with patch.dict("sys.modules", {"openviper.auth.models": MagicMock()}):
                 # Should not raise even if there's an issue with ContentType
-                try:
+                with contextlib.suppress(Exception):  # Expected - mocking is complex here
                     await sync_content_types()
-                except Exception:
-                    pass  # Expected - mocking is complex here

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from openviper.auth.permission_checker import _CT_PERMISSION_CACHE
-from openviper.auth.permissions import PermissionError, check_permission_for_model
+from openviper.auth.permissions import PermissionError, check_permission_for_model  # noqa: A004
 
 
 class TestCheckPermissionForModel:

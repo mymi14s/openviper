@@ -354,7 +354,7 @@ class TestManagerMethods:
                 "openviper.db.models.execute_values",
                 new_callable=AsyncMock,
                 return_value=[{"name": "w1"}],
-            ) as mock_exec,
+            ),
             patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
         ):
             result = await self.Widget.objects.values("name")
@@ -367,7 +367,7 @@ class TestManagerMethods:
                 "openviper.db.models.execute_values",
                 new_callable=AsyncMock,
                 return_value=[{"name": "w1"}],
-            ) as mock_exec,
+            ),
             patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
         ):
             result = await self.Widget.objects.values_list("name", flat=True)
@@ -380,7 +380,7 @@ class TestManagerMethods:
                 "openviper.db.models.execute_aggregate",
                 new_callable=AsyncMock,
                 return_value={"total": 5},
-            ) as mock_exec,
+            ),
             patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
         ):
             result = await self.Widget.objects.aggregate(total=Count("id"))

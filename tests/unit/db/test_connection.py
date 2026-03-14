@@ -292,7 +292,7 @@ class TestRequestConnection:
         mock_engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
 
         with patch("openviper.db.connection.get_engine", new=AsyncMock(return_value=mock_engine)):
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match="inner error"):
                 async with request_connection():
                     raise ValueError("inner error")
 

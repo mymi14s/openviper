@@ -78,7 +78,8 @@ class TestModelEventDispatcher:
         model_event.trigger("blog.Post.after_insert")(h1)
         model_event.trigger("blog.Post.after_insert")(h2)
         handlers = _decorator_registry.get("blog.Post", {}).get("after_insert", [])
-        assert h1 in handlers and h2 in handlers
+        assert h1 in handlers
+        assert h2 in handlers
 
     @pytest.mark.asyncio
     async def test_dispatch_calls_handler(self):
@@ -134,7 +135,7 @@ class TestModelEventDispatcher:
     def test_unknown_event_name_logging(self):
         with patch("openviper.db.events.logger") as mock_logger:
             with patch("openviper.db.events._resolve_dotted", return_value=lambda x: x):
-                d = ModelEventDispatcher({"model": {"unknown": ["test.handler"]}})
+                ModelEventDispatcher({"model": {"unknown": ["test.handler"]}})
                 assert mock_logger.debug.called
 
     @pytest.mark.asyncio
@@ -222,8 +223,6 @@ class TestGetDispatcherDoubleCheck:
     def test_double_check_inside_lock(self):
         sentinel = MagicMock()
 
-        original_build = openviper.db.events._build_dispatcher
-
         def fake_build():
             openviper.db.events._dispatcher_cache = sentinel
             return sentinel
@@ -261,7 +260,9 @@ class TestResolveDottedBlocked:
         assert _is_safe_module_path("pickle") is False
 
     def test_resolve_callable_passthrough(self):
-        fn = lambda x: x
+        def fn(x):
+            return x
+
         assert _resolve_dotted(fn) is fn
 
 

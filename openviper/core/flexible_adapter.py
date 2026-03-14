@@ -21,7 +21,8 @@ from typing import TYPE_CHECKING, NoReturn
 import click
 
 import openviper
-from openviper.conf.settings import Settings, settings as _lazy
+from openviper.conf.settings import Settings
+from openviper.conf.settings import settings as _lazy
 from openviper.core.management import execute_from_command_line
 
 if TYPE_CHECKING:
@@ -215,6 +216,7 @@ def _synthesize_settings_module() -> str:
     Returns:
         The dotted name of the synthetic module.
     """
+
     @dataclasses.dataclass(frozen=True)
     class FlexibleSettings(Settings):
         PROJECT_NAME: str = "viperctl-project"

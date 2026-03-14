@@ -525,7 +525,7 @@ class TestCreateBrokerSuccessPaths:
             "openviper.tasks.broker._read_task_settings",
             return_value={"backend_url": "redis://localhost:6379"},
         ):
-            with patch("openviper.tasks.broker.logger") as mock_logger:
+            with patch("openviper.tasks.broker.logger"):
                 with patch.dict(
                     "sys.modules",
                     {

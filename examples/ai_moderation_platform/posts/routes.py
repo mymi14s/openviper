@@ -5,13 +5,13 @@ from __future__ import annotations
 from openviper.routing import Router
 
 from .views import (
+    BlogListAPIView,
     CommentDetailView,
     CommentLikeToggleView,
     CommentListCreateView,
     PostDetailView,
-    PostListCreateView,
-    BlogListAPIView,
     PostLikeToggleView,
+    PostListCreateView,
     ReplyListCreateView,
 )
 
@@ -25,6 +25,10 @@ router.add("/blog/", BlogListAPIView.as_view(), methods=["GET"])
 
 # Comment routes
 router.add("/comments", CommentListCreateView.as_view(), methods=["GET", "POST"])
-router.add("/comments/{comment_id:int}", CommentDetailView.as_view(), methods=["GET", "PATCH", "DELETE"])
+router.add(
+    "/comments/{comment_id:int}", CommentDetailView.as_view(), methods=["GET", "PATCH", "DELETE"]
+)
 router.add("/comments/{comment_id:int}/like/", CommentLikeToggleView.as_view(), methods=["POST"])
-router.add("/comments/{comment_id:int}/replies", ReplyListCreateView.as_view(), methods=["GET", "POST"])
+router.add(
+    "/comments/{comment_id:int}/replies", ReplyListCreateView.as_view(), methods=["GET", "POST"]
+)

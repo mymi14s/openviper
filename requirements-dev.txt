@@ -16,4 +16,7 @@ safety==3.7.0
 pre-commit==4.5.1
 sphinx==9.1.0
 sphinx-autodoc-annotation==1.0-1
-sphinx-rtd-theme==3.1.0faker
+sphinx-rtd-theme==3.1.0
+faker==40.11.0
+
+

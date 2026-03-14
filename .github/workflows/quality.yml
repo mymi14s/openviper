@@ -1,0 +1,104 @@
+# ────────────────────────────────────────────────────────────────────────────
+# OpenViper — Code Quality CI/CD Pipeline
+# ────────────────────────────────────────────────────────────────────────────
+name: Code Quality
+
+on:
+  push:
+    branches: [master, staging]
+  pull_request:
+    branches: [master, staging]
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Formatting Check ──────────────────────────────────────────────────
+  format:
+    name: Formatting (black)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install black
+      - name: Check black formatting
+        run: black --check --diff openviper tests
+
+  # ── Linting ───────────────────────────────────────────────────────────
+  lint:
+    name: Linting (ruff + flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install ruff flake8
+      - name: Ruff
+        run: ruff check openviper
+      - name: Flake8
+        run: flake8 openviper
+
+  # ── Type Checking ─────────────────────────────────────────────────────
+  typecheck:
+    name: Type Checking (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install OpenViper + dev requirements
+        run: |
+          pip install -e .
+          pip install -r requirements-dev.txt
+      - name: mypy
+        run: mypy openviper/*.py
+
+  # ── Tests ─────────────────────────────────────────────────────────────
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install OpenViper + dev requirements
+        run: |
+          pip install -e .
+          pip install -r requirements-dev.txt
+      - name: Run tests with coverage
+        run: pytest tests --cov=openviper --cov-report=term-missing --cov-fail-under=90
+      - name: Upload coverage
+        if: matrix.python-version == '3.14'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+  # ── Security ──────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install bandit safety
+      - name: Bandit
+        run: bandit -r openviper -q || true
+      - name: Safety
+        run: safety check || true

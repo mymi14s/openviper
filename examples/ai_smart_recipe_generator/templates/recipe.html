@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="margin-bottom:1rem;">
+    <a href="/recipes" style="color:#2d6a4f; text-decoration:none;">← Back to Recipes</a>
+</div>
+
+<div class="card">
+    <h1>{{ recipe.title }}</h1>
+    <div style="margin: 0.75rem 0; color:#555;">
+        {% if recipe.prep_time %}<span class="tag">⏱ Prep: {{ recipe.prep_time }}</span>{% endif %}
+        {% if recipe.cook_time %}<span class="tag">🔥 Cook: {{ recipe.cook_time }}</span>{% endif %}
+        {% if recipe.servings %}<span class="tag">🍽 Serves: {{ recipe.servings }}</span>{% endif %}
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>🧺 Ingredients</h2>
+        <ul style="padding-left:1.2rem; line-height:2;">
+            {% for line in recipe.ingredients.split('\n') %}
+                {% if line.strip() %}
+                    <li>{{ line.strip() }}</li>
+                {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>👨‍🍳 Instructions</h2>
+        <ol style="padding-left:1.2rem; line-height:2;">
+            {% for line in recipe.instructions.split('\n') %}
+                {% if line.strip() %}
+                    <li>{{ line.strip().lstrip('0123456789. ') }}</li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </div>
+</div>
+
+{% if nutrition %}
+<div class="card">
+    <h2>🥗 Nutrition Information</h2>
+    <div class="grid-2">
+        <div>
+            {% if nutrition.calories %}<p><strong>Calories:</strong> {{ nutrition.calories }}</p>{% endif %}
+            {% if nutrition.protein %}<p><strong>Protein:</strong> {{ nutrition.protein }}</p>{% endif %}
+            {% if nutrition.carbohydrates %}<p><strong>Carbohydrates:</strong> {{ nutrition.carbohydrates }}</p>{% endif %}
+            {% if nutrition.fat %}<p><strong>Fat:</strong> {{ nutrition.fat }}</p>{% endif %}
+            {% if nutrition.fiber %}<p><strong>Fiber:</strong> {{ nutrition.fiber }}</p>{% endif %}
+        </div>
+        <div>
+            {% if nutrition.notes %}
+                <p style="color:#555; font-style:italic;">{{ nutrition.notes }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <h2>🥗 Nutrition Analysis</h2>
+    <p style="color:#666; margin-bottom:1rem;">Get AI-powered nutritional analysis for this recipe.</p>
+    <form method="POST" action="/recipes/{{ recipe.pk }}/nutrition">
+        <button type="submit" class="btn btn-primary">Analyze Nutrition</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:420px; margin:3rem auto;">
+    <div class="card">
+        <h1>Create Account</h1>
+        <p style="color:#666; margin-bottom:1.5rem;">Join AI Smart Recipe Generator</p>
+
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/register">
+            <div class="grid-2">
+                <div>
+                    <label>First Name</label>
+                    <input type="text" name="first_name" value="{{ form.first_name if form else '' }}" placeholder="John">
+                </div>
+                <div>
+                    <label>Last Name</label>
+                    <input type="text" name="last_name" value="{{ form.last_name if form else '' }}" placeholder="Doe">
+                </div>
+            </div>
+            <label>Username <span style="color:red">*</span></label>
+            <input type="text" name="username" value="{{ form.username if form else '' }}" required placeholder="your_username">
+            <label>Email <span style="color:red">*</span></label>
+            <input type="email" name="email" value="{{ form.email if form else '' }}" required placeholder="you@example.com">
+            <label>Password <span style="color:red">*</span></label>
+            <input type="password" name="password" required placeholder="At least 6 characters">
+            <label>Confirm Password <span style="color:red">*</span></label>
+            <input type="password" name="confirm_password" required placeholder="Repeat password">
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:0.5rem;">Register</button>
+        </form>
+
+        <p style="text-align:center; margin-top:1rem; font-size:0.9rem;">
+            Already have an account? <a href="/login">Sign in</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

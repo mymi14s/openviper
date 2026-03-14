@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="margin-bottom:1rem;">
+    <a href="/mealplan" style="color:#2d6a4f; text-decoration:none;">← Back to Meal Plans</a>
+</div>
+
+<div class="card">
+    <h1>{{ plan.title }}</h1>
+    <p style="color:#666;">Created {{ plan.created_at }}</p>
+</div>
+
+{% if plan_data %}
+<div class="card">
+    <h2>📅 Weekly Schedule</h2>
+    <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>🌅 Breakfast</th>
+                    <th>☀️ Lunch</th>
+                    <th>🌙 Dinner</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in days %}
+                <tr>
+                    <td><strong>{{ day }}</strong></td>
+                    <td>{{ plan_data[day].get('breakfast', '—') if plan_data[day] else '—' }}</td>
+                    <td>{{ plan_data[day].get('lunch', '—') if plan_data[day] else '—' }}</td>
+                    <td>{{ plan_data[day].get('dinner', '—') if plan_data[day] else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">No meal plan data available.</div>
+{% endif %}
+
+{% if shopping_items %}
+<div class="card">
+    <h2>🛒 Shopping List</h2>
+    <p style="color:#666; margin-bottom:1rem;">Items needed for this meal plan:</p>
+    <ul style="padding-left:1.5rem; line-height:2;">
+        {% for item in shopping_items %}
+            <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    <a href="/shopping" class="btn btn-secondary btn-sm" style="margin-top:1rem;">View All Shopping Lists</a>
+</div>
+{% endif %}
+{% endblock %}

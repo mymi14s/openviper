@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Sign in{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-top: 40px;">
+  <div style="text-align:center; margin-bottom:28px;">
+    <div style="font-size:1.75rem; margin-bottom:6px;">✅</div>
+    <h1 class="card-title" style="margin-bottom:4px;">OpenViper Todo</h1>
+    <p style="font-size:.875rem; color:#718096;">Sign in to manage your tasks</p>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username"
+             autocomplete="username" autofocus required>
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password"
+             autocomplete="current-password" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="width:100%; margin-top:4px;">
+      Sign in
+    </button>
+  </form>
+
+  <p style="text-align:center; font-size:.8rem; color:#a0aec0; margin-top:20px;">
+    Demo account — <strong>demo</strong> / <strong>demo1234</strong>
+  </p>
+</div>
+{% endblock %}

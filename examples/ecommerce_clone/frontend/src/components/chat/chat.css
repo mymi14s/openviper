@@ -1,0 +1,206 @@
+/* ── Chat widget styles ─────────────────────────────────────────── */
+
+.chat-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #0078d4;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 120, 212, 0.45);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.chat-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,120,212,0.55); }
+
+/* ── Chat window ─────────────────────────────────────────────────── */
+
+.chat-window {
+  position: fixed;
+  bottom: 92px;
+  right: 24px;
+  width: 360px;
+  height: 480px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  z-index: 9998;
+  overflow: hidden;
+  animation: chat-appear 0.18s ease-out;
+}
+
+@keyframes chat-appear {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.chat-header {
+  background: #0078d4;
+  color: white;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.chat-header__title { font-weight: bold; font-size: 0.95rem; }
+
+.chat-header__close {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+/* ── Message list ────────────────────────────────────────────────── */
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.chat-msg {
+  max-width: 82%;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.chat-msg--user {
+  background: #0078d4;
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-msg--assistant {
+  background: #f0f0f0;
+  color: #222;
+  align-self: flex-start;
+  border-bottom-left-radius: 2px;
+}
+
+.chat-msg--typing {
+  background: #f0f0f0;
+  color: #888;
+  align-self: flex-start;
+  font-style: italic;
+}
+
+/* ── Related products in assistant reply ─────────────────────────── */
+
+.chat-products { margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; }
+
+.chat-product-link {
+  display: block;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+  color: #0078d4;
+  text-decoration: none;
+  transition: background 0.1s;
+}
+
+.chat-product-link:hover { background: #e8f3fb; }
+
+/* ── Suggested questions ─────────────────────────────────────────── */
+
+.chat-suggestions {
+  padding: 0.4rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  border-top: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.chat-suggestion {
+  background: #f0f4ff;
+  border: 1px solid #c5d3f5;
+  color: #0078d4;
+  border-radius: 12px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+
+.chat-suggestion:hover { background: #dce7fb; }
+
+/* ── Input area ──────────────────────────────────────────────────── */
+
+.chat-input-area {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.chat-input {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.88rem;
+  outline: none;
+  resize: none;
+}
+
+.chat-input:focus { border-color: #0078d4; }
+
+.chat-send {
+  background: #0078d4;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+  transition: background 0.15s;
+}
+
+.chat-send:hover { background: #005fa3; }
+.chat-send:disabled { background: #aaa; cursor: default; }
+
+/* ── Mobile responsive ──────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .chat-window {
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 70vh;
+    border-radius: 12px 12px 0 0;
+  }
+  .chat-fab { bottom: 16px; right: 16px; }
+}

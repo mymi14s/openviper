@@ -1,0 +1,134 @@
+name: Openviper Tool
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  openviper-tool:
+    if: >
+      github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      (contains(github.event.comment.body, 'openviper-tool')) &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+
+    name: Openviper Tool Action
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Acknowledge command
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "🚀 Openviper Tool acknowledged. Processing command..."
+            })
+
+      # ─────────────────────────────────────────────────────────────
+      # Get PR branch info
+      # ─────────────────────────────────────────────────────────────
+      - name: Get PR data
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            })
+            core.setOutput("ref", pr.data.head.ref)
+            core.setOutput("repo", pr.data.head.repo.full_name)
+
+      # ─────────────────────────────────────────────────────────────
+      # Checkout the PR branch
+      # ─────────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pr.outputs.repo }}
+          ref: ${{ steps.pr.outputs.ref }}
+
+      # ─────────────────────────────────────────────────────────────
+      # Determine command
+      # ─────────────────────────────────────────────────────────────
+      - name: Determine Command
+        id: cmd
+        run: |
+          body="${{ github.event.comment.body }}"
+
+          if [[ "$body" == *"test"* ]]; then
+            echo "action=test" >> $GITHUB_OUTPUT
+          elif [[ "$body" == *"publish docs"* ]]; then
+            echo "action=publish-docs" >> $GITHUB_OUTPUT
+          elif [[ "$body" == *"build"* ]]; then
+            echo "action=build" >> $GITHUB_OUTPUT
+          elif [[ "$body" == *"deploy"* ]]; then
+            echo "action=deploy" >> $GITHUB_OUTPUT
+          fi
+
+      # ── Publish Docs ─────────────────────────────────────────────
+      - name: Trigger Docs Deployment
+        if: steps.cmd.outputs.action == 'publish-docs'
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: docs.yml
+
+      # ── Test Workflow ────────────────────────────────────────────
+      - name: Trigger Test Workflow
+        if: steps.cmd.outputs.action == 'test' || steps.cmd.outputs.action == 'deploy'
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: test.yml
+
+      # ── Build Section ────────────────────────────────────────────
+      - name: Setup Python
+        if: steps.cmd.outputs.action == 'build' || steps.cmd.outputs.action == 'deploy'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Setup Node
+        if: steps.cmd.outputs.action == 'build' || steps.cmd.outputs.action == 'deploy'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build Admin Frontend
+        if: steps.cmd.outputs.action == 'build' || steps.cmd.outputs.action == 'deploy'
+        working-directory: admin_frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Build Wheel
+        if: steps.cmd.outputs.action == 'build' || steps.cmd.outputs.action == 'deploy'
+        run: |
+          pip install build
+          python -m build
+
+      - name: Upload Artifact
+        if: steps.cmd.outputs.action == 'build' || steps.cmd.outputs.action == 'deploy'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openviper-build-${{ github.event.issue.number }}
+          path: dist/*.whl
+
+      # ── Deploy ───────────────────────────────────────────────────
+      - name: Deploy to PyPI
+        if: steps.cmd.outputs.action == 'deploy'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          pip install twine
+          twine upload dist/* --skip-existing

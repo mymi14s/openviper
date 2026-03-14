@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>🥕 My Ingredients</h1>
+<p style="color:#555; margin-bottom:1.5rem;">
+    Keep your pantry up to date — AI uses your ingredients to suggest recipes.
+</p>
+
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2>Update Ingredients</h2>
+    <p style="color:#666; margin-bottom:1rem;">Enter ingredients separated by commas (e.g. chicken, garlic, tomatoes, pasta)</p>
+    <form method="POST" action="/ingredients">
+        <label>My Ingredients</label>
+        <textarea name="ingredients" rows="4" placeholder="chicken, garlic, onion, tomatoes, pasta...">{{ saved_ingredients }}</textarea>
+        <button type="submit" class="btn btn-primary">Save Ingredients</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>🤖 Generate AI Recipes</h2>
+    <p style="color:#666; margin-bottom:1rem;">
+        Generate recipes from your ingredients. You can adjust them or add new ones below.
+    </p>
+    <form method="POST" action="/ingredients/generate">
+        <label>Ingredients to Use</label>
+        <textarea name="ingredients" rows="3" placeholder="Leave blank to use your saved ingredients">{{ saved_ingredients }}</textarea>
+        <label>Dietary Preferences (optional)</label>
+        <input type="text" name="dietary_preferences" value="{{ dietary_preferences or '' }}"
+               placeholder="e.g. vegetarian, gluten-free, low-carb">
+        <button type="submit" class="btn btn-primary">Generate Recipes</button>
+    </form>
+</div>
+
+{% if show_results %}
+<div class="card" style="margin-top:1.5rem;">
+    <h2>🍳 Generated Recipes</h2>
+    {% if generated_recipes %}
+        {% for recipe in generated_recipes %}
+        <div class="recipe-card">
+            <h3><a href="/recipes/{{ recipe.pk }}" style="color:#2d6a4f; text-decoration:none;">{{ recipe.title }}</a></h3>
+            <div style="margin: 0.5rem 0; color:#555; font-size:0.9rem;">
+                {% if recipe.prep_time %}<span class="tag">⏱ Prep: {{ recipe.prep_time }}</span>{% endif %}
+                {% if recipe.cook_time %}<span class="tag">🔥 Cook: {{ recipe.cook_time }}</span>{% endif %}
+                {% if recipe.servings %}<span class="tag">🍽 Serves: {{ recipe.servings }}</span>{% endif %}
+            </div>
+            <p style="color:#666; font-size:0.9rem;">{{ recipe.ingredients[:120] }}...</p>
+            <a href="/recipes/{{ recipe.pk }}" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">View Full Recipe</a>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">No recipes were generated. Try adjusting your ingredients.</div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

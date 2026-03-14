@@ -1,0 +1,24 @@
+{
+  "users": {
+    "admin": {
+      "username": "testadmin",
+      "password": "testpass123"
+    }
+  },
+  "models": {
+    "Role": {
+      "admin": {
+        "name": "admin",
+        "permissions": [
+          {"app": "*", "model": "*", "can_create": true, "can_read": true, "can_update": true, "can_delete": true}
+        ]
+      },
+      "editor": {
+        "name": "editor",
+        "permissions": [
+          {"app": "*", "model": "*", "can_create": true, "can_read": true, "can_update": true, "can_delete": false}
+        ]
+      }
+    }
+  }
+}

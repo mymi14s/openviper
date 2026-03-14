@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>📅 Meal Plans</h1>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem;">
+    <h2>Generate New Meal Plan</h2>
+    <p style="color:#666; margin-bottom:1rem;">AI will create a weekly meal plan with breakfast, lunch, and dinner.</p>
+    <form method="POST" action="/mealplan">
+        <label>Ingredients (comma-separated)</label>
+        <textarea name="ingredients" rows="2" placeholder="Leave blank to use your saved ingredients">{{ saved_ingredients }}</textarea>
+        <div class="grid-2">
+            <div>
+                <label>Dietary Preferences (optional)</label>
+                <input type="text" name="dietary_preferences" placeholder="e.g. vegetarian, gluten-free">
+            </div>
+            <div>
+                <label>Days to Plan</label>
+                <select name="days">
+                    <option value="3">3 days</option>
+                    <option value="5">5 days</option>
+                    <option value="7" selected>7 days (full week)</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Generate Meal Plan</button>
+    </form>
+</div>
+
+{% if meal_plans %}
+<div class="card">
+    <h2>My Meal Plans</h2>
+    {% for plan in meal_plans %}
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:0.75rem 0; border-bottom:1px solid #dee2e6; flex-wrap:wrap; gap:0.5rem;">
+        <div>
+            <strong><a href="/mealplan/{{ plan.pk }}" style="color:#2d6a4f; text-decoration:none;">{{ plan.title }}</a></strong>
+            <br><small style="color:#888;">Created {{ plan.created_at }}</small>
+        </div>
+        <a href="/mealplan/{{ plan.pk }}" class="btn btn-secondary btn-sm">View Plan</a>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:2rem;">
+    <p style="color:#888;">No meal plans yet. Generate your first one above!</p>
+</div>
+{% endif %}
+{% endblock %}

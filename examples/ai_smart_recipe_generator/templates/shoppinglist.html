@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>🛒 Shopping Lists</h1>
+    <a href="/mealplan" class="btn btn-primary">+ Generate Meal Plan</a>
+</div>
+
+{% if shopping_lists %}
+    {% for sl in shopping_lists %}
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+            <h2>Shopping List #{{ sl.id }}</h2>
+            <small style="color:#888;">Created {{ sl.created_at }}</small>
+        </div>
+        {% if sl.item_list %}
+        <ul class="shopping-cols">
+            {% for item in sl.item_list %}
+                <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color:#888;">No items in this list.</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="card" style="text-align:center; padding:3rem;">
+        <p style="color:#888; margin-bottom:1rem;">No shopping lists yet.</p>
+        <p style="color:#888; margin-bottom:1rem;">Shopping lists are auto-generated when you create a meal plan.</p>
+        <a href="/mealplan" class="btn btn-primary">Create Meal Plan</a>
+    </div>
+{% endif %}
+{% endblock %}

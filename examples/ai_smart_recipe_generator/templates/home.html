@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="text-align:center; padding: 3rem 1rem;">
+    <h1 style="color:#2d6a4f; margin-bottom:1rem;">🍽️ AI Smart Recipe Generator</h1>
+    <p style="font-size:1.05rem; color:#555; max-width:600px; margin:0 auto 2rem;">
+        Generate personalized recipes, weekly meal plans, and shopping lists using AI.
+        Enter your ingredients and let AI do the cooking planning!
+    </p>
+    <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+        <a href="/register" class="btn btn-primary" style="font-size:1rem; padding:0.7rem 1.75rem;">Get Started Free</a>
+        <a href="/login" class="btn btn-secondary" style="font-size:1rem; padding:0.7rem 1.75rem;">Sign In</a>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-top:1.5rem;">
+    <div class="card">
+        <h2>🤖 AI Recipe Generation</h2>
+        <p>Enter the ingredients you have and our AI will suggest creative, delicious recipes tailored to your pantry.</p>
+    </div>
+    <div class="card">
+        <h2>📅 Weekly Meal Plans</h2>
+        <p>Generate a full week of meal plans with breakfast, lunch, and dinner — organized and ready to follow.</p>
+    </div>
+    <div class="card">
+        <h2>🛒 Smart Shopping Lists</h2>
+        <p>Automatically generate shopping lists from your meal plans so you never forget an ingredient.</p>
+    </div>
+    <div class="card">
+        <h2>🥗 Nutrition Analysis</h2>
+        <p>Get detailed nutritional information for any recipe — calories, protein, carbs, and more.</p>
+    </div>
+</div>
+{% endblock %}

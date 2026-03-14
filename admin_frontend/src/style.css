@@ -1,0 +1,314 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Focus styles */
+*:focus-visible {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-gray-900;
+}
+
+/* ─── Form elements ─────────────────────────────────────────────────────────── */
+input,
+select,
+textarea {
+  @apply rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800
+         text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+input:not(:disabled):not([readonly]):focus,
+select:not(:disabled):not([readonly]):focus,
+textarea:not(:disabled):not([readonly]):focus {
+  @apply border-primary-500 dark:border-primary-400;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  outline: none;
+}
+
+/* Hover glow on enabled fields */
+input:not(:disabled):not([readonly]):hover,
+select:not(:disabled):not([readonly]):hover,
+textarea:not(:disabled):not([readonly]):hover {
+  @apply border-gray-400 dark:border-gray-500;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+input[readonly],
+select[readonly],
+textarea[readonly] {
+  @apply bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 cursor-not-allowed border-gray-200 dark:border-gray-700;
+  opacity: 0.7;
+}
+
+/* ─── Floating label field group ────────────────────────────────────────────── */
+.field-group {
+  position: relative;
+}
+
+.field-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+/* Highlight label when its field is focused */
+.field-group:focus-within > label {
+  @apply text-primary-600 dark:text-primary-400;
+}
+
+/* Subtle left accent bar on focus */
+.field-group:focus-within::before {
+  content: '';
+  position: absolute;
+  left: -1rem;
+  top: 1.75rem;
+  bottom: 0;
+  width: 2px;
+  border-radius: 1px;
+  @apply bg-primary-500;
+  animation: accent-grow 0.2s ease forwards;
+}
+
+@keyframes accent-grow {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+
+/* ─── Error shake ───────────────────────────────────────────────────────────── */
+@keyframes field-error-shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-5px); }
+  30%       { transform: translateX(5px); }
+  45%       { transform: translateX(-4px); }
+  60%       { transform: translateX(4px); }
+  75%       { transform: translateX(-2px); }
+  90%       { transform: translateX(2px); }
+}
+
+.field-group.has-error input,
+.field-group.has-error select,
+.field-group.has-error textarea {
+  @apply border-red-400 dark:border-red-500;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+  animation: field-error-shake 0.45s ease;
+}
+
+/* ─── Staggered form field entry ────────────────────────────────────────────── */
+@keyframes field-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.form-fields-enter .field-group,
+.field-group {
+  animation: field-fade-in 0.25s ease both;
+}
+
+/* Stagger each field using nth-child */
+.field-group:nth-child(1)  { animation-delay: 0.00s; }
+.field-group:nth-child(2)  { animation-delay: 0.03s; }
+.field-group:nth-child(3)  { animation-delay: 0.06s; }
+.field-group:nth-child(4)  { animation-delay: 0.09s; }
+.field-group:nth-child(5)  { animation-delay: 0.12s; }
+.field-group:nth-child(6)  { animation-delay: 0.15s; }
+.field-group:nth-child(7)  { animation-delay: 0.18s; }
+.field-group:nth-child(8)  { animation-delay: 0.20s; }
+.field-group:nth-child(9)  { animation-delay: 0.22s; }
+.field-group:nth-child(10) { animation-delay: 0.24s; }
+.field-group:nth-child(n+11) { animation-delay: 0.25s; }
+
+/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+.btn {
+  @apply px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 dark:focus:ring-offset-gray-900;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+.btn-primary:not(:disabled):hover {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 focus:ring-gray-500;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 dark:focus:ring-offset-gray-900;
+}
+
+/* Ripple effect on button click */
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.btn:not(:disabled):active::after {
+  opacity: 1;
+  transition: none;
+}
+
+/* ─── Cards ─────────────────────────────────────────────────────────────────── */
+.card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700;
+  transition: box-shadow 0.2s ease;
+}
+
+/* ─── Tables ────────────────────────────────────────────────────────────────── */
+.table {
+  @apply w-full divide-y divide-gray-200 dark:divide-gray-700;
+}
+
+.table th {
+  @apply px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wider bg-gray-50 dark:bg-gray-900;
+}
+
+.table td {
+  @apply px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100;
+}
+
+.table tbody tr {
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.table tbody tr:hover {
+  @apply bg-gray-50 dark:bg-gray-700/50;
+}
+
+/* ─── ChildTable row animations ─────────────────────────────────────────────── */
+@keyframes row-slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.child-row-enter-active {
+  animation: row-slide-in 0.22s ease forwards;
+}
+
+.child-row-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.child-row-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+/* ─── Sidebar ───────────────────────────────────────────────────────────────── */
+.sidebar-link {
+  @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.sidebar-link:hover {
+  transform: translateX(2px);
+}
+
+.sidebar-link.active {
+  @apply bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400;
+}
+
+/* ─── Checkbox bounce ───────────────────────────────────────────────────────── */
+@keyframes checkbox-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.3); }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+input[type="checkbox"]:checked {
+  animation: checkbox-pop 0.25s ease;
+}
+
+/* ─── Vue transition helpers ────────────────────────────────────────────────── */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* ─── Success / error message animations ────────────────────────────────────── */
+@keyframes banner-pop-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.banner-enter-active {
+  animation: banner-pop-in 0.2s ease forwards;
+}
+
+.banner-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.banner-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}

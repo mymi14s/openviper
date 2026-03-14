@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:400px; margin:3rem auto;">
+    <div class="card">
+        <h1>Sign In</h1>
+        <p style="color:#666; margin-bottom:1.5rem;">Welcome back to AI Recipe Generator</p>
+
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/login">
+            <label>Username <span style="color:red">*</span></label>
+            <input type="text" name="username" required autofocus placeholder="your_username">
+            <label>Password <span style="color:red">*</span></label>
+            <input type="password" name="password" required placeholder="Your password">
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:0.5rem;">Sign In</button>
+        </form>
+
+        <p style="text-align:center; margin-top:1rem; font-size:0.9rem;">
+            Don't have an account? <a href="/register">Register</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

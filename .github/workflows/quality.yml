@@ -87,6 +87,8 @@ jobs:
           pip install -e .
           pip install -r requirements-dev.txt
       - name: Run tests with coverage
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-test-secret-key-do-not-use-in-production-must-be-long-enough' }}
         run: pytest tests/unit --cov=openviper --cov-report=term-missing --cov-fail-under=0
       - name: Upload coverage
         if: matrix.python-version == '3.14'

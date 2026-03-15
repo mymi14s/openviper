@@ -242,6 +242,13 @@ or is the primary key.
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use serializers:
+
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — pydantic-based serializers with validation
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — ``ModelSerializer`` for products, orders, reviews
+
 Manual Serializer
 ~~~~~~~~~~~~~~~~~
 

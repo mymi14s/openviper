@@ -272,6 +272,13 @@ The ``status_code`` parameter accepts any integer.  Commonly used values:
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that demonstrate HTTP views:
+
+   - `examples/flexible/ <https://github.com/mymi14s/openviper/tree/master/examples/flexible>`_ — function-based views with ``JSONResponse``
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — class-based ``View`` with REST methods
+
 Function-Based Views
 ~~~~~~~~~~~~~~~~~~~~
 

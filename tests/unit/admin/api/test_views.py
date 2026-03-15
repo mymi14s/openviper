@@ -69,10 +69,20 @@ class MockUser:
     is_authenticated = True
 
 
+def _make_field_mock(**overrides):
+    """Create a field mock with safe defaults for primary_key/auto."""
+    m = MagicMock()
+    m.primary_key = False
+    m.auto = False
+    for k, v in overrides.items():
+        setattr(m, k, v)
+    return m
+
+
 class MockModel:
     __name__ = "MockModel"
     _app_name = "test_app"
-    _fields = {"name": MagicMock()}
+    _fields = {"name": _make_field_mock()}
     id = 1
     username = "testuser"
 
@@ -2100,7 +2110,7 @@ class TestListInstancesByAppCoverage:
         qs = _make_full_qs()
         mc = MagicMock()
         mc.__name__ = "MyModel"
-        mc._fields = {}
+        mc._fields = {"created_at": _make_field_mock()}
         mc.objects = MagicMock()
         mc.objects.all.return_value = qs
 
@@ -2258,7 +2268,7 @@ class TestCreateInstanceByAppErrors:
     async def test_field_coercion_error_returns_422(self, handler, mock_request, mock_engine):
         mock_request.json.return_value = {"count": "not-a-number"}
 
-        int_field = MagicMock()
+        int_field = _make_field_mock()
         int_field.__class__.__name__ = "IntField"
 
         mc = MagicMock()
@@ -2393,7 +2403,7 @@ class TestUpdateInstanceByAppErrors:
     async def test_field_coercion_error_returns_422(self, handler, mock_request, mock_engine):
         mock_request.json.return_value = {"count": "abc"}
 
-        int_field = MagicMock()
+        int_field = _make_field_mock()
         int_field.__class__.__name__ = "IntField"
 
         mc = MagicMock()

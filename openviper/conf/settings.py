@@ -82,7 +82,7 @@ _SENSITIVE_FIELDS: Final[frozenset[str]] = frozenset(
         "DATABASE_URL",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_ACCESS_KEY_ID",
-        "EMAIL_PASSWORD",
+        "EMAIL",
         "SENTRY_DSN",
     }
 )
@@ -274,13 +274,23 @@ class Settings:
     LOG_FORMAT: str = "text"  # "text" | "json"
 
     # ── Email ─────────────────────────────────────────────────────────────
-    EMAIL_BACKEND: str = ""  # "console" | "smtp" | "memory"
-    EMAIL_HOST: str = ""
-    EMAIL_PORT: int = 587
-    EMAIL_USE_TLS: bool = True
-    EMAIL_USER: str = ""
-    EMAIL_PASSWORD: str = ""
-    EMAIL_FROM: str = ""
+    EMAIL: dict[str, Any] = dataclasses.field(
+        default_factory=lambda: {
+            "backend": "SMTPBackend",  # "ConsoleBackend" | "SMTPBackend"
+            "host": "localhost",
+            "port": 587,
+            "use_tls": True,
+            "use_ssl": False,
+            "timeout": 10,
+            "username": "",
+            "user": "",
+            "password": "",
+            "from": "",
+            "default_sender": "noreply@example.com",
+            "fail_silently": False,
+            "use_background_worker": False,
+        }
+    )
 
     # ── Security Headers ─────────────────────────────────────────────────
     SECURE_SSL_REDIRECT: bool = False

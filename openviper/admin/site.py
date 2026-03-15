@@ -82,7 +82,11 @@ def get_admin_site() -> Router:
             spec = importlib.util.find_spec(app_name)
             if spec is None or spec.origin is None:
                 raise NotFound(f"App not found: {app_name}")
-            ext_file = Path(spec.origin).parent / "admin_extensions" / path
+            base_dir = (Path(spec.origin).parent / "admin_extensions").resolve()
+            ext_file = (base_dir / path).resolve()
+            # Prevent path traversal — resolved path must stay inside base_dir
+            if not str(ext_file).startswith(str(base_dir) + "/") and ext_file != base_dir:
+                raise NotFound("Invalid extension path")
             if not ext_file.exists() or not ext_file.is_file():
                 raise NotFound(f"Extension file not found: {app_name}/{path}")
             # Only allow .js and .vue files
@@ -136,7 +140,11 @@ def get_admin_site() -> Router:
 
     async def serve_admin_asset(request: Request, path: str) -> FileResponse:
         """Serve a static asset from the admin's static/admin/assets dir."""
-        asset_file = ADMIN_STATIC_DIR / "assets" / path
+        base_dir = (ADMIN_STATIC_DIR / "assets").resolve()
+        asset_file = (base_dir / path).resolve()
+        # Prevent path traversal — resolved path must stay inside base_dir
+        if not str(asset_file).startswith(str(base_dir) + "/") and asset_file != base_dir:
+            raise NotFound("Asset not found")
         if not asset_file.exists() or not asset_file.is_file():
             raise NotFound("Asset not found")
         return FileResponse(str(asset_file))

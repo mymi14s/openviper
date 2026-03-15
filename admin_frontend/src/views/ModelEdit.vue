@@ -130,9 +130,8 @@ async function handleSubmit() {
     )
 
     if (updated) {
-      // Update both original and form data with response
-      originalData.value = JSON.parse(JSON.stringify(updated))
-      formData.value = { ...updated }
+      // Reload full instance data including child tables
+      await loadData()
       showSuccess.value = true
       setTimeout(() => (showSuccess.value = false), 3000)
       // Refresh sidebar history after successful save

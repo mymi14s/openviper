@@ -37,6 +37,7 @@ async def test_lazy_fk_await_loads_and_caches_instance():
 
     instance = MagicMock()
     instance._relation_cache = {}
+    instance._set_related = lambda name, val: instance._relation_cache.__setitem__(name, val)
 
     lazy = LazyFK(fk_field, instance, 22)
 

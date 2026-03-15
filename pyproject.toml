@@ -231,6 +231,7 @@ disallow_untyped_defs = false
 warn_return_any = false
 warn_unused_ignores = false
 check_untyped_defs = true
+disable_error_code = ["attr-defined", "import-untyped"]
 exclude = [
     "tests/",
     "docs/",

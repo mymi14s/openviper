@@ -70,6 +70,14 @@ Key Classes & Functions
 Example Usage
 -------------
 
+.. seealso::
+
+   Every example project has its own ``settings.py`` — compare patterns:
+
+   - `examples/todoapp/settings.py <https://github.com/mymi14s/openviper/tree/master/examples/todoapp/settings.py>`_ — minimal single-app settings
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — multi-app with ``AI_PROVIDERS``, ``TASKS``, ``MODEL_EVENTS``
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — ``TASKS``, ``AI_PROVIDERS``, ``EMAIL`` config
+
 Defining Settings
 ~~~~~~~~~~~~~~~~~
 

@@ -703,7 +703,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_create_admin_check(self):
         """Test admin check on legacy create (line 1371)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1380: legacy create add permission
@@ -711,7 +711,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_create_add_permission_check(self):
         """Test add permission check on legacy create (line 1380)."""
         has_add = False
-        permission_denied = bool(not has_add)
+        permission_denied = not has_add
         assert permission_denied is True
 
     # Line 1392: legacy create readonly field skip
@@ -750,7 +750,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_get_instance_admin_check(self):
         """Test admin check on legacy get (line 1432)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Lines 1449-1462: legacy get instance serialization
@@ -780,7 +780,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_update_admin_check(self):
         """Test admin check on legacy update (line 1475)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1489: legacy update change permission
@@ -788,7 +788,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_update_change_permission(self):
         """Test change permission on legacy update (line 1489)."""
         has_change = False
-        permission_denied = bool(not has_change)
+        permission_denied = not has_change
         assert permission_denied is True
 
     # Lines 1506, 1510-1511: legacy update readonly and field setting
@@ -847,7 +847,7 @@ class TestLegacyEndpointsUncovered:
     async def test_legacy_delete_admin_check(self):
         """Test admin check on legacy delete (line 1551)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1588: bulk delete admin check
@@ -855,7 +855,7 @@ class TestLegacyEndpointsUncovered:
     async def test_bulk_delete_admin_check(self):
         """Test admin check on bulk delete (line 1588)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1634: bulk action admin check
@@ -863,7 +863,7 @@ class TestLegacyEndpointsUncovered:
     async def test_bulk_action_admin_check(self):
         """Test admin check on bulk action (line 1634)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1654: bulk action over 1000 limit
@@ -879,7 +879,7 @@ class TestLegacyEndpointsUncovered:
     async def test_get_filter_options_admin_check(self):
         """Test admin check on get filter options (line 1692)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1735: export admin check
@@ -887,7 +887,7 @@ class TestLegacyEndpointsUncovered:
     async def test_export_admin_check(self):
         """Test admin check on export (line 1735)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1767: export isoformat serialization
@@ -905,7 +905,7 @@ class TestLegacyEndpointsUncovered:
     async def test_get_history_admin_check(self):
         """Test admin check on get history (line 1789)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
     # Line 1799: get history instance not found
@@ -913,7 +913,7 @@ class TestLegacyEndpointsUncovered:
     async def test_get_history_not_found(self):
         """Test instance not found in get history (line 1799)."""
         instance = None
-        not_found = bool(not instance)
+        not_found = not instance
         assert not_found is True
 
     # Line 1806: get history append record
@@ -952,7 +952,7 @@ class TestLegacyEndpointsUncovered:
     async def test_autocomplete_admin_check(self):
         """Test admin check on autocomplete (line 1833)."""
         is_admin = False
-        permission_denied = bool(not is_admin)
+        permission_denied = not is_admin
         assert permission_denied is True
 
 
@@ -976,7 +976,7 @@ class TestChildTableProcessing:
 
         # Line 825: no fk_name found
         fk_name = None
-        skipped = bool(not fk_name)
+        skipped = not fk_name
         assert skipped is True
 
     # Line 844: create ValueError handling
@@ -998,7 +998,7 @@ class TestChildTableProcessing:
         """Test admin checks on app endpoints (lines 872, 911)."""
         for _line in [872, 911]:
             is_admin = False
-            permission_denied = bool(not is_admin)
+            permission_denied = not is_admin
             assert permission_denied is True
 
     # Lines 952, 990: update readonly skip, no fk_name continue
@@ -1017,7 +1017,7 @@ class TestChildTableProcessing:
 
         # Line 990
         fk_name = None
-        skipped_fk = bool(not fk_name)
+        skipped_fk = not fk_name
         assert skipped_fk is True
 
     # Lines 1040-1045: child serialization isoformat and str conversion

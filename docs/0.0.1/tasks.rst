@@ -152,6 +152,14 @@ the ``openviper_task_results`` table.
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use background tasks:
+
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — ``@periodic`` tasks for content moderation
+   - `examples/tp/ <https://github.com/mymi14s/openviper/tree/master/examples/tp>`_ — ``TASKS`` config with broker switching, event-driven task wiring
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — ``TASKS`` config with Redis broker
+
 Defining & Enqueuing a Task
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

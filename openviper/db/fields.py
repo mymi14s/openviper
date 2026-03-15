@@ -572,13 +572,12 @@ class ForeignKey(Field):
         """Return the column type matching the target model's primary key field."""
         target = self.resolve_target()
         if target is not None:
-            fields: dict[str, Any] = getattr(target, "_fields", {})
-            for field in fields.values():
+            for field in target._fields.values():
                 if field.primary_key:
                     # A nested ForeignKey PK is unusual but handle gracefully
                     if isinstance(field, ForeignKey):
-                        return str(field._column_type)
-                    return str(field._column_type)
+                        return field._column_type
+                    return field._column_type
         return "INTEGER"  # default when target is not yet resolvable
 
     @functools.cached_property
@@ -632,8 +631,8 @@ class ForeignKey(Field):
             # Extract ID from model instance, set directly in __dict__ to avoid recursion
             obj.__dict__[self.column_name] = value.id
             # Cache the instance for descriptor access (select_related / __str__)
-            if hasattr(obj, "_relation_cache"):
-                obj._relation_cache[self.name] = value
+            if hasattr(obj, "_set_related"):
+                obj._set_related(self.name, value)
         else:
             # Set the value directly in __dict__ to avoid descriptor recursion
             obj.__dict__[self.column_name] = value
@@ -707,8 +706,8 @@ class LazyFK:
         self._loaded_obj = related_model._from_row(results[0])  # type: ignore[attr-defined]
 
         # Cache in the instance
-        if hasattr(self.instance, "_relation_cache"):
-            self.instance._relation_cache[self.fk_field.name] = self._loaded_obj
+        if hasattr(self.instance, "_set_related"):
+            self.instance._set_related(self.fk_field.name, self._loaded_obj)
 
         return self._loaded_obj
 

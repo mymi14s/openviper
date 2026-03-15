@@ -89,6 +89,7 @@ async def test_create_instance_multipart(media_setup):
         ),
         patch.object(FileModel, "save", AsyncMock()),
     ):
+
         handler = get_handler("/models/{app_label}/{model_name}/", "POST")
         response = await handler(request, "app", "filemodel")
 
@@ -117,7 +118,9 @@ async def test_multipart_json_parsing():
     mock_admin_obj.has_add_permission.return_value = True
 
     mock_model_cls = MagicMock(spec=FileModel)
-    mock_model_cls._fields = {}
+    title_field = MagicMock(primary_key=False, auto=False)
+    children_field = MagicMock(primary_key=False, auto=False)
+    mock_model_cls._fields = {"title": title_field, "children": children_field}
     mock_model_cls.return_value = MagicMock(spec=FileModel)
 
     with (
@@ -136,6 +139,7 @@ async def test_multipart_json_parsing():
             AsyncMock(return_value={"id": 1}),
         ),
     ):
+
         handler = get_handler("/models/{app_label}/{model_name}/", "POST")
         await handler(request, "app", "filemodel")
 

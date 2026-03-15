@@ -321,49 +321,39 @@ def _build_dispatcher() -> ModelEventDispatcher | None:
         return None
 
 
-# Dangerous module prefixes that should never be imported via MODEL_EVENTS.
-# This prevents arbitrary code execution if settings are compromised.
-_BLOCKED_MODULE_PREFIXES = (
-    "os",
-    "sys",
-    "subprocess",
-    "shutil",
-    "importlib",
-    "builtins",
-    "__builtin__",
-    "imp",
-    "code",
-    "codeop",
-    "compile",
-    "exec",
-    "eval",
-    "pickle",
-    "shelve",
-    "marshal",
-    "dill",
-    "cloudpickle",
-)
+# Allowed root module prefixes for MODEL_EVENTS handler imports.
+# Only these namespaces are permitted — everything else is rejected.
+_ALLOWED_MODULE_PREFIXES: frozenset[str] = frozenset(("openviper",))
 
 
 def _is_safe_module_path(module_path: str) -> bool:
     """Validate that a module path is safe to import.
 
-    Blocks imports of dangerous system modules that could be used for
-    arbitrary code execution if settings are compromised.
+    Uses an allowlist approach: only modules under explicitly trusted
+    namespaces are permitted.  Project app modules are auto-detected
+    from INSTALLED_APPS.
 
     Allows:
-    - Project app modules (apps.*)
     - OpenViper modules (openviper.*)
-    - Other third-party packages not in the blocklist
+    - Modules whose root package appears in INSTALLED_APPS
 
     Blocks:
-    - System modules like os, subprocess, sys, pickle, etc.
+    - Everything else (including system modules like os, subprocess, etc.)
     """
-    # Get the root module name
     root_module = module_path.split(".")[0]
 
-    # Block dangerous system modules
-    return root_module not in _BLOCKED_MODULE_PREFIXES
+    # Always allow openviper internals
+    if root_module in _ALLOWED_MODULE_PREFIXES:
+        return True
+
+    # Allow project apps registered in INSTALLED_APPS
+    installed = getattr(settings, "INSTALLED_APPS", ())
+    for app in installed:
+        app_root = app.split(".")[0]
+        if root_module == app_root:
+            return True
+
+    return False
 
 
 def _resolve_dotted(path: str | Callable[..., Any]) -> Any | None:

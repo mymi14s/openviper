@@ -97,7 +97,7 @@ async def _update_last_login(user: Any) -> None:
     try:
         user.last_login = datetime.datetime.now(datetime.UTC)
         await user.save(ignore_permissions=True)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # last_login is not critical; log but do not propagate
         logger.debug("Failed to update last_login for user %s: %s", getattr(user, "pk", "?"), exc)
 
@@ -214,7 +214,6 @@ async def logout(request: Any, response: Any = None) -> None:
     client_ip = _get_client_ip(request)
 
     if session_key:
-
         await delete_session(session_key)
 
         # Audit log

@@ -32,7 +32,7 @@ def cast_to_pk_type(model_class: type[Model], value: Any) -> Any:
     if pk_field and hasattr(pk_field, "to_python"):
         try:
             return pk_field.to_python(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             # Fallback to original value if casting fails
             return value
 

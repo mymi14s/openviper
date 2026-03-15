@@ -19,6 +19,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import html
 import importlib
@@ -507,10 +508,8 @@ class OpenViper:
             pass
         # Fallback: check for model_dump method (duck typing)
         if hasattr(result, "model_dump") and callable(result.model_dump):
-            try:
+            with contextlib.suppress(Exception):
                 return JSONResponse(result.model_dump())
-            except Exception:
-                pass
         return JSONResponse(result)
 
     async def _handle_exception(self, request: Request, exc: Exception) -> Response:

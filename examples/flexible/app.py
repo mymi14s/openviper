@@ -7,7 +7,7 @@ Run::
 
 from openviper import JSONResponse, OpenViper
 from openviper.exceptions import NotFound
-from openviper.http.request import Request
+from openviper.http.request import Request  # noqa: TC001
 
 app = OpenViper(title="Standard Example API", version="1.0.0")
 

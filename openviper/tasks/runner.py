@@ -77,7 +77,7 @@ def run_scheduler(
             if enqueued:
                 logger.debug("Tick enqueued: %s", enqueued)
             time.sleep(tick_interval)
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt, SystemExit:
         pass
     finally:
         logger.info("Scheduler stopped.")

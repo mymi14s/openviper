@@ -86,7 +86,7 @@ class MockModel:
     save = AsyncMock
     delete = AsyncMock
 
-    class objects:  # noqa: N801
+    class objects:
         all = MagicMock()
         filter = MagicMock()
         get_or_none = AsyncMock(return_value=None)
@@ -168,7 +168,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.create_access_token", return_value="access"),
             patch("openviper.admin.api.views.create_refresh_token", return_value="refresh"),
         ):
-
             user = MockUser()
             user.id = 1
             user.username = "test"
@@ -194,7 +193,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.decode_token_unverified") as mock_decode,
             patch("openviper.admin.api.views.revoke_token") as mock_revoke,
         ):
-
             mock_decode.return_value = {"jti": "jti", "exp": 123456789, "sub": "1"}
 
             resp = await handler(mock_request)
@@ -217,7 +215,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.User", MockModel),
             patch("openviper.admin.api.views.create_access_token", return_value="new_access"),
         ):
-
             mock_decode.return_value = {"sub": 1, "jti": "jti"}
             user = MockUser()
             user.id = 1
@@ -252,7 +249,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.admin") as mock_admin,
             patch("openviper.admin.api.views.get_recent_activity") as mock_activity,
         ):
-
             mock_admin.get_all_models.return_value = [(MockModel, MagicMock())]
             mock_activity.return_value = []
 
@@ -329,7 +325,6 @@ class TestAdminAPIViews:
         mock_request.json.return_value = {"name": "New"}
 
         with patch("openviper.admin.api.views.admin") as mock_admin:
-
             ma = MagicMock()
             ma.get_readonly_fields.return_value = []
             ma.child_tables = []
@@ -385,7 +380,6 @@ class TestAdminAPIViews:
         mock_request.json.return_value = {"name": "Updated"}
 
         with patch("openviper.admin.api.views.admin") as mock_admin:
-
             ma = MagicMock()
             ma.get_readonly_fields.return_value = []
             ma.child_tables = []
@@ -443,7 +437,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.admin") as mock_admin,
             patch("openviper.admin.api.views.get_action") as mock_get_action,
         ):
-
             ma = MagicMock()
             mock_admin.get_model_admin_by_app_and_name.return_value = ma
             mock_admin.get_model_by_app_and_name.return_value = MockModel
@@ -491,7 +484,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.admin") as mock_admin,
             patch("openviper.admin.api.views.get_change_history") as mock_history,
         ):
-
             mock_admin.get_model_by_app_and_name.return_value = MockModel
             MockModel.objects.get_or_none.return_value = MockModel(id=1)
             mock_history.return_value = []
@@ -636,7 +628,6 @@ class TestAdminAPIViews:
             patch("openviper.admin.api.views.admin") as mock_admin,
             patch("openviper.admin.api.views.check_model_permission", return_value=False),
         ):
-
             mock_admin.get_model_admin_by_name.return_value = MagicMock()
             mock_admin.get_model_by_name.return_value = MockModel
 
@@ -1024,7 +1015,6 @@ class TestErrorHandling:
     def test_views_module_imports_successfully(self):
         """Test that views module can be imported."""
         try:
-
             assert openviper.admin.api.views is not None
         except ImportError as e:
             pytest.fail(f"Failed to import views module: {e}")
@@ -3425,7 +3415,6 @@ class TestDashboardExceptions:
             patch("openviper.admin.api.views.admin") as mock_admin,
             patch("openviper.admin.api.views.get_recent_activity", return_value=[]),
         ):
-
             mc = MagicMock()
             mc.__name__ = "BadCountModel"
             mc.objects.count.side_effect = Exception("DB error")
@@ -3446,7 +3435,6 @@ class TestDashboardExceptions:
                 side_effect=Exception("No history table"),
             ),
         ):
-
             mock_admin.get_all_models.return_value = []
             resp = await handler(mock_request)
             data = json.loads(resp.body)
@@ -3564,7 +3552,6 @@ class TestInlineCreateAndUpdate:
             patch("openviper.admin.api.views.admin") as mock_admin,
             patch("openviper.admin.api.views.coerce_field_value", lambda f, v: v),
         ):
-
             ma = MagicMock()
             ma.get_readonly_fields.return_value = []
             ma.child_tables = []

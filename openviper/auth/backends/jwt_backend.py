@@ -43,7 +43,6 @@ class JWTBackend:
 
         token = auth_str[7:]
         try:
-
             payload = decode_access_token(token)
             jti = payload.get("jti")
             if jti and await is_token_revoked(jti):

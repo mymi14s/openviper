@@ -306,5 +306,5 @@ def _serialise(value: Any) -> str | None:
         return None
     try:
         return json.dumps(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return repr(value)

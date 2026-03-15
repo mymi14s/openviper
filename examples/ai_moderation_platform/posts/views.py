@@ -139,7 +139,9 @@ class PostDetailView(View):
 
         # Get comments count
         post.comments_count = await Comment.objects.filter(
-            post_id=post_id, parent_comment_id=None, is_hidden=False  # Top-level only
+            post_id=post_id,
+            parent_comment_id=None,
+            is_hidden=False,  # Top-level only
         ).count()
 
         # Check if user liked this post
@@ -167,7 +169,9 @@ class CommentListCreateView(View):
 
         # Fetch top-level comments only (parent_comment IS NULL) and not hidden
         total = await Comment.objects.filter(
-            post_id=int(post_id), parent_comment_id=None, is_hidden=False  # Top-level only
+            post_id=int(post_id),
+            parent_comment_id=None,
+            is_hidden=False,  # Top-level only
         ).count()
 
         offset = (page - 1) * page_size
@@ -590,7 +594,9 @@ class BlogDetailView(View):
         comments = [
             c
             async for c in Comment.objects.select_related("author").filter(
-                post_id=post.id, parent_comment_id=None, is_hidden=False  # Top-level comments only
+                post_id=post.id,
+                parent_comment_id=None,
+                is_hidden=False,  # Top-level comments only
             )
         ]
         return HTMLResponse(

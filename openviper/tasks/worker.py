@@ -258,7 +258,7 @@ def run_worker(
     try:
         while True:
             time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt, SystemExit:
         pass
     finally:
         if scheduler_enabled:

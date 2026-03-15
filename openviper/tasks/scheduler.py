@@ -107,9 +107,7 @@ def periodic(
             actor = _task()(actor)
         entry_name = name or getattr(actor, "actor_name", repr(actor))
         schedule = (
-            IntervalSchedule(float(every))
-            if every is not None
-            else CronSchedule(cron)  # type: ignore[arg-type]
+            IntervalSchedule(float(every)) if every is not None else CronSchedule(cron)  # type: ignore[arg-type]
         )
         _pending.append(
             {

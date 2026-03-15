@@ -731,7 +731,6 @@ def get_admin_router() -> Router:
         for instance in instances:
             item = {"id": getattr(instance, "id", None)}
             for field_name in list_display:
-
                 value = getattr(instance, field_name, None)
                 if hasattr(value, "isoformat"):
                     value = value.isoformat()
@@ -1858,7 +1857,7 @@ def get_admin_router() -> Router:
                 module_path = f"{app_label}.models"
                 module = importlib.import_module(module_path)
                 model_class = getattr(module, model_name, None)
-            except (ImportError, AttributeError):
+            except ImportError, AttributeError:
                 pass
 
         # Still not found, try searching all registered models by name

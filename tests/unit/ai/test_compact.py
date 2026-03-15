@@ -497,12 +497,11 @@ class TestGrokProviderBranches:
             if data.strip() == "[DONE]":
                 break
             try:
-
                 chunk = json.loads(data)
                 content = chunk["choices"][0]["delta"].get("content")
                 if content:
                     results.append(content)
-            except (json.JSONDecodeError, KeyError, IndexError):
+            except json.JSONDecodeError, KeyError, IndexError:
                 continue
 
         assert results == ["ok"]
@@ -524,12 +523,11 @@ class TestGrokProviderBranches:
             if data.strip() == "[DONE]":
                 break
             try:
-
                 chunk = json.loads(data)
                 content = chunk["choices"][0]["delta"].get("content")
                 if content:
                     results.append(content)
-            except (json.JSONDecodeError, KeyError, IndexError):
+            except json.JSONDecodeError, KeyError, IndexError:
                 continue
 
         assert results == ["part1"]
@@ -550,12 +548,11 @@ class TestGrokProviderBranches:
             if data.strip() == "[DONE]":
                 break
             try:
-
                 chunk = json.loads(data)
                 content = chunk["choices"][0]["delta"].get("content")
                 if content:
                     results.append(content)
-            except (json.JSONDecodeError, KeyError, IndexError):
+            except json.JSONDecodeError, KeyError, IndexError:
                 continue
 
         assert results == ["ok"]

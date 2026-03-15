@@ -2,7 +2,7 @@ def sentiment_badge(score):
     """Convert a sentiment score (0.0 - 1.0) into a CSS class name."""
     try:
         score = float(score)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "badge-secondary"
 
     if score >= 0.8:
@@ -18,7 +18,7 @@ def sentiment_label(score):
     """Convert a sentiment score (0.0 - 1.0) into a human label."""
     try:
         score = float(score)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "Unknown"
 
     if score >= 0.8:

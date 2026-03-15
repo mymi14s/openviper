@@ -174,52 +174,52 @@ function getInputAttributes(field: ModelField): Record<string, any> {
 
 function formatDateTimeValue(value: any, fieldType: string): string {
   if (!value) return ''
-  
+
   // Handle datetime-local fields
   if (fieldType === 'datetime-local' || fieldType === 'DateTimeField') {
     // Convert ISO 8601 format (2024-02-22T10:30:00) to datetime-local format
     const date = new Date(value)
     if (isNaN(date.getTime())) return ''
-    
+
     // Format as YYYY-MM-DDTHH:mm for datetime-local input
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     const hours = String(date.getHours()).padStart(2, '0')
     const minutes = String(date.getMinutes()).padStart(2, '0')
-    
+
     return `${year}-${month}-${day}T${hours}:${minutes}`
   }
-  
+
   // Handle date fields
   if (fieldType === 'date' || fieldType === 'DateField') {
     const date = new Date(value)
     if (isNaN(date.getTime())) return ''
-    
+
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
-    
+
     return `${year}-${month}-${day}`
   }
-  
+
   // Handle time fields
   if (fieldType === 'time' || fieldType === 'TimeField') {
     const date = new Date(value)
     if (isNaN(date.getTime())) return ''
-    
+
     const hours = String(date.getHours()).padStart(2, '0')
     const minutes = String(date.getMinutes()).padStart(2, '0')
-    
+
     return `${hours}:${minutes}`
   }
-  
+
   return String(value)
 }
 
 function parseDateTimeValue(value: string, fieldType: string): any {
   if (!value) return null
-  
+
   // For datetime-local, date, and time inputs, convert back to ISO format
   if (fieldType === 'datetime-local' || fieldType === 'DateTimeField') {
     // Convert from YYYY-MM-DDTHH:mm to ISO 8601
@@ -227,17 +227,17 @@ function parseDateTimeValue(value: string, fieldType: string): any {
     if (isNaN(date.getTime())) return value // Return original if invalid
     return date.toISOString()
   }
-  
+
   if (fieldType === 'date' || fieldType === 'DateField') {
     // Value is already in ISO format (YYYY-MM-DD)
     return value
   }
-  
+
   if (fieldType === 'time' || fieldType === 'TimeField') {
     // Return time as is
     return value
   }
-  
+
   return value
 }
 

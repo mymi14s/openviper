@@ -34,7 +34,7 @@ from openviper.db.migrations.executor import (  # noqa: E402
 
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+def event_loop() -> Generator[asyncio.AbstractEventLoop]:
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
@@ -44,7 +44,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def setup_db() -> AsyncGenerator[None, None]:
+async def setup_db() -> AsyncGenerator[None]:
     """Create all tables once per test session."""
     # Ensure internal migration/soft-delete tables are in the metadata
     _get_migration_table()
@@ -55,7 +55,7 @@ async def setup_db() -> AsyncGenerator[None, None]:
 
 
 @pytest.fixture(autouse=True)
-async def clean_tables() -> AsyncGenerator[None, None]:
+async def clean_tables() -> AsyncGenerator[None]:
     """Wipe every table before each test for isolation."""
     engine = await get_engine()
     async with engine.begin() as conn:

@@ -13,9 +13,15 @@ import pytest
 
 from openviper.ai import extension
 from openviper.ai.base import AIProvider as BaseAIProvider
-from openviper.ai.extension import EXTENSION_API_VERSION
-from openviper.ai.extension import AIProvider as ExtAIProvider
-from openviper.ai.extension import provider_registry as ext_registry
+from openviper.ai.extension import (
+    EXTENSION_API_VERSION,
+)
+from openviper.ai.extension import (
+    AIProvider as ExtAIProvider,
+)
+from openviper.ai.extension import (
+    provider_registry as ext_registry,
+)
 from openviper.ai.providers.anthropic_provider import AnthropicProvider
 from openviper.ai.providers.gemini_provider import _validate_image_url
 from openviper.ai.providers.grok_provider import (

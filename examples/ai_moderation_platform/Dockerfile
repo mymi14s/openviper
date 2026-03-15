@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY openviper-0.0.1-py3-none-any.whl ./
 RUN pip install --no-cache-dir openviper-0.0.1-py3-none-any.whl
 
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 # Copy project
 COPY . .
 

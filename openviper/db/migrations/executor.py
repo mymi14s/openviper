@@ -267,7 +267,6 @@ def _map_column_type(col_type: str, dialect: str) -> str:
     # Split off any parenthesised suffix so we match "DATETIME" in "DATETIME".
     m = re.match(r"^([A-Z_]+)(\(.*\))?$", col_type.strip().upper())
     if m:
-
         base, suffix = m.group(1), m.group(2) or ""
         if dialect == "postgresql" and base == "DATETIME" and getattr(settings, "USE_TZ", False):
             return "TIMESTAMP WITH TIME ZONE" + suffix
@@ -1013,7 +1012,7 @@ def _get_existing_columns_sync(connection: Any, table_name: str) -> set[str]:
     try:
         insp = sa.inspect(connection)
         return {col["name"] for col in insp.get_columns(table_name)}
-    except (sa.exc.NoSuchTableError, Exception):
+    except sa.exc.NoSuchTableError, Exception:
         return set()
 
 

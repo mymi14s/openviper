@@ -26,7 +26,6 @@ def _resolve_user_table() -> str:
             return getattr(meta, "table_name", "auth_users") if meta else "auth_users"
         except Exception:
             pass
-    return "auth_users"
 
 
 def _resolve_user_dependency() -> list[tuple[str, str]]:

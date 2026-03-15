@@ -530,7 +530,7 @@ class ForeignKey(Field):
                     res = res()
                     if isinstance(res, type):
                         return res
-            except (ImportError, AttributeError):
+            except ImportError, AttributeError:
                 pass
 
         # Model registry lookup

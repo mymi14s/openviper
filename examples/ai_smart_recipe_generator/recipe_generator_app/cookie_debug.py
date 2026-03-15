@@ -1,7 +1,7 @@
 """Debug endpoint to check cookie behavior."""
 
 # ruff: noqa: E501
-from openviper.http.request import Request
+from openviper.http.request import Request  # noqa: TC001
 from openviper.http.response import HTMLResponse, Response
 
 
@@ -33,7 +33,7 @@ async def test_cookie_page(request: Request) -> Response:
         <pre>{received_cookies}</pre>
 
         <h2>sessionid Cookie:</h2>
-        <pre class="{'success' if session_cookie != 'NOT FOUND' else 'error'}">{session_cookie}</pre>
+        <pre class="{"success" if session_cookie != "NOT FOUND" else "error"}">{session_cookie}</pre>
 
         <h2>Browser Cookies (JavaScript):</h2>
         <pre id="js-cookies"></pre>

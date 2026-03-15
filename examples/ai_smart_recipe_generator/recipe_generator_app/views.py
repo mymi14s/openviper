@@ -433,7 +433,7 @@ async def mealplan_detail(request: Request, plan_id: int) -> Response:
 
     try:
         plan_data = json.loads(plan.plan_data)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         plan_data = {}
 
     shopping = await ShoppingList.objects.filter(meal_plan=plan_id, user=user.pk).first()
@@ -441,7 +441,7 @@ async def mealplan_detail(request: Request, plan_id: int) -> Response:
     if shopping:
         try:
             shopping_items = json.loads(shopping.items)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             shopping_items = []
 
     return HTMLResponse(
@@ -473,7 +473,7 @@ async def shopping_list(request: Request) -> Response:
     for sl in lists:
         try:
             items = json.loads(sl.items)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             items = []
         parsed_lists.append({"id": sl.pk, "item_list": items, "created_at": sl.created_at})
 

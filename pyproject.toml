@@ -23,10 +23,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
+dynamic = ["dependencies"]
+
 [project.urls]
 Documentation = "https://mymi14s.github.io/openviper"
-
-dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

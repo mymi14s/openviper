@@ -29,7 +29,7 @@ async def _run(mw, scope):
     async def send(msg):
         messages.append(msg)
 
-    async def app(s, r, snd):  # noqa: ARG001
+    async def app(s, r, snd):
         await snd({"type": "http.response.start", "status": 200, "headers": []})
         await snd({"type": "http.response.body", "body": b"ok"})
 
@@ -49,7 +49,7 @@ async def _run(mw, scope):
 class TestSecurityHeaders:
     @pytest.mark.asyncio
     async def test_adds_security_headers(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -74,7 +74,7 @@ class TestSecurityHeaders:
     async def test_non_http_passthrough(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         with patch("openviper.middleware.security.settings") as ms:
@@ -88,7 +88,7 @@ class TestSecurityHeaders:
 
     @pytest.mark.asyncio
     async def test_xss_filter_header_added(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -109,7 +109,7 @@ class TestSecurityHeaders:
 
     @pytest.mark.asyncio
     async def test_content_type_nosniff_can_be_disabled(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -130,7 +130,7 @@ class TestSecurityHeaders:
 
     @pytest.mark.asyncio
     async def test_x_frame_options_deny(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -151,7 +151,7 @@ class TestSecurityHeaders:
 
     @pytest.mark.asyncio
     async def test_x_frame_options_sameorigin(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -179,7 +179,7 @@ class TestSecurityHeaders:
 class TestHSTS:
     @pytest.mark.asyncio
     async def test_hsts_header_added(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -205,7 +205,7 @@ class TestHSTS:
 
     @pytest.mark.asyncio
     async def test_hsts_not_added_when_zero(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -226,7 +226,7 @@ class TestHSTS:
 
     @pytest.mark.asyncio
     async def test_hsts_no_subdomains_or_preload(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -256,7 +256,7 @@ class TestHSTS:
 class TestCSP:
     @pytest.mark.asyncio
     async def test_csp_string(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -277,7 +277,7 @@ class TestCSP:
 
     @pytest.mark.asyncio
     async def test_csp_dict(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -298,7 +298,7 @@ class TestCSP:
 
     @pytest.mark.asyncio
     async def test_csp_not_added_when_none(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -326,7 +326,7 @@ class TestCSP:
 class TestHostAllowed:
     @pytest.mark.asyncio
     async def test_wildcard_allows_all(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -346,7 +346,7 @@ class TestHostAllowed:
 
     @pytest.mark.asyncio
     async def test_exact_host_allowed(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -382,7 +382,7 @@ class TestHostAllowed:
 
     @pytest.mark.asyncio
     async def test_wildcard_suffix_allowed(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -402,7 +402,7 @@ class TestHostAllowed:
 
     @pytest.mark.asyncio
     async def test_wildcard_suffix_bare_domain_allowed(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -422,7 +422,7 @@ class TestHostAllowed:
 
     @pytest.mark.asyncio
     async def test_port_stripped_for_host_check(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -512,7 +512,7 @@ class TestSSLRedirect:
 
     @pytest.mark.asyncio
     async def test_no_redirect_when_already_https(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -612,7 +612,7 @@ class TestHostFromServer:
     async def test_host_from_server_tuple(self):
         """When no Host header, server tuple should be used for host resolution."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 

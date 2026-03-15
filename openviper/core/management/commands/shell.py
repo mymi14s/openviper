@@ -69,7 +69,7 @@ class Command(BaseCommand):
                 self.stdout(
                     f"  {self.style_success('✓')} User model: {self.style_bold(user_cls.__name__)}"
                 )
-        except Exception:  # nosec B110
+        except Exception:
             pass
 
         return models
@@ -111,7 +111,7 @@ class Command(BaseCommand):
         command = options.get("command")
         if command:
             code = compile(command, "<shell -c>", "exec")
-            exec(code, ns)  # noqa: S102  # pylint: disable=exec-used  # nosec B102
+            exec(code, ns)  # noqa: S102  # pylint: disable=exec-used
             return
 
         try:

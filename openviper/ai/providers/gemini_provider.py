@@ -237,7 +237,7 @@ class GeminiProvider(AIProvider):
                 config=self._make_config(gen_overrides),
             )
             result: str = response.text or ""
-        except (GeminiError, GeminiAuthError, GeminiRateLimitError):
+        except GeminiError, GeminiAuthError, GeminiRateLimitError:
             raise
         except Exception as exc:
             raise self._wrap_error(exc) from exc
@@ -262,7 +262,7 @@ class GeminiProvider(AIProvider):
             ):
                 if chunk.text:
                     yield chunk.text
-        except (GeminiError, GeminiAuthError, GeminiRateLimitError):
+        except GeminiError, GeminiAuthError, GeminiRateLimitError:
             raise
         except Exception as exc:
             raise self._wrap_error(exc) from exc
@@ -278,7 +278,7 @@ class GeminiProvider(AIProvider):
                 config=self._types.EmbedContentConfig(task_type=task_type),
             )
             return response.embeddings[0].values
-        except (GeminiError, GeminiAuthError, GeminiRateLimitError):
+        except GeminiError, GeminiAuthError, GeminiRateLimitError:
             raise
         except Exception as exc:
             raise self._wrap_error(exc) from exc

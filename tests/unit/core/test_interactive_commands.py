@@ -243,7 +243,7 @@ class TestChangepasswordBranches:
         cancelled = False
         try:
             raise KeyboardInterrupt()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             cancelled = True
 
         assert cancelled

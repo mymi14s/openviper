@@ -425,7 +425,7 @@ class CreateTable(Operation):
             if dialect == "mssql":
                 idx_escaped = idx_name.replace("'", "''")
                 stmts.append(
-                    f"IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'{idx_escaped}')\n"  # nosec B608
+                    f"IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'{idx_escaped}')\n"
                     f"CREATE INDEX {quoted_idx} ON {quoted_table} ({quoted_col})"
                 )
             else:
@@ -516,7 +516,7 @@ class RemoveColumn(Operation):
         quoted_soft_table = _quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         return [
             sa.text(  # type: ignore[list-item]
-                f"INSERT INTO {quoted_soft_table} "  # nosec B608
+                f"INSERT INTO {quoted_soft_table} "
                 "(table_name, column_name, column_type, removed_at) "
                 "VALUES (:table_name, :column_name, :column_type, CURRENT_TIMESTAMP)"
             ).bindparams(
@@ -538,7 +538,7 @@ class RemoveColumn(Operation):
         quoted_soft_table = _quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         stmts: list[Any] = [
             sa.text(
-                f"DELETE FROM {quoted_soft_table} "  # nosec B608
+                f"DELETE FROM {quoted_soft_table} "
                 "WHERE table_name = :table_name "
                 "AND column_name = :column_name"
             ).bindparams(
@@ -567,7 +567,7 @@ class RestoreColumn(Operation):
         quoted_soft_table = _quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         return [
             sa.text(
-                f"DELETE FROM {quoted_soft_table} "  # nosec B608
+                f"DELETE FROM {quoted_soft_table} "
                 "WHERE table_name = :table_name "
                 "AND column_name = :column_name"
             ).bindparams(
@@ -581,7 +581,7 @@ class RestoreColumn(Operation):
         quoted_soft_table = _quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         return [
             sa.text(
-                f"INSERT INTO {quoted_soft_table} "  # nosec B608
+                f"INSERT INTO {quoted_soft_table} "
                 "(table_name, column_name, column_type, removed_at) "
                 "VALUES (:table_name, :column_name, :column_type, CURRENT_TIMESTAMP)"
             ).bindparams(
@@ -802,7 +802,7 @@ class CreateIndex(Operation):
             index_escaped = self.index_name.replace("'", "''")
             table_escaped = self.table_name.replace("'", "''")
             return [
-                f"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'{index_escaped}'"  # nosec B608
+                f"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'{index_escaped}'"
                 f" AND object_id = OBJECT_ID(N'{table_escaped}'))\n"
                 f"CREATE {unique_kw}INDEX {quoted_index} ON {quoted_table} ({quoted_cols})"
             ]
@@ -819,7 +819,7 @@ class CreateIndex(Operation):
             index_escaped = self.index_name.replace("'", "''")
             table_escaped = self.table_name.replace("'", "''")
             return [
-                f"IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'{index_escaped}'"  # nosec B608
+                f"IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'{index_escaped}'"
                 f" AND object_id = OBJECT_ID(N'{table_escaped}'))\n"
                 f"DROP INDEX {quoted_index} ON {quoted_table}"
             ]
@@ -1013,7 +1013,7 @@ def _get_existing_columns_sync(connection: Any, table_name: str) -> set[str]:
     try:
         insp = sa.inspect(connection)
         return {col["name"] for col in insp.get_columns(table_name)}
-    except (sa.exc.NoSuchTableError, Exception):
+    except sa.exc.NoSuchTableError, Exception:
         return set()
 
 
@@ -1086,7 +1086,7 @@ async def _get_soft_removed_info(
                 "column_name": row.column_name,
                 "column_type": row.column_type,
             }
-    except Exception:  # nosec B110
+    except Exception:
         pass
     return None
 
@@ -1098,9 +1098,7 @@ async def _count_null_values(conn: Any, table_name: str, column_name: str) -> in
         quoted_table = _quote_identifier(table_name, dialect)
         quoted_column = _quote_identifier(column_name, dialect)
         result = await conn.execute(
-            sa.text(
-                f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_column} IS NULL"  # nosec B608
-            )
+            sa.text(f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_column} IS NULL")
         )
         row = result.first()
         return row[0] if row else 0
@@ -1113,10 +1111,10 @@ async def _count_total_rows(conn: Any, table_name: str) -> int:
     try:
         dialect = _get_dialect()
         quoted_table = _quote_identifier(table_name, dialect)
-        result = await conn.execute(sa.text(f"SELECT COUNT(*) FROM {quoted_table}"))  # nosec B608
+        result = await conn.execute(sa.text(f"SELECT COUNT(*) FROM {quoted_table}"))
         row = result.first()
         return row[0] if row else 0
-    except Exception:  # nosec B110
+    except Exception:
         return 0
 
 
@@ -1198,7 +1196,7 @@ async def validate_restore_column(
                 f"    - Provide a default value: field_name = FieldType(default=...)\n"
                 f"    - Manually update NULL rows before migrating:\n"
                 f"      UPDATE {op.table_name} SET {op.column_name} = <value> "
-                f"WHERE {op.column_name} IS NULL"  # nosec B608
+                f"WHERE {op.column_name} IS NULL"
             )
 
     return None

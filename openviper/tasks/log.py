@@ -154,7 +154,7 @@ def configure_worker_logging_from_settings() -> Path:
         )
         log_dir = task_settings.get("log_dir") or task_settings.get("LOG_DIR")
         log_to_file = bool(task_settings.get("log_to_file", False))
-    except Exception:  # nosec B110
+    except Exception:
         pass
 
     # Env var takes highest priority — allows the runworker command to force

@@ -658,7 +658,7 @@ class TestCall:
         request.path_params = {"id": 123}
         request.query_params = {}
 
-        def handler(id: int):  # noqa: A002
+        def handler(id: int):
             return {"id": id}
 
         response = await app._call_handler(handler, request)

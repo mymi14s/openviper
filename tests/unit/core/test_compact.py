@@ -392,7 +392,7 @@ class TestAdditionalEdgeCases:
 
         try:
             raise KeyboardInterrupt()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             cancelled = True
 
         assert cancelled
@@ -403,7 +403,7 @@ class TestAdditionalEdgeCases:
 
         try:
             raise EOFError()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             cancelled = True
 
         assert cancelled

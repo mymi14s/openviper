@@ -67,7 +67,7 @@ class OpenAIProvider(AIProvider):
             return None
         try:
             t = float(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return max(0.0, min(2.0, t))
 

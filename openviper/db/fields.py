@@ -512,7 +512,7 @@ class ForeignKey(Field):
                 target = target()
                 if isinstance(target, type):
                     return target
-            except Exception:  # nosec B110
+            except Exception:
                 # If calling fails (e.g. circular dependency), we might have to wait
                 pass
 
@@ -530,7 +530,7 @@ class ForeignKey(Field):
                     res = res()
                     if isinstance(res, type):
                         return res
-            except (ImportError, AttributeError):
+            except ImportError, AttributeError:
                 pass
 
         # Model registry lookup

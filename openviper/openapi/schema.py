@@ -172,7 +172,7 @@ def _detect_serializer_from_source(handler: Any) -> type | None:
 
     try:
         source = inspect.getsource(handler)
-    except (OSError, TypeError):
+    except OSError, TypeError:
         _SERIALIZER_NONE_IDS.add(handler_id)
         return None
 
@@ -294,7 +294,7 @@ def _build_operation(route: Route, method: str) -> dict[str, Any]:
     if handler_id not in _TYPE_HINTS_CACHE:
         try:
             hints: dict[str, Any] = get_type_hints(handler)
-        except (NameError, AttributeError, TypeError):
+        except NameError, AttributeError, TypeError:
             hints = {}
         _TYPE_HINTS_CACHE[handler_id] = hints
     hints = _TYPE_HINTS_CACHE[handler_id]

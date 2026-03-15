@@ -188,7 +188,7 @@ class Command(BaseCommand):
                             if meta and getattr(meta, "abstract", False):
                                 continue
                             model_classes.append(obj)
-                except (ImportError, ModuleNotFoundError):
+                except ImportError, ModuleNotFoundError:
                     try:
                         sys.path.insert(0, app_path)
                         mod = importlib.import_module("models")
@@ -202,7 +202,7 @@ class Command(BaseCommand):
                                 if meta and getattr(meta, "abstract", False):
                                     continue
                                 model_classes.append(obj)
-                    except (ImportError, ModuleNotFoundError):
+                    except ImportError, ModuleNotFoundError:
                         pass
                     finally:
                         if app_path in sys.path:

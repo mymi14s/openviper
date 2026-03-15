@@ -337,7 +337,7 @@ def get_admin_router() -> Router:
                 with contextlib.suppress(Exception):
                     await revoke_token(
                         jti=jti,
-                        token_type="access",  # nosec B106
+                        token_type="access",
                         user_id=user_id or None,
                         expires_at=expires_at,
                     )
@@ -359,7 +359,7 @@ def get_admin_router() -> Router:
                 with contextlib.suppress(Exception):
                     await revoke_token(
                         jti=jti,
-                        token_type="refresh",  # nosec B106
+                        token_type="refresh",
                         user_id=user_id or None,
                         expires_at=expires_at,
                     )
@@ -559,7 +559,7 @@ def get_admin_router() -> Router:
                         ),
                     }
                 )
-        except Exception:  # nosec B110
+        except Exception:
             pass  # History table might not exist yet
 
         return JSONResponse(
@@ -1858,7 +1858,7 @@ def get_admin_router() -> Router:
                 module_path = f"{app_label}.models"
                 module = importlib.import_module(module_path)
                 model_class = getattr(module, model_name, None)
-            except (ImportError, AttributeError):
+            except ImportError, AttributeError:
                 pass
 
         # Still not found, try searching all registered models by name

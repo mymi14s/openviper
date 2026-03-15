@@ -72,7 +72,7 @@ def _compute_template_search_paths(
                 app_templates = app_dir / "templates"
                 if app_templates.is_dir():
                     search_paths.append(str(app_templates))
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             continue
     return tuple(search_paths)
 
@@ -303,7 +303,7 @@ class HTMLResponse(Response):
                 req = current_request.get()
                 if req is not None:
                     context = {**context, "request": req}
-            except Exception:  # nosec B110
+            except Exception:
                 pass
 
         env = _get_jinja2_env(search_paths)
@@ -458,7 +458,7 @@ class FileResponse(Response):
                     )
                     await send({"type": "http.response.body", "body": b"", "more_body": False})
                     return
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass  # Malformed date — serve the full response
 
         self._headers.set("content-length", str(fstat.st_size))

@@ -13,12 +13,12 @@ def _make_scope(method="GET", path="/", origin=None, headers=None):
     return {"type": "http", "method": method, "path": path, "headers": h}
 
 
-async def _ok_app(scope, receive, send):  # noqa: ARG001
+async def _ok_app(scope, receive, send):
     await send({"type": "http.response.start", "status": 200, "headers": []})
     await send({"type": "http.response.body", "body": b"ok"})
 
 
-async def _noop_app(scope, receive, send):  # noqa: ARG001
+async def _noop_app(scope, receive, send):
     pass
 
 
@@ -52,7 +52,7 @@ class TestOriginAllowed:
     async def test_exact_match_denied(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CORSMiddleware(app, allowed_origins=["https://example.com"])
@@ -69,7 +69,7 @@ class TestOriginAllowed:
     async def test_wildcard_pattern_denied(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CORSMiddleware(app, allowed_origins=["https://*.example.com"])
@@ -160,7 +160,7 @@ class TestCORSNonPreflight:
     async def test_no_origin_passthrough(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CORSMiddleware(app)
@@ -171,7 +171,7 @@ class TestCORSNonPreflight:
     async def test_non_http_passthrough(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CORSMiddleware(app)
@@ -182,7 +182,7 @@ class TestCORSNonPreflight:
     async def test_disallowed_origin_passthrough(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CORSMiddleware(app, allowed_origins=["https://allowed.com"])

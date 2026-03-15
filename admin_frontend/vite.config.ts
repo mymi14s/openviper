@@ -3,9 +3,9 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [vue()],
-  base: '/admin/',
+  base: command === 'build' ? '/static/admin/' : '/admin/',
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -44,4 +44,4 @@ export default defineConfig({
       exclude: ['src/main.ts', 'src/**/*.d.ts', 'src/__tests__/**'],
     },
   },
-})
+}))

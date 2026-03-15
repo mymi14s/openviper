@@ -319,9 +319,7 @@ class OpenViper:
                         "allowed_origins": list(
                             getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]
                         ),
-                        "allow_credentials": getattr(
-                            settings, "CORS_ALLOW_CREDENTIALS", False
-                        ),
+                        "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
                         "allowed_methods": list(
                             getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]
                         ),

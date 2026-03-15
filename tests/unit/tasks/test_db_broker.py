@@ -286,9 +286,9 @@ class TestDatabaseConsumer:
 
         with patch("openviper.tasks.db_broker.Message.decode") as mock_decode:
             with patch("openviper.tasks.db_broker.sa.select") as mock_select:
-                with patch("openviper.tasks.db_broker.sa.and_") as mock_and:
-                    with patch("openviper.tasks.db_broker.sa.or_") as mock_or:
-                        # Build a chainable mock for select().where().order_by().limit().with_for_update()
+                with patch("openviper.tasks.db_broker.sa.and_"):
+                    with patch("openviper.tasks.db_broker.sa.or_"):
+                        # Build a chainable mock for select().where().order_by().limit().with_for_update()  # noqa: E501
                         mock_stmt = MagicMock()
                         mock_select.return_value = mock_stmt
                         mock_stmt.where.return_value = mock_stmt
@@ -328,8 +328,8 @@ class TestDatabaseConsumer:
         mock_broker._engine.begin.return_value.__enter__.return_value = mock_conn
 
         with patch("openviper.tasks.db_broker.sa.select") as mock_select:
-            with patch("openviper.tasks.db_broker.sa.and_") as mock_and:
-                with patch("openviper.tasks.db_broker.sa.or_") as mock_or:
+            with patch("openviper.tasks.db_broker.sa.and_"):
+                with patch("openviper.tasks.db_broker.sa.or_"):
                     mock_stmt = MagicMock()
                     mock_select.return_value = mock_stmt
                     mock_stmt.where.return_value = mock_stmt
@@ -426,9 +426,7 @@ class TestDatabaseBrokerEtaTimezone:
             mock_message.queue_name = "default"
             mock_message.encode.return_value = b"msg"
             # eta_ms = Unix ms timestamp for 2026-03-10T12:05:00Z
-            eta_epoch_ms = int(
-                dt.datetime(2026, 3, 10, 12, 5, 0, tzinfo=dt.UTC).timestamp() * 1000
-            )
+            eta_epoch_ms = int(dt.datetime(2026, 3, 10, 12, 5, 0, tzinfo=dt.UTC).timestamp() * 1000)
             mock_message.options = {"eta": eta_epoch_ms}
 
             broker.enqueue(mock_message, delay=None)
@@ -437,7 +435,7 @@ class TestDatabaseBrokerEtaTimezone:
             insert_call = mock_conn.execute.call_args
             assert insert_call is not None
             # The eta stored in the INSERT must be tz-aware (tzinfo is not None)
-            bound_params = insert_call[0][0].compile(compile_kwargs={"literal_binds": False})
+            insert_call[0][0].compile(compile_kwargs={"literal_binds": False})
             # Just verifying the enqueue ran without raising is sufficient for the
             # tz-aware check; the real assertion is that fromtimestamp uses UTC kwarg.
             assert mock_conn.execute.called
@@ -485,7 +483,7 @@ class TestMySQLEngineTimeout:
             mock_engine.dialect.name = "mysql"
             mock_create.return_value = mock_engine
 
-            broker = DatabaseBroker()
+            DatabaseBroker()
 
         _, kwargs = mock_create.call_args
         assert kwargs["connect_args"]["read_timeout"] == 15

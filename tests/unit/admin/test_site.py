@@ -64,7 +64,7 @@ class TestGetAdminSite:
         with patch("openviper.admin.site.autodiscover"):
             with patch("openviper.admin.site.get_admin_router") as mock_get_router:
                 mock_get_router.return_value = Router()
-                router = get_admin_site()
+                get_admin_site()
 
                 mock_get_router.assert_called_once()
 
@@ -288,7 +288,7 @@ class TestServeAdminSpa:
                     assert response.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_returns_500_if_no_index_in_development(self):
+    async def test_returns_500_if_no_index_in_development_root(self):
         with patch("openviper.admin.site.autodiscover"):
             with patch("openviper.admin.site.settings") as mock_settings:
                 mock_settings.DEBUG = True
@@ -301,7 +301,7 @@ class TestServeAdminSpa:
                     assert response.status_code == 500
 
     @pytest.mark.asyncio
-    async def test_returns_404_if_no_index_in_production(self):
+    async def test_returns_404_if_no_index_in_production_root(self):
         with patch("openviper.admin.site.autodiscover"):
             with patch("openviper.admin.site.settings") as mock_settings:
                 mock_settings.DEBUG = False
@@ -442,7 +442,7 @@ class TestAPIRoutes:
                 mock_api_router = Router()
                 mock_get_router.return_value = mock_api_router
 
-                router = get_admin_site()
+                get_admin_site()
 
                 mock_get_router.assert_called_once()
 

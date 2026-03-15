@@ -1,10 +1,10 @@
 """Unit tests for openviper.auth.sessions module."""
 
+import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import asyncio
-import time
 
 from openviper.auth import sessions
 from openviper.auth.sessions import (
@@ -200,7 +200,6 @@ class TestDeleteSession:
     async def test_invalidates_cache(self):
         # Prime the cache
 
-
         sessions._SESSION_CACHE["session-to-delete"] = (MagicMock(), time.monotonic() + 100)
 
         with patch("openviper.auth.sessions._ensure_table", new=AsyncMock()):
@@ -221,7 +220,6 @@ class TestClearSessionCache:
     """Tests for clear_session_cache function."""
 
     def test_clears_cache(self):
-
 
         sessions._SESSION_CACHE["key1"] = (MagicMock(), time.monotonic() + 100)
         sessions._SESSION_CACHE["key2"] = (MagicMock(), time.monotonic() + 100)

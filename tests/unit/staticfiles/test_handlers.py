@@ -308,7 +308,8 @@ class TestServeFile:
             await mw(_make_scope(path="/static/file.js"), AsyncMock(), send)
 
         etag = _start_headers(send).get(b"etag", b"")
-        assert etag.startswith(b'"') and etag.endswith(b'"')
+        assert etag.startswith(b'"')
+        assert etag.endswith(b'"')
 
     @pytest.mark.asyncio
     async def test_if_none_match_returns_304(self):

@@ -359,9 +359,8 @@ class TestCoerceFieldValue:
 
     def test_json_field_coercion_invalid_json(self):
         field = _make_field("JSONField")
-        with pytest.raises(ValueError) as exc:
+        with pytest.raises(ValueError, match="Invalid JSON format"):
             coerce_field_value(field, '{"invalid": json}')
-        assert "Invalid JSON format" in str(exc.value)
 
     def test_json_field_coercion_from_dict(self):
         field = _make_field("JSONField")

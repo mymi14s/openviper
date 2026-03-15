@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from openviper.db.models import Model
 from openviper.db import fields
+from openviper.db.models import Model
 
 
 class UserIngredients(Model):

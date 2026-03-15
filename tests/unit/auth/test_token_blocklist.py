@@ -1,11 +1,11 @@
 """Unit tests for openviper.auth.token_blocklist module."""
 
+import asyncio
 import datetime
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import asyncio
 
 from openviper.auth import token_blocklist
 from openviper.auth.token_blocklist import (
@@ -54,7 +54,6 @@ class TestEvictIfFull:
     def test_evicts_expired_entries_first(self):
 
         # Temporarily lower max size for testing
-        original = token_blocklist._CACHE_MAXSIZE
         try:
             # We can't directly modify Final, so test with a full cache
             now = time.time()
@@ -87,9 +86,7 @@ class TestRevokeToken:
             with patch("openviper.auth.token_blocklist.get_engine") as mock_engine:
                 mock_engine.return_value = MagicMock(begin=MagicMock(return_value=mock_db_context))
 
-                expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-                    hours=1
-                )
+                expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
                 await revoke_token("test-jti", "access", "user-123", expires_at)
 
         # Verify execute was called
@@ -104,9 +101,7 @@ class TestRevokeToken:
             with patch("openviper.auth.token_blocklist.get_engine") as mock_engine:
                 mock_engine.return_value = MagicMock(begin=MagicMock(return_value=mock_db_context))
 
-                expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-                    hours=1
-                )
+                expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
                 await revoke_token("cached-jti", "access", "user-123", expires_at)
 
         assert "cached-jti" in token_blocklist._JTI_REVOKED_CACHE
@@ -125,9 +120,7 @@ class TestRevokeToken:
             with patch("openviper.auth.token_blocklist.get_engine") as mock_engine:
                 mock_engine.return_value = MagicMock(begin=MagicMock(return_value=mock_db_context))
 
-                expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-                    hours=1
-                )
+                expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
                 await revoke_token("to-revoke-jti", "access", "user-123", expires_at)
 
         assert "to-revoke-jti" not in token_blocklist._JTI_VALID_CACHE
@@ -186,7 +179,7 @@ class TestIsTokenRevoked:
                 mock_context.__aexit__ = AsyncMock(return_value=None)
                 mock_engine.return_value = MagicMock(connect=MagicMock(return_value=mock_context))
 
-                result = await is_token_revoked("expired-revoked-jti")
+                await is_token_revoked("expired-revoked-jti")
 
         # Should have been evicted from cache and looked up in DB
         assert "expired-revoked-jti" not in token_blocklist._JTI_REVOKED_CACHE

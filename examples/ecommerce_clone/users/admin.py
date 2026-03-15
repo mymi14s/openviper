@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+from openviper.admin.admin import unregister
+
 from openviper.admin import register
 from openviper.admin.options import ModelAdmin
 from openviper.auth.admin import UserRoleInline
-from openviper.admin.admin import unregister
 from openviper.auth.models import User as OpenviperUser
 
 from .models import User
 
-
 unregister(OpenviperUser)
+
 
 @register(User)
 class UserAdmin(ModelAdmin):

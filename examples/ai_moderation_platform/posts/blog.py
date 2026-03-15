@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from openviper.routing import Router
+
 from .views import BlogDetailView, BlogListView
 
 router = Router(prefix="")

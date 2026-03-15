@@ -1,11 +1,10 @@
 """Top-level routes for ai_smart_recipe_generator."""
 
-from openviper.conf import settings
-from openviper.admin import get_admin_site
-from openviper.staticfiles import media, static
-
 from recipe_generator_app.routes import router as recipe_router
 
+from openviper.admin import get_admin_site
+from openviper.conf import settings
+from openviper.staticfiles import media, static
 
 route_paths = [
     ("/admin", get_admin_site()),

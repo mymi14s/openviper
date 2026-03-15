@@ -56,11 +56,11 @@ class TestIntervalSchedule:
         assert make_interval(120).seconds == 120
 
     def test_invalid_seconds_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="must be > 0"):
             IntervalSchedule(0)
 
     def test_negative_seconds_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="must be > 0"):
             IntervalSchedule(-1)
 
     def test_due_when_last_run_none(self):
@@ -91,7 +91,7 @@ class TestIntervalSchedule:
         assert isinstance(result, bool)
 
     @pytest.mark.parametrize(
-        "seconds,elapsed,expected",
+        ("seconds", "elapsed", "expected"),
         [
             (60, 30, False),
             (60, 60, True),
@@ -172,7 +172,7 @@ class TestScheduleRegistry:
     def test_register_duplicate_raises(self):
         reg = make_registry()
         reg.register("t1", make_actor(), make_interval(60))
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="already exists"):
             reg.register("t1", make_actor(), make_interval(60))
 
     def test_register_with_replace(self):

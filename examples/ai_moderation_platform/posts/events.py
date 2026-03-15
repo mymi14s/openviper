@@ -25,14 +25,13 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from openviper.db.events import model_event
-from openviper.tasks import task
-
 
 from moderation.ai_service import get_moderator
 from moderation.models import ModerationLog
-from posts.models import Post
 
+from openviper.db.events import model_event
+from openviper.tasks import task
+from posts.models import Post
 
 logger = logging.getLogger("posts.events")
 

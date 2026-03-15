@@ -122,7 +122,7 @@ class TestExceptionHierarchy:
 
 class TestHTTPException:
     @pytest.mark.parametrize(
-        "status,detail",
+        ("status", "detail"),
         [
             (400, "Bad Request"),
             (404, "Not found"),
@@ -273,7 +273,8 @@ class TestSettingsValidationError:
     def test_message_contains_all(self):
         errs = ["A", "B"]
         msg = str(SettingsValidationError(errs))
-        assert "A" in msg and "B" in msg
+        assert "A" in msg
+        assert "B" in msg
 
 
 class TestModelNotFoundError:
@@ -302,7 +303,9 @@ class TestModelCollisionError:
     def test_message_parts(self):
         exc = make_collision("gpt-4", "OpenAI", "Azure")
         msg = str(exc)
-        assert "gpt-4" in msg and "OpenAI" in msg and "Azure" in msg
+        assert "gpt-4" in msg
+        assert "OpenAI" in msg
+        assert "Azure" in msg
 
     def test_middleware_exception(self):
         exc = MiddlewareException("mw error")

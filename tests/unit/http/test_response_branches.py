@@ -235,7 +235,7 @@ class TestHTMLResponseRenderTemplate:
                 ) as mock_compute:
                     mock_compute.return_value = ("/custom/templates",)
 
-                    response = HTMLResponse(template="test.html")
+                    HTMLResponse(template="test.html")
 
                     # Should have called with custom templates dir
                     mock_compute.assert_called_once_with("/custom/templates", ())
@@ -258,7 +258,7 @@ class TestHTMLResponseRenderTemplate:
                 ) as mock_compute:
                     mock_compute.return_value = ("/explicit/path",)
 
-                    response = HTMLResponse(template="test.html", template_dir="/explicit/path")
+                    HTMLResponse(template="test.html", template_dir="/explicit/path")
 
                     # Should have called with explicit path
                     mock_compute.assert_called_once_with("/explicit/path", ())
@@ -280,7 +280,7 @@ class TestHTMLResponseRenderTemplate:
                 ) as mock_compute:
                     mock_compute.return_value = ("templates",)
 
-                    response = HTMLResponse(template="test.html")
+                    HTMLResponse(template="test.html")
 
                     # Should use default "templates" since TEMPLATES_DIR not present
                     mock_compute.assert_called_once_with("templates", ())
@@ -303,7 +303,7 @@ class TestHTMLResponseRenderTemplate:
                 ) as mock_compute:
                     mock_compute.return_value = ("/templates", "/app1/templates", "/app2/templates")
 
-                    response = HTMLResponse(template="test.html")
+                    HTMLResponse(template="test.html")
 
                     # Should have passed installed apps as tuple
                     mock_compute.assert_called_once_with("/templates", ("app1", "app2"))

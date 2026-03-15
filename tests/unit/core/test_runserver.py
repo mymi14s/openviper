@@ -2,6 +2,7 @@
 
 import builtins
 import concurrent.futures
+import contextlib
 import sys
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -175,7 +176,7 @@ class TestReloadDirs:
 
     def test_reload_dirs_includes_local_openviper(self, command):
         with patch("openviper.__file__", "/dev/openviper/openviper/__init__.py"):
-            dirs = command._reload_dirs("/project/root")
+            command._reload_dirs("/project/root")
             # May include local openviper path if not in site-packages
 
     def test_reload_dirs_handles_exception(self, command):
@@ -230,10 +231,8 @@ class TestRunWithCacheClear:
                         pass
 
                     # So we just catch any errors from the real _orig
-                    try:
+                    with contextlib.suppress(Exception):
                         uvicorn.supervisors.ChangeReload.restart(Mock())
-                    except Exception:
-                        pass
 
                     assert not cache_dir.exists()
         finally:

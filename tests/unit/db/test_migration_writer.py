@@ -633,7 +633,7 @@ class TestParseOperationBranches:
             "from openviper.db.migrations import executor as migrations\n"
             "dependencies = []\n"
             "operations = [\n"
-            '    migrations.CreateTable(table_name="t", columns=[{"name": "old_col", "type": "TEXT"}]),\n'
+            '    migrations.CreateTable(table_name="t", columns=[{"name": "old_col", "type": "TEXT"}]),\n'  # noqa: E501
             '    migrations.RenameColumn(table_name="t", old_name="old_col", new_name="new_col"),\n'
             "]\n"
         )
@@ -650,8 +650,8 @@ class TestParseOperationBranches:
             "from openviper.db.migrations import executor as migrations\n"
             "dependencies = []\n"
             "operations = [\n"
-            '    migrations.CreateTable(table_name="t", columns=[{"name": "val", "type": "TEXT", "nullable": True}]),\n'
-            '    migrations.AlterColumn(table_name="t", column_name="val", column_type="VARCHAR(100)", nullable=False, default="hi"),\n'
+            '    migrations.CreateTable(table_name="t", columns=[{"name": "val", "type": "TEXT", "nullable": True}]),\n'  # noqa: E501
+            '    migrations.AlterColumn(table_name="t", column_name="val", column_type="VARCHAR(100)", nullable=False, default="hi"),\n'  # noqa: E501
             "]\n"
         )
         state = read_migrated_state(str(mig_dir))
@@ -839,12 +839,12 @@ class TestParseRemoveColumnTracking:
             "from openviper.db.migrations import executor as migrations\n"
             "dependencies = []\n"
             "operations = [\n"
-            '    migrations.CreateTable(table_name="t", columns=[{"name": "col", "type": "INTEGER"}]),\n'
-            '    migrations.RemoveColumn(table_name="t", column_name="col", column_type="INTEGER"),\n'
+            '    migrations.CreateTable(table_name="t", columns=[{"name": "col", "type": "INTEGER"}]),\n'  # noqa: E501
+            '    migrations.RemoveColumn(table_name="t", column_name="col", column_type="INTEGER"),\n'  # noqa: E501
             "]\n"
         )
         _soft_removed_columns.clear()
-        state = read_migrated_state(str(mig_dir))
+        read_migrated_state(str(mig_dir))
         assert ("t", "col") in _soft_removed_columns
         _soft_removed_columns.clear()
 

@@ -94,7 +94,7 @@ async def test_router_resolve_double_slash():
     router = Router()
 
     @router.get("/users/{id:int}")
-    async def get_user(request, id):
+    async def get_user(request, id):  # noqa: A002
         pass
 
     route, params = router.resolve("GET", "//users/42")
@@ -126,7 +126,7 @@ async def test_router_registration():
         pass
 
     @router.post("/items/{id:int}")
-    async def create_item(request, id):
+    async def create_item(request, id):  # noqa: A002
         pass
 
     route, params = router.resolve("GET", "/home")
@@ -307,7 +307,7 @@ async def test_url_for_typed_params():
     router = Router()
 
     @router.get("/users/{id:int}/posts/{slug:slug}", name="user_post")
-    async def user_post(request, id, slug):
+    async def user_post(request, id, slug):  # noqa: A002
         pass
 
     assert router.url_for("user_post", id=42, slug="hello-world") == "/users/42/posts/hello-world"
@@ -347,7 +347,7 @@ async def test_router_sub_router_nested_prefix():
     users = Router(prefix="/users")
 
     @users.get("/{id:int}")
-    async def get_user(request, id):
+    async def get_user(request, id):  # noqa: A002
         pass
 
     v1.include_router(users)
@@ -484,6 +484,6 @@ def test_candidate_routes_triggers_lazy_index_build():
     # _index must be None before the call
     assert router._index is None
     # Call _candidate_routes directly — _exact_index is also None so line 381 fires
-    candidates = list(router._candidate_routes("/resource/99"))
+    list(router._candidate_routes("/resource/99"))
     # After the call, index was built
     assert router._index is not None

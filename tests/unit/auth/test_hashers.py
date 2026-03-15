@@ -1,5 +1,6 @@
 """Unit tests for openviper.auth.hashers module."""
 
+import time
 from unittest.mock import patch
 
 import pytest
@@ -10,7 +11,6 @@ from openviper.auth.hashers import (
     make_password,
     make_unusable_password,
 )
-import time
 
 
 class TestMakePassword:

@@ -77,9 +77,7 @@ class NutritionAnalyzer:
             self._available = True
             logger.info("NutritionAnalyzer: using model '%s'", self.model_name)
         except Exception as exc:
-            logger.warning(
-                "NutritionAnalyzer: model '%s' not available — %s", self.model_name, exc
-            )
+            logger.warning("NutritionAnalyzer: model '%s' not available — %s", self.model_name, exc)
             self._available = False
 
     async def analyze_recipe(
@@ -104,7 +102,7 @@ class NutritionAnalyzer:
         ingredient_str = "\n".join(f"- {ing}" for ing in ingredients)
 
         prompt = (
-            "You are a registered dietitian AI. Analyze the nutritional content of the recipe provided.\n"
+            "You are a registered dietitian AI. Analyze the nutritional content of the recipe provided.\n"  # noqa: E501
             "Respond ONLY with valid JSON (no markdown, no extra text).\n\n"
             "The JSON should follow this structure:\n"
             "{\n"
@@ -137,7 +135,7 @@ class NutritionAnalyzer:
         elif "```" in text:
             text = text.split("```")[1].split("```")[0].strip()
         if "{" in text and "}" in text:
-            text = text[text.find("{"):text.rfind("}") + 1]
+            text = text[text.find("{") : text.rfind("}") + 1]
 
         try:
             data = json.loads(text)
@@ -205,7 +203,7 @@ class NutritionAnalyzer:
             elif "```" in text:
                 text = text.split("```")[1].split("```")[0].strip()
             if "{" in text and "}" in text:
-                text = text[text.find("{"):text.rfind("}") + 1]
+                text = text[text.find("{") : text.rfind("}") + 1]
             data = json.loads(text)
             return {
                 "compliant": bool(data.get("compliant", True)),

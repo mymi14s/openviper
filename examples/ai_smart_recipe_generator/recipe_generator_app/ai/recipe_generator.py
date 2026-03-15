@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import Any
 
 from openviper.ai.router import ModelRouter
@@ -37,9 +36,7 @@ class RecipeResult:
         return "\n".join(self.ingredients)
 
     def instructions_text(self) -> str:
-        return "\n".join(
-            f"{i + 1}. {step}" for i, step in enumerate(self.instructions)
-        )
+        return "\n".join(f"{i + 1}. {step}" for i, step in enumerate(self.instructions))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -125,7 +122,7 @@ class RecipeGenerator:
         elif "```" in text:
             text = text.split("```")[1].split("```")[0].strip()
         if "{" in text and "}" in text:
-            text = text[text.find("{"):text.rfind("}") + 1]
+            text = text[text.find("{") : text.rfind("}") + 1]
 
         try:
             data = json.loads(text)
@@ -196,7 +193,7 @@ class RecipeGenerator:
             elif "```" in text:
                 text = text.split("```")[1].split("```")[0].strip()
             if "[" in text and "]" in text:
-                text = text[text.find("["):text.rfind("]") + 1]
+                text = text[text.find("[") : text.rfind("]") + 1]
 
             data_list = json.loads(text)
             return [

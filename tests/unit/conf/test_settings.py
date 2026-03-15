@@ -46,7 +46,7 @@ def make_lazy() -> _LazySettings:
 
 class TestCastBool:
     @pytest.mark.parametrize(
-        "val,expected",
+        ("val", "expected"),
         [
             ("1", True),
             ("true", True),
@@ -147,7 +147,7 @@ class TestSettingsDefaults:
         assert isinstance(s.MIDDLEWARE, tuple)
 
     @pytest.mark.parametrize(
-        "field_name,expected_type",
+        ("field_name", "expected_type"),
         [
             ("SESSION_TIMEOUT", timedelta),
             ("JWT_ACCESS_TOKEN_EXPIRE", timedelta),

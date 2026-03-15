@@ -14,8 +14,8 @@ from openviper.db.fields import (
     DateTimeField,
     ForeignKey,
     IntegerField,
-    TextField,
     JSONField,
+    TextField,
 )
 
 User = get_user_model()
@@ -73,12 +73,7 @@ class Comment(Model):
     post = ForeignKey("posts.models.Post", on_delete="CASCADE")
     content = TextField()
     author = ForeignKey(User, on_delete="CASCADE")
-    parent_comment = ForeignKey(
-        to="Comment",
-        null=True,
-        blank=True,
-        on_delete="CASCADE"
-    )
+    parent_comment = ForeignKey(to="Comment", null=True, blank=True, on_delete="CASCADE")
     likes_count = IntegerField(default=0, null=True, blank=True)
     is_hidden = BooleanField(default=False)
     created_at = DateTimeField(auto_now_add=True)

@@ -96,7 +96,6 @@ class TestSessionManagement:
     @patch("openviper.auth.sessions._SESSION_CACHE", {})
     async def test_session_create_and_retrieve(self):
         """Test creating and retrieving a session."""
-        session_data = {"user_id": 1, "role": "admin"}
         session_key = generate_session_key()
 
         assert session_key is not None
@@ -111,7 +110,6 @@ class TestTokenBlocklist:
     @patch("openviper.auth.token_blocklist._JTI_VALID_CACHE", {})
     async def test_revoke_and_check_token(self):
         """Test revoking and checking a token."""
-        token_jti = "test-jti-123"
 
         # Initially not revoked
         # Note: This may need DB connection in actual integration test

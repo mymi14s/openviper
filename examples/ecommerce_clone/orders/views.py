@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from openviper.http import JSONResponse, Request, Response
-from openviper.http.views import View
-
 from cart.models import Cart, CartItem
 from products.models import Product
+
+from openviper.http import JSONResponse, Request, Response
+from openviper.http.views import View
 
 from .models import Order, OrderItem
 

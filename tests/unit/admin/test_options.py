@@ -403,7 +403,7 @@ class TestCRUDMethods:
         request = _make_request()
 
         form_data = {"name": "Test", "email": "test@example.com"}
-        result = await admin.save_model(request, model_instance, form_data)
+        await admin.save_model(request, model_instance, form_data)
 
         model_instance.save.assert_awaited_once()
 

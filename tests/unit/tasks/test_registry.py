@@ -122,7 +122,7 @@ class TestScheduleRegistry:
         actor2 = MagicMock()
         schedule = IntervalSchedule(60)
 
-        entry1 = registry.register("test", actor1, schedule)
+        registry.register("test", actor1, schedule)
         entry2 = registry.register("test", actor2, schedule, replace=True)
 
         assert len(registry) == 1

@@ -10,6 +10,8 @@ from openviper.core.management.base import CommandError
 from openviper.core.management.commands.changepassword import Command as ChangePasswordCommand
 from openviper.core.management.commands.createsuperuser import (
     Command as CreatesuperuserCommand,
+)
+from openviper.core.management.commands.createsuperuser import (
     _build_user_kwargs,
     _model_field_names,
     _validate_email,
@@ -52,6 +54,7 @@ class TestShellModelDiscovery:
 
     def test_discover_models_subclass_check(self, shell_command):
         """Test _discover_models handles issubclass checks (lines 46-57)."""
+
         # Create a real Model subclass with proper module
         class FakeModel(Model):
             pass
@@ -126,7 +129,7 @@ class TestShellModelDiscovery:
                     return_value=members,
                 ):
                     with patch.object(shell_command, "stdout") as mock_stdout:
-                        models = shell_command._discover_models()
+                        shell_command._discover_models()
 
                         # Should output count
                         assert mock_stdout.called
@@ -179,7 +182,6 @@ class TestChangepasswordBranches:
     def test_user_lookup_by_email(self, changepassword_command):
         """Test user lookup by email field when no username field (lines 49-50)."""
         field_names = {"email", "password", "is_active"}
-        username = "test@example.com"
 
         if "username" in field_names:
             lookup_field = "username"
@@ -195,7 +197,6 @@ class TestChangepasswordBranches:
     def test_user_lookup_by_name(self, changepassword_command):
         """Test user lookup by name field (lines 51-52)."""
         field_names = {"name", "password", "is_active"}
-        username = "testuser"
 
         if "username" in field_names:
             lookup_field = "username"
@@ -252,10 +253,7 @@ class TestChangepasswordBranches:
         password = "pass1"
         confirm = "different"
 
-        if password != confirm:
-            error_shown = True
-        else:
-            error_shown = False
+        error_shown = password != confirm
 
         assert error_shown
 
@@ -263,10 +261,7 @@ class TestChangepasswordBranches:
         """Test blank password shows error and continues."""
         password = ""
 
-        if not password:
-            error_shown = True
-        else:
-            error_shown = False
+        error_shown = bool(not password)
 
         assert error_shown
 

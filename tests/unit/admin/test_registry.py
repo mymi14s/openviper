@@ -1,5 +1,6 @@
 """Unit tests for openviper.admin.registry — admin model registry."""
 
+import contextlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -459,11 +460,8 @@ class TestRegistryEdgeCases:
         registry = AdminRegistry()
 
         # Should handle gracefully or raise appropriate error
-        try:
+        with contextlib.suppress(TypeError, AttributeError, AlreadyRegistered):
             registry.register(None)
-        except (TypeError, AttributeError, AlreadyRegistered):
-            # Any of these is acceptable
-            pass
 
     def test_get_models_empty_registry(self):
         """Test getting models from empty registry."""

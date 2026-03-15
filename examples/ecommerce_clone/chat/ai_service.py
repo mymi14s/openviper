@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 import random
 
-from openviper.ai.router import ModelRouter
-
 from products.models import Product
+
+from openviper.ai.router import ModelRouter
 
 log = logging.getLogger(__name__)
 

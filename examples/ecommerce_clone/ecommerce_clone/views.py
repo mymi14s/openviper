@@ -1,4 +1,3 @@
-
 """Views for ecommerce_clone."""
 
 from openviper.http.response import HTMLResponse

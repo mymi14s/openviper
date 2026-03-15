@@ -16,7 +16,6 @@ class TestLoadBackend:
 
         backend = _load_backend("openviper.auth.backends.jwt_backend.JWTBackend")
 
-
         assert isinstance(backend, JWTBackend)
 
     def test_raises_on_invalid_module(self):

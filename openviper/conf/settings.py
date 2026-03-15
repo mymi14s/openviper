@@ -440,7 +440,7 @@ class _LazySettings:
             if self._configured and not force:  # double-check inside lock
                 return
 
-            # FIX #2: Load .env only once (avoid redundant I/O)
+            # Load .env only once (avoid redundant I/O)
             global _DOTENV_LOADED
             if _HAS_DOTENV and not _DOTENV_LOADED:
                 _load_dotenv(dotenv_path=".env", override=False)
@@ -450,8 +450,8 @@ class _LazySettings:
             instance: Settings | None = None
 
             if module_path:
-                # FIX #1: Cache the imported module to avoid repeated imports
-                # FIX #4: Cache the Settings class once found
+                # Cache the imported module to avoid repeated imports
+                # Cache the Settings class once found
                 if module_path in _SETTINGS_CLASS_CACHE:
                     settings_class = _SETTINGS_CLASS_CACHE[module_path]
                     instance = settings_class()

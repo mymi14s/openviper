@@ -125,7 +125,9 @@ class AutoField(Field):
         if value is None:
             return None
         int_val = int(value)
-        if not (self._MIN_VALUE <= int_val <= self._MAX_VALUE):  # pylint: disable=superfluous-parens
+        if not (
+            self._MIN_VALUE <= int_val <= self._MAX_VALUE
+        ):  # pylint: disable=superfluous-parens
             raise ValueError(
                 f"Field '{self.name}': integer value {int_val} exceeds "
                 f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
@@ -145,7 +147,9 @@ class IntegerField(Field):
         if value is None:
             return None
         int_val = int(value)
-        if not (self._MIN_VALUE <= int_val <= self._MAX_VALUE):  # pylint: disable=superfluous-parens
+        if not (
+            self._MIN_VALUE <= int_val <= self._MAX_VALUE
+        ):  # pylint: disable=superfluous-parens
             raise ValueError(
                 f"Field '{self.name}': integer value {int_val} exceeds "
                 f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
@@ -156,7 +160,9 @@ class IntegerField(Field):
         if value is None:
             return None
         int_val = int(value)
-        if not (self._MIN_VALUE <= int_val <= self._MAX_VALUE):  # pylint: disable=superfluous-parens
+        if not (
+            self._MIN_VALUE <= int_val <= self._MAX_VALUE
+        ):  # pylint: disable=superfluous-parens
             raise ValueError(
                 f"Field '{self.name}': integer value {int_val} exceeds "
                 f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
@@ -566,12 +572,13 @@ class ForeignKey(Field):
         """Return the column type matching the target model's primary key field."""
         target = self.resolve_target()
         if target is not None:
-            for field in target._fields.values():
+            fields: dict[str, Any] = getattr(target, "_fields", {})
+            for field in fields.values():
                 if field.primary_key:
                     # A nested ForeignKey PK is unusual but handle gracefully
                     if isinstance(field, ForeignKey):
-                        return field._column_type
-                    return field._column_type
+                        return str(field._column_type)
+                    return str(field._column_type)
         return "INTEGER"  # default when target is not yet resolvable
 
     @functools.cached_property

@@ -7,6 +7,7 @@ import runpy
 from unittest.mock import patch
 
 from create_admin import main
+
 from openviper.auth import get_user_model
 from tests.conftest import TODOAPP_DIR
 

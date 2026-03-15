@@ -328,10 +328,8 @@ class TestMigrationExecutor:
     async def test_migrate_no_pending(self):
         ex = MigrationExecutor()
         with (
-            patch(
-                "openviper.db.migrations.executor.get_engine", new_callable=AsyncMock
-            ) as mock_get_engine,
-            patch.object(ex, "_ensure_migration_table", new_callable=AsyncMock) as mock_ensure,
+            patch("openviper.db.migrations.executor.get_engine", new_callable=AsyncMock),
+            patch.object(ex, "_ensure_migration_table", new_callable=AsyncMock),
             patch.object(ex, "_applied_migrations", new_callable=AsyncMock) as mock_applied,
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[]),
         ):
@@ -382,7 +380,7 @@ class TestMigrationExecutor:
             mock_engine.begin.return_value.__aenter__.return_value = mock_conn
             mock_conn.execute.side_effect = Exception("DB Error")
 
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="DB Error"):
                 await ex.migrate(verbose=False)
 
 
@@ -932,8 +930,8 @@ class TestMigrationExecutorMigrate:
                 new_callable=AsyncMock,
                 return_value=mock_engine,
             ),
-            patch("openviper.db.migrations.executor._get_migration_table") as mock_table,
-            patch("openviper.db.migrations.executor.sa") as mock_sa,
+            patch("openviper.db.migrations.executor._get_migration_table"),
+            patch("openviper.db.migrations.executor.sa"),
             patch("openviper.db.migrations.executor.settings") as mock_settings,
             patch("openviper.db.migrations.executor.timezone") as mock_tz,
         ):

@@ -1,4 +1,5 @@
 """Settings for ai_smart_recipe_generator."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -14,7 +15,10 @@ class ProjectSettings(Settings):
     PROJECT_NAME: str = "AI Smart Recipe Generator"
     DEBUG: bool = bool(os.environ.get("DEBUG", "1"))
     DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3")
-    SECRET_KEY: str = os.environ.get("SECRET_KEY", "1nw-4f4nVhZ0IWMBBrgVza7jOfDnedIqFKyN8FSlXOWFaPxY9Hc0jM3rkkwsbTDhIM0Ant0OXs16IHFqZZoRkQ")
+    SECRET_KEY: str = os.environ.get(
+        "SECRET_KEY",
+        "1nw-4f4nVhZ0IWMBBrgVza7jOfDnedIqFKyN8FSlXOWFaPxY9Hc0jM3rkkwsbTDhIM0Ant0OXs16IHFqZZoRkQ",
+    )
 
     INSTALLED_APPS: tuple[str, ...] = (
         "openviper.auth",
@@ -37,11 +41,11 @@ class ProjectSettings(Settings):
 
     # ── Authentication & Session Settings ─────────────────────────────────
     PASSWORD_HASHERS: tuple[str, ...] = ("argon2", "bcrypt")
-    
+
     # Session Configuration (environment-aware for dev/prod)
     SESSION_COOKIE_NAME: str = "sessionid"
     SESSION_TIMEOUT: timedelta = timedelta(hours=8)
-    
+
     # Cookie security settings - automatically adjust based on DEBUG mode
     # In development (DEBUG=True): Secure=False, SameSite=Lax (works with HTTP)
     # In production (DEBUG=False): Secure=True, SameSite=Strict (requires HTTPS)
@@ -72,7 +76,7 @@ class ProjectSettings(Settings):
                     "GEMINI 3.1 PRO PREVIEW": "gemini-3.1-pro-preview",
                     "GEMINI 3.1 PRO PREVIEW CUSTOMTOOLS": "gemini-3.1-pro-preview-customtools",
                     "GEMINI 3.1 FLASH LITE PREVIEW": "gemini-3.1-flash-lite-preview",
-                    "GEMINI 3 PRO IMAGE PREVIEW": "gemini-3-pro-image-preview"
+                    "GEMINI 3 PRO IMAGE PREVIEW": "gemini-3-pro-image-preview",
                 },
                 "embed_model": "models/text-embedding-004",
                 "temperature": 1.0,
@@ -86,7 +90,6 @@ class ProjectSettings(Settings):
 
     # Default AI model for recipe generation
     AI_DEFAULT_MODEL: str = os.environ.get("AI_DEFAULT_MODEL", "llama3")
-
 
     # # Background Tasks
     # TASKS: dict[str, Any] = dataclasses.field(

@@ -12,6 +12,7 @@ __pycache__/
 .venv/
 .env/
 env*
+!openviper/template/environment.py
 venv/
 env/
 ENV/

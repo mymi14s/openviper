@@ -67,9 +67,7 @@ class MealPlanGenerator:
             self._available = True
             logger.info("MealPlanGenerator: using model '%s'", self.model_name)
         except Exception as exc:
-            logger.warning(
-                "MealPlanGenerator: model '%s' not available — %s", self.model_name, exc
-            )
+            logger.warning("MealPlanGenerator: model '%s' not available — %s", self.model_name, exc)
             self._available = False
 
     async def generate_weekly_plan(
@@ -99,7 +97,7 @@ class MealPlanGenerator:
             "You are a professional nutritionist AI. Create a meal plan for the following days.\n"
             "Respond ONLY with valid JSON (no markdown, no extra text):\n"
             '{"title": "Weekly Meal Plan", '
-            '"plan": {"Monday": {"breakfast": "meal name", "lunch": "meal name", "dinner": "meal name"}, ...}, '
+            '"plan": {"Monday": {"breakfast": "meal name", "lunch": "meal name", "dinner": "meal name"}, ...}, '  # noqa: E501
             '"shopping_items": ["item 1", "item 2", ...]}\n\n'
             f"Available ingredients: {ingredient_str}.{pref_note}\n"
             f"Days to plan: {', '.join(day_list)}\n\n"
@@ -120,7 +118,7 @@ class MealPlanGenerator:
         elif "```" in text:
             text = text.split("```")[1].split("```")[0].strip()
         if "{" in text and "}" in text:
-            text = text[text.find("{"):text.rfind("}") + 1]
+            text = text[text.find("{") : text.rfind("}") + 1]
 
         try:
             data = json.loads(text)
@@ -138,12 +136,33 @@ class MealPlanGenerator:
     def _fallback_plan(self, days: int = 7) -> MealPlanResult:
         plan = {}
         sample_meals = {
-            "breakfast": ["Oatmeal", "Scrambled Eggs", "Toast with Avocado",
-                          "Yogurt Parfait", "Pancakes", "Smoothie Bowl", "Cereal"],
-            "lunch": ["Caesar Salad", "Chicken Sandwich", "Vegetable Soup",
-                      "Pasta Salad", "Tuna Wrap", "Grain Bowl", "BLT"],
-            "dinner": ["Grilled Chicken", "Pasta Primavera", "Stir Fry",
-                       "Salmon with Vegetables", "Beef Tacos", "Lentil Curry", "Pizza"],
+            "breakfast": [
+                "Oatmeal",
+                "Scrambled Eggs",
+                "Toast with Avocado",
+                "Yogurt Parfait",
+                "Pancakes",
+                "Smoothie Bowl",
+                "Cereal",
+            ],
+            "lunch": [
+                "Caesar Salad",
+                "Chicken Sandwich",
+                "Vegetable Soup",
+                "Pasta Salad",
+                "Tuna Wrap",
+                "Grain Bowl",
+                "BLT",
+            ],
+            "dinner": [
+                "Grilled Chicken",
+                "Pasta Primavera",
+                "Stir Fry",
+                "Salmon with Vegetables",
+                "Beef Tacos",
+                "Lentil Curry",
+                "Pizza",
+            ],
         }
         for i, day in enumerate(DAYS_OF_WEEK[:days]):
             plan[day] = {

@@ -1,5 +1,4 @@
 """Routes for Ecommerce Clone apps."""
-from openviper.admin import get_admin_site
 
 from cart.routes import router as cart_router
 from chat.routes import router as chat_router
@@ -7,8 +6,10 @@ from orders.routes import router as orders_router
 from products.routes import router as products_router
 from reviews.routes import router as reviews_router
 from users.routes import router as users_router
-from .views import router as root_router
 
+from openviper.admin import get_admin_site
+
+from .views import router as root_router
 
 route_paths = [
     ("/", root_router),

@@ -14,12 +14,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 
+from products.models import Product
+
+from chat.ai_service import _get_router
+from chat.models import ProductSummary
 from openviper.core.management.base import BaseCommand
 from openviper.db import init_db
-
-from chat.ai_service import _get_router, _MODEL
-from chat.models import ProductSummary
-from products.models import Product
 
 
 class Command(BaseCommand):

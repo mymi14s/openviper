@@ -7,11 +7,11 @@ from openviper.db.fields import (
     CharField,
     DateTimeField,
     DecimalField,
+    ForeignKey,
     ImageField,
     IntegerField,
     TextField,
     UUIDField,
-    ForeignKey,
 )
 
 

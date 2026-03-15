@@ -31,10 +31,8 @@ class TestGetEngineDoubleCheckLocking:
 
         call_count = 0
 
-        original_create_engine = None
-
         def mock_create_engine_once(*args, **kwargs):
-            nonlocal call_count, original_create_engine
+            nonlocal call_count
             call_count += 1
             if call_count == 1:
                 # First call: simulate another thread creating the engine
@@ -77,7 +75,7 @@ class TestResolveDbUrlExceptionHandling:
     def test_returns_empty_string_on_attribute_error(self):
         """Should return empty string if accessing settings raises error."""
         # Create a module that raises an error when accessing TASKS
-        mock_module = MagicMock()
+        MagicMock()
 
         def side_effect_getattr(name, default=None):
             if name == "TASKS":

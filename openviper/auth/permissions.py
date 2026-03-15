@@ -6,6 +6,8 @@ ContentType-based permission checker with the core permission system.
 
 from __future__ import annotations
 
+from openviper.auth.permission_checker import get_permission_checker
+
 # Re-export core functionality
 from openviper.auth.permission_core import (
     PermissionError as OVPermissionError,
@@ -16,7 +18,6 @@ from openviper.auth.permission_core import (
 from openviper.auth.permission_core import (
     set_permission_checker,
 )
-from openviper.auth.permission_checker import get_permission_checker
 
 PermissionError = OVPermissionError  # noqa: A001
 

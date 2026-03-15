@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from products.models import Product
+
 from openviper.http import JSONResponse, Request, Response
 from openviper.http.views import View
 
-from products.models import Product
 from .models import Cart, CartItem
 
 
@@ -56,11 +57,13 @@ class CartView(View):
         cart = await _get_or_create_cart(request.user.id)
         items = await CartItem.objects.filter(cart_id=cart.id).all()
         items = await _enrich_items(list(items))
-        return JSONResponse({
-            "id": str(cart.id),
-            "items": [_item_to_dict(i) for i in items],
-            "item_count": sum(i.quantity for i in items),
-        })
+        return JSONResponse(
+            {
+                "id": str(cart.id),
+                "items": [_item_to_dict(i) for i in items],
+                "item_count": sum(i.quantity for i in items),
+            }
+        )
 
 
 class CartAddView(View):

@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
+import importlib
+import json
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openviper.ai.base import AIProvider
 from openviper.ai import registry
-from openviper.ai.registry import ProviderRegistry, _resolve_provider_class
-from openviper.ai.providers.gemini_provider import GeminiAuthError, GeminiProvider, GeminiRateLimitError
+from openviper.ai.base import AIProvider
+from openviper.ai.providers.gemini_provider import (
+    GeminiAuthError,
+    GeminiProvider,
+    GeminiRateLimitError,
+)
 from openviper.ai.providers.grok_provider import GrokError, GrokProvider
-import importlib
-import json
+from openviper.ai.registry import ProviderRegistry, _resolve_provider_class
 
 # ---------------------------------------------------------------------------
 # Stub provider for testing
@@ -307,7 +311,7 @@ class TestResolveProviderClass:
 
             with patch.dict("sys.modules", {"openviper.ai.providers.openai_provider": None}):
                 with patch("importlib.import_module", side_effect=ImportError("no module")):
-                    result = registry._resolve_provider_class("openai")
+                    registry._resolve_provider_class("openai")
                     # Should return None or cached None
         finally:
             # Restore

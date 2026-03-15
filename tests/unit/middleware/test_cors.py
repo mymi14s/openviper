@@ -319,7 +319,6 @@ class TestCORSOriginSpoofing:
         assert b"access-control-allow-origin" not in hd
 
 
-
 class TestCORSFromSettings:
     """Tests that CORSMiddleware is wired from CORS_* settings via _build_middleware_stack."""
 
@@ -368,9 +367,7 @@ class TestCORSFromSettings:
     @pytest.mark.asyncio
     async def test_allowed_origins_restricts(self):
         """CORS_ALLOWED_ORIGINS restricts which origins receive CORS headers."""
-        stack = self._build_stack(
-            CORS_ALLOWED_ORIGINS=("https://trusted.example.com",)
-        )
+        stack = self._build_stack(CORS_ALLOWED_ORIGINS=("https://trusted.example.com",))
         hd, _ = await _run(stack, _make_scope(origin="https://trusted.example.com"))
         assert hd.get(b"access-control-allow-origin") == b"https://trusted.example.com"
 
@@ -387,9 +384,7 @@ class TestCORSFromSettings:
     @pytest.mark.asyncio
     async def test_expose_headers(self):
         """CORS_EXPOSE_HEADERS populates Access-Control-Expose-Headers."""
-        stack = self._build_stack(
-            CORS_EXPOSE_HEADERS=("X-Request-Id", "X-Rate-Limit")
-        )
+        stack = self._build_stack(CORS_EXPOSE_HEADERS=("X-Request-Id", "X-Rate-Limit"))
         hd, _ = await _run(stack, _make_scope(origin="https://example.com"))
         expose = hd.get(b"access-control-expose-headers", b"").decode()
         assert "X-Request-Id" in expose

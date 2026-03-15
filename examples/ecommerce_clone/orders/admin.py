@@ -29,7 +29,9 @@ class OrderAdmin(ModelAdmin):
     @action(description="Mark selected orders as delivered")
     async def mark_delivered(self, queryset, request):
         count = await queryset.update(status="delivered")
-        return ActionResult(success=True, count=count, message=f"Marked {count} orders as delivered.")
+        return ActionResult(
+            success=True, count=count, message=f"Marked {count} orders as delivered."
+        )
 
     @action(description="Cancel selected orders")
     async def mark_cancelled(self, queryset, request):

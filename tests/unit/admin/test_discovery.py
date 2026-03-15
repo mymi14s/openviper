@@ -216,7 +216,7 @@ class TestDiscoverExtensions:
                     result = discover_extensions()
 
                     # Check if any extensions were found
-                    js_extensions = [e for e in result if e.get("type") == "script"]
+                    [e for e in result if e.get("type") == "script"]
                     # We may or may not get results depending on mock setup
                     assert isinstance(result, list)
 
@@ -255,7 +255,7 @@ class TestDiscoverExtensions:
                     result = discover_extensions()
 
                     # Check for module type extensions
-                    vue_extensions = [e for e in result if e.get("type") == "module"]
+                    [e for e in result if e.get("type") == "module"]
                     assert isinstance(result, list)
 
     def test_handles_app_without_spec(self):

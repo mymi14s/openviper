@@ -85,11 +85,15 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
     if field_class_name == "CharField":
         config["max_length"] = getattr(field, "max_length", 255)
 
-    if field_class_name in (
-        "IntegerField",
-        "BigIntegerField",
-        "PositiveIntegerField",
-    ) and field_class_name == "PositiveIntegerField":
+    if (
+        field_class_name
+        in (
+            "IntegerField",
+            "BigIntegerField",
+            "PositiveIntegerField",
+        )
+        and field_class_name == "PositiveIntegerField"
+    ):
         config["min"] = 0
 
     if field_class_name == "FloatField":

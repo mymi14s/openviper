@@ -15,6 +15,7 @@ exclude =
     *.egg-info,
     migrations,
     docs,
+    node_modules,
 per-file-ignores =
     tests/*:S101
     openviper/ai/providers/*:E722

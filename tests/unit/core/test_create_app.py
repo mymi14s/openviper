@@ -167,7 +167,7 @@ class TestDirectoryOption:
 
     def test_handle_creates_nested_directories(self, command, temp_dir):
         # Test that parent directories don't need to exist
-        nested_dir = os.path.join(temp_dir, "apps", "myapp")
+        os.path.join(temp_dir, "apps", "myapp")
         command.handle(name="myapp", directory=os.path.join(temp_dir, "apps"))
 
         # Only the base "apps" directory needs to exist

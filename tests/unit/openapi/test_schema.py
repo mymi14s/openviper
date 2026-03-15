@@ -59,14 +59,14 @@ class TestPythonTypeToSchema:
         assert _python_type_to_schema(None) == {}
 
     def test_optional(self):
-        schema = _python_type_to_schema(Optional[int])
+        schema = _python_type_to_schema(Optional[int])  # noqa: UP007, UP045
         assert schema["type"] == "integer"
         assert schema["nullable"] is True
 
     def test_optional_does_not_poison_inner_cache(self):
         """Optional[X] must not mutate the cached schema for X itself."""
         _python_type_to_schema.cache_clear()
-        _ = _python_type_to_schema(Optional[int])
+        _ = _python_type_to_schema(Optional[int])  # noqa: UP007, UP045
         plain = _python_type_to_schema(int)
         assert "nullable" not in plain, "cache-poisoning: int schema was mutated by Optional[int]"
 
@@ -83,11 +83,11 @@ class TestUnionSchema:
         _python_type_to_schema.cache_clear()
 
     def test_optional_int(self):
-        schema = _union_schema(Optional[int])
+        schema = _union_schema(Optional[int])  # noqa: UP007, UP045
         assert schema == {"type": "integer", "nullable": True}
 
     def test_multi_union_fallback(self):
-        schema = _union_schema(Union[int, str])
+        schema = _union_schema(Union[int, str])  # noqa: UP007
         assert schema == {"type": "string"}
 
 

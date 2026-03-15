@@ -42,7 +42,7 @@ class TestHandleBasic:
     def test_handle_runs_pytest(self, mock_run, command):
         mock_run.return_value = Mock(returncode=0)
 
-        with pytest.raises(SystemExit) as exc_info:
+        with pytest.raises(SystemExit):
             command.handle(test_labels=[], verbose=0, failfast=False, keepdb=False)
 
         mock_run.assert_called_once()

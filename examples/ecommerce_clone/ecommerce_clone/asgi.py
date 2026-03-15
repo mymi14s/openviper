@@ -7,13 +7,13 @@ import sys
 
 import openviper
 from openviper.app import OpenViper
+
 # from openviper.db import init_db
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "ecommerce_clone.settings")
 
 openviper.setup()
-
 
 
 try:
@@ -25,7 +25,6 @@ app = OpenViper(title="Ecommerce Clone", version="1.0.0")
 
 for prefix, router in route_paths:
     app.include_router(router, prefix=prefix)
-
 
 
 # @app.on_startup

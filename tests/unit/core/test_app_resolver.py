@@ -129,7 +129,7 @@ class TestAppResolver:
             assert "openviper.auth" in results["found"]
 
     def test_get_migrations_dir_creates_new(self):
-        app_path = self._create_app("blog")
+        self._create_app("blog")
         mig_dir = self.resolver.get_migrations_dir("blog")
         assert os.path.exists(mig_dir)
         assert os.path.basename(mig_dir) == "migrations"

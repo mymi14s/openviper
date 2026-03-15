@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from admin import TodoAdmin, UserAdmin
 from app import _is_authenticated, _redirect_to_login, startup
 from models import Todo
+
 from openviper.auth import get_user_model
 from openviper.conf import settings
 

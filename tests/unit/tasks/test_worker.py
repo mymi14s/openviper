@@ -31,7 +31,7 @@ class TestDiscoverTasks:
             ]
 
             with patch("openviper.tasks.worker.importlib.import_module") as mock_import:
-                result = discover_tasks()
+                discover_tasks()
 
                 # Should import tasks.py but not models.py (in _SKIP_FILES)
                 assert mock_import.call_count >= 1

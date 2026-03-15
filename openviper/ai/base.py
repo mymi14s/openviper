@@ -147,7 +147,7 @@ class AIProvider(abc.ABC):
             classification = "safe"
         try:
             confidence = float(data.get("confidence", 0.5))
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             confidence = 0.5
         confidence = max(0.0, min(1.0, confidence))
         reason = str(data.get("reason", "No reason provided"))

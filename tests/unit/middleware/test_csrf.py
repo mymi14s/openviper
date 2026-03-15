@@ -142,7 +142,7 @@ class TestCSRFMiddlewareSafeMethods:
     async def test_get_passes_through(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append(scope["method"])
 
         mw = CSRFMiddleware(app, secret="s")
@@ -153,7 +153,7 @@ class TestCSRFMiddlewareSafeMethods:
     async def test_head_passes_through(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CSRFMiddleware(app, secret="s")
@@ -164,7 +164,7 @@ class TestCSRFMiddlewareSafeMethods:
     async def test_options_passes_through(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CSRFMiddleware(app, secret="s")
@@ -193,7 +193,7 @@ class TestCSRFMiddlewareSafeMethods:
     async def test_non_http_passes_through(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CSRFMiddleware(app, secret="s")
@@ -211,7 +211,7 @@ class TestCSRFExemptPaths:
     async def test_exempt_path_skips_validation(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = CSRFMiddleware(app, secret="s", exempt_paths=["/api/webhook"])
@@ -230,7 +230,7 @@ class TestCSRFExemptPaths:
     async def test_multiple_exempt_paths(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append(scope["path"])
 
         mw = CSRFMiddleware(app, secret="s", exempt_paths=["/a", "/b"])
@@ -273,7 +273,7 @@ class TestCSRFMiddlewareValidation:
     async def test_valid_csrf_passes_through(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         secret = "test-secret"
@@ -338,7 +338,7 @@ class TestCSRFHeaderCaseInsensitivity:
     async def test_mixed_case_header_accepted(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         secret = "s"
@@ -357,7 +357,7 @@ class TestCSRFHeaderCaseInsensitivity:
     async def test_uppercase_header_accepted(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         secret = "s"
@@ -384,7 +384,7 @@ class TestCSRFSecretFallback:
         """Middleware configured with explicit secret must process valid tokens."""
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("ok")
 
         secret = "custom-secret"
@@ -407,7 +407,7 @@ class TestCSRFSecretFallback:
         async def send(msg):
             messages.append(msg)
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             pass
 
         mw = CSRFMiddleware(app, secret="")
@@ -423,7 +423,7 @@ class TestCSRFSecretFallback:
     async def test_empty_settings_secret_key_raises(self):
         """Empty SECRET_KEY with no explicit secret must raise RuntimeError."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             pass
 
         mw = CSRFMiddleware(app, secret="")
@@ -439,7 +439,7 @@ class TestCSRFSecretFallback:
         """settings.SECRET_KEY must be used when no explicit secret is given."""
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("ok")
 
         secret = "from-settings"

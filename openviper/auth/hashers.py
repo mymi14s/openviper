@@ -81,7 +81,7 @@ async def check_password(raw_password: str, hashed_password: str) -> bool:
         def _verify_argon2() -> bool:
             try:
                 return _ARGON2_HASHER_CHECK.verify(encoded, raw_password)
-            except (VerifyMismatchError, VerificationError, InvalidHashError):
+            except VerifyMismatchError, VerificationError, InvalidHashError:
                 return False
 
         return await asyncio.to_thread(_verify_argon2)
@@ -93,7 +93,7 @@ async def check_password(raw_password: str, hashed_password: str) -> bool:
         def _verify_bcrypt() -> bool:
             try:
                 return bcrypt.checkpw(raw_password.encode("utf-8"), encoded_b)
-            except (ValueError, Exception):
+            except ValueError, Exception:
                 return False
 
         return await asyncio.to_thread(_verify_bcrypt)

@@ -64,7 +64,7 @@ _bypass_permissions: ContextVar[bool] = ContextVar("_bypass_permissions", defaul
 
 
 @contextlib.contextmanager
-def bypass_permissions() -> Generator[None, None, None]:
+def bypass_permissions() -> Generator[None]:
     """Context manager for temporarily bypassing permission checks.
 
     USE WITH EXTREME CAUTION. Only for trusted internal system operations
@@ -140,7 +140,7 @@ def _cached_traversal_lookup(key: str, model_cls: type) -> Any:
 
 
 @asynccontextmanager
-async def _connect() -> AsyncGenerator[Any, None]:
+async def _connect() -> AsyncGenerator[Any]:
     """Yield a read connection, reusing a per-request connection if active."""
     req = _request_conn.get()
     if req is not None:
@@ -152,7 +152,7 @@ async def _connect() -> AsyncGenerator[Any, None]:
 
 
 @asynccontextmanager
-async def _begin() -> AsyncGenerator[Any, None]:
+async def _begin() -> AsyncGenerator[Any]:
     """Yield a write connection inside a transaction."""
     req = _request_conn.get()
     if req is not None:
@@ -1281,7 +1281,7 @@ async def execute_bulk_update(
 
 async def execute_select_stream(
     qs: QuerySet, chunk_size: int = 1000
-) -> AsyncGenerator[dict[str, Any], None]:
+) -> AsyncGenerator[dict[str, Any]]:
     """Yield rows one at a time using a server-side cursor.
 
     Uses ``conn.stream()`` + ``yield_per()`` to avoid loading the entire

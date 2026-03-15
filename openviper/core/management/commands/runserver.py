@@ -85,7 +85,11 @@ class Command(BaseCommand):
         except concurrent.futures.TimeoutError:
             # Migration check is taking longer - let it run in background
             logger.debug("Migration check running in background")
+<<<<<<< HEAD
         except Exception:  # noqa: BLE001  # nosec B110
+=======
+        except Exception:
+>>>>>>> staging
             # Ignore errors from migration check - server should start anyway
             pass
 
@@ -149,7 +153,7 @@ class Command(BaseCommand):
                     _orig(self_reloader)
 
                 cls.restart = _patched  # type: ignore[method-assign]
-            except (ImportError, AttributeError):
+            except ImportError, AttributeError:
                 # Older/newer uvicorn build without this supervisor — ignore.
                 pass
 

@@ -17,7 +17,7 @@ from openviper.middleware.csrf import (
     _verify_csrf_token,
 )
 from openviper.middleware.security import SecurityMiddleware
-from openviper.middleware.security import SecurityMiddleware as SM  # noqa: N817
+from openviper.middleware.security import SecurityMiddleware as SM
 
 # ---------------------------------------------------------------------------
 # Helpers

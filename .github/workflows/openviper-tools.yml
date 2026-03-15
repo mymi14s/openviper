@@ -72,7 +72,11 @@ jobs:
             echo "action=quality" >> $GITHUB_OUTPUT
           elif echo "$COMMENT_BODY" | grep -q "build"; then
             echo "action=build" >> $GITHUB_OUTPUT
+<<<<<<< HEAD
           elif echo "$COMMENT_BODY" | grep -q "publish docs\|docs"; then
+=======
+          elif echo "$COMMENT_BODY" | grep -q "docs"; then
+>>>>>>> staging
             echo "action=publish-docs" >> $GITHUB_OUTPUT
           elif echo "$COMMENT_BODY" | grep -q "test"; then
             echo "action=test" >> $GITHUB_OUTPUT
@@ -84,6 +88,7 @@ jobs:
       - name: Unknown command
         if: steps.cmd.outputs.action == 'unknown'
         uses: actions/github-script@v7
+<<<<<<< HEAD
         with:
           script: |
             github.rest.issues.createComment({
@@ -160,9 +165,41 @@ jobs:
 
       # ── Test Workflow ────────────────────────────────────────────
       - name: Setup Python (test)
+=======
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "⚠️ Unknown command. Available commands: `openviper-tool test`, `openviper-tool build`, `openviper-tool quality`, `openviper-tool docs`, `openviper-tool deploy`"
+            })
+
+      # ── Quality ──────────────────────────────────────────────────
+      - name: Dispatch Quality Workflow
+        if: steps.cmd.outputs.action == 'quality'
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: quality.yml
+          token: ${{ secrets.GH_PAT }}
+          ref: ${{ steps.pr.outputs.ref }}
+
+      # ── Publish Docs ─────────────────────────────────────────────
+      - name: Dispatch Docs Workflow
+        if: steps.cmd.outputs.action == 'publish-docs'
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: docs.yml
+          token: ${{ secrets.GH_PAT }}
+          ref: ${{ steps.pr.outputs.ref }}
+
+      # ── Test Workflow ────────────────────────────────────────────
+      - name: Dispatch Test Workflow
+>>>>>>> staging
         if: steps.cmd.outputs.action == 'test' || steps.cmd.outputs.action == 'deploy'
         uses: actions/setup-python@v5
         with:
+<<<<<<< HEAD
           python-version: "3.14"
           cache: pip
 
@@ -207,6 +244,11 @@ jobs:
         if: steps.cmd.outputs.action == 'test' || steps.cmd.outputs.action == 'deploy'
         working-directory: admin_frontend
         run: npm test || echo "No tests defined yet"
+=======
+          workflow: test.yml
+          token: ${{ secrets.GH_PAT }}
+          ref: ${{ steps.pr.outputs.ref }}
+>>>>>>> staging
 
       # ── Build Section ────────────────────────────────────────────
       - name: Setup Python

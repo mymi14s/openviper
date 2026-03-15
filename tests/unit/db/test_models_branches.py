@@ -171,9 +171,7 @@ def test_trigger_bulk_event_with_dispatcher():
         patch("openviper.db.events.get_dispatcher", return_value=mock_dispatcher),
         patch("openviper.db.events._dispatch_decorator_handlers"),
     ):
-        BulkItem.objects._trigger_bulk_event(
-            "myapp.BulkItem", "pre_bulk_create", []
-        )  # noqa: SLF001
+        BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
     mock_dispatcher.trigger.assert_called_once()
 
 
@@ -182,17 +180,13 @@ def test_trigger_bulk_event_without_dispatcher():
         patch("openviper.db.events.get_dispatcher", return_value=None),
         patch("openviper.db.events._dispatch_decorator_handlers") as mock_dec,
     ):
-        BulkItem.objects._trigger_bulk_event(
-            "myapp.BulkItem", "pre_bulk_create", []
-        )  # noqa: SLF001
+        BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
     mock_dec.assert_called_once()
 
 
 def test_trigger_bulk_event_exception_suppressed():
     with patch("openviper.db.events.get_dispatcher", side_effect=RuntimeError("boom")):
-        BulkItem.objects._trigger_bulk_event(
-            "myapp.BulkItem", "pre_bulk_create", []
-        )  # noqa: SLF001
+        BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
 
 
 # ── QuerySet all() with ignore_permissions ────────────────────────────────────
@@ -201,7 +195,7 @@ def test_trigger_bulk_event_exception_suppressed():
 @pytest.mark.asyncio
 async def test_queryset_all_ignore_permissions_executes():
     qs = QuerySet(BranchNote)
-    qs._ignore_permissions = True  # noqa: SLF001
+    qs._ignore_permissions = True
 
     with (
         patch(
@@ -222,7 +216,7 @@ async def test_queryset_all_ignore_permissions_executes():
 @pytest.mark.asyncio
 async def test_queryset_count_ignore_permissions():
     qs = QuerySet(BranchNote)
-    qs._ignore_permissions = True  # noqa: SLF001
+    qs._ignore_permissions = True
 
     with (
         patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
@@ -236,7 +230,7 @@ async def test_queryset_count_ignore_permissions():
 @pytest.mark.asyncio
 async def test_queryset_exists_ignore_permissions():
     qs = QuerySet(BranchNote)
-    qs._ignore_permissions = True  # noqa: SLF001
+    qs._ignore_permissions = True
 
     with (
         patch("openviper.db.models._check_perm_cached", new_callable=AsyncMock),
@@ -250,7 +244,7 @@ async def test_queryset_exists_ignore_permissions():
 @pytest.mark.asyncio
 async def test_queryset_delete_ignore_permissions():
     qs = QuerySet(BranchNote)
-    qs._ignore_permissions = True  # noqa: SLF001
+    qs._ignore_permissions = True
 
     with (
         patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
@@ -264,7 +258,7 @@ async def test_queryset_delete_ignore_permissions():
 @pytest.mark.asyncio
 async def test_queryset_update_ignore_permissions():
     qs = QuerySet(BranchNote)
-    qs._ignore_permissions = True  # noqa: SLF001
+    qs._ignore_permissions = True
 
     with (
         patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
@@ -278,7 +272,7 @@ async def test_queryset_update_ignore_permissions():
 @pytest.mark.asyncio
 async def test_queryset_values_ignore_permissions():
     qs = QuerySet(BranchNote)
-    qs._ignore_permissions = True  # noqa: SLF001
+    qs._ignore_permissions = True
 
     with (
         patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
@@ -334,48 +328,48 @@ async def test_batch_breaks_on_partial_chunk():
 
 def test_hydrate_select_related_sets_none_when_all_values_null():
     qs = QuerySet(Post)
-    qs._select_related = ["author"]  # noqa: SLF001
+    qs._select_related = ["author"]
 
     instance = Post.__new__(Post)
-    instance._relation_cache = None  # noqa: SLF001
-    instance._previous_state = {}  # noqa: SLF001
+    instance._relation_cache = None
+    instance._previous_state = {}
 
     row = {"id": 1, "title": "Test", "author__id": None, "author__name": None}
 
-    Post._fields["author"].resolve_target = lambda: Author  # noqa: SLF001
-    qs._hydrate_select_related(instance, row)  # noqa: SLF001
+    Post._fields["author"].resolve_target = lambda: Author
+    qs._hydrate_select_related(instance, row)
 
-    assert instance._get_related("author") is None  # noqa: SLF001
+    assert instance._get_related("author") is None
 
 
 def test_hydrate_select_related_sets_instance_when_values_present():
     qs = QuerySet(Post)
-    qs._select_related = ["author"]  # noqa: SLF001
+    qs._select_related = ["author"]
 
     instance = Post.__new__(Post)
-    instance._relation_cache = None  # noqa: SLF001
-    instance._previous_state = {}  # noqa: SLF001
+    instance._relation_cache = None
+    instance._previous_state = {}
 
     row = {"id": 1, "title": "Test", "author__id": 5, "author__name": "Alice"}
 
-    Post._fields["author"].resolve_target = lambda: Author  # noqa: SLF001
-    qs._hydrate_select_related(instance, row)  # noqa: SLF001
+    Post._fields["author"].resolve_target = lambda: Author
+    qs._hydrate_select_related(instance, row)
 
-    related = instance._get_related("author")  # noqa: SLF001
+    related = instance._get_related("author")
     assert related is not None
     assert related.name == "Alice"
 
 
 def test_hydrate_select_related_skips_unknown_field():
     qs = QuerySet(Post)
-    qs._select_related = ["nonexistent_field"]  # noqa: SLF001
+    qs._select_related = ["nonexistent_field"]
 
     instance = Post.__new__(Post)
-    instance._relation_cache = None  # noqa: SLF001
-    instance._previous_state = {}  # noqa: SLF001
+    instance._relation_cache = None
+    instance._previous_state = {}
 
     row = {"id": 1, "title": "Test"}
-    qs._hydrate_select_related(instance, row)  # noqa: SLF001
+    qs._hydrate_select_related(instance, row)
 
 
 # ── _from_row / _from_row_fast ────────────────────────────────────────────────
@@ -384,14 +378,14 @@ def test_hydrate_select_related_skips_unknown_field():
 def test_from_row_col_name_in_row():
     """Field's column_name is in the row (e.g. 'author_id')."""
     row = {"id": 1, "title": "Hello", "author_id": 42}
-    p = Post._from_row(row)  # noqa: SLF001
+    p = Post._from_row(row)
     assert p.title == "Hello"
 
 
 def test_from_row_fast_fk_uses_col_name_key():
     """ForeignKey in _from_row_fast stores under column_name key."""
     row = {"id": 1, "title": "Hello", "author_id": 99}
-    p = Post._from_row_fast(row)  # noqa: SLF001
+    p = Post._from_row_fast(row)
     assert p.__dict__.get("author_id") == 99
 
 
@@ -402,8 +396,8 @@ def test_from_row_fast_fk_uses_col_name_key():
 async def test_validate_fk_alias_set_skips_null_check():
     """FK value None but column_name alias (ref_id) is set — FK field should pass."""
     obj = FKModel.__new__(FKModel)
-    obj._previous_state = {}  # noqa: SLF001
-    obj._relation_cache = None  # noqa: SLF001
+    obj._previous_state = {}
+    obj._relation_cache = None
     obj.ref = None
     obj.ref_id = 5  # alias is set
     await obj.validate()  # Should not raise when FK alias ref_id is set
@@ -415,7 +409,7 @@ async def test_validate_fk_alias_set_skips_null_check():
 def test_apply_auto_fields_auto_now_always_sets():
     obj = TimestampModel()
     obj.updated_at = None
-    obj._apply_auto_fields()  # noqa: SLF001
+    obj._apply_auto_fields()
     assert obj.updated_at is not None
 
 
@@ -423,7 +417,7 @@ def test_apply_auto_fields_auto_now_add_skips_if_set():
     obj = TimestampModel()
     existing_time = datetime.datetime(2020, 1, 1)
     obj.created_at = existing_time
-    obj._apply_auto_fields()  # noqa: SLF001
+    obj._apply_auto_fields()
     assert obj.created_at == existing_time
 
 
@@ -433,7 +427,7 @@ def test_apply_auto_fields_auto_now_add_skips_if_set():
 def test_to_dict_fk_uses_column_name():
     p = Post(title="Hello")
     p.__dict__["author_id"] = 42
-    d = p._to_dict()  # noqa: SLF001
+    d = p._to_dict()
     assert "author" in d
     assert d["author"] == 42
 
@@ -729,7 +723,7 @@ async def test_validate_fk_alias_set_skips_null_check_async():
     """
     obj = ColumnAliasModel.__new__(ColumnAliasModel)
     obj._previous_state = {}
-    obj._relation_cache = None  # noqa: SLF001
+    obj._relation_cache = None
     # CharField is a non-data descriptor so instance __dict__ wins for both names.
     obj.__dict__["score"] = None  # field value is None → would fail null check
     obj.__dict__["score_value"] = 5  # column alias is set → triggers continue

@@ -258,7 +258,7 @@ class GrokProvider(AIProvider):
             return 1.0
         try:
             t = float(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 1.0
         return max(0.0, min(2.0, t))
 
@@ -273,7 +273,7 @@ class GrokProvider(AIProvider):
             raw_msg = response.json().get("error", {}).get("message", "")
             # Truncate to prevent log-flooding and info leakage.
             detail = str(raw_msg)[:200] if raw_msg else f"HTTP {status}"
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             detail = f"HTTP {status}"
         if status == 401:
             raise GrokAuthError("Grok authentication failed (401). Check your API key.")
@@ -347,7 +347,7 @@ class GrokProvider(AIProvider):
                     content = chunk["choices"][0]["delta"].get("content")
                     if content:
                         yield content
-                except (json.JSONDecodeError, KeyError, IndexError):
+                except json.JSONDecodeError, KeyError, IndexError:
                     continue
 
     async def embed(self, text: str, **kwargs: Any) -> list[float]:

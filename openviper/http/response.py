@@ -72,7 +72,7 @@ def _compute_template_search_paths(
                 app_templates = app_dir / "templates"
                 if app_templates.is_dir():
                     search_paths.append(str(app_templates))
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             continue
     return tuple(search_paths)
 
@@ -458,7 +458,7 @@ class FileResponse(Response):
                     )
                     await send({"type": "http.response.body", "body": b"", "more_body": False})
                     return
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass  # Malformed date — serve the full response
 
         self._headers.set("content-length", str(fstat.st_size))

@@ -470,7 +470,7 @@ def _resolve_provider_class(provider_type: str) -> type[AIProvider] | None:
         module_path, cls_name = path.rsplit(".", 1)
         mod = importlib.import_module(module_path)
         return getattr(mod, cls_name)
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         return None
 
 

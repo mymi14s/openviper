@@ -139,7 +139,7 @@ class TestSlidingWindowEviction:
 class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_allows_request_within_limit(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -149,7 +149,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_blocks_request_over_limit(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -163,7 +163,7 @@ class TestRateLimitMiddleware:
     async def test_non_http_passthrough(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = RateLimitMiddleware(app, max_requests=10, window_seconds=60)
@@ -172,7 +172,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_rate_limit_headers_added(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -184,7 +184,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_429_includes_retry_after(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -198,7 +198,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_429_ratelimit_remaining_is_zero(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -213,7 +213,7 @@ class TestRateLimitMiddleware:
     async def test_custom_key_func(self):
         """A custom key_func overrides the default IP-based key."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -226,7 +226,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_different_ips_tracked_independently(self):
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -246,7 +246,7 @@ class TestRateLimitDefaultKey:
     async def test_client_tuple_used_as_key(self):
         """Two requests from the same client tuple share a counter."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -260,7 +260,7 @@ class TestRateLimitDefaultKey:
     async def test_client_tuple_preferred_over_xff(self):
         """Client tuple must take priority over X-Forwarded-For to prevent IP spoofing."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -290,7 +290,7 @@ class TestRateLimitDefaultKey:
     async def test_xff_fallback_when_no_client(self):
         """When client is None, X-Forwarded-For first IP is used."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 
@@ -311,7 +311,7 @@ class TestRateLimitDefaultKey:
     async def test_unknown_key_when_no_client_no_xff(self):
         """Requests with no client and no XFF share the 'unknown' bucket."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"ok"})
 

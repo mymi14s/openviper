@@ -1013,7 +1013,7 @@ def _get_existing_columns_sync(connection: Any, table_name: str) -> set[str]:
     try:
         insp = sa.inspect(connection)
         return {col["name"] for col in insp.get_columns(table_name)}
-    except (sa.exc.NoSuchTableError, Exception):
+    except sa.exc.NoSuchTableError, Exception:
         return set()
 
 

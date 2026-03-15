@@ -220,7 +220,7 @@ def get_field_schema(field: Field) -> dict[str, Any]:
                         module_path = f"{parts[0]}.models"
                         module = importlib.import_module(module_path)
                         resolved_model = getattr(module, model_name, None)
-                    except (ImportError, AttributeError):
+                    except ImportError, AttributeError:
                         pass
 
                     # Try full module path (e.g., "user.models" for "user.models.User")
@@ -229,7 +229,7 @@ def get_field_schema(field: Field) -> dict[str, Any]:
                             module_path = ".".join(parts[:-1])
                             module = importlib.import_module(module_path)
                             resolved_model = getattr(module, model_name, None)
-                        except (ImportError, AttributeError):
+                        except ImportError, AttributeError:
                             pass
 
                 if resolved_model is not None:

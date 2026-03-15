@@ -242,7 +242,7 @@ def _discover_app_static_dirs() -> tuple[Path, ...]:
                     static_dirs.append(static_dir)
                     seen.add(static_dir.resolve())
                 continue
-        except (ImportError, ModuleNotFoundError, ValueError):
+        except ImportError, ModuleNotFoundError, ValueError:
             pass
 
         # Fallback: use AppResolver for project-level apps.
@@ -254,7 +254,7 @@ def _discover_app_static_dirs() -> tuple[Path, ...]:
                 if static_dir.is_dir() and static_dir.resolve() not in seen:
                     static_dirs.append(static_dir)
                     seen.add(static_dir.resolve())
-        except (ImportError, AttributeError, TypeError, OSError):
+        except ImportError, AttributeError, TypeError, OSError:
             pass
 
     return tuple(static_dirs)

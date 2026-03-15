@@ -98,12 +98,9 @@ async def _ensure_table() -> None:
         return
     table = _get_blocklist_table()
     engine = await get_engine()
-    try:
+    with contextlib.suppress(Exception):  # Table/sequence already exists - this is fine
         async with engine.begin() as conn:
             await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
-    except Exception:
-        # Table/sequence already exists - this is fine
-        pass
     _TABLE_ENSURED = True
 
 

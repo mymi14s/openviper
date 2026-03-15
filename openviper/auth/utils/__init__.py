@@ -27,7 +27,7 @@ def get_user_model() -> type:
     if custom_user:
         try:
             return cast("type", import_string(custom_user))
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             pass
 
     return User

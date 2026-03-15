@@ -86,7 +86,7 @@ class MockModel:
     save = AsyncMock
     delete = AsyncMock
 
-    class objects:  # noqa: N801
+    class objects:
         all = MagicMock()
         filter = MagicMock()
         get_or_none = AsyncMock(return_value=None)

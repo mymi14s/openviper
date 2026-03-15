@@ -36,7 +36,7 @@ class Command(BaseCommand):
             if not username:
                 try:
                     username = input("Username: ").strip()
-                except (EOFError, KeyboardInterrupt):
+                except EOFError, KeyboardInterrupt:
                     self.stdout("\nOperation cancelled.")
                     return
 
@@ -65,7 +65,7 @@ class Command(BaseCommand):
                             self.stderr(self.style_error("Password cannot be blank."))
                             continue
                         confirm = getpass.getpass("Retype new password: ")
-                    except (EOFError, KeyboardInterrupt):
+                    except EOFError, KeyboardInterrupt:
                         self.stdout("\nOperation cancelled.")
                         return
 

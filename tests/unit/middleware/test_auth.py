@@ -52,7 +52,7 @@ class TestAuthMiddlewareNonHTTP:
     async def test_lifespan_passthrough(self):
         calls = []
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             calls.append("app")
 
         mw = AuthenticationMiddleware(app)
@@ -64,7 +64,7 @@ class TestAuthMiddlewareNonHTTP:
         """Websocket scopes should also be processed (user set)."""
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         mw = AuthenticationMiddleware(app)
@@ -82,7 +82,7 @@ class TestAuthMiddlewareAnonymous:
     async def test_no_credentials_sets_anonymous(self):
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
             captured["auth"] = scope.get("auth")
 
@@ -95,7 +95,7 @@ class TestAuthMiddlewareAnonymous:
     async def test_auth_info_type_none(self):
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["auth"] = scope.get("auth")
 
         mw = AuthenticationMiddleware(app)
@@ -116,7 +116,7 @@ class TestAuthMiddlewareJWT:
         fake_user.is_active = True
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
             captured["auth"] = scope.get("auth")
 
@@ -144,7 +144,7 @@ class TestAuthMiddlewareJWT:
         token = jose_jwt.encode(claims, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         await AuthenticationMiddleware(app)(_bearer_scope(token), None, None)
@@ -155,7 +155,7 @@ class TestAuthMiddlewareJWT:
         token = create_access_token(user_id=42)
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         with patch("openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=True)):
@@ -170,7 +170,7 @@ class TestAuthMiddlewareJWT:
         inactive.is_active = False
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         with patch(
@@ -194,7 +194,7 @@ class TestAuthMiddlewareJWT:
         token = jose_jwt.encode(claims, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         await AuthenticationMiddleware(app)(_bearer_scope(token), None, None)
@@ -204,7 +204,7 @@ class TestAuthMiddlewareJWT:
     async def test_malformed_jwt_falls_to_anonymous(self):
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         scope = _http_scope([(b"authorization", b"Bearer not.a.valid.token")])
@@ -217,7 +217,7 @@ class TestAuthMiddlewareJWT:
         token = create_access_token(user_id=1)
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["auth"] = scope.get("auth")
 
         scope = _http_scope([(b"authorization", f"bearer {token}".encode("latin-1"))])
@@ -237,7 +237,7 @@ class TestAuthMiddlewareSession:
         session_user.is_active = True
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
             captured["auth"] = scope.get("auth")
 
@@ -256,7 +256,7 @@ class TestAuthMiddlewareSession:
         inactive.is_active = False
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         with patch(
@@ -270,7 +270,7 @@ class TestAuthMiddlewareSession:
     async def test_session_auth_exception_falls_to_anonymous(self):
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         with patch(
@@ -285,7 +285,7 @@ class TestAuthMiddlewareSession:
     async def test_session_returns_none_falls_to_anonymous(self):
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
         with patch(
@@ -309,7 +309,7 @@ class TestAuthMiddlewarePrecedence:
         jwt_user.is_active = True
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["user"] = scope.get("user")
             captured["auth"] = scope.get("auth")
 
@@ -338,7 +338,7 @@ class TestAuthMiddlewarePrecedence:
         session_user.is_active = True
         captured = {}
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             captured["auth"] = scope.get("auth")
 
         scope = _http_scope(
@@ -367,7 +367,7 @@ class TestAuthMiddlewareContextVar:
     async def test_context_var_set_during_request(self):
         seen = None
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             nonlocal seen
             seen = ctx_user.get(None)
 
@@ -376,7 +376,7 @@ class TestAuthMiddlewareContextVar:
 
     @pytest.mark.asyncio
     async def test_context_var_reset_after_request(self):
-        async def noop(scope, receive, send):  # noqa: ARG001
+        async def noop(scope, receive, send):
             pass
 
         token_before = ctx_user.set(None)
@@ -392,7 +392,7 @@ class TestAuthMiddlewareContextVar:
     async def test_context_var_reset_on_app_exception(self):
         """Context var must be reset even when the inner app raises."""
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             raise RuntimeError("boom")
 
         mw = AuthenticationMiddleware(app)
@@ -410,7 +410,7 @@ class TestAuthMiddlewareContextVar:
         fake_user.is_active = True
         seen = None
 
-        async def app(scope, receive, send):  # noqa: ARG001
+        async def app(scope, receive, send):
             nonlocal seen
             seen = ctx_user.get(None)
 
@@ -505,7 +505,7 @@ class TestUserCache:
         fake_user = MagicMock()
         call_count = 0
 
-        async def fake_get_user(user_id):  # noqa: ARG001
+        async def fake_get_user(user_id):
             nonlocal call_count
             call_count += 1
             return fake_user

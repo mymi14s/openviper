@@ -134,7 +134,7 @@ def load(env: Any, *, wait: bool = True) -> None:
                 _STATE.future.result(timeout=30.0)  # 30 second timeout
             except concurrent.futures.TimeoutError:
                 logger.warning("Plugin discovery timed out after 30 seconds")
-            except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning("Plugin discovery failed: %s", exc)
 
         # Apply discovered plugins
@@ -165,7 +165,7 @@ def _discover_plugins(cfg: dict[str, Any]) -> bool:
                 continue
             merged_filters.update(_scan_directory(os.path.join(app_plugin_root, "filters")))
             merged_globals.update(_scan_directory(os.path.join(app_plugin_root, "globals")))
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             continue
 
     # 2. Project-level discovery (higher priority — overwrites app-level).
@@ -288,6 +288,6 @@ def _import_module(path: str, name: str) -> Any:
         finally:
             sys.dont_write_bytecode = prev_dont_write
         return module
-    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.warning("Failed to import Jinja2 plugin %r: %s", path, exc)
         return None

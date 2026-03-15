@@ -119,7 +119,7 @@ class Command(BaseCommand):
             # Only add when it's a dev/source install, not a pip install.
             if "site-packages" not in pkg_parent and pkg_parent not in dirs:
                 dirs.append(pkg_parent)
-        except Exception:  # nosec B110
+        except Exception:
             pass
         return dirs
 
@@ -219,6 +219,6 @@ class Command(BaseCommand):
                 )
                 self.stdout(self.style_error(f"  Missing migrations: {', '.join(pending)}"))
                 self.stdout("")
-        except Exception:  # nosec B110
+        except Exception:
             # Never prevent the server from starting because the check failed.
             pass

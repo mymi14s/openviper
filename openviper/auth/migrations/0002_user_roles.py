@@ -24,7 +24,7 @@ def _resolve_user_table() -> str:
             cls = getattr(mod, class_name)
             meta = getattr(cls, "Meta", None)
             return getattr(meta, "table_name", "auth_users") if meta else "auth_users"
-        except Exception:  # nosec B110
+        except Exception:
             pass
 
 

@@ -106,6 +106,6 @@ jobs:
           cache: pip
       - run: pip install bandit safety
       - name: Bandit
-        run: bandit -r openviper -q
+        run: bandit -r openviper -q -c pyproject.toml
       - name: Safety
         run: safety scan || true

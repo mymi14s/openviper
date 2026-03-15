@@ -18,3 +18,4 @@ class ChatCacheAdmin(ModelAdmin):
 class ProductSummaryAdmin(ModelAdmin):
     list_display = ["id", "product_id", "created_at"]
     search_fields = ["product_id", "summary"]
+    readonly_fields = ["id", "product_id", "created_at", "summary"]

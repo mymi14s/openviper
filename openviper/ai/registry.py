@@ -391,7 +391,7 @@ class ProviderRegistry:
                     logger.warning(
                         "ProviderRegistry: could not initialise provider %r: %s", name, exc
                     )
-        except Exception:  # nosec B110
+        except Exception:
             pass  # gracefully handle settings parse errors
 
 

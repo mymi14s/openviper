@@ -125,7 +125,7 @@ class StaticFilesMiddleware:
                         break
                     if parent.is_symlink():
                         continue  # Parent is symlink, skip
-            except Exception:  # nosec B112
+            except Exception:
                 continue
 
             # Ensure candidate is inside the directory (no traversal).

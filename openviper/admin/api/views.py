@@ -337,7 +337,7 @@ def get_admin_router() -> Router:
                 with contextlib.suppress(Exception):
                     await revoke_token(
                         jti=jti,
-                        token_type="access",  # nosec B106
+                        token_type="access",
                         user_id=user_id or None,
                         expires_at=expires_at,
                     )
@@ -359,7 +359,7 @@ def get_admin_router() -> Router:
                 with contextlib.suppress(Exception):
                     await revoke_token(
                         jti=jti,
-                        token_type="refresh",  # nosec B106
+                        token_type="refresh",
                         user_id=user_id or None,
                         expires_at=expires_at,
                     )
@@ -559,7 +559,7 @@ def get_admin_router() -> Router:
                         ),
                     }
                 )
-        except Exception:  # nosec B110
+        except Exception:
             pass  # History table might not exist yet
 
         return JSONResponse(

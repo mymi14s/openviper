@@ -197,7 +197,7 @@ class CronSchedule(Schedule):
 
     def _stdlib_is_due(self, last_run_at: datetime | None, now: datetime) -> bool:
         """Check whether *now* matches the cron expression (minute granularity)."""
-        assert self._fields is not None  # nosec B101
+        assert self._fields is not None
         # Cron dow uses 0=Sunday…6=Saturday; Python weekday() uses 0=Monday…6=Sunday.
         # Convert: cron_dow = (python_weekday + 1) % 7
         cron_dow = (now.weekday() + 1) % 7

@@ -1098,7 +1098,9 @@ async def _count_null_values(conn: Any, table_name: str, column_name: str) -> in
         quoted_table = _quote_identifier(table_name, dialect)
         quoted_column = _quote_identifier(column_name, dialect)
         result = await conn.execute(
-            sa.text(f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_column} IS NULL")  # nosec B608
+            sa.text(
+                f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_column} IS NULL"  # nosec B608
+            )
         )
         row = result.first()
         return row[0] if row else 0
@@ -1196,7 +1198,7 @@ async def validate_restore_column(
                 f"    - Provide a default value: field_name = FieldType(default=...)\n"
                 f"    - Manually update NULL rows before migrating:\n"
                 f"      UPDATE {op.table_name} SET {op.column_name} = <value> "
-                f"WHERE {op.column_name} IS NULL"
+                f"WHERE {op.column_name} IS NULL"  # nosec B608
             )
 
     return None

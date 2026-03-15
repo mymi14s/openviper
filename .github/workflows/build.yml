@@ -1,12 +1,19 @@
 name: Build Workflow
 
 on:
+  workflow_call:
+    outputs:
+      version:
+        description: Built package version
+        value: ${{ jobs.build.outputs.version }}
   workflow_dispatch:
 
 jobs:
   build:
     name: Build & Artifact
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,15 +43,22 @@ jobs:
       - name: Get Version
         id: get_version
         run: |
-          VERSION=$(grep '^version =' pyproject.toml | cut -d '"' -f 2)
+          VERSION=$(python - <<'PY'
+          import tomllib
+
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          print(data['project']['version'])
+          PY
+          )
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build Wheel
+      - name: Build distributions
         run: python -m build
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openviper-${{ env.VERSION }}
-          path: dist/*.whl
+          name: python-package-distributions
+          path: dist/*

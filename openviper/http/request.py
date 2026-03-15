@@ -331,7 +331,7 @@ class Request:
                 total += len(chunk)
                 if total > MAX_BODY_SIZE:
                     raise ValueError(
-                        f"Request body exceeds maximum allowed size " f"of {MAX_BODY_SIZE} bytes"
+                        f"Request body exceeds maximum allowed size of {MAX_BODY_SIZE} bytes"
                     )
                 chunks.append(chunk)
                 yield chunk

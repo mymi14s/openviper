@@ -79,7 +79,7 @@ function onPasswordChanged() {
 <template>
   <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 md:px-6">
     <!-- Sidebar toggle (mobile only) -->
-    <button 
+    <button
       @click="adminStore.toggleSidebar"
       class="p-2 -ml-2 mr-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg lg:hidden"
     >

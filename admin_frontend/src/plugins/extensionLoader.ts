@@ -287,4 +287,3 @@ export async function loadExtensions(): Promise<void> {
 if (!(window as any).__adminRegistry) {
   ;(window as any).__adminRegistry = createRegistry()
 }
-

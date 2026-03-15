@@ -151,14 +151,12 @@ class TestBulkOperations:
             patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
             patch("openviper.db.models._begin", return_value=mock_begin_ctx),
         ):
-
             jobs = [self.Job(title="J1"), self.Job(title="J2")]
             await self.Job.objects.bulk_create(jobs)
             assert mock_conn.execute.called
 
 
 class TestCheckPermCached:
-
     @pytest.mark.asyncio
     async def test_ignore_permissions_returns_early(self):
         with patch(
@@ -209,7 +207,6 @@ class TestCheckPermCached:
 
 
 class TestModelMetaExtractAppName:
-
     def test_empty_module_returns_default(self):
         assert ModelMeta._extract_app_name("", "Foo") == "default"
 
@@ -227,7 +224,6 @@ class TestModelMetaExtractAppName:
 
 
 class TestFExpressions:
-
     def test_radd(self):
         f = F("price")
         result = 10 + f
@@ -283,7 +279,6 @@ class TestFExpressions:
 
 
 class TestAggregateRepr:
-
     def test_count_repr(self):
         agg = Count("id")
         assert repr(agg) == "Count('id')"
@@ -855,7 +850,6 @@ class TestModelEquality:
 
 
 class TestCallHook:
-
     @pytest.mark.asyncio
     async def test_sync_hook(self):
         def sync_fn():
@@ -890,7 +884,6 @@ class TestCallHook:
 
 
 class TestTraversalLookup:
-
     class Author(Model):
         username = CharField()
 

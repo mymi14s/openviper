@@ -72,9 +72,9 @@ function clearSearch(): void {
         🐍
         <span class="text-xl font-bold text-gray-900 dark:text-white">{{ adminStore.config.admin_header_title || 'OpenViper' }}</span>
       </RouterLink>
-      
+
       <!-- Close button (mobile only) -->
-      <button 
+      <button
         @click="adminStore.closeSidebar"
         class="lg:hidden p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-lg"
       >

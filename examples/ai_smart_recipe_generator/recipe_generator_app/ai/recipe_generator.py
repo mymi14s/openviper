@@ -134,7 +134,7 @@ class RecipeGenerator:
                 prep_time=str(data.get("prep_time", "")),
                 cook_time=str(data.get("cook_time", "")),
             )
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError, KeyError:
             return self._fallback_recipe(ingredients)
 
     def _fallback_recipe(self, ingredients: list[str]) -> RecipeResult:
@@ -198,7 +198,7 @@ class RecipeGenerator:
             data_list = json.loads(text)
             return [
                 RecipeResult(
-                    title=str(d.get("title", f"Recipe {i+1}")),
+                    title=str(d.get("title", f"Recipe {i + 1}")),
                     ingredients=list(d.get("ingredients", ingredients)),
                     instructions=list(d.get("instructions", ["Cook all ingredients."])),
                     servings=str(d.get("servings", "4")),

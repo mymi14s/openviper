@@ -47,7 +47,7 @@ def __getattr__(name: str) -> Any:
         setattr(sys.modules[__name__], name, module)
         return module
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-f
+
 
 def setup(force: bool = False) -> None:
     """Initialize Openviper settings and registry explicitly.

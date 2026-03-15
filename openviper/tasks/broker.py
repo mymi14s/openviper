@@ -129,7 +129,7 @@ def _create_broker() -> Any:
         broker = StubBroker()
     else:
         raise ValueError(
-            f"Unknown TASKS broker {backend!r}. " "Valid choices: 'redis', 'rabbitmq', 'stub'."
+            f"Unknown TASKS broker {backend!r}. Valid choices: 'redis', 'rabbitmq', 'stub'."
         )
 
     # AsyncIO middleware — enables `async def` actor functions.

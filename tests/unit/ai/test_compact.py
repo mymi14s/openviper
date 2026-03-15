@@ -497,7 +497,6 @@ class TestGrokProviderBranches:
             if data.strip() == "[DONE]":
                 break
             try:
-
                 chunk = json.loads(data)
                 content = chunk["choices"][0]["delta"].get("content")
                 if content:
@@ -524,7 +523,6 @@ class TestGrokProviderBranches:
             if data.strip() == "[DONE]":
                 break
             try:
-
                 chunk = json.loads(data)
                 content = chunk["choices"][0]["delta"].get("content")
                 if content:
@@ -550,7 +548,6 @@ class TestGrokProviderBranches:
             if data.strip() == "[DONE]":
                 break
             try:
-
                 chunk = json.loads(data)
                 content = chunk["choices"][0]["delta"].get("content")
                 if content:

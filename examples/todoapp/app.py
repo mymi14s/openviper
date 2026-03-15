@@ -115,7 +115,7 @@ async def login_submit(request: Request) -> RedirectResponse:
 
     try:
         user = await authenticate(username=username, password=password)
-    except (AuthenticationFailed, Exception):
+    except AuthenticationFailed, Exception:
         return RedirectResponse(
             url="/login?error=Invalid+username+or+password",
             status_code=303,

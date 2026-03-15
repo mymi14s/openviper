@@ -42,7 +42,6 @@ class SessionMiddleware:
     def __init__(self, app: Any, store: Any | None = None) -> None:
         self.app = app
         if store is None:
-
             store = DatabaseSessionStore()
         self.store = store
 

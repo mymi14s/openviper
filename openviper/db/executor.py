@@ -129,7 +129,6 @@ def _cached_traversal_lookup(key: str, model_cls: type) -> Any:
     """
     result = _parse_traversal_cached(key, model_cls)
     if result is _TRAVERSAL_FAILURE:
-
         raise FieldError(key)
     return result
 

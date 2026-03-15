@@ -1365,7 +1365,6 @@ class TestLazyFKLoadBranches:
 
 
 class TestLazyFKIndexAndPydantic:
-
     def test_index_returns_int(self):
         fk = ForeignKey("T", on_delete="CASCADE")
         fk.name = "x"

@@ -36,7 +36,6 @@ class SessionManager:
 
     def __init__(self, store: Any | None = None) -> None:
         if store is None:
-
             store = DatabaseSessionStore()
         self.store = store
 

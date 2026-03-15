@@ -61,7 +61,7 @@ def _resolve_root(cwd: Path) -> ResolvedModule:
 
     if not has_models and not has_routes:
         raise click.ClickException(
-            f"Target '.' resolved to '{cwd}' but it contains neither " "models.py nor routes.py."
+            f"Target '.' resolved to '{cwd}' but it contains neither models.py nor routes.py."
         )
 
     app_label = cwd.name
@@ -91,7 +91,7 @@ def _resolve_module(target: str, cwd: Path) -> ResolvedModule:
 
     if not has_models and not has_routes:
         raise click.ClickException(
-            f"Target '{target}' at '{app_path}' contains neither " "models.py nor routes.py."
+            f"Target '{target}' at '{app_path}' contains neither models.py nor routes.py."
         )
 
     return ResolvedModule(

@@ -130,7 +130,7 @@ class MealPlanGenerator:
                 plan=plan,
                 shopping_items=list(data.get("shopping_items", [])),
             )
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError, KeyError:
             return self._fallback_plan(days)
 
     def _fallback_plan(self, days: int = 7) -> MealPlanResult:

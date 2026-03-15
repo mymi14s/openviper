@@ -35,7 +35,6 @@ class SessionBackend:
             return None
 
         try:
-
             user = await get_user_from_session(cookie_str)
             if user and getattr(user, "is_active", True):
                 return user, {"type": "session"}

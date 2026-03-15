@@ -336,7 +336,6 @@ class Command(BaseCommand):
                     self.stdout(self.style_notice(f"  ⊘ {app_module}: No changes detected"))
                     continue
                 if drop_columns:
-
                     for op in ops:
                         if isinstance(op, _RemoveColumn):
                             op.drop = True

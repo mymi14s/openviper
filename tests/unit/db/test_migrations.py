@@ -272,7 +272,6 @@ class TestMigrationDiscovery:
             ),
             patch("importlib.util.spec_from_file_location") as mock_spec,
         ):
-
             mock_spec.return_value.loader.exec_module = MagicMock()
 
             # Simple test to see if it calls the dir walker
@@ -333,7 +332,6 @@ class TestMigrationExecutor:
             patch.object(ex, "_applied_migrations", new_callable=AsyncMock) as mock_applied,
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[]),
         ):
-
             mock_applied.return_value = set()
             applied = await ex.migrate(verbose=False)
             assert applied == []
@@ -350,7 +348,6 @@ class TestMigrationExecutor:
             ) as mock_get_engine,
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[m1]),
         ):
-
             mock_engine = MagicMock()
             mock_get_engine.return_value = mock_engine
             mock_conn = AsyncMock()
@@ -373,7 +370,6 @@ class TestMigrationExecutor:
                 "openviper.db.migrations.executor.get_engine", new_callable=AsyncMock
             ) as mock_get_engine,
         ):
-
             mock_engine = MagicMock()
             mock_get_engine.return_value = mock_engine
             mock_conn = AsyncMock()

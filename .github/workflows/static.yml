@@ -1,0 +1,67 @@
+# Build and deploy Sphinx docs to GitHub Pages
+name: Deploy docs to Pages
+
+on:
+  push:
+    branches: ["master"]
+    paths:
+      - "docs/**"
+      - ".github/workflows/static.yml"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install docs dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build Sphinx docs
+        run: make html
+        working-directory: docs/0.0.1
+
+      - name: Normalize static asset paths
+        run: |
+          mv docs/0.0.1/_build/html/_static docs/0.0.1/_build/html/static
+          find docs/0.0.1/_build/html -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) \
+            -exec sed -i 's|_static/|static/|g' {} +
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/0.0.1/_build/html
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

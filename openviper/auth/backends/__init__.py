@@ -214,7 +214,6 @@ async def logout(request: Any, response: Any = None) -> None:
     client_ip = _get_client_ip(request)
 
     if session_key:
-
         await delete_session(session_key)
 
         # Audit log

@@ -15,7 +15,7 @@ const loadingHistory = ref(false)
 
 async function fetchHistory() {
   if (!props.instance?.id) return
-  
+
   loadingHistory.value = true
   try {
     const data = await historyApi.getHistory(props.appLabel, props.modelName, props.instance.id)
@@ -99,7 +99,7 @@ function getActionBadgeClass(action: string) {
         </span>
         <button v-if="history.length > 0" @click="$emit('goToHistory')" class="text-xs text-primary-600 hover:text-primary-700 font-medium">View All</button>
       </h3>
-      
+
       <div v-if="loadingHistory" class="flex justify-center py-4">
         <svg class="animate-spin h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -118,7 +118,7 @@ function getActionBadgeClass(action: string) {
         <ul class="space-y-6 relative">
           <li v-for="entry in history" :key="entry.id" class="pl-8 relative">
             <!-- Timeline Dot -->
-            <div 
+            <div
               class="absolute left-0 top-1.5 w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center z-10"
               :class="getActionBadgeClass(entry.action)"
             >
@@ -127,7 +127,7 @@ function getActionBadgeClass(action: string) {
 
             <div class="flex flex-col">
               <span class="text-xs font-bold text-gray-900 dark:text-gray-100 flex items-center gap-1">
-                {{ entry.changed_by || 'Unknown' }} 
+                {{ entry.changed_by || 'Unknown' }}
                 <span class="text-[10px] font-normal px-1.5 py-0.5 rounded uppercase" :class="getActionBadgeClass(entry.action)">
                   {{ entry.action }}
                 </span>

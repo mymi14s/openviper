@@ -415,8 +415,7 @@ class Q:
 
     def __repr__(self) -> str:
         return (
-            f"Q(connector={self.connector!r}, negated={self.negated}, "
-            f"children={self.children!r})"
+            f"Q(connector={self.connector!r}, negated={self.negated}, children={self.children!r})"
         )
 
 

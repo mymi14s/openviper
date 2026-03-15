@@ -162,8 +162,8 @@ function handleClose() {
           <button
             type="button"
             @click="handleClose"
-            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 
-                   bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 
+            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
+                   bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600
                    rounded-lg transition-colors"
           >
             Cancel
@@ -172,7 +172,7 @@ function handleClose() {
             type="submit"
             @click="handleSubmit"
             :disabled="isSubmitting"
-            class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 
+            class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700
                    rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span v-if="isSubmitting">Saving...</span>

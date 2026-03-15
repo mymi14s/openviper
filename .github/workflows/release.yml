@@ -1,0 +1,47 @@
+name: Release Workflow
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    name: Create Release and Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Validate tag matches package version
+        if: github.event_name == 'push'
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "v${{ needs.build.outputs.version }}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package version v${{ needs.build.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: OpenViper v${{ needs.build.outputs.version }}
+          files: dist/*
+          generate_release_notes: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

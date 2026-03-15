@@ -731,7 +731,6 @@ def get_admin_router() -> Router:
         for instance in instances:
             item = {"id": getattr(instance, "id", None)}
             for field_name in list_display:
-
                 value = getattr(instance, field_name, None)
                 if hasattr(value, "isoformat"):
                     value = value.isoformat()

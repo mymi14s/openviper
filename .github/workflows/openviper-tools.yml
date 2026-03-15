@@ -5,6 +5,7 @@ on:
     types: [created]
 
 permissions:
+  actions: write
   contents: read
   pull-requests: write
   issues: write
@@ -143,20 +144,29 @@ jobs:
         run: safety scan || true
 
       # ── Publish Docs ─────────────────────────────────────────────
-      - name: Setup Python (docs)
+      - name: Trigger docs Pages workflow
         if: steps.cmd.outputs.action == 'publish-docs'
-        uses: actions/setup-python@v5
+        uses: actions/github-script@v7
         with:
-          python-version: "3.14"
-          cache: pip
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'static.yml',
+              ref: 'master'
+            })
 
-      - name: Install Sphinx dependencies
+      - name: Confirm docs workflow dispatch
         if: steps.cmd.outputs.action == 'publish-docs'
-        run: pip install sphinx sphinx_rtd_theme
-
-      - name: Build HTML docs
-        if: steps.cmd.outputs.action == 'publish-docs'
-        run: sphinx-build -b html docs/0.0.1 docs/0.0.1/_build/html -q
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: "Docs deployment workflow dispatched via `static.yml`."
+            })
 
       # ── Test Workflow ────────────────────────────────────────────
       - name: Setup Python (test)

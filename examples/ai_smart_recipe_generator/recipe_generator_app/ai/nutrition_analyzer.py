@@ -150,7 +150,7 @@ class NutritionAnalyzer:
                 dietary_tags=list(data.get("dietary_tags", [])),
                 notes=str(data.get("notes", "")),
             )
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError, KeyError:
             return self._fallback_nutrition()
 
     def _fallback_nutrition(self) -> NutritionResult:

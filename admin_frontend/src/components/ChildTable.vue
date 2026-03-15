@@ -47,18 +47,18 @@ const totalPages = computed(() => Math.ceil(rows.value.length / itemsPerPage.val
 const visiblePages = computed(() => {
   const maxVisible = 10
   const pages: number[] = []
-  
+
   if (totalPages.value <= maxVisible) {
     for (let i = 1; i <= totalPages.value; i++) pages.push(i)
   } else {
     let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2))
     let end = start + maxVisible - 1
-    
+
     if (end > totalPages.value) {
       end = totalPages.value
       start = Math.max(1, end - maxVisible + 1)
     }
-    
+
     for (let i = start; i <= end; i++) pages.push(i)
   }
   return pages
@@ -113,15 +113,15 @@ function toggleSelectRow(idx: number) {
 
 function deleteSelected() {
   if (!confirm(`Are you sure you want to delete ${selectedIndices.value.size} items?`)) return
-  
+
   const indicesToDelete = Array.from(selectedIndices.value).sort((a, b) => b - a)
   indicesToDelete.forEach(idx => {
     rows.value.splice(idx, 1)
   })
-  
+
   selectedIndices.value.clear()
   updateRows()
-  
+
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value || 1
   }
@@ -145,7 +145,7 @@ function removeRow(index: number) {
   const globalIndex = (currentPage.value - 1) * itemsPerPage.value + index
   rows.value.splice(globalIndex, 1)
   updateRows()
-  
+
   // Adjust current page if it's now out of bounds
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
@@ -210,21 +210,21 @@ function getFieldComponent(field: ModelField): string {
 
 function formatDateTimeValue(value: any, fieldType: string): string {
   if (!value) return ''
-  
+
   // Handle datetime-local fields
   if (fieldType === 'datetime-local') {
     const date = new Date(value)
     if (isNaN(date.getTime())) return ''
-    
+
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     const hours = String(date.getHours()).padStart(2, '0')
     const minutes = String(date.getMinutes()).padStart(2, '0')
-    
+
     return `${year}-${month}-${day}T${hours}:${minutes}`
   }
-  
+
   // Handle date fields
   if (fieldType === 'date') {
     const date = new Date(value)
@@ -234,7 +234,7 @@ function formatDateTimeValue(value: any, fieldType: string): string {
     const day = String(date.getDate()).padStart(2, '0')
     return `${year}-${month}-${day}`
   }
-  
+
   return String(value)
 }
 
@@ -344,10 +344,10 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                 class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
               />
             </th>
-            <th 
-              v-for="fieldName in config.display_fields" 
+            <th
+              v-for="fieldName in config.display_fields"
               :key="fieldName"
-              scope="col" 
+              scope="col"
               class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wider"
               v-show="fieldName !== 'id'"
             >
@@ -374,8 +374,8 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                 class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
               />
             </td>
-            <td 
-              v-for="fieldName in config.display_fields" 
+            <td
+              v-for="fieldName in config.display_fields"
               :key="fieldName"
               v-show="fieldName !== 'id'"
               class="px-4 py-2 whitespace-nowrap"
@@ -390,7 +390,7 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                   class="min-w-[150px]"
                   @update:model-value="updateField(idx, fieldName, $event)"
                 />
-                
+
                 <!-- Select / Choices -->
                 <select
                   v-else-if="getFieldComponent(config.fields[fieldName]) === 'select'"
@@ -420,7 +420,7 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                     class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                   />
                 </div>
-                
+
                 <!-- Textarea -->
                 <textarea
                   v-else-if="getFieldComponent(config.fields[fieldName]) === 'textarea'"
@@ -512,15 +512,15 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                 <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
               </svg>
             </button>
-            
+
             <button
               v-for="page in visiblePages"
               :key="page"
               type="button"
               @click.prevent="setPage(page)"
               :class="[
-                page === currentPage 
-                  ? 'z-10 bg-primary-50 dark:bg-primary-900 border-primary-500 text-primary-600 dark:text-primary-300' 
+                page === currentPage
+                  ? 'z-10 bg-primary-50 dark:bg-primary-900 border-primary-500 text-primary-600 dark:text-primary-300'
                   : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
                 'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
               ]"

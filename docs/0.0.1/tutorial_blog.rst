@@ -387,7 +387,7 @@ Include the router in ``myblog/routes.py``:
     # Do not use in production, it is also not required in development
     if not settings.DEBUG:
         route_paths += static() + media()
-    
+
 
 
 ----
@@ -458,15 +458,15 @@ Create ``blog/tasks.py``:
 .. code-block:: python
 
     import logging, os
-   
+
     from openviper.tasks import periodic, task
     from openviper.auth import get_user_model
     from .models import Post
-   
+
 
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-   
+
     User = get_user_model()  # get the active user model
 
     @task() # will be run in a background worker, later in events.py
@@ -580,7 +580,7 @@ See: ``python viperctl.py create-provider --help``
     Out[10]: ['gemini', 'ollama']
 
     In [11]: provider_registry.list_models()
-    Out[11]: 
+    Out[11]:
     ['codellama',
     'gemini-2.5-flash',
     'gemini-3-flash-preview',
@@ -602,7 +602,7 @@ See: ``python viperctl.py create-provider --help``
     In [14]: draft
     Out[14]: 'Welcome to the exciting world of Python programming! Renowned for its clear syntax and versatility, Python is the perfect language for beginners and seasoned developers alike. From web development and data science to AI and automation, Python simplifies complex tasks, making coding intuitive and fun. Get ready to unlock incredible possibilities and supercharge your projects with this powerful language!'
 
-    In [15]: 
+    In [15]:
 
 Add an AI-assisted view in ``blog/views.py``:
 

@@ -34,18 +34,18 @@ const totalPages = computed(() => Math.ceil(history.value.length / itemsPerPage.
 const visiblePages = computed(() => {
   const pages: number[] = []
   const maxVisible = 10
-  
+
   if (totalPages.value <= maxVisible) {
     for (let i = 1; i <= totalPages.value; i++) pages.push(i)
   } else {
     let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2))
     let end = start + maxVisible - 1
-    
+
     if (end > totalPages.value) {
       end = totalPages.value
       start = Math.max(1, end - maxVisible + 1)
     }
-    
+
     for (let i = start; i <= end; i++) pages.push(i)
   }
   return pages
@@ -243,22 +243,22 @@ function formatValue(value: any, fieldName?: string): string {
                   <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
                 </svg>
               </button>
-              
+
               <button
                 v-for="page in visiblePages"
                 :key="page"
                 type="button"
                 @click.prevent="setPage(page)"
                 :class="[
-                  page === currentPage 
-                    ? 'z-10 bg-primary-50 dark:bg-primary-900 border-primary-500 text-primary-600 dark:text-primary-300' 
+                  page === currentPage
+                    ? 'z-10 bg-primary-50 dark:bg-primary-900 border-primary-500 text-primary-600 dark:text-primary-300'
                     : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700',
                   'relative inline-flex items-center px-4 py-2 border text-sm font-medium'
                 ]"
               >
                 {{ page }}
               </button>
-  
+
               <button
                 type="button"
                 @click.prevent="setPage(currentPage + 1)"

@@ -89,7 +89,6 @@ async def test_create_instance_multipart(media_setup):
         ),
         patch.object(FileModel, "save", AsyncMock()),
     ):
-
         handler = get_handler("/models/{app_label}/{model_name}/", "POST")
         response = await handler(request, "app", "filemodel")
 
@@ -137,7 +136,6 @@ async def test_multipart_json_parsing():
             AsyncMock(return_value={"id": 1}),
         ),
     ):
-
         handler = get_handler("/models/{app_label}/{model_name}/", "POST")
         await handler(request, "app", "filemodel")
 

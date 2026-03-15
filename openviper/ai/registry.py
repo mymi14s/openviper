@@ -142,8 +142,7 @@ class ProviderRegistry:
                             provider.provider_name(),
                         )
                     logger.warning(
-                        "ProviderRegistry: model '%s' was claimed by '%s', "
-                        "now overridden by '%s'.",
+                        "ProviderRegistry: model '%s' was claimed by '%s', now overridden by '%s'.",
                         model_id,
                         existing.provider_name(),
                         provider.provider_name(),

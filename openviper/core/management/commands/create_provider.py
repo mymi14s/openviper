@@ -295,8 +295,7 @@ class Command(BaseCommand):
 
         if os.path.exists(pkg_dir):
             raise CommandError(
-                f"Directory '{pkg_dir}' already exists.  "
-                "Choose a different name or --output-dir."
+                f"Directory '{pkg_dir}' already exists.  Choose a different name or --output-dir."
             )
 
         class_name = _to_class_name(name)

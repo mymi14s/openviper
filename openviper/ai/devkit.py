@@ -142,7 +142,7 @@ class StreamingAdapter:
 
     def __init__(
         self,
-        source: Generator[str, None, None] | Callable[[], Generator[str, None, None]],
+        source: Generator[str] | Callable[[], Generator[str]],
         executor: Any = None,
     ) -> None:
         self._source = source() if callable(source) else source

@@ -188,7 +188,7 @@ async def get_connection() -> AsyncConnection:
 
 
 @asynccontextmanager
-async def request_connection() -> AsyncGenerator[AsyncConnection, None]:
+async def request_connection() -> AsyncGenerator[AsyncConnection]:
     """Pin a single pooled connection for the duration of a request.
 
     All ``get_connection()`` calls made inside this context manager will
@@ -258,7 +258,7 @@ async def configure_db(database_url: str, echo: bool = False) -> None:
 
 
 @asynccontextmanager
-async def atomic() -> AsyncGenerator[AsyncConnection, None]:
+async def atomic() -> AsyncGenerator[AsyncConnection]:
     """Async context manager that wraps a block of ORM operations in a transaction.
 
     On normal exit the transaction is committed.  On any exception it is

@@ -477,15 +477,15 @@ class Manager:
     async def explain(self) -> str:
         return await QuerySet(self.model).explain()
 
-    async def iterator(self, chunk_size: int = 2000) -> AsyncGenerator[Model, None]:
+    async def iterator(self, chunk_size: int = 2000) -> AsyncGenerator[Model]:
         async for inst in QuerySet(self.model).iterator(chunk_size=chunk_size):
             yield inst
 
-    async def batch(self, size: int = 100) -> AsyncGenerator[list[Model], None]:
+    async def batch(self, size: int = 100) -> AsyncGenerator[list[Model]]:
         async for batch in QuerySet(self.model).batch(size=size):
             yield batch
 
-    async def id_batch(self, size: int = 100) -> AsyncGenerator[list[Model], None]:
+    async def id_batch(self, size: int = 100) -> AsyncGenerator[list[Model]]:
         async for batch in QuerySet(self.model).id_batch(size=size):
             yield batch
 
@@ -1067,7 +1067,7 @@ class QuerySet:
         """
         return await execute_explain(self)
 
-    async def iterator(self, chunk_size: int = 2000) -> AsyncGenerator[Model, None]:
+    async def iterator(self, chunk_size: int = 2000) -> AsyncGenerator[Model]:
         """Yield model instances one at a time using PK-based pagination.
 
         Uses keyset (id > last_id) pagination instead of OFFSET for stable
@@ -1089,7 +1089,7 @@ class QuerySet:
             if len(chunk) < chunk_size:
                 break
 
-    async def batch(self, size: int = 100) -> AsyncGenerator[list[Model], None]:
+    async def batch(self, size: int = 100) -> AsyncGenerator[list[Model]]:
         """Yield successive lists of at most *size* model instances.
 
         Preferable to ``iterator()`` when downstream code needs to process
@@ -1110,7 +1110,7 @@ class QuerySet:
                 break
             offset += size
 
-    async def id_batch(self, size: int = 100) -> AsyncGenerator[list[Model], None]:
+    async def id_batch(self, size: int = 100) -> AsyncGenerator[list[Model]]:
         """Yield successive lists of model instances using PK-based pagination.
 
         More stable than OFFSET-based pagination when the table is being

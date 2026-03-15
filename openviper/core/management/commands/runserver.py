@@ -85,11 +85,7 @@ class Command(BaseCommand):
         except concurrent.futures.TimeoutError:
             # Migration check is taking longer - let it run in background
             logger.debug("Migration check running in background")
-<<<<<<< HEAD
-        except Exception:  # noqa: BLE001  # nosec B110
-=======
         except Exception:
->>>>>>> staging
             # Ignore errors from migration check - server should start anyway
             pass
 

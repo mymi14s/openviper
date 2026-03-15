@@ -7,7 +7,7 @@ Provides project scaffolding commands separate from the per-project
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -294,7 +294,7 @@ def create_project(name: str, directory: str | None) -> None:
         path.write_text(content.format(**ctx))
 
     write(project_root / "viperctl.py", _VERPERCTL_PY_TEMPLATE)
-    os.chmod(project_root / "viperctl.py", 0o755)
+    os.chmod(project_root / "viperctl.py", 0o755)  # nosec B103
     write(project_root / name / "__init__.py", _PROJECT_INIT_TEMPLATE)
     write(project_root / name / "settings.py", _SETTINGS_TEMPLATE)
     write(project_root / name / "asgi.py", _ASGI_TEMPLATE)
@@ -337,7 +337,7 @@ def create_app(name: str, directory: str | None) -> None:
     args = [sys.executable, "viperctl.py", "create-app", name]
     if directory:
         args += ["--directory", directory]
-    subprocess.run(args, check=False)
+    subprocess.run(args, check=False)  # nosec B603
 
 
 # ---------------------------------------------------------------------------

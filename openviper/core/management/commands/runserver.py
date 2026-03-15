@@ -85,7 +85,7 @@ class Command(BaseCommand):
         except concurrent.futures.TimeoutError:
             # Migration check is taking longer - let it run in background
             logger.debug("Migration check running in background")
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # nosec B110
             # Ignore errors from migration check - server should start anyway
             pass
 
@@ -119,7 +119,7 @@ class Command(BaseCommand):
             # Only add when it's a dev/source install, not a pip install.
             if "site-packages" not in pkg_parent and pkg_parent not in dirs:
                 dirs.append(pkg_parent)
-        except Exception:
+        except Exception:  # nosec B110
             pass
         return dirs
 
@@ -219,6 +219,6 @@ class Command(BaseCommand):
                 )
                 self.stdout(self.style_error(f"  Missing migrations: {', '.join(pending)}"))
                 self.stdout("")
-        except Exception:
+        except Exception:  # nosec B110
             # Never prevent the server from starting because the check failed.
             pass

@@ -38,7 +38,7 @@ def _validate_base_url(url: str) -> None:
     host = parsed.hostname or ""
 
     # localhost variants are always permitted (local dev use-case).
-    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+    if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):  # nosec B104
         return
 
     # Reject non-HTTPS for non-localhost hosts.

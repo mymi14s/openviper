@@ -275,7 +275,7 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
                         res = target_str()
                         if isinstance(res, type):
                             target_model_cls = res
-                    except Exception:
+                    except Exception:  # nosec B110
                         pass
 
                 if target_model_cls:

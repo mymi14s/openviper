@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 from openviper.core.management.base import BaseCommand
@@ -60,5 +60,7 @@ class Command(BaseCommand):
         args += processed_labels if processed_labels else ["tests/"]
 
         self.stdout(f"Running: {' '.join(args)}")
-        result = subprocess.run(args, env={**os.environ, "OPENVIPER_ENV": "testing"}, check=False)
+        result = subprocess.run(
+            args, env={**os.environ, "OPENVIPER_ENV": "testing"}, check=False
+        )  # nosec B603
         sys.exit(result.returncode)

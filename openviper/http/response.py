@@ -303,7 +303,7 @@ class HTMLResponse(Response):
                 req = current_request.get()
                 if req is not None:
                     context = {**context, "request": req}
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
         env = _get_jinja2_env(search_paths)

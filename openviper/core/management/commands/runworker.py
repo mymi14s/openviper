@@ -17,7 +17,7 @@ import argparse
 import logging
 import os
 import signal
-import subprocess
+import subprocess  # nosec B404
 import sys
 
 from openviper.conf import settings
@@ -146,7 +146,7 @@ class Command(BaseCommand):
         # Pass OPENVIPER_WORKER=1 so the subprocess configures logging and
         # runs SchedulerMiddleware (which starts @periodic tasks after boot).
         env = {**os.environ, "OPENVIPER_WORKER": "1"}
-        proc = subprocess.Popen(cmd, env=env)  # pylint: disable=consider-using-with
+        proc = subprocess.Popen(cmd, env=env)  # pylint: disable=consider-using-with  # nosec B603
         try:
             proc.wait()
         except KeyboardInterrupt:

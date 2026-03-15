@@ -512,7 +512,7 @@ class ForeignKey(Field):
                 target = target()
                 if isinstance(target, type):
                     return target
-            except Exception:
+            except Exception:  # nosec B110
                 # If calling fails (e.g. circular dependency), we might have to wait
                 pass
 

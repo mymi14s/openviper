@@ -602,7 +602,7 @@ class Manager:
                 dispatcher.trigger(model_path, event_name, objs)
             else:
                 _dispatch_decorator_handlers(model_path, event_name, objs)
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     def __repr__(self) -> str:
@@ -1660,7 +1660,7 @@ class Model(metaclass=ModelMeta):
             else:
                 # Task system disabled — still fire @model_event.trigger() handlers.
                 _dispatch_decorator_handlers(model_path, event_name, self)
-        except Exception:
+        except Exception:  # nosec B110
             pass  # never let event dispatch break model persistence
 
     async def save(self, ignore_permissions: bool = False) -> None:

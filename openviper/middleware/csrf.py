@@ -76,7 +76,7 @@ class CSRFMiddleware(BaseMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        secret: str = "",
+        secret: str = "",  # nosec B107
         cookie_name: str = CSRF_COOKIE_NAME,
         header_name: str = CSRF_HEADER_NAME,
         exempt_paths: list[str] | None = None,

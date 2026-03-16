@@ -458,7 +458,7 @@ class TestDefaultStorage:
 class TestMkdirAsyncRaceCondition:
     @pytest.mark.asyncio
     async def test_file_exists_error_is_swallowed(self, tmp_path):
-        """_mkdir_async swallows FileExistsError (race condition guard, lines 185-187)."""
+        """_mkdir_async swallows FileExistsError (race condition guard)."""
 
         storage = make_fs(tmp_path)
         with patch(
@@ -472,7 +472,7 @@ class TestMkdirAsyncRaceCondition:
 class TestLargeBytesSleep:
     @pytest.mark.asyncio
     async def test_asyncio_sleep_yielded_for_large_bytes(self, tmp_path):
-        """asyncio.sleep(0) is yielded when large bytes cross 10-chunk boundary (line 226)."""
+        """asyncio.sleep(0) is yielded when large bytes cross 10-chunk boundary."""
 
         storage = make_fs(tmp_path, chunk_size=1)
         # 10 bytes with chunk_size=1 → offset reaches 10 → 10 % 10 == 0 → sleep(0)
@@ -487,7 +487,7 @@ class TestLargeBytesSleep:
 class TestFileLikeNonBytesChunk:
     @pytest.mark.asyncio
     async def test_bytearray_chunk_converted_to_bytes(self, tmp_path):
-        """bytes(chunk) conversion fires when file-like read returns non-bytes (line 244)."""
+        """bytes(chunk) conversion fires when file-like read returns non-bytes."""
         storage = make_fs(tmp_path)
 
         class _ByteArrayReader:
@@ -500,7 +500,7 @@ class TestFileLikeNonBytesChunk:
                 self._pos += n
                 if not chunk:
                     return bytearray()  # EOF as bytearray
-                return bytearray(chunk)  # non-bytes so line 244 fires
+                return bytearray(chunk)
 
         reader = _ByteArrayReader(b"hello world")
         name = await storage.save("test.bin", reader)

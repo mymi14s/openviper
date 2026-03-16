@@ -49,7 +49,6 @@ from openviper.routing.router import Router, include
 
 logger = logging.getLogger("openviper.app")
 
-
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------

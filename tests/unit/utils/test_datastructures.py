@@ -188,13 +188,13 @@ class TestImmutableMultiDict:
 
 class TestCheckNoCRLF:
     def test_raises_on_cr(self):
-        """_check_no_crlf raises ValueError on carriage-return (line 20)."""
+        """_check_no_crlf raises ValueError on carriage-return."""
 
         with pytest.raises(ValueError, match="CR or LF"):
             _check_no_crlf("bad\rvalue")
 
     def test_raises_on_lf(self):
-        """_check_no_crlf raises ValueError on line-feed (line 20)."""
+        """_check_no_crlf raises ValueError on line-feed."""
 
         with pytest.raises(ValueError, match="CR or LF"):
             _check_no_crlf("bad\nvalue")

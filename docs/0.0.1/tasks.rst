@@ -152,6 +152,14 @@ the ``openviper_task_results`` table.
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use background tasks:
+
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — ``@periodic`` tasks for content moderation
+   - `examples/tp/ <https://github.com/mymi14s/openviper/tree/master/examples/tp>`_ — ``TASKS`` config with broker switching, event-driven task wiring
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — ``TASKS`` config with Redis broker
+
 Defining & Enqueuing a Task
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -184,13 +192,14 @@ Periodic Tasks
 
 .. code-block:: python
 
+    from openviper.auth.sessions import delete_session
     from openviper.tasks import task, periodic
 
     # Simple form — @periodic adds @task automatically
     @periodic(every=3600)                  # run every hour
     async def purge_expired_sessions() -> None:
-        from openviper.auth.sessions import purge_expired
-        await purge_expired()
+        # delete expired sessions (application-specific logic)
+        ...
 
     @periodic(cron="0 8 * * 1-5")         # weekdays at 08:00 UTC
     async def send_daily_report() -> None:

@@ -258,16 +258,25 @@ JWT tokens can be revoked by adding their ``jti`` to the blocklist table
 
 .. code-block:: python
 
-    from openviper.auth.token_blocklist import add_to_blocklist
+    from openviper.auth.token_blocklist import revoke_token
 
     async def logout(request):
         # Revoke a token (e.g. on logout)
         claims = decode_token_unverified(token)
         if claims.get("jti"):
-            await add_to_blocklist(claims["jti"], claims.get("exp"))
+            await revoke_token(claims["jti"], claims.get("exp"))
 
 Example Usage
 -------------
+
+.. seealso::
+
+   Working projects that use authentication:
+
+   - `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_ — session-based login/logout with ``authenticate``
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — JWT auth, RBAC roles, ``role_required`` decorator
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — JWT auth, custom ``User`` extending ``AbstractUser``
+   - `examples/ai_smart_recipe_generator/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator>`_ — session-based cookie auth
 
 JWT Login & Protected Endpoint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -306,6 +315,7 @@ Token Refresh
 .. code-block:: python
 
     from openviper.auth.jwt import decode_refresh_token, create_access_token
+    from openviper.exceptions import TokenExpired, AuthenticationFailed
 
     @router.post("/auth/refresh")
     async def refresh_token(request: Request) -> JSONResponse:

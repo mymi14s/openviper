@@ -114,6 +114,7 @@ class TestModelEventDispatcher:
                     "after_insert": ["tests.unit.db.test_events.dummy_handler"],
                 }
             }
+            mock_settings.INSTALLED_APPS = ("tests",)
             d = get_dispatcher()
             assert d is not None
             assert "blog.Post" in d._handlers
@@ -177,8 +178,10 @@ class TestModelEventDispatcher:
 
     def test_resolve_dotted_import_error(self):
         with patch("openviper.db.events.logger") as mock_logger:
+            # "non" is not in INSTALLED_APPS or allowed prefixes,
+            # so it gets blocked by the allowlist (logger.error, not warning)
             assert _resolve_dotted("non.existent.module.attr") is None
-            assert mock_logger.warning.called
+            assert mock_logger.error.called
 
     @pytest.mark.asyncio
     async def test_call_handler_no_loop(self):
@@ -252,7 +255,9 @@ class TestResolveDottedBlocked:
 
     def test_safe_module_path_allowed(self):
         assert _is_safe_module_path("openviper.auth.models") is True
-        assert _is_safe_module_path("myapp.events.handler") is True
+        with patch("openviper.db.events.settings") as mock_settings:
+            mock_settings.INSTALLED_APPS = ("myapp",)
+            assert _is_safe_module_path("myapp.events.handler") is True
 
     def test_safe_module_path_blocked(self):
         assert _is_safe_module_path("os") is False

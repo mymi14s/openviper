@@ -216,7 +216,7 @@ class TestDiscoverExtensions:
                     result = discover_extensions()
 
                     # Check if any extensions were found
-                    [e for e in result if e.get("type") == "script"]
+                    # Verify extensions are a list of script dicts
                     # We may or may not get results depending on mock setup
                     assert isinstance(result, list)
 
@@ -255,7 +255,7 @@ class TestDiscoverExtensions:
                     result = discover_extensions()
 
                     # Check for module type extensions
-                    [e for e in result if e.get("type") == "module"]
+                    # Verify extensions are a list of module dicts
                     assert isinstance(result, list)
 
     def test_handles_app_without_spec(self):

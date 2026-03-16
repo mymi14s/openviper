@@ -37,6 +37,7 @@ async def test_lazy_fk_await_loads_and_caches_instance():
 
     instance = MagicMock()
     instance._relation_cache = {}
+    instance._set_related = lambda name, val: instance._relation_cache.__setitem__(name, val)
 
     lazy = LazyFK(fk_field, instance, 22)
 
@@ -49,12 +50,9 @@ async def test_lazy_fk_await_loads_and_caches_instance():
     assert instance._relation_cache["owner"] is hydrated
 
 
-# ── LazyFK._load cache hit (line 664) ──────────────────────────────────────
-
-
 @pytest.mark.asyncio
 async def test_lazy_fk_load_returns_cached_obj():
-    """_load() returns _loaded_obj immediately when already loaded (line 664)."""
+    """_load() returns _loaded_obj immediately when already loaded."""
     fk_field = MagicMock()
     instance = MagicMock()
 

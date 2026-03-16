@@ -18,6 +18,7 @@ httptools==0.7.1
 httpx==0.28.1
 ipython==9.9.0
 Jinja2==3.1.6
+Markdown==3.8.2
 multidict==6.7.1
 openai==2.24.0
 oracledb==3.4.2

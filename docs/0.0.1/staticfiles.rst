@@ -61,6 +61,13 @@ Key Classes & Functions
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that serve static and media files:
+
+   - `examples/ai_smart_recipe_generator/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator>`_ — ``static()`` + ``media()`` route helpers
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — static assets and user-uploaded media
+
 Development Static Serving
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

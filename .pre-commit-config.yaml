@@ -38,6 +38,15 @@ repos:
       - id: flake8
         args: ["--max-line-length=100", "--extend-ignore=E203,W503,E501"]
 
+  # ── Security ──────────────────────────────────────────────────────────
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        args: ["-r", "openviper", "-q", "-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
+        pass_filenames: false
+
   # ── Type checking ─────────────────────────────────────────────────────
   - repo: local
     hooks:

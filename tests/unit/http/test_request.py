@@ -435,13 +435,10 @@ class TestUploadFile:
         assert "image/jpeg" in r
 
 
-# ── form() else-branch for non-form content-type (line 285) ────────────────
-
-
 class TestFormElseBranch:
     @pytest.mark.asyncio
     async def test_form_returns_empty_for_json_content_type(self):
-        """form() sets _form to ImmutableMultiDict([]) for non-form content-type (line 285)."""
+        """form() sets _form to ImmutableMultiDict([]) for non-form content-type."""
         scope = {
             "type": "http",
             "method": "POST",

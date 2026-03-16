@@ -233,9 +233,14 @@ python viperctl.py runworker
 
 | Example | Description |
 |---|---|
-| [`examples/todoapp/`](examples/todoapp/) | Single-file app — auth, admin, SQLite, HTML templates |
-| [`examples/ai_moderation_platform/`](examples/ai_moderation_platform/) | Multi-app platform — AI moderation, Dramatiq tasks, Docker, PostgreSQL |
-| [`examples/custom_provider_demo/`](examples/custom_provider_demo/) | Writing and registering a custom AI provider plugin |
+| [`todoapp`](https://github.com/mymi14s/openviper/tree/master/examples/todoapp) | Single-file app — auth, admin, SQLite, HTML templates |
+| [`ai_moderation_platform`](https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform) | Multi-app platform — AI moderation, Dramatiq tasks, Docker, PostgreSQL |
+| [`ai_smart_recipe_generator`](https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator) | AI-powered recipe generator with meal planning and nutrition analysis |
+| [`ecommerce_clone`](https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone) | Full e-commerce platform — products, orders, cart, chat, admin |
+| [`custom_provider_demo`](https://github.com/mymi14s/openviper/tree/master/examples/custom_provider_demo) | Writing and registering a custom AI provider plugin |
+| [`flexible`](https://github.com/mymi14s/openviper/tree/master/examples/flexible) | Minimal decorator-based routing example |
+| [`fx`](https://github.com/mymi14s/openviper/tree/master/examples/fx) | FX / financial data example |
+| [`tp`](https://github.com/mymi14s/openviper/tree/master/examples/tp) | Minimal project scaffold example |
 
 ---
 

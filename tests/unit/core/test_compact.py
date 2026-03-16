@@ -13,7 +13,7 @@ from openviper.core.management import _find_command
 from openviper.core.management.base import BaseCommand, CommandError
 
 # ---------------------------------------------------------------------------
-# app_resolver.py — line 184 (cache eviction)
+# app_resolver.py(cache eviction)
 # ---------------------------------------------------------------------------
 
 
@@ -21,7 +21,7 @@ class TestAppResolverCacheEviction:
     """Test search pattern cache eviction."""
 
     def test_search_pattern_cache_eviction(self):
-        """Test cache evicts oldest entry when at capacity (line 184)."""
+        """Test cache evicts oldest entry when at capacity."""
         # Save original cache state
         original_cache = app_resolver._SEARCH_PATTERN_CACHE.copy()
         original_max = app_resolver._SEARCH_PATTERN_CACHE_MAX
@@ -57,7 +57,7 @@ class TestAppResolverCacheEviction:
 
 
 # ---------------------------------------------------------------------------
-# management/__init__.py — lines 42-43, 49-50
+# management/__init__.py
 # ---------------------------------------------------------------------------
 
 
@@ -65,7 +65,7 @@ class TestManagementInit:
     """Test management __init__.py uncovered branches."""
 
     def test_find_command_settings_exception(self):
-        """Test _find_command handles settings exception (lines 42-43)."""
+        """Test _find_command handles settings exception."""
         # When settings raises an exception, installed should be []
         mock_settings = MagicMock()
         type(mock_settings).INSTALLED_APPS = property(
@@ -77,7 +77,7 @@ class TestManagementInit:
                 _find_command("nonexistent_command")
 
     def test_find_command_module_not_found(self):
-        """Test _find_command skips apps with no commands (lines 49-50)."""
+        """Test _find_command skips apps with no commands."""
         mock_settings = MagicMock()
         mock_settings.INSTALLED_APPS = ["app_without_commands"]
 
@@ -87,7 +87,7 @@ class TestManagementInit:
 
 
 # ---------------------------------------------------------------------------
-# commands/changepassword.py — lines 49-54, 85-86
+# commands/changepassword.py
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +95,7 @@ class TestChangePasswordBranches:
     """Test changepassword command uncovered branches."""
 
     def test_changepassword_email_field_lookup(self):
-        """Test user lookup by email field (lines 49-50)."""
+        """Test user lookup by email field."""
         # Simulate field lookup logic
         field_names = {"email", "password"}  # No username field
         username = "test@example.com"
@@ -112,7 +112,7 @@ class TestChangePasswordBranches:
         assert lookup == ("email", username)
 
     def test_changepassword_name_field_lookup(self):
-        """Test user lookup by name field (lines 51-52)."""
+        """Test user lookup by name field."""
         field_names = {"name", "password"}  # Only name field
         username = "testuser"
 
@@ -128,7 +128,7 @@ class TestChangePasswordBranches:
         assert lookup == ("name", username)
 
     def test_changepassword_no_valid_field(self):
-        """Test user lookup with no valid field (lines 53-54)."""
+        """Test user lookup with no valid field."""
         field_names = {"password"}  # No identity field
 
         user = None
@@ -144,7 +144,7 @@ class TestChangePasswordBranches:
         assert user is None
 
     def test_changepassword_generic_exception(self):
-        """Test changepassword wraps generic exception (lines 85-86)."""
+        """Test changepassword wraps generic exception."""
         # Simulate the exception handling
         error_occurred = False
         try:
@@ -160,7 +160,7 @@ class TestChangePasswordBranches:
 
 
 # ---------------------------------------------------------------------------
-# commands/createsuperuser.py — lines 101, 107-108, 145, 197-198
+# commands/createsuperuser.py
 # ---------------------------------------------------------------------------
 
 
@@ -168,7 +168,7 @@ class TestCreatesuperuserBranches:
     """Test createsuperuser command uncovered branches."""
 
     def test_prompt_email_preset_invalid(self):
-        """Test _prompt_email raises error for invalid preset (line 101)."""
+        """Test _prompt_email raises error for invalid preset."""
 
         # Simulate the validation logic
         def _validate_email(email):
@@ -184,7 +184,7 @@ class TestCreatesuperuserBranches:
         assert "valid email" in str(error)
 
     def test_prompt_email_invalid_input_retry(self):
-        """Test _prompt_email shows error and continues on invalid input (lines 107-108)."""
+        """Test _prompt_email shows error and continues on invalid input."""
 
         # Simulate the validation loop
         def _validate_email(email):
@@ -208,7 +208,7 @@ class TestCreatesuperuserBranches:
         assert result == "valid@example.com"
 
     def test_createsuperuser_username_validation_error(self):
-        """Test createsuperuser raises error for invalid username (line 145)."""
+        """Test createsuperuser raises error for invalid username."""
 
         def _validate_username(username):
             if not username:
@@ -225,7 +225,7 @@ class TestCreatesuperuserBranches:
         assert "3 characters" in str(error)
 
     def test_createsuperuser_generic_exception(self):
-        """Test createsuperuser wraps generic exception (lines 197-198)."""
+        """Test createsuperuser wraps generic exception."""
         error_occurred = False
         try:
             raise RuntimeError("User model error")
@@ -240,7 +240,7 @@ class TestCreatesuperuserBranches:
 
 
 # ---------------------------------------------------------------------------
-# commands/shell.py — lines 46-60, 72-73
+# commands/shell.py
 # ---------------------------------------------------------------------------
 
 
@@ -248,7 +248,7 @@ class TestShellBranches:
     """Test shell command uncovered branches."""
 
     def test_shell_model_import_error(self):
-        """Test _discover_models handles ImportError (lines 42-44)."""
+        """Test _discover_models handles ImportError."""
 
         # Simulate model discovery with import error
         module_names = ["nonexistent.models"]
@@ -264,7 +264,7 @@ class TestShellBranches:
         assert models == {}
 
     def test_shell_model_subclass_type_error(self):
-        """Test _discover_models handles TypeError (lines 56-57)."""
+        """Test _discover_models handles TypeError."""
 
         # Simulate checking if class is subclass of Model
         class NotAClass:
@@ -284,7 +284,7 @@ class TestShellBranches:
         assert len(results) == 1  # Only NotAClass passes
 
     def test_shell_model_count_output(self):
-        """Test _discover_models outputs count when models found (lines 59-63)."""
+        """Test _discover_models outputs count when models found."""
         found = 5
         module_name = "myapp.models"
 
@@ -294,7 +294,7 @@ class TestShellBranches:
         assert "5 model(s)" in message
 
     def test_shell_user_model_exception(self):
-        """Test _discover_models handles get_user_model exception (lines 72-73)."""
+        """Test _discover_models handles get_user_model exception."""
         # Simulate user model lookup failure
         models = {"MyModel": object}
 
@@ -308,7 +308,7 @@ class TestShellBranches:
 
 
 # ---------------------------------------------------------------------------
-# commands/migrate.py — lines 91-94
+# commands/migrate.py
 # ---------------------------------------------------------------------------
 
 
@@ -316,7 +316,7 @@ class TestMigrateBranches:
     """Test migrate command uncovered branches."""
 
     def test_migrate_with_dict_resolved_apps(self):
-        """Test migrate with dict resolved_apps (lines 91-94)."""
+        """Test migrate with dict resolved_apps."""
         resolved_apps = {"myapp": MagicMock()}
 
         # Simulate the logic

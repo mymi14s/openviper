@@ -48,7 +48,6 @@ from openviper.exceptions import ModelCollisionError, ModelNotFoundError
 
 logger = logging.getLogger("openviper.ai")
 
-
 # ---------------------------------------------------------------------------
 # Provider configuration value object
 # ---------------------------------------------------------------------------
@@ -475,7 +474,6 @@ def _resolve_provider_class(provider_type: str) -> type[AIProvider] | None:
 
 # Global singleton
 provider_registry = ProviderRegistry()
-
 
 # ---------------------------------------------------------------------------
 # Legacy shim — forwards to provider_registry with a deprecation warning

@@ -125,9 +125,9 @@ class TestSettingsDefaults:
         assert d["SECRET_KEY"] == "super-secret"
 
     def test_as_dict_empty_sensitive_not_masked(self):
-        s = Settings(EMAIL_PASSWORD="")
+        s = Settings(EMAIL={})
         d = s.as_dict()
-        assert d["EMAIL_PASSWORD"] == ""
+        assert d["EMAIL"] == {}
 
     def test_getitem(self):
         s = Settings()

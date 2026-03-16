@@ -207,18 +207,15 @@ class TestTryImportCroniter:
         assert isinstance(result, bool)
 
 
-# ── _expand_field: step with single start number (lines 142-143) ─────────────
-
-
 class TestExpandFieldStepWithSingleStart:
     def test_step_with_single_start_number(self):
-        """'3/2' → start=3, end=hi, step=2 (lines 142-143)."""
+        """'3/2' → start=3, end=hi, step=2."""
         result = _expand_field("3/2", 0, 10)
         # Range from 3 to 10 step 2 → {3, 5, 7, 9}
         assert result == {3, 5, 7, 9}
 
     def test_step_with_zero_raises(self):
-        """Step of 0 raises ValueError (line 134-135)."""
+        """Step of 0 raises ValueError."""
         with pytest.raises(ValueError, match="step"):
             _expand_field("*/0", 0, 59)
 
@@ -228,16 +225,16 @@ class TestExpandFieldStepWithSingleStart:
 
 class TestCronScheduleNaiveDatetime:
     def test_is_due_naive_now_made_utc_aware(self):
-        """Naive `now` gets tzinfo=UTC applied (line 225-226)."""
+        """Naive `now` gets tzinfo=UTC applied."""
         schedule = CronSchedule("* * * * *")
-        # Pass a naive datetime (no tzinfo) — lines 225-226 apply UTC
+        # Pass a naive datetime (no tzinfo)apply UTC
         naive_now = datetime(2026, 3, 10, 12, 0, 0)  # no tzinfo
         result = schedule.is_due(None, now=naive_now)
         assert isinstance(result, bool)
 
 
 class TestCronScheduleCroniterPath:
-    """Test _croniter_is_due branches (lines 229, 233-250) via direct mocking."""
+    """Test _croniter_is_due branches via direct mocking."""
 
     def _make_croniter_schedule(self):
         """Return a CronSchedule with _use_croniter forced True."""
@@ -246,7 +243,7 @@ class TestCronScheduleCroniterPath:
         return schedule
 
     def test_is_due_calls_croniter_path(self):
-        """is_due calls _croniter_is_due when _use_croniter=True (line 229)."""
+        """is_due calls _croniter_is_due when _use_croniter=True."""
         schedule = self._make_croniter_schedule()
         now = datetime(2026, 3, 10, 12, 0, 0, tzinfo=UTC)
 
@@ -263,7 +260,7 @@ class TestCronScheduleCroniterPath:
         assert isinstance(result, bool)
 
     def test_croniter_is_due_none_last_run_returns_true(self):
-        """last_run_at=None → return True immediately (line 238)."""
+        """last_run_at=None → return True immediately."""
         schedule = self._make_croniter_schedule()
         now = datetime(2026, 3, 10, 12, 0, 0, tzinfo=UTC)
 
@@ -273,13 +270,13 @@ class TestCronScheduleCroniterPath:
         assert result is True
 
     def test_croniter_is_due_naive_last_run_made_utc(self):
-        """Naive last_run_at gets UTC tzinfo (lines 239-240)."""
+        """Naive last_run_at gets UTC tzinfo."""
         schedule = self._make_croniter_schedule()
         now = datetime(2026, 3, 10, 12, 0, 0, tzinfo=UTC)
         naive_last_run = datetime(2026, 3, 10, 11, 55, 0)  # no tzinfo
 
         mock_croniter_cls = MagicMock()
-        mock_next = datetime(2026, 3, 10, 11, 59, 0)  # also naive (tests line 243-244)
+        mock_next = datetime(2026, 3, 10, 11, 59, 0)
         mock_croniter_cls.return_value.get_next.return_value = mock_next
 
         with patch.dict("sys.modules", {"croniter": MagicMock(croniter=mock_croniter_cls)}):
@@ -288,9 +285,9 @@ class TestCronScheduleCroniterPath:
         assert isinstance(result, bool)
 
     def test_croniter_is_due_exception_falls_back_to_stdlib(self):
-        """Exception in croniter path falls back to stdlib (lines 246-250)."""
+        """Exception in croniter path falls back to stdlib."""
         schedule = self._make_croniter_schedule()
-        schedule._fields = None  # will be lazily set at line 249
+        schedule._fields = None
         now = datetime(2026, 3, 10, 12, 0, 0, tzinfo=UTC)
         last_run = datetime(2026, 3, 10, 11, 55, 0, tzinfo=UTC)
 
@@ -302,15 +299,15 @@ class TestCronScheduleCroniterPath:
                 result = schedule._croniter_is_due(last_run_at=last_run, now=now)
 
         assert isinstance(result, bool)
-        # Warning was logged (line 247)
+        # Warning was logged
         assert mock_logger.warning.called
-        # _fields was lazily initialised (line 249)
+        # _fields was lazily initialised
         assert schedule._fields is not None
 
 
 class TestTryImportCroniterTrue:
     def test_returns_true_when_croniter_importable(self):
-        """_try_import_croniter returns True when croniter is importable (line 266)."""
+        """_try_import_croniter returns True when croniter is importable."""
         mock_croniter = MagicMock()
         with patch.dict("sys.modules", {"croniter": mock_croniter}):
             result = _try_import_croniter()

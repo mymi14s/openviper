@@ -19,11 +19,11 @@ you into rigid architectural constraints.
 
 .. rubric:: Quick Example
 
-The ``examples/flexible/app.py`` or ``examples/todoapp/`` in the repo is the minimal way to get started:
+The `examples/flexible/app.py <https://github.com/mymi14s/openviper/tree/master/examples/flexible/app.py>`_ or `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_ in the repo is the minimal way to get started:
 
 .. code-block:: python
 
-   # examples/standard/app.py
+   # examples/flexible/app.py
    from openviper import OpenViper, JSONResponse
    from openviper.http.request import Request
 
@@ -45,8 +45,8 @@ The ``examples/flexible/app.py`` or ``examples/todoapp/`` in the repo is the min
    # Open: http://localhost:8000
    # Swagger: http://localhost:8000/open-api/docs
 
-For a full example with auth, admin, templates, and ORM see ``examples/todoapp/``.
-For a production-grade multi-app example with AI moderation see ``examples/ai_moderation_platform/``.
+For a full example with auth, admin, templates, and ORM see `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_.
+For a production-grade multi-app example with AI moderation see `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_.
 
 .. rubric:: Key highlights
 
@@ -85,6 +85,7 @@ For a production-grade multi-app example with AI moderation see ``examples/ai_mo
    auth
    admin
    tasks
+   email
    openapi
    template
    storage

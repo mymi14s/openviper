@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 def _reload_tasks_with_worker_env(env: dict | None = None) -> object:
     """Remove openviper.tasks from sys.modules and reimport it.
 
-    Submodules are left in sys.modules so their cached objects are reused.
-    Only the top-level package is evicted so the module-level ``if`` block
-    at lines 75-89 runs again under the requested environment.
+        Submodules are left in sys.modules so their cached objects are reused.
+        Only the top-level package is evicted so the module-level ``if`` block
+    runs again under the requested environment.
     """
     modules_to_evict = [k for k in sys.modules if k == "openviper.tasks"]
     for k in modules_to_evict:
@@ -26,7 +26,7 @@ def _reload_tasks_with_worker_env(env: dict | None = None) -> object:
 
 
 class TestWorkerEnvBranch:
-    """Lines 75-89: bootstrap code executed when OPENVIPER_WORKER=1."""
+    """Bootstrap code executed when OPENVIPER_WORKER=1."""
 
     def test_configure_logging_called_when_worker_env_set(self):
         """configure_worker_logging_from_settings() is called on worker import."""

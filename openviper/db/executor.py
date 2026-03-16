@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
+import logging
 import uuid
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager
@@ -36,6 +37,8 @@ from openviper.db.fields import (
 )
 from openviper.db.migrations.executor import _get_soft_removed_table
 from openviper.exceptions import FieldError
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from openviper.db.models import Model, QuerySet
@@ -129,6 +132,7 @@ def _cached_traversal_lookup(key: str, model_cls: type) -> Any:
     """
     result = _parse_traversal_cached(key, model_cls)
     if result is _TRAVERSAL_FAILURE:
+
         raise FieldError(key)
     return result
 
@@ -910,8 +914,22 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
         stmt = stmt.offset(qs._offset)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
-        return [dict(row) for row in result.mappings()]
+        try:
+            result = await conn.execute(stmt)
+            return [dict(row) for row in result.mappings()]
+        except Exception as e:
+            logger.error(
+                "SELECT query failed for model %s: %s",
+                model_cls.__name__,
+                str(e),
+                exc_info=True,
+                extra={
+                    "model": model_cls.__name__,
+                    "filters": qs._filters,
+                    "excludes": qs._excludes,
+                },
+            )
+            raise
 
 
 async def execute_count(qs: QuerySet) -> int:
@@ -957,9 +975,19 @@ async def execute_delete(qs: QuerySet) -> int:
     if where is not None:
         stmt = stmt.where(where)
 
-    async with _begin() as conn:
-        result = await conn.execute(stmt)
-        return int(result.rowcount)
+    try:
+        async with _begin() as conn:
+            result = await conn.execute(stmt)
+            return int(result.rowcount)
+    except Exception as e:
+        logger.error(
+            "Bulk DELETE failed for model %s: %s",
+            model_cls.__name__,
+            str(e),
+            exc_info=True,
+            extra={"model": model_cls.__name__, "filters": qs._filters, "excludes": qs._excludes},
+        )
+        raise
 
 
 async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
@@ -991,9 +1019,19 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
     if where is not None:
         stmt = stmt.where(where)
 
-    async with _begin() as conn:
-        result = await conn.execute(stmt)
-        return int(result.rowcount)
+    try:
+        async with _begin() as conn:
+            result = await conn.execute(stmt)
+            return int(result.rowcount)
+    except Exception as e:
+        logger.error(
+            "Bulk UPDATE failed for model %s: %s",
+            model_cls.__name__,
+            str(e),
+            exc_info=True,
+            extra={"model": model_cls.__name__, "filters": qs._filters, "values": values},
+        )
+        raise
 
 
 async def execute_save(instance: Model, ignore_permissions: bool = False) -> None:
@@ -1029,40 +1067,60 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
 
     pk_val = getattr(instance, "id", None)
     is_new = pk_val is None
+
     if not is_new and hasattr(instance, "_previous_state") and instance._previous_state:
-        # We only consider it a 'client-side assigned PK' if we have a real snapshot
-        # (from __init__) and in that snapshot the ID was explicitly None.
-        # If _previous_state is empty, it likely came from _from_row_fast (already in DB).
-        if "id" in instance._previous_state and instance._previous_state.get("id") is None:
+        # Check if this is a user-created instance vs DB-loaded instance.
+        # DB-loaded instances have ID in _previous_state matching current ID.
+        # User-created instances with auto-UUID have None in _previous_state but current ID set.
+        prev_id = instance._previous_state.get("id")
+        if prev_id is None:
+            # ID in _previous_state was None - this is a user-created instance
             is_new = True
-        # Auto-UUID PKs generate a value at __init__ time so id is never None,
-        # but the instance is still new. Detect via the PK field's auto flag and
-        # a non-empty _previous_state (set by __init__, empty for DB-loaded rows).
-        elif not is_new:
-            pk_field = model_cls._fields.get("id")
-            if (
-                pk_field is not None
-                and getattr(pk_field, "auto", False)
-                and not getattr(pk_field, "auto_increment", False)
-            ):
-                is_new = True
+        elif prev_id != pk_val:
+            # ID changed - treat as new (unusual case, client-side assigned)
+            is_new = True
+        # else: prev_id == pk_val, so it came from DB, keep is_new = False
 
     if is_new:
         stmt = sa.insert(table).values(**data)
-        async with _begin() as conn:
-            result = await conn.execute(stmt)
-            # Only update instance.id if it's not already set (for auto-increment)
-            if pk_val is None:
-                instance.id = cast("Any", result).inserted_primary_key[0]
+        try:
+            async with _begin() as conn:
+                result = await conn.execute(stmt)
+                # Only update instance.id if it's not already set (for auto-increment)
+                if pk_val is None:
+                    instance.id = cast("Any", result).inserted_primary_key[0]
+        except Exception as e:
+            logger.error(
+                "INSERT failed for model %s: %s",
+                model_cls.__name__,
+                str(e),
+                exc_info=True,
+            )
+            raise
     else:
         upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**data)
-        async with _begin() as conn:
-            result = await conn.execute(upd_stmt)
-            if result.rowcount == 0:
-                # No row matched the UPDATE — the PK was user-assigned on a new instance.
-                # Fall back to INSERT.
-                ins_stmt = sa.insert(table).values(**data)
-                await conn.execute(ins_stmt)
+        try:
+            async with _begin() as conn:
+                result = await conn.execute(upd_stmt)
+                if result.rowcount == 0:
+                    # No row matched the UPDATE — the PK was user-assigned on a new instance.
+                    # Fall back to INSERT.
+                    logger.warning(
+                        "UPDATE matched 0 rows for %s (pk=%s), falling back to INSERT",
+                        model_cls.__name__,
+                        pk_val,
+                    )
+                    ins_stmt = sa.insert(table).values(**data)
+                    await conn.execute(ins_stmt)
+        except Exception as e:
+            logger.error(
+                "UPDATE failed for model %s (pk=%s): %s",
+                model_cls.__name__,
+                pk_val,
+                str(e),
+                exc_info=True,
+            )
+            raise
 
 
 async def execute_delete_instance(instance: Model, ignore_permissions: bool = False) -> None:
@@ -1075,8 +1133,19 @@ async def execute_delete_instance(instance: Model, ignore_permissions: bool = Fa
     table = get_table(model_cls)
     pk_val = instance.id
 
-    async with _begin() as conn:
-        await conn.execute(sa.delete(table).where(table.c.id == pk_val))
+    try:
+        async with _begin() as conn:
+            await conn.execute(sa.delete(table).where(table.c.id == pk_val))
+    except Exception as e:
+        logger.error(
+            "DELETE failed for model %s (pk=%s): %s",
+            model_cls.__name__,
+            pk_val,
+            str(e),
+            exc_info=True,
+            extra={"model": model_cls.__name__, "operation": "DELETE", "pk": pk_val},
+        )
+        raise
 
 
 async def execute_values(

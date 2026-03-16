@@ -156,6 +156,13 @@ Key Classes
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that configure middleware:
+
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — CORS, Security, and Auth middleware
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — Security, CORS, and Auth middleware stack
+
 Registering via Settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -298,8 +305,11 @@ Custom Middleware
 
 .. code-block:: python
 
-    from openviper.middleware.base import BaseMiddleware
     import time
+    import uuid
+
+    from openviper.http.request import Request
+    from openviper.middleware.base import BaseMiddleware
 
     class TimingMiddleware(BaseMiddleware):
         async def __call__(self, scope, receive, send) -> None:
@@ -315,11 +325,8 @@ Custom Middleware
     class RequestIdMiddleware(BaseMiddleware):
         """Attach a unique request ID to every request's state."""
 
-        import uuid
-
         async def __call__(self, scope, receive, send) -> None:
             if scope["type"] == "http":
-                from openviper.http.request import Request
                 req = Request(scope, receive)
-                req.state["request_id"] = str(self.uuid.uuid4())
+                req.state["request_id"] = str(uuid.uuid4())
             await self.app(scope, receive, send)

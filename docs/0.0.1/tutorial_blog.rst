@@ -42,7 +42,7 @@ Step 1 — Create the Project
    ADMIN_FOOTER_TITLE = "Footer Admin"
 
    # Set the custom user model in myblog/settings.py
-   USER_MODEL = "users.modelsUser"
+   USER_MODEL = "users.models.User"
 
 ----
 
@@ -87,9 +87,9 @@ Create the custom user model:
            """Send a welcome email to the user."""
            print("User created: %s" % self.username) # there are more hooks available
 
-        async def on_update(self) -> None:
-            """Log when a user's email is changed."""
-            print("User updated: %s" % self.username)
+       async def on_update(self) -> None:
+           """Log when a user's email is changed."""
+           print("User updated: %s" % self.username)
 
 ------------------------------------------
 Create Migrations and Migrate the Database
@@ -295,7 +295,7 @@ Edit ``blog/views.py``:
     async def list_posts(request: Request) -> JSONResponse:
         """Public endpoint — returns published posts."""
         posts = await Post.objects.filter(published=True).order_by("-published_at").all()
-        return JSONResponse(PostListSerializer.serialize_many(posts))
+        return JSONResponse(await PostListSerializer.serialize_many(posts))
 
 
     @login_required
@@ -539,7 +539,7 @@ Enable the AI registry in ``myblog/settings.py``:
             },
             "gemini": {
                 "api_key": os.environ.get("GEMINI_API_KEY"),
-                "project_number": os.environ.get("GEMINI_PROJECT_NUMBER")
+                "project_number": os.environ.get("GEMINI_PROJECT_NUMBER"),
                 "models": {
                     "GEMINNI 2.5 FLASH": "gemini-2.5-flash",
                     "GEMINI 3 PRO PREVIEW": "gemini-3-pro-preview",
@@ -613,16 +613,16 @@ Add an AI-assisted view in ``blog/views.py``:
 
    @login_required
    async def ai_draft(request: Request):
-        """Generate a blog post draft from a topic."""
-        body = await request.json()
-        topic = body.get("topic", "")
-        if not topic:
-            return JSONResponse({"error": "topic is required"}, status_code=400)
+       """Generate a blog post draft from a topic."""
+       body = await request.json()
+       topic = body.get("topic", "")
+       if not topic:
+           return JSONResponse({"error": "topic is required"}, status_code=400)
 
-        provider = provider_registry.get_by_model("gemini-2.5-flash")
-        draft = await provider.generate(
-            f"Write a 200-word blog post introduction about: {topic}"
-        )
+       provider = provider_registry.get_by_model("gemini-2.5-flash")
+       draft = await provider.generate(
+           f"Write a 200-word blog post introduction about: {topic}"
+       )
        return JSONResponse({"draft": draft})
 
 Register the endpoint:

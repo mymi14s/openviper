@@ -61,7 +61,6 @@ _scheduler: Scheduler | None = None
 _tick_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 
-
 # ---------------------------------------------------------------------------
 # Decorator
 # ---------------------------------------------------------------------------

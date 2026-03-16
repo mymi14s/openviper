@@ -117,6 +117,14 @@ Key Classes
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that demonstrate routing patterns:
+
+   - `examples/flexible/ <https://github.com/mymi14s/openviper/tree/master/examples/flexible>`_ — decorator-based routing (``@app.get``, ``@app.post``)
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — ``Router`` class, class-based views, typed path params
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — multi-router mounting at ``/api``
+
 Basic Route Registration
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

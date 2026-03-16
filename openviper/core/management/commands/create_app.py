@@ -19,7 +19,6 @@ from openviper.admin import admin, ModelAdmin, register
 # Import your models
 # from .models import YourModel
 
-
 # Register your models with admin here.
 # Example:
 #
@@ -34,7 +33,6 @@ from openviper.admin import admin, ModelAdmin, register
 from openviper.db.models import Model
 from openviper.db import fields
 
-
 # Define your models here.
 ''',
     "routes.py": '''"""{{ app_label }} routes."""
@@ -43,7 +41,6 @@ from openviper.routing import Router
 
 router = Router(prefix="/{{ app_label }}", tags=["{{ app_label }}"])
 
-
 # Register your routes here.
 ''',
     "views.py": '''"""{{ app_label }} views."""
@@ -51,13 +48,11 @@ router = Router(prefix="/{{ app_label }}", tags=["{{ app_label }}"])
 from openviper.http.request import Request
 from openviper.http.response import JSONResponse
 
-
 # Define your view handlers here.
 ''',
     "serializers.py": '''"""{{ app_label }} serializers."""
 
 from openviper.serializers import Serializer
-
 
 # Define your serializers here.
 ''',
@@ -65,19 +60,16 @@ from openviper.serializers import Serializer
 
 from openviper.tasks import task
 
-
 ''',
     "events.py": '''"""{{ app_label }} model events."""
 
 from openviper.db.events import model_event
-
 
 # Define your background events here.
 ''',
     "tests.py": '''"""{{ app_label }} tests."""
 
 import pytest
-
 
 # Write your tests here.
 ''',

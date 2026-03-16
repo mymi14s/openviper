@@ -9,6 +9,7 @@ from __future__ import annotations
 import functools
 import importlib
 import json
+import logging
 import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
@@ -17,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from openviper.db.fields import Field
 
+logger = logging.getLogger(__name__)
 
 # Mapping of field class names to Vue component types
 FIELD_COMPONENT_MAP: dict[str, str] = {
@@ -303,10 +305,18 @@ def coerce_field_value(field: Field, value: Any) -> Any:
     Returns:
         The coerced value.
     """
+    field_name = getattr(field, "name", "unknown")
+    field_class_name = field.__class__.__name__
+
+    # Handle '__callable__' sentinel from frontend for auto-generated fields
+    if value == "__callable__":
+        is_auto = getattr(field, "auto", False) or getattr(field, "auto_increment", False)
+        if is_auto:
+            return None
+        raise ValueError(f"Field {field_name} received invalid sentinel value '__callable__'")
+
     if value is None:
         return None
-
-    field_class_name = field.__class__.__name__
 
     # Handle empty strings for numeric and relational fields - usually means null/not set
     if value == "" and (
@@ -324,57 +334,75 @@ def coerce_field_value(field: Field, value: Any) -> Any:
     ):
         return None
 
-    if field_class_name in ("IntegerField", "BigIntegerField", "PositiveIntegerField"):
-        return int(value)
+    try:
+        if field_class_name in ("IntegerField", "BigIntegerField", "PositiveIntegerField"):
+            return int(value)
 
-    if field_class_name == "FloatField":
-        return float(value)
+        if field_class_name == "FloatField":
+            return float(value)
 
-    if field_class_name == "DecimalField":
-        return Decimal(str(value))
+        if field_class_name == "DecimalField":
+            return Decimal(str(value))
 
-    if field_class_name == "BooleanField":
-        if isinstance(value, bool):
+        if field_class_name == "BooleanField":
+            if isinstance(value, bool):
+                return value
+            return str(value).lower() in ("true", "1", "yes", "on")
+
+        if field_class_name == "DateField":
+            if isinstance(value, str):
+                return date.fromisoformat(value)
             return value
-        return str(value).lower() in ("true", "1", "yes", "on")
 
-    if field_class_name == "DateField":
-        if isinstance(value, str):
-            return date.fromisoformat(value)
-        return value
+        if field_class_name == "DateTimeField":
+            if isinstance(value, str):
+                # Handle ISO format with or without timezone
+                value = value.replace("Z", "+00:00")
+                return datetime.fromisoformat(value)
+            return value
 
-    if field_class_name == "DateTimeField":
-        if isinstance(value, str):
-            # Handle ISO format with or without timezone
-            value = value.replace("Z", "+00:00")
-            return datetime.fromisoformat(value)
-        return value
+        if field_class_name == "TimeField":
+            if isinstance(value, str):
+                return time.fromisoformat(value)
+            return value
 
-    if field_class_name == "TimeField":
-        if isinstance(value, str):
-            return time.fromisoformat(value)
-        return value
+        if field_class_name == "JSONField":
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"Invalid JSON format: {str(exc)}") from exc
+            return value
 
-    if field_class_name == "JSONField":
-        if isinstance(value, str):
-            try:
-                return json.loads(value)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Invalid JSON format: {str(exc)}") from exc
-        return value
+        if field_class_name == "UUIDField":
+            if value == "":
+                return None
+            if isinstance(value, uuid.UUID):
+                return value
+            if isinstance(value, str):
+                return uuid.UUID(value)
+            return value
 
-    if field_class_name == "UUIDField":
-        if isinstance(value, str):
-            return uuid.UUID(value)
-        return value
+        if field_class_name in ("ForeignKey", "OneToOneField"):
+            # FK columns may reference integer, UUID, or string PKs — preserve type.
+            if isinstance(value, str) and value.isdigit():
+                return int(value)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return int(value)
+            # UUID string or other non-integer PK (e.g. CharField PK) — pass through
+            return value
 
-    if field_class_name in ("ForeignKey", "OneToOneField"):
-        # ForeignKey/OneToOneField columns store integer PKs
-        if isinstance(value, str) and value.isdigit():
-            return int(value)
-        if isinstance(value, (int, float)):
-            return int(value)
-        return value
+    except (ValueError, TypeError, AttributeError) as exc:
+        logger.warning(
+            "Field coercion failed for %s (%s): value=%r, error=%s",
+            field_name,
+            field_class_name,
+            value,
+            str(exc),
+        )
+        raise ValueError(
+            f"Cannot coerce {value!r} to {field_class_name} for field {field_name}: {exc}"
+        ) from exc
 
     if field_class_name in ("FileField", "ImageField"):
         # File fields pass through UploadFile objects unchanged

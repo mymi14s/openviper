@@ -136,7 +136,7 @@ class Command(BaseCommand):
             self.stdout("No task modules found. Exiting.")
             sys.exit(1)
 
-        cmd: list[str] = ["dramatiq"] + ["openviper.tasks"] + modules
+        cmd: list[str] = ["dramatiq"] + ["openviper.tasks", "openviper.core.email.queue"] + modules
         cmd += ["--processes", str(options["processes"])]
         cmd += ["--threads", str(options["threads"])]
         if options.get("queues"):

@@ -89,9 +89,9 @@ class TestValidatePoolConfig:
         result = _validate_pool_config("15", "POOL_SIZE", 1, 100, 20)
         assert result == 15
 
-    def test_invalid_string_returns_default(self):
-        result = _validate_pool_config("not_a_number", "POOL_SIZE", 1, 100, 20)
-        assert result == 20
+    def test_invalid_string_raises_value_error(self):
+        with pytest.raises(ValueError, match="invalid value"):
+            _validate_pool_config("not_a_number", "POOL_SIZE", 1, 100, 20)
 
     def test_none_returns_default(self):
         result = _validate_pool_config(None, "POOL_SIZE", 1, 100, 20)

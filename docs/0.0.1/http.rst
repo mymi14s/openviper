@@ -188,10 +188,10 @@ The ``headers`` dict may include any additional response headers.
    Wrap another :class:`Response` and gzip-compress its body when its size
    exceeds *minimum_size* bytes.
 
-.. py:class:: TemplateResponse(template_name, context, status_code=200)
+.. note::
 
-   Render a Jinja2 template and return HTML.  Equivalent to
-   ``HTMLResponse(template=..., context=...)``.
+   For template rendering use
+   ``HTMLResponse(template="…", context={…})`` — see :ref:`template`.
 
 Common HTTP Status Codes
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -271,6 +271,13 @@ The ``status_code`` parameter accepts any integer.  Commonly used values:
 
 Example Usage
 -------------
+
+.. seealso::
+
+   Working projects that demonstrate HTTP views:
+
+   - `examples/flexible/ <https://github.com/mymi14s/openviper/tree/master/examples/flexible>`_ — function-based views with ``JSONResponse``
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — class-based ``View`` with REST methods
 
 Function-Based Views
 ~~~~~~~~~~~~~~~~~~~~
@@ -422,17 +429,17 @@ Redirect
     async def old_url(request: Request) -> RedirectResponse:
         return RedirectResponse("/new-url", status_code=301)
 
-Template Response
-~~~~~~~~~~~~~~~~~
+Template Rendering
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-    from openviper.http.response import TemplateResponse
+    from openviper.http.response import HTMLResponse
 
     @router.get("/")
-    async def home(request: Request) -> TemplateResponse:
+    async def home(request: Request) -> HTMLResponse:
         posts = await Post.objects.filter(is_published=True).limit(10).all()
-        return TemplateResponse("home.html", {"posts": posts, "request": request})
+        return HTMLResponse(template="home.html", context={"posts": posts, "request": request})
 
 GZip Compression
 ~~~~~~~~~~~~~~~~

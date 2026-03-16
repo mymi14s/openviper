@@ -44,6 +44,7 @@ def _validate_pool_config(value: Any, name: str, min_val: int, max_val: int, def
     """Validate and bound pool configuration values.
 
     Prevents resource exhaustion from extremely large pool settings.
+    Raises on non-numeric values to catch misconfiguration early.
 
     Args:
         value: The configuration value to validate
@@ -54,19 +55,26 @@ def _validate_pool_config(value: Any, name: str, min_val: int, max_val: int, def
 
     Returns:
         Validated integer value within bounds
+
+    Raises:
+        ValueError: If value is not convertible to an integer.
     """
+    if value is None:
+        return default
     try:
         int_val = int(value)
-        if not (min_val <= int_val <= max_val):  # pylint: disable=superfluous-parens
-            logger.warning(
-                f"{name}={int_val} outside safe range [{min_val}, {max_val}], "
-                f"clamping to valid range"
-            )
-            return min(max_val, max(min_val, int_val))
-        return int_val
     except (ValueError, TypeError) as e:
-        logger.warning(f"{name} invalid value {value!r}: {e}, using default {default}")
-        return default
+        raise ValueError(
+            f"Database pool setting {name} has invalid value {value!r}: {e}. "
+            f"Expected an integer between {min_val} and {max_val}."
+        ) from e
+    if not (min_val <= int_val <= max_val):
+        logger.warning(
+            f"{name}={int_val} outside safe range [{min_val}, {max_val}], "
+            f"clamping to valid range"
+        )
+        return min(max_val, max(min_val, int_val))
+    return int_val
 
 
 async def get_engine() -> AsyncEngine:

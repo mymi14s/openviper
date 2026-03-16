@@ -121,7 +121,7 @@ class CSRFMiddleware(BaseMiddleware):
                 break
 
         body = b"".join(body_parts)
-        token = ""
+        token = ""  # nosec B105
         parsed = parse_qs(body.decode("latin-1"), keep_blank_values=True)
         values = parsed.get(CSRF_FORM_FIELD)
         if values:

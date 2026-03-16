@@ -283,7 +283,7 @@ class Settings:
             "timeout": 10,
             "username": "",
             "user": "",
-            "password": "",
+            "password": "",  # nosec B105
             "from": "",
             "default_sender": "noreply@example.com",
             "fail_silently": False,

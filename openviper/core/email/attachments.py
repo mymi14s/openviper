@@ -197,7 +197,7 @@ def _fetch_url_attachment(url: str) -> tuple[bytes, str | None]:
     parsed_scheme = urlparse(url).scheme.lower()
     if parsed_scheme not in _ALLOWED_URL_SCHEMES:
         raise ValueError(f"Unsupported URL scheme {parsed_scheme!r}; only http/https are allowed.")
-    with urlopen(url, timeout=10) as response:  # noqa: S310 — scheme validated above
+    with urlopen(url, timeout=10) as response:  # nosec B310  # noqa: S310
         content_type = response.headers.get_content_type()
         data = response.read(_MAX_ATTACHMENT_BYTES + 1)
         if len(data) > _MAX_ATTACHMENT_BYTES:

@@ -15,6 +15,8 @@ class ProjectSettings(Settings):
     PROJECT_NAME: str = "Ecommerce Clone"
     VERSION: str = "1.0.0"
     DEBUG: bool = True
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"
     ADMIN_TITLE: str = "Ecommerce Admin"
     ADMIN_HEADER_TITLE: str = "EcommerceClone"
     ADMIN_FOOTER_TITLE: str = "Ecommerce v1.0"
@@ -60,6 +62,21 @@ class ProjectSettings(Settings):
 
     MAX_QUERY_ROWS: int = 100_000
 
+    TASKS: dict[str, Any] = dataclasses.field(
+        default_factory=lambda: {
+            "enabled": 1,
+            "scheduler_enabled": 1,
+            "tracking_enabled": 1,
+            "log_to_file": 1,
+            "log_level": "DEBUG",
+            "log_format": "json",
+            "log_dir": "logs",
+            "broker": "redis",
+            "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+            "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
+        }
+    )
+
     AI_PROVIDERS: dict[str, Any] = dataclasses.field(
         default_factory=lambda: {
             "ollama": {
@@ -89,5 +106,22 @@ class ProjectSettings(Settings):
                 "top_p": 0.95,
                 "top_k": 40,
             },
+        }
+    )
+
+    EMAIL: dict[str, object] = dataclasses.field(
+        default_factory=lambda: {
+            "backend": "SMTPBackend",  # "ConsoleBackend"
+            "host": os.environ.get("EMAIL_HOST", "localhost"),
+            "port": int(os.environ.get("EMAIL_PORT", 1025)),
+            "use_tls": bool(os.environ.get("EMAIL_USE_TLS", False)),
+            "use_ssl": bool(os.environ.get("EMAIL_USE_SSL", False)),
+            "timeout": int(os.environ.get("EMAIL_TIMEOUT", 10)),
+            "username": os.environ.get("EMAIL_USERNAME", ""),
+            "password": os.environ.get("EMAIL_PASSWORD", ""),
+            "from": os.environ.get("EMAIL_FROM", "noreply@example.com"),
+            "default_sender": os.environ.get("EMAIL_DEFAULT_SENDER", "noreply@example.com"),
+            "fail_silently": bool(os.environ.get("EMAIL_FAIL_SILENTLY", False)),
+            # "use_background_worker": bool(os.environ.get("EMAIL_USE_BACKGROUND_WORKER", False)),
         }
     )

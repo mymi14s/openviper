@@ -216,14 +216,11 @@ class TestRunSchedulerNoSysExit:
         assert result is None
 
 
-# ── _shutdown handler captures lines 66-68 ──────────────────────────────────
-
-
 class TestRunSchedulerShutdownHandler:
     @patch("openviper.tasks.runner.signal.signal")
     @patch("openviper.tasks.runner.time.sleep")
     def test_shutdown_handler_sets_running_false(self, mock_sleep, mock_signal):
-        """_shutdown sets _running=False and logs the signal name (lines 66-68)."""
+        """_shutdown sets _running=False and logs the signal name."""
 
         mock_scheduler = MagicMock(spec=Scheduler)
         mock_scheduler.__len__.return_value = 0
@@ -237,7 +234,7 @@ class TestRunSchedulerShutdownHandler:
         shutdown = handlers.get(_sig.SIGINT)
         assert shutdown is not None
 
-        # Calling the handler should log the signal name (lines 66-67) and set _running=False (68)
+        # Calling the handler should log the signal name and set _running=False (68)
         # Patch logger before calling shutdown so we can assert on it
         with patch("openviper.tasks.runner.logger") as mock_logger:
             shutdown(_sig.SIGINT, None)

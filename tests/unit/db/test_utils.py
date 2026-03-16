@@ -34,7 +34,7 @@ def _make_model(pk_type=int, has_pk=True, to_python_raises=False):
 
 class TestCastToPkType:
     def test_none_value_returns_none(self):
-        """cast_to_pk_type(model, None) returns None immediately (line 22)."""
+        """cast_to_pk_type(model, None) returns None immediately."""
         model = _make_model()
         result = cast_to_pk_type(model, None)
         assert result is None
@@ -47,19 +47,19 @@ class TestCastToPkType:
         assert isinstance(result, int)
 
     def test_to_python_exception_returns_original_value(self):
-        """ValueError from to_python falls back to original value (lines 35-37)."""
+        """ValueError from to_python falls back to original value."""
         model = _make_model(to_python_raises=True)
         result = cast_to_pk_type(model, "bad_id")
         assert result == "bad_id"
 
     def test_no_pk_field_returns_original_value(self):
-        """No primary_key=True field → original value returned (line 39)."""
+        """No primary_key=True field → original value returned."""
         model = _make_model(has_pk=False)
         result = cast_to_pk_type(model, "99")
         assert result == "99"
 
     def test_pk_field_without_to_python_returns_original_value(self):
-        """PK field without to_python attribute → original value returned (line 39)."""
+        """PK field without to_python attribute → original value returned."""
         model = MagicMock()
         pk_field = MagicMock(spec=["primary_key"])  # no to_python method
         pk_field.primary_key = True

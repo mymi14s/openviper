@@ -367,9 +367,6 @@ def test_format_operation_add_column_with_default_includes_default():
     assert "'active'" in result
 
 
-# ── _parse_operation: op_name None → return early (line 328) ─────────────────
-
-
 def test_parse_operation_op_name_none_is_noop():
     """op_name is None (subscript call) → _parse_operation returns early."""
 
@@ -384,9 +381,6 @@ def test_parse_operation_op_name_none_is_noop():
     state: dict = {}
     _parse_operation(call_node, state)
     assert state == {}
-
-
-# ── _parse_create_table: ast.Constant dict column (line 359) ─────────────────
 
 
 def test_parse_create_table_ast_constant_dict_column():

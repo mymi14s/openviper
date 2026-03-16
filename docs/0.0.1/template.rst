@@ -64,6 +64,14 @@ etc.) are always skipped.
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use templates:
+
+   - `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_ — HTML templates with form handling
+   - `examples/ai_smart_recipe_generator/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator>`_ — Jinja2 HTML rendering with static assets
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — Jinja2 templates with plugins
+
 TemplateResponse in a View
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

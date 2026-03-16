@@ -62,7 +62,6 @@ def main() -> None:
     openviper.setup(force=True)
     execute_from_command_line(sys.argv)
 
-
 if __name__ == "__main__":
     main()
 
@@ -78,7 +77,6 @@ from datetime import timedelta
 from typing import Any
 
 from openviper.conf.settings import Settings
-
 
 @dataclasses.dataclass(frozen=True)
 class ProjectSettings(Settings):
@@ -101,7 +99,6 @@ class ProjectSettings(Settings):
     STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
     MEDIA_ROOT: str = os.environ.get("MEDIA_ROOT", "media")
     MEDIA_URL: str = os.environ.get("MEDIA_URL", "/media/")
-
 
     # # Background Tasks
     # TASKS: dict[str, Any] = dataclasses.field(
@@ -147,7 +144,6 @@ from openviper.app import OpenViper
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "{project_name}.settings")
 
-
 try:
     from .routes import route_paths
 except ImportError:
@@ -170,12 +166,10 @@ from openviper.staticfiles import media, static
 
 from {project_name}.views import router as root_router
 
-
 route_paths = [
     ("/admin", get_admin_site()),
     ("/root", root_router)
 ]
-
 
 # to force static files serving in production, not recommended
 if not settings.DEBUG:
@@ -188,7 +182,6 @@ _VIEWS_TEMPLATE = '''
 from openviper.http.response import HTMLResponse, JSONResponse
 from openviper.routing import Router
 
-
 async def home(request):
     """Home page view."""
     context = {{{{
@@ -197,7 +190,6 @@ async def home(request):
         "message": "Your OpenViper project is running successfully."
     }}}}
     return HTMLResponse(template="home.html", context=context)
-
 
 async def api_index(request):
     """API endpoint view that handles both GET and POST."""
@@ -217,7 +209,6 @@ async def api_index(request):
             "error": "Method not allowed",
             "status": "error"
         }}}}, status_code=405)
-
 
 # Routes for apps should be in each app's routes.py file
 router = Router()
@@ -253,7 +244,6 @@ _HOME_TEMPLATE_HTML = """<!DOCTYPE html>
 """
 
 _PROJECT_INIT_TEMPLATE = '"""{project_name} project."""\n'
-
 
 _GITIGNORE_TEMPLATE = """\
 __pycache__/
@@ -424,7 +414,6 @@ def version_cmd() -> None:
 # ---------------------------------------------------------------------------
 
 cli.add_command(_viperctl_cmd)
-
 
 if __name__ == "__main__":
     cli()

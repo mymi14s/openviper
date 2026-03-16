@@ -437,14 +437,11 @@ class TestRunWorker:
         )
 
 
-# ── discover_tasks: unresolvable app skip (lines 104-105) ──────────────────
-
-
 class TestDiscoverTasksUnresolvableApp:
     @patch("openviper.tasks.worker.settings")
     @patch("openviper.tasks.worker.AppResolver")
     def test_skips_app_when_path_not_found(self, mock_resolver_class, mock_settings):
-        """discover_tasks logs and skips apps that cannot be resolved (lines 104-105)."""
+        """discover_tasks logs and skips apps that cannot be resolved."""
         mock_settings.INSTALLED_APPS = ["my_app"]
 
         mock_resolver = MagicMock()
@@ -458,9 +455,6 @@ class TestDiscoverTasksUnresolvableApp:
         mock_resolver.resolve_app.assert_called_once_with("my_app")
 
 
-# ── run_worker: _shutdown signal handler (lines 239-241) ────────────────────
-
-
 class TestRunWorkerShutdownHandler:
     @patch("openviper.tasks.worker.settings")
     @patch("openviper.tasks.worker.configure_worker_logging_from_settings")
@@ -470,7 +464,7 @@ class TestRunWorkerShutdownHandler:
     def test_shutdown_handler_calls_sys_exit(
         self, mock_sleep, mock_signal, mock_create_worker, mock_logging, mock_settings
     ):
-        """_shutdown handler registered with signal.signal calls sys.exit(0) (lines 239-241)."""
+        """_shutdown handler registered with signal.signal calls sys.exit(0)."""
 
         mock_settings.TASKS = {"enabled": 1, "scheduler_enabled": 0}
 

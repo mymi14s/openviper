@@ -545,13 +545,10 @@ class TestUserCacheLock:
         assert hasattr(auth_module, "_LOCK_INIT_GUARD")
 
 
-# ── LRU eviction of non-expired entries (line 78) ────────────────────────────
-
-
 class TestUserCacheLRUEviction:
     @pytest.mark.asyncio
     async def test_evicts_oldest_when_no_expired_entries(self):
-        """Evicts by insertion order when cache is full and no entries expired (line 78)."""
+        """Evicts by insertion order when cache is full and no entries expired."""
 
         _clear_auth_cache()
 
@@ -567,7 +564,7 @@ class TestUserCacheLRUEviction:
                 return fake_user
 
             with patch("openviper.middleware.auth.get_user_by_id", new=fake_get_user):
-                # Cache is full, no expired entries → LRU fallback (line 78)
+                # Cache is full, no expired entries → LRU fallback
                 await _get_user_cached(1003)
 
         # 1001 (oldest) should have been evicted

@@ -269,6 +269,15 @@ JWT tokens can be revoked by adding their ``jti`` to the blocklist table
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use authentication:
+
+   - `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_ — session-based login/logout with ``authenticate``
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — JWT auth, RBAC roles, ``role_required`` decorator
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — JWT auth, custom ``User`` extending ``AbstractUser``
+   - `examples/ai_smart_recipe_generator/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator>`_ — session-based cookie auth
+
 JWT Login & Protected Endpoint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

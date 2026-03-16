@@ -49,6 +49,15 @@ if _JWT_ALGORITHM not in _ALLOWED_JWT_ALGORITHMS:
         f"Use one of: {', '.join(sorted(_ALLOWED_JWT_ALGORITHMS))}"
     )
 
+# Asymmetric algorithms require PEM-formatted keys
+_ASYMMETRIC_PREFIXES: frozenset[str] = frozenset({"RS", "ES", "PS"})
+if _JWT_ALGORITHM[:2] in _ASYMMETRIC_PREFIXES and not _JWT_SECRET.strip().startswith("-----"):
+    raise RuntimeError(
+        f"JWT algorithm '{_JWT_ALGORITHM}' requires a PEM-formatted key, "
+        "but SECRET_KEY does not appear to be in PEM format. "
+        "Set SECRET_KEY to a valid PEM private key or use an HMAC algorithm (HS256)."
+    )
+
 
 def _as_timedelta(
     value: datetime.timedelta | int, default: datetime.timedelta

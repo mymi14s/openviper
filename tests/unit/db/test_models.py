@@ -784,6 +784,12 @@ class TestFromRow:
         assert p.title is None
         assert p.body is None
 
+    def test_from_row_fast_initial_change_detection_baseline(self):
+        row = {"id": 1, "title": "Hello", "body": "World"}
+        p = self.Post._from_row_fast(row)
+        assert p.has_changed is False
+        assert p._get_changed_fields() == {}
+
 
 class TestTriggerEvent:
     class Evt(Model):

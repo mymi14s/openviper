@@ -505,7 +505,6 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
 
 # ── Diff-based migration generation ──────────────────────────────────────
 
-
 # Global dict to track columns that have been soft-removed across migrations.
 # Populated by read_migrated_state; maps (table_name, column_name) to col info.
 _soft_removed_columns: dict[tuple[str, str], dict[str, Any]] = {}
@@ -614,6 +613,7 @@ def _diff_states(
                 new_type = new_col.get("type", "TEXT")
 
                 if not _types_compatible(old_type, new_type):
+
                     print(
                         f"\n\033[91m"
                         f"{'=' * 70}\n"
@@ -666,6 +666,7 @@ def _diff_states(
                 old_type = _was_soft_removed.get("type", "TEXT")
 
                 if not _types_compatible(old_type, new_type):
+
                     print(
                         f"\n\033[91m"
                         f"{'=' * 70}\n"
@@ -689,6 +690,7 @@ def _diff_states(
 
                 # Warn about NOT NULL with potentially null data
                 if not new_nullable:
+
                     print(
                         f"\n\033[93m"
                         f"WARNING: Restoring column '{col_name}' on table "

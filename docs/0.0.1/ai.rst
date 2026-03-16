@@ -150,6 +150,15 @@ Helpers for provider authors:
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use the AI integration:
+
+   - `examples/custom_provider_demo/ <https://github.com/mymi14s/openviper/tree/master/examples/custom_provider_demo>`_ — writing a custom ``AIProvider``, ``ProviderRegistry``, streaming
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — ``ModelRouter`` for content moderation, Ollama + Gemini config
+   - `examples/ai_smart_recipe_generator/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator>`_ — multiple AI service classes with ``ModelRouter``
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — AI chat assistant with caching
+
 Registering & Using a Provider
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -486,6 +486,15 @@ Beyond lifecycle hooks, model events allow you to attach handlers
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use the ORM:
+
+   - `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_ — simple model (``CharField``, ``BooleanField``, ``DateTimeField``)
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — ``UUIDField`` PK, ``DecimalField``, ``ImageField``, ``after_insert`` lifecycle hook
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — ``ForeignKey``, ``JSONField``, ``ImageField``, custom ``BaseUser``
+   - `examples/fx/ <https://github.com/mymi14s/openviper/tree/master/examples/fx>`_ — root-layout project with models and migrations
+
 Defining Models
 ~~~~~~~~~~~~~~~
 

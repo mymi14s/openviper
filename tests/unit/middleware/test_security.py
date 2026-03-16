@@ -665,7 +665,7 @@ class TestHostFromServer:
 
 
 # ---------------------------------------------------------------------------
-# _get_host helper (lines 127-134)
+# _get_host helper
 # ---------------------------------------------------------------------------
 
 
@@ -678,7 +678,7 @@ class TestGetHostHelper:
             return SecurityMiddleware(lambda *a: None)
 
     def test_get_host_from_header(self):
-        """_get_host extracts hostname from Host header (line 129-130)."""
+        """_get_host extracts hostname from Host header."""
         mw = self._make_mw()
         scope = {"headers": [(b"host", b"example.com:8080")]}
         assert mw._get_host(scope) == "example.com"
@@ -690,26 +690,26 @@ class TestGetHostHelper:
         assert mw._get_host(scope) == "example.com"
 
     def test_get_host_from_server_fallback(self):
-        """_get_host falls back to server tuple when no host header (line 132-133)."""
+        """_get_host falls back to server tuple when no host header."""
         mw = self._make_mw()
         scope = {"headers": [], "server": ("myserver.com", 80)}
         assert mw._get_host(scope) == "myserver.com"
 
     def test_get_host_empty_string_fallback(self):
-        """_get_host returns empty string when no header or server (line 134)."""
+        """_get_host returns empty string when no header or server."""
         mw = self._make_mw()
         scope = {"headers": []}
         assert mw._get_host(scope) == ""
 
 
 # ---------------------------------------------------------------------------
-# _is_host_allowed wildcard exact-domain match (line 121)
+# _is_host_allowed wildcard exact-domain match
 # ---------------------------------------------------------------------------
 
 
 class TestIsHostAllowedWildcardExact:
     def test_wildcard_matches_bare_domain(self):
-        """.example.com pattern matches bare example.com via pattern[1:] (line 121)."""
+        """.example.com pattern matches bare example.com via pattern[1:]."""
         with patch("openviper.middleware.security.settings") as ms:
             ms.ALLOWED_HOSTS = [".example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False

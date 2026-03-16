@@ -21,7 +21,6 @@ from typing import Any
 
 from openviper.ai.extension import AIProvider
 
-
 class {{ class_name }}(AIProvider):
     """{{ provider_title }} provider.
 
@@ -76,7 +75,6 @@ class {{ class_name }}(AIProvider):
         result = await self.generate(prompt, **kwargs)
         yield result
 
-
 def get_providers() -> list[AIProvider]:
     """Return provider instances for auto-registration.
 
@@ -106,7 +104,6 @@ import pytest
 # Fixtures
 # ---------------------------------------------------------------------------
 
-
 @pytest.fixture
 def provider():
     from {{ module_import }} import {{ class_name }}
@@ -119,28 +116,23 @@ def provider():
         },
     })
 
-
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
-
 def test_provider_name(provider):
     assert provider.provider_name() == "{{ provider_name }}"
-
 
 def test_supported_models(provider):
     models = provider.supported_models()
     assert isinstance(models, list)
     assert "{{ provider_name }}-v1" in models
 
-
 @pytest.mark.asyncio
 async def test_generate(provider):
     result = await provider.generate("Hello, world!")
     assert isinstance(result, str)
     assert len(result) > 0
-
 
 @pytest.mark.asyncio
 async def test_stream(provider):
@@ -149,7 +141,6 @@ async def test_stream(provider):
         chunks.append(chunk)
     assert chunks
     assert all(isinstance(c, str) for c in chunks)
-
 
 def test_get_providers():
     from {{ module_import }} import get_providers
@@ -244,7 +235,6 @@ provider_registry.discover_entrypoints()
 
 will automatically register your provider.
 """
-
 
 # ---------------------------------------------------------------------------
 # Command

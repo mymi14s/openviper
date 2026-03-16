@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import re
 from collections.abc import AsyncGenerator
 from contextvars import ContextVar
@@ -78,6 +79,8 @@ _CAMEL_RE3 = re.compile(r"(?<!^)(?=[A-Z])")
 _perm_cache: ContextVar[dict[tuple[type, str], bool] | None] = ContextVar(
     "_perm_cache", default=None
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def _check_perm_cached(model: type, action: str, ignore_permissions: bool = False) -> None:
@@ -415,7 +418,8 @@ class Q:
 
     def __repr__(self) -> str:
         return (
-            f"Q(connector={self.connector!r}, negated={self.negated}, children={self.children!r})"
+            f"Q(connector={self.connector!r}, negated={self.negated}, "
+            f"children={self.children!r})"
         )
 
 
@@ -634,6 +638,9 @@ class TraversalLookup:
     Parses filter keys like "author__username" or "author__hobby__description"
     and validates the entire chain is valid, returning steps for JOIN construction.
 
+    A maximum traversal depth of 5 FK hops is enforced to prevent query
+    complexity attacks that could exhaust memory via deep JOIN chains.
+
     Example:
         >>> lookup = TraversalLookup("author__username", Blog)
         >>> lookup.parts
@@ -642,6 +649,9 @@ class TraversalLookup:
     """
 
     __slots__ = ("key", "model_cls", "parts", "final_field", "final_model")
+
+    #: Maximum number of FK hops allowed in a single traversal.
+    MAX_TRAVERSAL_DEPTH = 5
 
     def __init__(self, key: str, model_cls: type):
         self.key = key
@@ -656,6 +666,15 @@ class TraversalLookup:
         parts = self.key.split("__")
         current_model = self.model_cls
         current_steps = []
+
+        # Enforce max traversal depth to prevent query complexity attacks.
+        # parts[:-1] are FK hops; the last element is the target field.
+        fk_depth = len(parts) - 1
+        if fk_depth > self.MAX_TRAVERSAL_DEPTH:
+            raise FieldError(
+                f"Traversal depth {fk_depth} exceeds maximum of "
+                f"{self.MAX_TRAVERSAL_DEPTH} for '{self.key}'"
+            )
 
         # Process all but the last part (which is the final field)
         for _i, part in enumerate(parts[:-1]):
@@ -1172,14 +1191,17 @@ class QuerySet:
     async def _do_prefetch_related(self, instances: list[Model]) -> None:
         """Batch-load prefetch_related FK fields and attach them to *instances*.
 
-        Collects all FK values from the main instances, issues queries in parallel
-        (one ``id__in`` query per field using asyncio.gather), and sets the related
-        objects as attributes on each instance — converting FK integer IDs to model
-        instances in-place. Also caches for descriptor access.
+        Collects all FK values from the main instances, groups by target model
+        to deduplicate queries (e.g. multiple FKs to User become one query),
+        issues queries in parallel via asyncio.gather, and sets the related
+        objects as attributes on each instance.
         """
-        # Collect all prefetch tasks to execute in parallel
-        prefetch_tasks = []
-        prefetch_metadata = []  # Store (field_name, field, related_cls, fk_col, fk_ids)
+        # Phase 1: Collect metadata per field and group FK IDs by target model.
+        field_meta: list[tuple[str, Any, type, str]] = (
+            []
+        )  # (field_name, field, related_cls, fk_col)
+        # Map related_cls -> set of all FK IDs needed across all fields pointing to it.
+        grouped_ids: dict[type, set[int]] = {}
 
         for field_name in self._prefetch_related:
             field = self._model._fields.get(field_name)
@@ -1188,11 +1210,9 @@ class QuerySet:
             related_cls = cast("Any", field).resolve_target()
             if related_cls is None:
                 continue
-            # FK value is stored under the column name in __dict__
             fk_col = field.column_name if isinstance(field, ForeignKey) else field_name
             is_fk = isinstance(field, ForeignKey)
 
-            # Collect all FK IDs in a single pass using a set comprehension
             def _extract_id(
                 inst: Any, _fk_col: str = fk_col, _is_fk: bool = is_fk, _fname: str = field_name
             ) -> int | None:
@@ -1203,24 +1223,32 @@ class QuerySet:
                     return val.fk_id
                 return None
 
-            fk_ids = [pk for pk in (_extract_id(inst) for inst in instances) if pk is not None]
+            fk_ids = {pk for pk in (_extract_id(inst) for inst in instances) if pk is not None}
             if not fk_ids:
                 continue
 
-            # Create query task and store metadata
-            prefetch_tasks.append(related_cls.objects.filter(id__in=fk_ids).all())
-            prefetch_metadata.append((field_name, field, related_cls, fk_col, fk_ids))
+            field_meta.append((field_name, field, related_cls, fk_col))
+            grouped_ids.setdefault(related_cls, set()).update(fk_ids)
 
-        # Execute all prefetch queries in parallel
-        if not prefetch_tasks:
+        if not grouped_ids:
             return
 
+        # Phase 2: Issue one query per unique target model (in parallel).
+        cls_list = list(grouped_ids.keys())
+        prefetch_tasks = [
+            cls.objects.filter(id__in=list(ids)).all()
+            for cls, ids in zip(cls_list, (grouped_ids[c] for c in cls_list), strict=False)
+        ]
         prefetch_results = await asyncio.gather(*prefetch_tasks)
 
-        # Map results back to instances
-        for i, (field_name, field, _related_cls, fk_col, _fk_ids) in enumerate(prefetch_metadata):
-            related_instances = prefetch_results[i]
-            related_map: dict[Any, Any] = {ri.pk: ri for ri in related_instances}
+        # Build a per-model lookup: related_cls -> {pk: instance}
+        related_maps: dict[type, dict[Any, Any]] = {}
+        for cls, result_list in zip(cls_list, prefetch_results, strict=False):
+            related_maps[cls] = {ri.pk: ri for ri in result_list}
+
+        # Phase 3: Assign related objects back onto each instance.
+        for field_name, field, related_cls, fk_col in field_meta:
+            related_map = related_maps.get(related_cls, {})
             for inst in instances:
                 fk_val = (
                     inst.__dict__.get(fk_col)
@@ -1228,12 +1256,9 @@ class QuerySet:
                     else getattr(inst, field_name, None)
                 )
                 if isinstance(fk_val, int):
-                    related_obj = related_map.get(fk_val)
-                    # Cache the related instance
-                    inst._set_related(field_name, related_obj)
+                    inst._set_related(field_name, related_map.get(fk_val))
                 elif isinstance(fk_val, LazyFK) and isinstance(fk_val.fk_id, int):
-                    related_obj = related_map.get(fk_val.fk_id)
-                    inst._set_related(field_name, related_obj)
+                    inst._set_related(field_name, related_map.get(fk_val.fk_id))
 
     def __aiter__(self) -> QuerySet:
         self._iter_results: list[Any] | None = None
@@ -1284,7 +1309,6 @@ class QuerySet:
 
 
 # ── Model ─────────────────────────────────────────────────────────────────────
-
 
 # ── Hook caller ───────────────────────────────────────────────────────────────
 
@@ -1605,17 +1629,23 @@ class Model(metaclass=ModelMeta):
             dict_key = col_name if hasattr(field, "resolve_target") else name
 
             if col_name in row:
-                instance.__dict__[dict_key] = row[col_name]
+                value = row[col_name]
+                instance.__dict__[dict_key] = value
+                # Track all field values for change detection
+                instance._previous_state[name] = value
             elif name in row:
-                instance.__dict__[dict_key] = row[name]
+                value = row[name]
+                instance.__dict__[dict_key] = value
+                instance._previous_state[name] = value
             else:
                 # Apply default if present, else None.
                 if field.default is not None:
-                    instance.__dict__[dict_key] = (
-                        field.default() if callable(field.default) else field.default
-                    )
+                    value = field.default() if callable(field.default) else field.default
+                    instance.__dict__[dict_key] = value
+                    instance._previous_state[name] = value
                 else:
                     instance.__dict__[dict_key] = None
+                    instance._previous_state[name] = None
 
         # Extra columns (e.g. annotations) not in _fields.
         field_names = set(cls._fields)
@@ -1681,47 +1711,55 @@ class Model(metaclass=ModelMeta):
         # Capture pre-save state for on_change detection
         pre_save_state = self._get_changed_fields() if not is_create else {}
 
-        # ── Validation phase ──────────────────────────────────────────
-        await _call_hook(self.before_validate)
-        self._trigger_event("before_validate")
-        await _call_hook(self.validate)
-        self._trigger_event("validate")
-
-        if is_create:
-            await _call_hook(self.before_insert)
-            self._trigger_event("before_insert")
-
-        await _call_hook(self.before_save)
-        self._trigger_event("before_save")
-
-        # ── Persistence ───────────────────────────────────────────────
-        token = None
-        if ignore_permissions:
-            token = ignore_permissions_ctx.set(True)
-
         try:
-            await execute_save(self, ignore_permissions=ignore_permissions)
+            # ── Validation phase ──────────────────────────────────────────
+            await _call_hook(self.before_validate)
+            self._trigger_event("before_validate")
+            await _call_hook(self.validate)
+            self._trigger_event("validate")
 
-            # ── Post-persistence hooks ────────────────────────────────────
             if is_create:
-                await _call_hook(self.after_insert)
-                self._trigger_event("after_insert")
-                # For a brand-new row every field is "changed"
-                changed = dict.fromkeys(self._fields)
-                await _call_hook(self.on_change, changed)
-                self._trigger_event("on_change")
-            else:
-                await _call_hook(self.on_update)
-                self._trigger_event("on_update")
-                if pre_save_state:
-                    await _call_hook(self.on_change, pre_save_state)
-                    self._trigger_event("on_change")
-        finally:
-            if token:
-                ignore_permissions_ctx.reset(token)
+                await _call_hook(self.before_insert)
+                self._trigger_event("before_insert")
 
-        # Reset the snapshot so subsequent saves detect new changes
-        self._previous_state = self._snapshot()
+            await _call_hook(self.before_save)
+            self._trigger_event("before_save")
+
+            # ── Persistence ───────────────────────────────────────────────
+            token = None
+            if ignore_permissions:
+                token = ignore_permissions_ctx.set(True)
+
+            try:
+                await execute_save(self, ignore_permissions=ignore_permissions)
+
+                # ── Post-persistence hooks ────────────────────────────────────
+                if is_create:
+                    await _call_hook(self.after_insert)
+                    self._trigger_event("after_insert")
+                else:
+                    await _call_hook(self.on_update)
+                    self._trigger_event("on_update")
+                    if pre_save_state:
+                        await _call_hook(self.on_change, pre_save_state)
+                        self._trigger_event("on_change")
+            finally:
+                if token:
+                    ignore_permissions_ctx.reset(token)
+
+            # Reset the snapshot so subsequent saves detect new changes
+            self._previous_state = self._snapshot()
+        except Exception as e:
+            logger.error(
+                "Save failed for %s (pk=%s): %s",
+                self.__class__.__name__,
+                self.pk,
+                is_create,
+                str(e),
+                exc_info=True,
+                extra={"model": self.__class__.__name__, "pk": self.pk, "is_create": is_create},
+            )
+            raise
 
     async def delete(self, ignore_permissions: bool = False) -> None:
         """Delete this instance from the database.
@@ -1730,19 +1768,30 @@ class Model(metaclass=ModelMeta):
         If :meth:`on_delete` raises, the DELETE is aborted.
         """
 
-        await _call_hook(self.on_delete)
-        self._trigger_event("on_delete")
-        token = None
-        if ignore_permissions:
-            token = ignore_permissions_ctx.set(True)
-
         try:
-            await execute_delete_instance(self, ignore_permissions=ignore_permissions)
-        finally:
-            if token:
-                ignore_permissions_ctx.reset(token)
-        await _call_hook(self.after_delete)
-        self._trigger_event("after_delete")
+            await _call_hook(self.on_delete)
+            self._trigger_event("on_delete")
+            token = None
+            if ignore_permissions:
+                token = ignore_permissions_ctx.set(True)
+
+            try:
+                await execute_delete_instance(self, ignore_permissions=ignore_permissions)
+            finally:
+                if token:
+                    ignore_permissions_ctx.reset(token)
+            await _call_hook(self.after_delete)
+            self._trigger_event("after_delete")
+        except Exception as e:
+            logger.error(
+                "Delete failed for %s (pk=%s): %s",
+                self.__class__.__name__,
+                self.pk,
+                str(e),
+                exc_info=True,
+                extra={"model": self.__class__.__name__, "pk": self.pk},
+            )
+            raise
 
     async def refresh_from_db(self) -> None:
         """Reload all fields from the database."""

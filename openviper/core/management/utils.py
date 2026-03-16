@@ -17,7 +17,6 @@ def get_banner(cmd_obj: Any, host: str, port: int) -> None:
            O     O P       E      N  NN   V v    I   P      E      R  R
             OOOOO  P       EEEEE  N   N    V    III  P      EEEEE  R   R
 
-
             OpenViper development server running at http://{host}:{port}/
             Use Ctrl+C to stop.
             """))

@@ -156,6 +156,13 @@ Key Classes
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that configure middleware:
+
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — CORS, Security, and Auth middleware
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — Security, CORS, and Auth middleware stack
+
 Registering via Settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

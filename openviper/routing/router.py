@@ -46,7 +46,6 @@ CONVERTERS: dict[str, tuple[str, Callable[[str], Any]]] = {
     "slug": (r"[-a-zA-Z0-9_]+", str),
 }
 
-
 # ── Path normalization ────────────────────────────────────────────────────────
 
 _MULTI_SLASH_RE: re.Pattern[str] = re.compile(r"/{2,}")

@@ -379,13 +379,10 @@ class TestRedisBrokerUrlSecurity:
         assert "myhost" in logged
 
 
-# ── _make_redis_broker: socket options (lines 213, 215, 217) ────────────────
-
-
 class TestMakeRedisBrokerSocketOptions:
     @patch("dramatiq.brokers.redis.RedisBroker")
     def test_socket_timeout_set_when_configured(self, mock_redis_class):
-        """redis_socket_timeout configures socket_timeout kwarg (line 213)."""
+        """redis_socket_timeout configures socket_timeout kwarg."""
         cfg = {"broker_url": "redis://localhost:6379", "redis_socket_timeout": 10}
         _make_redis_broker(cfg)
         _, kwargs = mock_redis_class.call_args
@@ -393,7 +390,7 @@ class TestMakeRedisBrokerSocketOptions:
 
     @patch("dramatiq.brokers.redis.RedisBroker")
     def test_socket_connect_timeout_set_when_configured(self, mock_redis_class):
-        """redis_socket_connect_timeout configures socket_connect_timeout kwarg (line 215)."""
+        """redis_socket_connect_timeout configures socket_connect_timeout kwarg."""
         cfg = {"broker_url": "redis://localhost:6379", "redis_socket_connect_timeout": 5}
         _make_redis_broker(cfg)
         _, kwargs = mock_redis_class.call_args
@@ -401,21 +398,18 @@ class TestMakeRedisBrokerSocketOptions:
 
     @patch("dramatiq.brokers.redis.RedisBroker")
     def test_socket_keepalive_set_when_configured(self, mock_redis_class):
-        """redis_socket_keepalive configures socket_keepalive kwarg (line 217)."""
+        """redis_socket_keepalive configures socket_keepalive kwarg."""
         cfg = {"broker_url": "redis://localhost:6379", "redis_socket_keepalive": True}
         _make_redis_broker(cfg)
         _, kwargs = mock_redis_class.call_args
         assert kwargs["socket_keepalive"] is True
 
 
-# ── _create_broker exception paths (lines 144-145, 156-157, 162-167, 172-183) ─
-
-
 class TestCreateBrokerExceptionPaths:
     @patch("openviper.tasks.broker.dramatiq.set_broker")
     @patch("openviper.tasks.broker._make_redis_broker")
     def test_tracking_middleware_exception_logged(self, mock_redis, mock_set_broker):
-        """Exception importing TaskTrackingMiddleware is caught and logged (lines 144-145)."""
+        """Exception importing TaskTrackingMiddleware is caught and logged."""
         mock_redis.return_value = MagicMock()
 
         with patch(
@@ -433,7 +427,7 @@ class TestCreateBrokerExceptionPaths:
     @patch("openviper.tasks.broker.dramatiq.set_broker")
     @patch("openviper.tasks.broker._make_redis_broker")
     def test_scheduler_middleware_exception_logged(self, mock_redis, mock_set_broker):
-        """Exception importing SchedulerMiddleware is caught and logged (lines 156-157)."""
+        """Exception importing SchedulerMiddleware is caught and logged."""
         mock_redis.return_value = MagicMock()
 
         with patch(
@@ -451,7 +445,7 @@ class TestCreateBrokerExceptionPaths:
     @patch("openviper.tasks.broker.dramatiq.set_broker")
     @patch("openviper.tasks.broker._make_redis_broker")
     def test_cleanup_task_exception_logged(self, mock_redis, mock_set_broker):
-        """Exception setting up cleanup task is caught and logged (lines 162-167)."""
+        """Exception setting up cleanup task is caught and logged."""
         mock_redis.return_value = MagicMock()
 
         with patch(
@@ -466,7 +460,7 @@ class TestCreateBrokerExceptionPaths:
     @patch("openviper.tasks.broker.dramatiq.set_broker")
     @patch("openviper.tasks.broker._make_redis_broker")
     def test_backend_url_exception_logged(self, mock_redis, mock_set_broker):
-        """Exception attaching result backend is caught and logged (lines 172-183)."""
+        """Exception attaching result backend is caught and logged."""
         mock_redis.return_value = MagicMock()
 
         with patch(
@@ -487,12 +481,12 @@ class TestCreateBrokerExceptionPaths:
 
 
 class TestCreateBrokerSuccessPaths:
-    """Test _create_broker success paths (lines 165, 174-178)."""
+    """Test _create_broker success paths."""
 
     @patch("openviper.tasks.broker.dramatiq.set_broker")
     @patch("openviper.tasks.broker._make_redis_broker")
     def test_cleanup_task_setup_success(self, mock_redis, mock_set_broker):
-        """setup_cleanup_task() is called when cleanup_enabled=True (line 165)."""
+        """setup_cleanup_task() is called when cleanup_enabled=True."""
         mock_redis.return_value = MagicMock()
 
         mock_setup = MagicMock()
@@ -509,7 +503,7 @@ class TestCreateBrokerSuccessPaths:
     @patch("openviper.tasks.broker.dramatiq.set_broker")
     @patch("openviper.tasks.broker._make_redis_broker")
     def test_backend_url_success_logs_host(self, mock_redis, mock_set_broker):
-        """Result backend attaches successfully and logs host info (lines 174-178)."""
+        """Result backend attaches successfully and logs host info."""
         mock_broker = MagicMock()
         mock_redis.return_value = mock_broker
 

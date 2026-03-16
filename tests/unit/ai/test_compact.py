@@ -36,7 +36,7 @@ class StubProvider(AIProvider):
 
 
 # ---------------------------------------------------------------------------
-# AIProvider.moderate() — line 129 (generic ``` code fence)
+# AIProvider.moderate()(generic ``` code fence)
 # ---------------------------------------------------------------------------
 
 
@@ -45,7 +45,7 @@ class TestModerateGenericCodeFence:
 
     @pytest.mark.asyncio
     async def test_generic_code_fence_json(self):
-        """Test moderate parses JSON from generic ``` fence (line 129)."""
+        """Test moderate parses JSON from generic ``` fence."""
         raw = '```\n{"classification": "safe", "confidence": 0.9, "reason": "ok"}\n```'
 
         class ModProvider(StubProvider):
@@ -59,7 +59,7 @@ class TestModerateGenericCodeFence:
 
 
 # ---------------------------------------------------------------------------
-# ProviderRegistry — load_plugins (lines 225-259)
+# ProviderRegistry — load_plugins
 # ---------------------------------------------------------------------------
 
 
@@ -67,7 +67,7 @@ class TestRegistryLoadPlugins:
     """Test ProviderRegistry.load_plugins() branches."""
 
     def test_load_plugins_not_a_directory(self):
-        """Test load_plugins returns 0 if path is not a directory (line 226-228)."""
+        """Test load_plugins returns 0 if path is not a directory."""
 
         registry = ProviderRegistry()
         registry._loaded = True
@@ -76,7 +76,7 @@ class TestRegistryLoadPlugins:
         assert count == 0
 
     def test_load_plugins_skips_underscore_files(self, tmp_path):
-        """Test load_plugins skips files starting with _ (line 240)."""
+        """Test load_plugins skips files starting with _."""
 
         # Create a plugin directory with underscore file
         plugin_dir = tmp_path / "plugins"
@@ -91,7 +91,7 @@ class TestRegistryLoadPlugins:
         assert count == 0
 
     def test_load_plugins_import_error(self, tmp_path):
-        """Test load_plugins handles ImportError gracefully (lines 246-251)."""
+        """Test load_plugins handles ImportError gracefully."""
 
         # Create a plugin directory with a file that will fail to import
         plugin_dir = tmp_path / "plugins"
@@ -106,7 +106,7 @@ class TestRegistryLoadPlugins:
         assert count == 0
 
     def test_load_plugins_removes_from_sys_path(self, tmp_path):
-        """Test load_plugins cleans up sys.path (lines 252-254)."""
+        """Test load_plugins cleans up sys.path."""
 
         plugin_dir = tmp_path / "plugins"
         plugin_dir.mkdir()
@@ -124,7 +124,7 @@ class TestRegistryLoadPlugins:
 
 
 # ---------------------------------------------------------------------------
-# ProviderRegistry — discover_entrypoints (lines 285-317)
+# ProviderRegistry — discover_entrypoints
 # ---------------------------------------------------------------------------
 
 
@@ -132,7 +132,7 @@ class TestRegistryDiscoverEntrypoints:
     """Test ProviderRegistry.discover_entrypoints() branches."""
 
     def test_discover_entrypoints_loads_providers(self):
-        """Test discover_entrypoints loads and registers providers (lines 294-304)."""
+        """Test discover_entrypoints loads and registers providers."""
 
         registry = ProviderRegistry()
         registry._loaded = True
@@ -149,7 +149,7 @@ class TestRegistryDiscoverEntrypoints:
         assert "test-model" in registry.list_models()
 
     def test_discover_entrypoints_handles_list_result(self):
-        """Test discover_entrypoints handles factory returning list (line 300)."""
+        """Test discover_entrypoints handles factory returning list."""
 
         registry = ProviderRegistry()
         registry._loaded = True
@@ -167,7 +167,7 @@ class TestRegistryDiscoverEntrypoints:
         assert count == 2
 
     def test_discover_entrypoints_handles_exception(self):
-        """Test discover_entrypoints handles failing entry points (lines 305-310)."""
+        """Test discover_entrypoints handles failing entry points."""
 
         registry = ProviderRegistry()
         registry._loaded = True
@@ -183,7 +183,7 @@ class TestRegistryDiscoverEntrypoints:
 
 
 # ---------------------------------------------------------------------------
-# ProviderRegistry — _load_from_settings (lines 369-403)
+# ProviderRegistry — _load_from_settings
 # ---------------------------------------------------------------------------
 
 
@@ -191,7 +191,7 @@ class TestRegistryLoadFromSettings:
     """Test ProviderRegistry._load_from_settings() branches."""
 
     def test_load_from_settings_infers_provider_type(self):
-        """Test _load_from_settings infers provider type from name (lines 384-387)."""
+        """Test _load_from_settings infers provider type from name."""
 
         registry = ProviderRegistry()
 
@@ -216,7 +216,7 @@ class TestRegistryLoadFromSettings:
                 mock_resolve.assert_called()
 
     def test_load_from_settings_skips_unknown_provider(self):
-        """Test _load_from_settings skips unknown provider type (lines 390-392)."""
+        """Test _load_from_settings skips unknown provider type."""
 
         registry = ProviderRegistry()
 
@@ -236,7 +236,7 @@ class TestRegistryLoadFromSettings:
         assert len(registry.list_models()) == 0
 
     def test_load_from_settings_handles_init_exception(self):
-        """Test _load_from_settings handles provider init exception (lines 398-401)."""
+        """Test _load_from_settings handles provider init exception."""
 
         registry = ProviderRegistry()
 
@@ -258,7 +258,7 @@ class TestRegistryLoadFromSettings:
                 registry._load_from_settings()
 
     def test_load_from_settings_handles_settings_exception(self):
-        """Test _load_from_settings handles exception from settings (lines 402-403)."""
+        """Test _load_from_settings handles exception from settings."""
 
         registry = ProviderRegistry()
 
@@ -273,7 +273,7 @@ class TestRegistryLoadFromSettings:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_provider_class (lines 422-477)
+# _resolve_provider_class
 # ---------------------------------------------------------------------------
 
 
@@ -281,7 +281,7 @@ class TestResolveProviderClass:
     """Test _resolve_provider_class() function branches."""
 
     def test_resolve_from_cache(self):
-        """Test _resolve_provider_class uses cache (line 458-459)."""
+        """Test _resolve_provider_class uses cache."""
 
         # First call populates cache
         cls = _resolve_provider_class("openai")
@@ -292,13 +292,13 @@ class TestResolveProviderClass:
         assert cls2 is cls
 
     def test_resolve_unknown_returns_none(self):
-        """Test _resolve_provider_class returns None for unknown (lines 470-471)."""
+        """Test _resolve_provider_class returns None for unknown."""
 
         result = _resolve_provider_class("completely_unknown_provider")
         assert result is None
 
     def test_resolve_handles_import_error(self):
-        """Test _resolve_provider_class handles ImportError in fallback (lines 472-477)."""
+        """Test _resolve_provider_class handles ImportError in fallback."""
 
         # Save original cache
         original_cache = registry._PROVIDER_CLASS_CACHE.copy()
@@ -328,7 +328,7 @@ class TestGeminiProviderBranches:
     """Test uncovered branches in GeminiProvider."""
 
     def test_gemini_auth_error_no_key(self):
-        """Test GeminiProvider raises auth error without API key (lines 130-134)."""
+        """Test GeminiProvider raises auth error without API key."""
 
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("GEMINI_API_KEY", None)
@@ -336,7 +336,7 @@ class TestGeminiProviderBranches:
                 GeminiProvider({"model": "gemini-pro"})
 
     def test_gemini_import_error(self):
-        """Test GeminiProvider raises ImportError without google-genai (lines 140-144)."""
+        """Test GeminiProvider raises ImportError without google-genai."""
 
         with patch.dict("sys.modules", {"google": None, "google.genai": None}):
             with patch("builtins.__import__", side_effect=ImportError("no google")):
@@ -344,7 +344,7 @@ class TestGeminiProviderBranches:
                     GeminiProvider({"model": "gemini-pro", "api_key": "test-key"})
 
     def test_gemini_make_config(self):
-        """Test GeminiProvider._make_config() with various params (lines 164-174)."""
+        """Test GeminiProvider._make_config() with various params."""
         # This requires mocking the google.genai import
         mock_genai = MagicMock()
         mock_types = MagicMock()
@@ -366,7 +366,7 @@ class TestGeminiProviderBranches:
                     importlib.reload(gemini_provider)
 
     def test_gemini_build_contents_with_data(self):
-        """Test _build_contents with image data (lines 191-194)."""
+        """Test _build_contents with image data."""
         # Mock the module
         mock_types = MagicMock()
         mock_types.Part.from_bytes.return_value = "part_from_bytes"
@@ -389,7 +389,7 @@ class TestGeminiProviderBranches:
         assert parts[1] == "bytes:image/png"
 
     def test_gemini_build_contents_with_url(self):
-        """Test _build_contents with image URL (lines 195-199)."""
+        """Test _build_contents with image URL."""
         parts = []
         prompt = "describe this"
         images = [{"url": "https://example.com/img.jpg", "mime_type": "image/jpeg"}]
@@ -406,7 +406,7 @@ class TestGeminiProviderBranches:
         assert parts[1] == "uri:image/jpeg"
 
     def test_gemini_wrap_error_rate_limit(self):
-        """Test _wrap_error with rate limit error (lines 212-214)."""
+        """Test _wrap_error with rate limit error."""
 
         msg = "429 RESOURCE_EXHAUSTED quota exceeded"
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
@@ -417,7 +417,7 @@ class TestGeminiProviderBranches:
         assert isinstance(error, GeminiRateLimitError)
 
     def test_gemini_wrap_error_auth(self):
-        """Test _wrap_error with auth error (lines 209-211)."""
+        """Test _wrap_error with auth error."""
 
         msg = "API_KEY_INVALID 401 unauthorized"
         if "API_KEY_INVALID" in msg or "401" in msg or "403" in msg:
@@ -428,7 +428,7 @@ class TestGeminiProviderBranches:
         assert isinstance(error, GeminiAuthError)
 
     def test_gemini_estimate_cost_fallback(self):
-        """Test estimate_cost falls back to default pricing (lines 302-304)."""
+        """Test estimate_cost falls back to default pricing."""
         # Simulate cost estimation logic
         model_name = "unknown-gemini-model"
         _COST_TABLE = {
@@ -452,7 +452,7 @@ class TestGrokProviderBranches:
 
     @pytest.mark.asyncio
     async def test_grok_close_client(self):
-        """Test GrokProvider.close() closes client (lines 183-185)."""
+        """Test GrokProvider.close() closes client."""
 
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key"})
 
@@ -467,7 +467,7 @@ class TestGrokProviderBranches:
         assert p._client is None
 
     def test_grok_raise_for_status_json_parse_error(self):
-        """Test _raise_for_status handles JSON parse error (lines 278-279)."""
+        """Test _raise_for_status handles JSON parse error."""
 
         resp = MagicMock()
         resp.status_code = 500
@@ -479,7 +479,7 @@ class TestGrokProviderBranches:
 
     @pytest.mark.asyncio
     async def test_grok_stream_line_too_large(self):
-        """Test stream skips oversized lines (lines 338-343)."""
+        """Test stream skips oversized lines."""
         # This is testing the logic, not the actual provider
         _MAX_LINE_BYTES = 1_000_000
         lines = [
@@ -508,7 +508,7 @@ class TestGrokProviderBranches:
 
     @pytest.mark.asyncio
     async def test_grok_stream_done_signal(self):
-        """Test stream stops on [DONE] signal (lines 345-346)."""
+        """Test stream stops on [DONE] signal."""
         lines = [
             'data: {"choices":[{"delta":{"content":"part1"}}]}',
             "data: [DONE]",
@@ -534,7 +534,7 @@ class TestGrokProviderBranches:
 
     @pytest.mark.asyncio
     async def test_grok_stream_json_decode_error(self):
-        """Test stream handles JSON decode error (lines 352-353)."""
+        """Test stream handles JSON decode error."""
         lines = [
             "data: not valid json",
             'data: {"choices":[{"delta":{"content":"ok"}}]}',
@@ -559,7 +559,7 @@ class TestGrokProviderBranches:
 
 
 # ---------------------------------------------------------------------------
-# ProviderRegistry — _ensure_loaded (lines 369-372)
+# ProviderRegistry — _ensure_loaded
 # ---------------------------------------------------------------------------
 
 
@@ -567,7 +567,7 @@ class TestRegistryEnsureLoaded:
     """Test _ensure_loaded() double-checked locking."""
 
     def test_ensure_loaded_only_once(self):
-        """Test _ensure_loaded only calls _load_from_settings once (lines 369-372)."""
+        """Test _ensure_loaded only calls _load_from_settings once."""
 
         registry = ProviderRegistry()
 
@@ -602,7 +602,7 @@ class TestRegistryEnsureLoaded:
 
 
 # ---------------------------------------------------------------------------
-# ProviderRegistry — register_provider default model fallback (line 152)
+# ProviderRegistry — register_provider default model fallback
 # ---------------------------------------------------------------------------
 
 
@@ -610,7 +610,7 @@ class TestRegistryDefaultModelFallback:
     """Test register_provider default_model fallback when no models specified."""
 
     def test_register_with_default_model_only(self):
-        """Test register_provider maps default_model when models list empty (line 152)."""
+        """Test register_provider maps default_model when models list empty."""
 
         registry = ProviderRegistry()
         registry._loaded = True

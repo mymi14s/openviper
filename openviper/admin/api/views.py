@@ -13,6 +13,8 @@ import datetime
 import importlib
 import io
 import json
+import logging
+import uuid
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy.exc
@@ -53,8 +55,8 @@ if TYPE_CHECKING:
     from openviper.db import Model
     from openviper.http.request import Request
 
-
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def _is_auth_user_model(model_class: type) -> bool:
@@ -75,6 +77,16 @@ def _is_auth_user_model(model_class: type) -> bool:
         return model_class is _User or issubclass(model_class, _User)
     except Exception:
         return False
+
+
+def _row_has_meaningful_child_data(row: dict[str, Any], fk_name: str) -> bool:
+    """Return True when a child-table row has at least one non-empty editable value."""
+    for key, value in row.items():
+        if key in {"id", fk_name}:
+            continue
+        if value not in (None, "", [], {}, ()):  # treat UI placeholders as empty
+            return True
+    return False
 
 
 async def _batch_load_children(
@@ -689,10 +701,12 @@ def get_admin_router() -> Router:
         if filters:
             qs = qs.filter(**filters)
 
-        # Apply sorting
+        # Apply sorting — validate against known model fields
         sort_field = request.query_params.get("ordering", request.query_params.get("sort", ""))
         if sort_field:
-            qs = qs.order_by(sort_field)
+            bare_field = sort_field.lstrip("-")
+            if bare_field in allowed_fields:
+                qs = qs.order_by(sort_field)
         else:
             ordering = model_admin.get_ordering(request)
             if ordering:
@@ -782,24 +796,63 @@ def get_admin_router() -> Router:
         else:
             data = await request.json()
 
+        logger.info(
+            "Creating %s.%s",
+            app_label,
+            model_name,
+        )
+
         # Coerce field values
         fields = getattr(model_class, "_fields", {})
         coerced_data = {}
         readonly_fields = model_admin.get_readonly_fields(request)
+        excluded_fields = set(model_admin.get_exclude(request, None))
+        sensitive_fields = set(model_admin.get_sensitive_fields(request))
         field_errors = {}
+        child_table_names: set[str] = set()
+        child_tables_info = None
+        with contextlib.suppress(Exception):
+            child_tables_info = model_admin.get_child_tables_info()
+        if isinstance(child_tables_info, list):
+            for child_model in child_tables_info:
+                if isinstance(child_model, dict):
+                    name = child_model.get("name")
+                    if isinstance(name, str) and name:
+                        child_table_names.add(name)
 
         for field_name, value in data.items():
             if field_name in readonly_fields:
                 continue
+            if field_name in child_table_names:
+                continue
+            # Skip '__callable__' sentinel from frontend for auto-generated fields
+            if value == "__callable__":
+                continue
+            # Reject fields not defined on the model (mass-assignment protection)
+            if field_name not in fields:
+                continue
+            # Block writes to excluded or sensitive fields
+            if field_name in excluded_fields or field_name in sensitive_fields:
+                continue
+            field = fields[field_name]
+            # Skip auto-generated PKs on create — let save() produce the value
+            if getattr(field, "primary_key", False) and getattr(field, "auto", False):
+                continue
             try:
-                if field_name in fields:
-                    coerced_data[field_name] = coerce_field_value(fields[field_name], value)
-                else:
-                    coerced_data[field_name] = value
+                coerced_data[field_name] = coerce_field_value(field, value)
             except ValueError as exc:
+                logger.warning(
+                    "Field coercion failed for %s.%s.%s: %s", app_label, model_name, field_name, exc
+                )
                 field_errors[field_name] = str(exc)
 
         if field_errors:
+            logger.warning(
+                "Create validation failed for %s.%s: %s",
+                app_label,
+                model_name,
+                field_errors,
+            )
             return JSONResponse({"errors": field_errors}, status_code=422)
 
         try:
@@ -826,26 +879,66 @@ def get_admin_router() -> Router:
                     continue
 
                 related_name = child_model.__name__.lower() + "_set"
-                incoming_rows = data.get(related_name, [])
+                raw_rows = data.get(related_name, [])
+                if raw_rows is None:
+                    incoming_rows = []
+                elif isinstance(raw_rows, list):
+                    incoming_rows = raw_rows
+                else:
+                    return JSONResponse(
+                        {"errors": {related_name: "Expected a list of row objects."}},
+                        status_code=422,
+                    )
                 child_fields = getattr(child_model, "_fields", {})
 
                 for row in incoming_rows:
+                    if not isinstance(row, dict):
+                        return JSONResponse(
+                            {"errors": {related_name: "Each child row must be an object."}},
+                            status_code=422,
+                        )
+                    if not row.get("id") and not _row_has_meaningful_child_data(row, fk_name):
+                        # Ignore blank placeholder rows emitted by the UI.
+                        continue
+
                     child_inst = child_model()
                     for f_name, f_val in row.items():
                         if f_name != "id" and f_val is not None:
                             if f_name in child_fields:
                                 f_val = coerce_field_value(child_fields[f_name], f_val)
                             setattr(child_inst, f_name, f_val)
-                    setattr(child_inst, fk_name, instance.id)
+                    parent_pk = instance.id
+                    setattr(
+                        child_inst,
+                        fk_name,
+                        str(parent_pk) if isinstance(parent_pk, uuid.UUID) else parent_pk,
+                    )
                     if hasattr(inline, "extra_filters") and inline.extra_filters:
                         for f_name, f_val in inline.extra_filters.items():
                             setattr(child_inst, f_name, f_val)
                     await child_inst.save()
         except ValueError as exc:
+            logger.warning(
+                "Create failed validation for %s.%s: %s",
+                app_label,
+                model_name,
+                str(exc),
+            )
             return JSONResponse({"errors": {"__all__": str(exc)}}, status_code=422)
         except sqlalchemy.exc.IntegrityError as exc:
             msg = str(exc.orig) if hasattr(exc, "orig") and exc.orig else str(exc)
-            return JSONResponse({"errors": {"__all__": msg}}, status_code=422)
+            logger.warning(
+                "Create failed integrity check for %s.%s: %s",
+                app_label,
+                model_name,
+                msg,
+            )
+            user_msg = (
+                msg
+                if getattr(settings, "DEBUG", False)
+                else "A record with conflicting data already exists."
+            )
+            return JSONResponse({"errors": {"__all__": user_msg}}, status_code=422)
 
         # Log change (fire-and-forget)
         asyncio.create_task(
@@ -937,6 +1030,13 @@ def get_admin_router() -> Router:
         else:
             data = await request.json()
 
+        logger.info(
+            "Updating %s.%s (pk=%s)",
+            app_label,
+            model_name,
+            obj_id,
+        )
+
         # Get old data for change tracking
         fields = getattr(model_class, "_fields", {})
         old_data = {}
@@ -945,24 +1045,53 @@ def get_admin_router() -> Router:
 
         # Coerce and apply field values
         readonly_fields = model_admin.get_readonly_fields(request, instance)
+        excluded_fields = set(model_admin.get_exclude(request, instance))
+        sensitive_fields = set(model_admin.get_sensitive_fields(request, instance))
         new_data = {}
         field_errors = {}
+        child_table_names: set[str] = set()
+        child_tables_info = None
+        with contextlib.suppress(Exception):
+            child_tables_info = model_admin.get_child_tables_info()
+        if isinstance(child_tables_info, list):
+            for child_model in child_tables_info:
+                if isinstance(child_model, dict):
+                    name = child_model.get("name")
+                    if isinstance(name, str) and name:
+                        child_table_names.add(name)
 
         for field_name, value in data.items():
             if field_name in readonly_fields:
                 continue
+            if field_name in child_table_names:
+                continue
+            # Skip '__callable__' sentinel from frontend for auto-generated fields
+            if value == "__callable__":
+                continue
+            # Reject fields not defined on the model (mass-assignment protection)
+            if field_name not in fields:
+                continue
+            # Block writes to excluded or sensitive fields
+            if field_name in excluded_fields or field_name in sensitive_fields:
+                continue
             try:
-                if field_name in fields:
-                    coerced_value = coerce_field_value(fields[field_name], value)
-                    setattr(instance, field_name, coerced_value)
-                    new_data[field_name] = coerced_value
-                else:
-                    setattr(instance, field_name, value)
-                    new_data[field_name] = value
+                coerced_value = coerce_field_value(fields[field_name], value)
+                setattr(instance, field_name, coerced_value)
+                new_data[field_name] = coerced_value
             except ValueError as exc:
+                logger.warning(
+                    "Field coercion failed for %s.%s.%s: %s", app_label, model_name, field_name, exc
+                )
                 field_errors[field_name] = str(exc)
 
         if field_errors:
+            logger.warning(
+                "Update validation failed for %s.%s (pk=%s): %s",
+                app_label,
+                model_name,
+                obj_id,
+                field_errors,
+            )
             return JSONResponse({"errors": field_errors}, status_code=422)
 
         try:
@@ -991,7 +1120,20 @@ def get_admin_router() -> Router:
                     continue
 
                 related_name = child_model.__name__.lower() + "_set"
-                incoming_rows = data.get(related_name, [])
+                if related_name not in data:
+                    # Partial update: child-table payload omitted, so leave existing rows untouched.
+                    continue
+
+                raw_rows = data.get(related_name, [])
+                if raw_rows is None:
+                    incoming_rows = []
+                elif isinstance(raw_rows, list):
+                    incoming_rows = raw_rows
+                else:
+                    return JSONResponse(
+                        {"errors": {related_name: "Expected a list of row objects."}},
+                        status_code=422,
+                    )
 
                 # Get existing child records
                 filters = {fk_name: instance.id}
@@ -1006,9 +1148,24 @@ def get_admin_router() -> Router:
                 surviving_children: list[dict[str, Any]] = []
 
                 for row in incoming_rows:
-                    row_id = str(row.get("id")) if row.get("id") else None
+                    if not isinstance(row, dict):
+                        return JSONResponse(
+                            {"errors": {related_name: "Each child row must be an object."}},
+                            status_code=422,
+                        )
 
-                    if row_id and row_id in existing_map:
+                    row_id = str(row.get("id")) if row.get("id") else None
+                    row_has_data = _row_has_meaningful_child_data(row, fk_name)
+
+                    # Existing row sent with no editable values: preserve as-is.
+                    if row_id and row_id in existing_map and not row_has_data:
+                        child_inst = existing_map[row_id]
+                        seen_ids.add(row_id)
+                    # New placeholder row: ignore completely.
+                    elif not row_id and not row_has_data:
+                        continue
+
+                    elif row_id and row_id in existing_map:
                         # Update existing
                         child_inst = existing_map[row_id]
                         for f_name, f_val in row.items():
@@ -1026,7 +1183,12 @@ def get_admin_router() -> Router:
                                 if f_name in child_fields:
                                     f_val = coerce_field_value(child_fields[f_name], f_val)
                                 setattr(child_inst, f_name, f_val)
-                        setattr(child_inst, fk_name, instance.id)
+                        parent_pk = instance.id
+                        setattr(
+                            child_inst,
+                            fk_name,
+                            str(parent_pk) if isinstance(parent_pk, uuid.UUID) else parent_pk,
+                        )
                         if hasattr(inline, "extra_filters") and inline.extra_filters:
                             for f_name, f_val in inline.extra_filters.items():
                                 setattr(child_inst, f_name, f_val)
@@ -1062,10 +1224,29 @@ def get_admin_router() -> Router:
                 preloaded_children[related_name] = surviving_children
 
         except ValueError as exc:
+            logger.warning(
+                "Update failed validation for %s.%s (pk=%s): %s",
+                app_label,
+                model_name,
+                obj_id,
+                str(exc),
+            )
             return JSONResponse({"errors": {"__all__": str(exc)}}, status_code=422)
         except sqlalchemy.exc.IntegrityError as exc:
             msg = str(exc.orig) if hasattr(exc, "orig") and exc.orig else str(exc)
-            return JSONResponse({"errors": {"__all__": msg}}, status_code=422)
+            logger.warning(
+                "Update failed integrity check for %s.%s (pk=%s): %s",
+                app_label,
+                model_name,
+                obj_id,
+                msg,
+            )
+            user_msg = (
+                msg
+                if getattr(settings, "DEBUG", False)
+                else "A record with conflicting data already exists."
+            )
+            return JSONResponse({"errors": {"__all__": user_msg}}, status_code=422)
 
         # Log change (fire-and-forget — does not block the response)
         changes = compute_changes(old_data, new_data)
@@ -1128,6 +1309,7 @@ def get_admin_router() -> Router:
         return JSONResponse({"detail": f"{model_name} deleted successfully."})
 
     @router.post("/models/{app_label}/{model_name}/bulk-action/")
+    @rate_limit(max_requests=10, window_seconds=60)
     async def bulk_action_by_app(request: Request, app_label: str, model_name: str) -> JSONResponse:
         """Execute a batch action on selected instances."""
         if not check_admin_access(request):
@@ -1174,6 +1356,7 @@ def get_admin_router() -> Router:
         )
 
     @router.get("/models/{app_label}/{model_name}/export/")
+    @rate_limit(max_requests=5, window_seconds=60)
     async def export_instances_by_app(
         request: Request, app_label: str, model_name: str
     ) -> Response:
@@ -1196,8 +1379,12 @@ def get_admin_router() -> Router:
         # Format type is available but not used in current implementation
         # format_type = request.query_params.get("format", "csv")
 
-        # Build queryset
-        qs = model_class.objects.filter(id__in=ids) if ids else model_class.objects.all()
+        # Build queryset with safety limit to prevent memory exhaustion
+        max_export = getattr(settings, "ADMIN_MAX_EXPORT_ROWS", 10000)
+        if ids:
+            qs = model_class.objects.filter(id__in=ids[:max_export])
+        else:
+            qs = model_class.objects.all().limit(max_export)
 
         instances = await qs.all()
 
@@ -1327,10 +1514,12 @@ def get_admin_router() -> Router:
         if filters:
             qs = qs.filter(**filters)
 
-        # Apply sorting
+        # Apply sorting — validate against known model fields
         sort_field = request.query_params.get("sort", "")
         if sort_field:
-            qs = qs.order_by(sort_field)
+            bare_field = sort_field.lstrip("-")
+            if bare_field in allowed_fields:
+                qs = qs.order_by(sort_field)
         else:
             ordering = model_admin.get_ordering(request)
             if ordering:
@@ -1404,10 +1593,13 @@ def get_admin_router() -> Router:
                 continue
             try:
                 if field_name in fields:
+                    logger.debug("Coercing field %s via coerce_field_value", field_name)
                     coerced_data[field_name] = coerce_field_value(fields[field_name], value)
                 else:
+                    logger.debug("Field %s not in model fields, passing through", field_name)
                     coerced_data[field_name] = value
             except ValueError as exc:
+                logger.error("Coercion exception for %s: %s", field_name, exc)
                 field_errors[field_name] = str(exc)
 
         if field_errors:
@@ -1594,6 +1786,7 @@ def get_admin_router() -> Router:
     # ── Bulk operations ───────────────────────────────────────────────────
 
     @router.post("/models/{model_name}/bulk-delete/")
+    @rate_limit(max_requests=10, window_seconds=60)
     async def bulk_delete(request: Request, model_name: str) -> JSONResponse:
         """Delete multiple instances."""
         if not check_admin_access(request):
@@ -1640,6 +1833,7 @@ def get_admin_router() -> Router:
         )
 
     @router.post("/models/{model_name}/bulk-action/")
+    @rate_limit(max_requests=10, window_seconds=60)
     async def bulk_action(request: Request, model_name: str) -> JSONResponse:
         """Execute a batch action on selected instances."""
         if not check_admin_access(request):
@@ -1741,6 +1935,7 @@ def get_admin_router() -> Router:
     # ── Export endpoint ───────────────────────────────────────────────────
 
     @router.post("/models/{model_name}/export/")
+    @rate_limit(max_requests=5, window_seconds=60)
     async def export_instances(request: Request, model_name: str) -> Response:
         """Export instances to CSV."""
         if not check_admin_access(request):
@@ -1758,8 +1953,12 @@ def get_admin_router() -> Router:
         data = await request.json()
         ids = data.get("ids", [])
 
-        # Build queryset
-        qs = model_class.objects.filter(id__in=ids) if ids else model_class.objects.all()
+        # Build queryset with safety limit to prevent memory exhaustion
+        max_export = getattr(settings, "ADMIN_MAX_EXPORT_ROWS", 10000)
+        if ids:
+            qs = model_class.objects.filter(id__in=ids[:max_export])
+        else:
+            qs = model_class.objects.all().limit(max_export)
 
         instances = await qs.all()
 
@@ -1921,6 +2120,7 @@ def get_admin_router() -> Router:
     # ── Global Search endpoint ───────────────────────────────────────────
 
     @router.get("/search/")
+    @rate_limit(max_requests=30, window_seconds=60)
     async def global_search(request: Request) -> JSONResponse:
         """Search across all registered models.
 
@@ -1936,18 +2136,32 @@ def get_admin_router() -> Router:
             return JSONResponse({"results": []})
 
         limit_per_model = 5
-        results = []
+        max_total = 50
 
-        # Iterate through all registered models
+        # Build search tasks for all searchable models concurrently
+        async def _search_model(
+            model_class: type, model_admin: ModelAdmin, search_fields: list[str]
+        ) -> list[dict[str, Any]]:
+            qs = model_class.objects.all()
+            qs = qs.filter(**{f"{search_fields[0]}__contains": query})
+            instances = await qs.limit(limit_per_model).all()
+            return [
+                {
+                    "id": inst.id,
+                    "display": str(inst),
+                    "model_name": model_class.__name__.lower(),
+                    "app_label": admin._get_app_label(model_class),
+                }
+                for inst in instances
+            ]
+
+        tasks = []
         for model_class, model_admin in admin.get_all_models():
-            # Check view permission
             if not check_model_permission(request, model_class, "view"):
                 continue
 
-            # Get search fields for this model
             search_fields = model_admin.get_search_fields(request)
             if not search_fields:
-                # If no specific search fields, try primary string field (e.g. name, title)
                 fields = getattr(model_class, "_fields", {})
                 for field_name in ["name", "title", "subject", "username", "email"]:
                     if field_name in fields:
@@ -1957,31 +2171,17 @@ def get_admin_router() -> Router:
             if not search_fields:
                 continue
 
-            # Build query
-            qs = model_class.objects.all()
+            tasks.append(_search_model(model_class, model_admin, search_fields))
 
-            # Simple OR search across available fields
-            # Note: OpenViper query system might need adjustment for complex OR,
-            # for now we search just the first field for performance/simplicity.
-            qs = qs.filter(**{f"{search_fields[0]}__contains": query})
-
-            instances = await qs.limit(limit_per_model).all()
-
-            for inst in instances:
-                results.append(
-                    {
-                        "id": inst.id,
-                        "display": str(inst),
-                        "model_name": model_class.__name__.lower(),
-                        "app_label": admin._get_app_label(model_class),
-                    }
-                )
-
-                # Cap total absolute results
-                if len(results) >= 50:
-                    break
-
-            if len(results) >= 50:
+        # Execute all model searches concurrently
+        all_results = await asyncio.gather(*tasks, return_exceptions=True)
+        results: list[dict[str, Any]] = []
+        for task_result in all_results:
+            if isinstance(task_result, Exception):
+                continue
+            results.extend(task_result)
+            if len(results) >= max_total:
+                results = results[:max_total]
                 break
 
         return JSONResponse({"results": results})

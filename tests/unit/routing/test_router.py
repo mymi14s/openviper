@@ -470,11 +470,8 @@ def test_unique_route_names_no_warning(caplog):
     assert not any("shadow" in record.message for record in caplog.records)
 
 
-# ── _candidate_routes lazy index build (line 381) ───────────────────────────
-
-
 def test_candidate_routes_triggers_lazy_index_build():
-    """Calling _candidate_routes() directly on a fresh router triggers lazy build (line 381)."""
+    """Calling _candidate_routes() directly on a fresh router triggers lazy build."""
     router = Router()
 
     @router.get("/resource/{id}")
@@ -483,7 +480,6 @@ def test_candidate_routes_triggers_lazy_index_build():
 
     # _index must be None before the call
     assert router._index is None
-    # Call _candidate_routes directly — _exact_index is also None so line 381 fires
     list(router._candidate_routes("/resource/99"))
     # After the call, index was built
     assert router._index is not None

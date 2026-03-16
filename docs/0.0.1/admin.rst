@@ -286,6 +286,14 @@ Key Classes & Functions
 Example Usage
 -------------
 
+.. seealso::
+
+   Working projects that use the admin panel:
+
+   - `examples/todoapp/ <https://github.com/mymi14s/openviper/tree/master/examples/todoapp>`_ — simple admin with ``@register``, ``list_display``, ``search_fields``
+   - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — custom actions, ``ChildTable`` inlines, multi-app admin
+   - `examples/ecommerce_clone/ <https://github.com/mymi14s/openviper/tree/master/examples/ecommerce_clone>`_ — ``unregister`` / re-register pattern, ``UserRoleInline``
+
 Registering a Model
 ~~~~~~~~~~~~~~~~~~~~
 

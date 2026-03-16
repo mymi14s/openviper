@@ -15,7 +15,6 @@ Quickstart::
     import asyncio
     from typing import Any
 
-
     class MyProvider(AIProvider):
         name = "my_provider"
 
@@ -23,17 +22,14 @@ Quickstart::
             # Call your inference backend here
             return f"[MyProvider] {prompt}"
 
-
     def get_providers() -> list[AIProvider]:
         return [MyProvider({"models": {"My Model": "my-model-v1"}})]
-
 
     # Then register at app startup:
     #   provider_registry.register_from_module("mypackage.ai.my_provider")
     # Or via package entry-point in pyproject.toml:
     #   [project.entry-points."openviper.ai.providers"]
     #   my_provider = "mypackage.ai.my_provider:get_providers"
-
 
 Versioning guarantee
 --------------------

@@ -465,7 +465,7 @@ def test_traversal_lookup_non_model_intermediate_raises():
 
 @pytest.mark.asyncio
 async def test_all_select_related_field_none_skips():
-    """Field not in _fields → field is None → continue (line 859)."""
+    """Field not in _fields → field is None → continue."""
     qs = QuerySet(Post)
     qs._select_related = ["nonexistent_field"]
 
@@ -484,7 +484,7 @@ async def test_all_select_related_field_none_skips():
 
 @pytest.mark.asyncio
 async def test_all_select_related_resolved_cls_none_skips():
-    """resolve_target() returns None → continue (line 862)."""
+    """resolve_target() returns None → continue."""
     qs = QuerySet(Post)
     qs._select_related = ["author"]
 
@@ -568,9 +568,6 @@ async def test_id_batch_empty_chunk_breaks_immediately():
     assert batches == []
 
 
-# ── _hydrate_select_related: resolved_cls None skips (line 1157) ──────────────
-
-
 def test_hydrate_select_related_resolved_cls_none_skips():
     qs = QuerySet(Post)
     qs._select_related = ["author"]
@@ -589,9 +586,6 @@ def test_hydrate_select_related_resolved_cls_none_skips():
         assert instance._get_related("author") is None
     finally:
         Post._fields["author"].resolve_target = original
-
-
-# ── _hydrate_select_related_fast: None path (line 1179) ──────────────────────
 
 
 def test_hydrate_select_related_fast_sets_none_when_all_values_null():
@@ -613,7 +607,7 @@ def test_hydrate_select_related_fast_sets_none_when_all_values_null():
 
 @pytest.mark.asyncio
 async def test_do_prefetch_related_field_none_skips():
-    """Field not in _fields → field is None → continue (line 1198)."""
+    """Field not in _fields → field is None → continue."""
     qs = QuerySet(BranchNote)
     qs._prefetch_related = ["nonexistent_field"]
     # Should not raise
@@ -622,7 +616,7 @@ async def test_do_prefetch_related_field_none_skips():
 
 @pytest.mark.asyncio
 async def test_do_prefetch_related_related_cls_none_skips():
-    """resolve_target() → None → continue (line 1201)."""
+    """resolve_target() → None → continue."""
     qs = QuerySet(Post)
     qs._prefetch_related = ["author"]
 
@@ -639,7 +633,7 @@ async def test_do_prefetch_related_related_cls_none_skips():
 
 @pytest.mark.asyncio
 async def test_do_prefetch_related_no_fk_ids_continues_and_no_tasks_returns():
-    """No valid int fk_ids → continue; no tasks → return early (lines 1217, 1225)."""
+    """No valid int fk_ids → continue; no tasks → return early."""
     qs = QuerySet(Post)
     qs._prefetch_related = ["author"]
 
@@ -658,7 +652,7 @@ async def test_do_prefetch_related_no_fk_ids_continues_and_no_tasks_returns():
 
 @pytest.mark.asyncio
 async def test_do_prefetch_related_lazy_fk_ids_collected():
-    """LazyFK with int fk_id is collected (lines 1213-1214)."""
+    """LazyFK with int fk_id is collected."""
 
     qs = QuerySet(Post)
     qs._prefetch_related = ["author"]
@@ -683,7 +677,7 @@ async def test_do_prefetch_related_lazy_fk_ids_collected():
 
 @pytest.mark.asyncio
 async def test_do_prefetch_related_lazy_fk_result_mapping():
-    """LazyFK result_map lookup (lines 1243-1245)."""
+    """LazyFK result_map lookup."""
 
     qs = QuerySet(Post)
     qs._prefetch_related = ["author"]
@@ -710,16 +704,13 @@ async def test_do_prefetch_related_lazy_fk_result_mapping():
     assert related.name == "Alice"
 
 
-# ── validate(): FK alias continue (line 1524) ────────────────────────────────
-
-
 @pytest.mark.asyncio
 async def test_validate_fk_alias_set_skips_null_check_async():
-    """Field with db_column alias set → continue (line 1524).
+    """Field with db_column alias set → continue.
 
-    ColumnAliasModel.score has null=False but db_column="score_value".
-    When score (the field value) is None but score_value (the column alias) is
-    non-None, validate() should hit the ``continue`` at line 1524 and not raise.
+       ColumnAliasModel.score has null=False but db_column="score_value".
+       When score (the field value) is None but score_value (the column alias) is
+    non-None, validate() should hit the ``continue``and not raise.
     """
     obj = ColumnAliasModel.__new__(ColumnAliasModel)
     obj._previous_state = {}
@@ -738,7 +729,7 @@ async def test_validate_fk_alias_set_skips_null_check_async():
 
 @pytest.mark.asyncio
 async def test_validate_skips_auto_now_datetime_fields():
-    """DateTimeField with auto_now/auto_now_add → continue (line 1509)."""
+    """DateTimeField with auto_now/auto_now_add → continue."""
     obj = TimestampModel.__new__(TimestampModel)
     obj._previous_state = {}
     obj._relation_cache = None
@@ -753,11 +744,8 @@ async def test_validate_skips_auto_now_datetime_fields():
         await obj.validate()
 
 
-# ── _from_row: name-in-row fallback (lines 1595-1596) ────────────────────────
-
-
 def test_from_row_uses_field_name_when_col_name_absent():
-    """col_name not in row but field name is → use field name (line 1596)."""
+    """col_name not in row but field name is → use field name."""
     # Use "author" key (the field name) instead of "author_id" (the column name)
     row = {"id": 1, "title": "Hello", "author": 42}
     p = Post._from_row(row)
@@ -766,11 +754,8 @@ def test_from_row_uses_field_name_when_col_name_absent():
     assert p.__dict__.get("author_id") == 42 or p.__dict__.get("author") == 42
 
 
-# ── _from_row_fast: name-in-row fallback (line 1625) ─────────────────────────
-
-
 def test_from_row_fast_uses_field_name_when_col_name_absent():
-    """col_name not in row but field name is → use field name (line 1625)."""
+    """col_name not in row but field name is → use field name."""
     row = {"id": 1, "title": "Hello", "author": 42}
     p = Post._from_row_fast(row)
     assert p.title == "Hello"

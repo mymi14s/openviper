@@ -66,7 +66,6 @@ Automatic Schema (Zero Configuration)
     app = OpenViper(
         title="Blog API",
         version="1.0.0",
-        description="A simple blog platform built with OpenViper.",
     )
     # Schema available at /open-api/schema.json
     # Swagger UI at /open-api/docs

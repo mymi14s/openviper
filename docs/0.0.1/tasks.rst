@@ -192,13 +192,14 @@ Periodic Tasks
 
 .. code-block:: python
 
+    from openviper.auth.sessions import delete_session
     from openviper.tasks import task, periodic
 
     # Simple form — @periodic adds @task automatically
     @periodic(every=3600)                  # run every hour
     async def purge_expired_sessions() -> None:
-        from openviper.auth.sessions import purge_expired
-        await purge_expired()
+        # delete expired sessions (application-specific logic)
+        ...
 
     @periodic(cron="0 8 * * 1-5")         # weekdays at 08:00 UTC
     async def send_daily_report() -> None:

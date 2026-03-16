@@ -258,13 +258,13 @@ JWT tokens can be revoked by adding their ``jti`` to the blocklist table
 
 .. code-block:: python
 
-    from openviper.auth.token_blocklist import add_to_blocklist
+    from openviper.auth.token_blocklist import revoke_token
 
     async def logout(request):
         # Revoke a token (e.g. on logout)
         claims = decode_token_unverified(token)
         if claims.get("jti"):
-            await add_to_blocklist(claims["jti"], claims.get("exp"))
+            await revoke_token(claims["jti"], claims.get("exp"))
 
 Example Usage
 -------------
@@ -315,6 +315,7 @@ Token Refresh
 .. code-block:: python
 
     from openviper.auth.jwt import decode_refresh_token, create_access_token
+    from openviper.exceptions import TokenExpired, AuthenticationFailed
 
     @router.post("/auth/refresh")
     async def refresh_token(request: Request) -> JSONResponse:

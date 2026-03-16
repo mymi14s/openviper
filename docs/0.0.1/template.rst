@@ -11,8 +11,9 @@ Overview
 --------
 
 Template rendering is available directly from response classes — use
-:class:`~openviper.http.response.TemplateResponse` in any view handler and
-the framework resolves and renders the named template automatically.
+:class:`~openviper.http.response.HTMLResponse` with ``template=`` and
+``context=`` in any view handler and the framework resolves and renders the
+named template automatically.
 
 The :mod:`~openviper.template.environment` module maintains a
 ``functools.lru_cache``-backed :class:`~jinja2.Environment` keyed by the tuple
@@ -72,21 +73,21 @@ Example Usage
    - `examples/ai_smart_recipe_generator/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_smart_recipe_generator>`_ — Jinja2 HTML rendering with static assets
    - `examples/ai_moderation_platform/ <https://github.com/mymi14s/openviper/tree/master/examples/ai_moderation_platform>`_ — Jinja2 templates with plugins
 
-TemplateResponse in a View
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+HTMLResponse with a Template
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
     from openviper.routing.router import Router
     from openviper.http.request import Request
-    from openviper.http.response import TemplateResponse
+    from openviper.http.response import HTMLResponse
 
     router = Router()
 
     @router.get("/")
-    async def home(request: Request) -> TemplateResponse:
+    async def home(request: Request) -> HTMLResponse:
         posts = await Post.objects.filter(is_published=True).limit(10).all()
-        return TemplateResponse("home.html", {
+        return HTMLResponse(template="home.html", context={
             "request": request,
             "posts": posts,
         })

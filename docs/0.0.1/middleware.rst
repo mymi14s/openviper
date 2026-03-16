@@ -305,8 +305,11 @@ Custom Middleware
 
 .. code-block:: python
 
-    from openviper.middleware.base import BaseMiddleware
     import time
+    import uuid
+
+    from openviper.http.request import Request
+    from openviper.middleware.base import BaseMiddleware
 
     class TimingMiddleware(BaseMiddleware):
         async def __call__(self, scope, receive, send) -> None:
@@ -322,11 +325,8 @@ Custom Middleware
     class RequestIdMiddleware(BaseMiddleware):
         """Attach a unique request ID to every request's state."""
 
-        import uuid
-
         async def __call__(self, scope, receive, send) -> None:
             if scope["type"] == "http":
-                from openviper.http.request import Request
                 req = Request(scope, receive)
-                req.state["request_id"] = str(self.uuid.uuid4())
+                req.state["request_id"] = str(uuid.uuid4())
             await self.app(scope, receive, send)

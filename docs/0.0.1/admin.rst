@@ -301,10 +301,10 @@ Create ``myapp/admin.py``:
 
 .. code-block:: python
 
-    from openviper.admin.registry import site
-    from openviper.admin.options import ModelAdmin
+    from openviper.admin import register, ModelAdmin
     from myapp.models import Post, Comment
 
+    @register(Post)
     class PostAdmin(ModelAdmin):
         list_display = ["title", "author", "is_published", "created_at"]
         list_display_links = ["title"]
@@ -329,8 +329,9 @@ Create ``myapp/admin.py``:
         date_hierarchy = "created_at"
         list_select_related = ["author"]   # or True for auto-detect
 
-    site.register(Post, PostAdmin)
-    site.register(Comment)   # uses default ModelAdmin
+    @register(Comment)
+    class CommentAdmin(ModelAdmin):
+        pass
 
 Mounting the Admin Site
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -352,32 +353,34 @@ Custom Actions
 
 .. code-block:: python
 
-    async def publish_posts(request, queryset):
-        count = await queryset.count()
-        await queryset.update(is_published=True)
-        return {"updated": count}
+    from openviper.admin import register, ModelAdmin, action, ActionResult
+    from myapp.models import Post
 
-    publish_posts.short_description = "Publish selected posts"
-
-    async def archive_posts(request, queryset):
-        await queryset.update(is_archived=True, is_published=False)
-
-    archive_posts.short_description = "Archive selected posts"
-
+    @register(Post)
     class PostAdmin(ModelAdmin):
-        actions = [publish_posts, archive_posts]
+        actions = ["publish_posts", "archive_posts"]
         list_display = ["title", "is_published", "is_archived"]
 
-    site.register(Post, PostAdmin)
+        @action(description="Publish selected posts")
+        async def publish_posts(self, queryset, request):
+            count = await queryset.update(is_published=True)
+            return ActionResult(success=True, count=count, message=f"Published {count} posts.")
+
+        @action(description="Archive selected posts")
+        async def archive_posts(self, queryset, request):
+            count = await queryset.update(is_archived=True, is_published=False)
+            return ActionResult(success=True, count=count, message=f"Archived {count} posts.")
 
 Inline Editing
 ~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-    from openviper.admin.options import TabularInline, StackedInline
+    from openviper.admin import register, ModelAdmin, ChildTable
+    from openviper.admin.options import StackedInline
+    from myapp.models import Post, Comment, Tag
 
-    class CommentInline(TabularInline):
+    class CommentInline(ChildTable):
         model = Comment
         fk_name = "post"       # FK on Comment pointing to Post
         fields = ["author", "body", "created_at"]
@@ -390,16 +393,16 @@ Inline Editing
         model = Tag
         fields = ["name", "slug"]
 
+    @register(Post)
     class PostAdmin(ModelAdmin):
         inlines = [CommentInline, TagInline]
-
-    site.register(Post, PostAdmin)
 
 Overriding Permissions
 ~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
+    @register(Post)
     class PostAdmin(ModelAdmin):
         def has_delete_permission(self, request=None, obj=None):
             # Only superusers can delete posts
@@ -422,6 +425,7 @@ Overriding save_model
 
 .. code-block:: python
 
+    @register(Post)
     class PostAdmin(ModelAdmin):
         async def save_model(self, request, obj, form_data, change=False):
             if not change:
@@ -434,6 +438,12 @@ Sensitive Fields
 
 .. code-block:: python
 
+    from openviper.admin import register, ModelAdmin
+    from openviper.auth import get_user_model
+
+    User = get_user_model()
+
+    @register(User)
     class UserAdmin(ModelAdmin):
         list_display = ["id", "username", "email", "is_active"]
         # 'password' is hidden by default; extend for other secrets:
@@ -443,5 +453,3 @@ Sensitive Fields
             "refresh_token",
         ]
         readonly_fields = ["created_at", "last_login"]
-
-    site.register(User, UserAdmin)

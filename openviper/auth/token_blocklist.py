@@ -41,7 +41,7 @@ _JTI_REVOKED_CACHE: dict[str, float] = {}
 _JTI_VALID_CACHE: dict[str, float] = {}
 
 _CACHE_LOCK: asyncio.Lock | None = None
-_NEGATIVE_CACHE_TTL: Final[float] = 60.0  # Valid-token cache; revocation visible within 60s
+_NEGATIVE_CACHE_TTL: Final[float] = 10.0  # Valid-token cache; revocation visible within 10s
 _CACHE_MAXSIZE: Final[int] = 8192
 
 

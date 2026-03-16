@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 # Mapping of field class names to Vue component types
 FIELD_COMPONENT_MAP: dict[str, str] = {
     "AutoField": "hidden",

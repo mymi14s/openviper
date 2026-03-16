@@ -4027,7 +4027,7 @@ class TestAdminAccessPermissionBranches:
 
     @pytest.mark.asyncio
     async def test_change_password_requires_admin_access(self, router, mock_request):
-        """change_password endpoint raises PermissionDenied when not admin - line 484."""
+        """change_password endpoint raises PermissionDenied when not admin"""
         handler = _find_handler_by_path_method(
             router, "/auth/change-user-password/{user_id}/", "POST"
         )
@@ -4045,7 +4045,7 @@ class TestAdminAccessPermissionBranches:
 
     @pytest.mark.asyncio
     async def test_get_model_config_requires_admin_access(self, router, mock_request):
-        """get_model_config endpoint raises PermissionDenied when not admin - line 613."""
+        """get_model_config endpoint raises PermissionDenied when not admin"""
         handler = _find_handler_by_path_method(router, "/models/{app_label}/{model_name}/", "GET")
         assert handler is not None
 
@@ -4055,7 +4055,7 @@ class TestAdminAccessPermissionBranches:
 
     @pytest.mark.asyncio
     async def test_list_instances_by_app_requires_admin_access(self, router, mock_request):
-        """list_instances_by_app endpoint raises PermissionDenied when not admin - line 632."""
+        """list_instances_by_app endpoint raises PermissionDenied when not admin"""
         handler = _find_handler_by_path_method(
             router, "/models/{app_label}/{model_name}/list/", "GET"
         )
@@ -4067,7 +4067,7 @@ class TestAdminAccessPermissionBranches:
 
     @pytest.mark.asyncio
     async def test_create_instance_by_app_requires_admin_access(self, router, mock_request):
-        """create_instance_by_app endpoint raises PermissionDenied when not admin - line 758."""
+        """create_instance_by_app endpoint raises PermissionDenied when not admin"""
         handler = _find_handler_by_path_method(router, "/models/{app_label}/{model_name}/", "POST")
         assert handler is not None
 
@@ -4083,7 +4083,7 @@ class TestFormDataJsonParsing:
 
     @pytest.mark.asyncio
     async def test_create_view_handles_invalid_json_in_formdata(self, router, mock_request):
-        """create_instance_by_app handles JSONDecodeError in FormData - lines 770-780."""
+        """create_instance_by_app handles JSONDecodeError in FormData"""
         handler = _find_handler_by_path_method(router, "/models/{app_label}/{model_name}/", "POST")
         assert handler is not None
 
@@ -4124,7 +4124,7 @@ class TestFormDataJsonParsing:
 
     @pytest.mark.asyncio
     async def test_update_view_handles_invalid_json_in_formdata(self, router, mock_request):
-        """update_instance_by_app handles JSONDecodeError in FormData - lines 925-935."""
+        """update_instance_by_app handles JSONDecodeError in FormData"""
         handler = _find_handler_by_path_method(
             router, "/models/{app_label}/{model_name}/{obj_id}/", "PUT"
         )
@@ -4171,11 +4171,11 @@ class TestFormDataJsonParsing:
 
 
 class TestUpdateViewExceptionHandling:
-    """Test exception handling in update_instance_by_app - lines 1055-1059."""
+    """Test exception handling in update_instance_by_app"""
 
     @pytest.mark.asyncio
     async def test_update_view_handles_value_error(self, router, mock_request):
-        """update_instance_by_app returns 422 on ValueError - lines 1055-1056."""
+        """update_instance_by_app returns 422 on ValueError"""
         handler = _find_handler_by_path_method(
             router, "/models/{app_label}/{model_name}/{obj_id}/", "PUT"
         )
@@ -4216,7 +4216,7 @@ class TestUpdateViewExceptionHandling:
 
     @pytest.mark.asyncio
     async def test_update_view_handles_integrity_error(self, router, mock_request):
-        """update_instance_by_app returns 422 on IntegrityError - lines 1057-1059."""
+        """update_instance_by_app returns 422 on IntegrityError"""
         handler = _find_handler_by_path_method(
             router, "/models/{app_label}/{model_name}/{obj_id}/", "PUT"
         )

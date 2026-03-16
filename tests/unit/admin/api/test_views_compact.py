@@ -61,7 +61,6 @@ class TestViewsEdgeCases:
         """Test that filter_ prefixed query params are applied."""
         mock_request.query_params = {"filter_status": "active"}
 
-        # This tests lines 684-688: filter application
         filters = {}
         allowed_fields = {"status", "name"}
         for key, value in mock_request.query_params.items():
@@ -77,7 +76,7 @@ class TestViewsEdgeCases:
     async def test_readonly_fields_skipped_in_create(
         self, mock_request, mock_model_admin, mock_model_class
     ):
-        """Test that readonly fields are skipped during creation (line 791-792)."""
+        """Test that readonly fields are skipped during creation."""
         data = {"name": "Test", "created_at": "2024-01-01"}
         readonly_fields = ["created_at"]
 
@@ -93,7 +92,7 @@ class TestViewsEdgeCases:
     # Test child table FK name not found case
     @pytest.mark.asyncio
     async def test_child_table_no_fk_name_continue(self):
-        """Test that missing FK name causes continue (line 824-825)."""
+        """Test that missing FK name causes continue."""
         # Simulate no FK found
         fk_name = None
         results = []
@@ -108,7 +107,7 @@ class TestViewsEdgeCases:
     # Test integrity error handling
     @pytest.mark.asyncio
     async def test_integrity_error_with_orig(self):
-        """Test integrity error message extraction (line 844, 872)."""
+        """Test integrity error message extraction."""
 
         class MockOrig:
             def __str__(self):
@@ -123,7 +122,7 @@ class TestViewsEdgeCases:
     # Test datetime serialization in child data
     @pytest.mark.asyncio
     async def test_child_data_datetime_serialization(self):
-        """Test datetime serialization in child table data (lines 1041-1045)."""
+        """Test datetime serialization in child table data."""
 
         child_inst = MagicMock()
         child_inst.id = 1
@@ -149,7 +148,7 @@ class TestViewsEdgeCases:
     # Test list serialization with datetime
     @pytest.mark.asyncio
     async def test_list_item_datetime_serialization(self):
-        """Test datetime serialization in list view (lines 1347-1353)."""
+        """Test datetime serialization in list view."""
 
         instance = MagicMock()
         instance.id = 1
@@ -178,7 +177,7 @@ class TestViewsEdgeCases:
     # Test readonly field skipping in update
     @pytest.mark.asyncio
     async def test_readonly_fields_skipped_in_update(self):
-        """Test readonly fields skipped in PATCH update (lines 1505-1506, 1391-1392)."""
+        """Test readonly fields skipped in PATCH update."""
         data = {"name": "New Name", "created_at": "2024-01-01", "id": 1}
         readonly_fields = ["created_at", "id"]
         fields = {"name": MagicMock(), "created_at": MagicMock()}
@@ -197,7 +196,7 @@ class TestViewsEdgeCases:
     # Test instance field serialization with non-serializable values
     @pytest.mark.asyncio
     async def test_instance_serialization_non_standard_types(self):
-        """Test serialization handles non-standard types (lines 1449-1457)."""
+        """Test serialization handles non-standard types."""
 
         instance = MagicMock()
         instance.id = 1
@@ -221,7 +220,7 @@ class TestViewsEdgeCases:
     # Test history record serialization
     @pytest.mark.asyncio
     async def test_history_record_serialization(self):
-        """Test history record serialization (line 1806)."""
+        """Test history record serialization."""
 
         record = MagicMock()
         record.id = 1
@@ -249,7 +248,7 @@ class TestBulkActionEdgeCases:
 
     @pytest.mark.asyncio
     async def test_bulk_action_too_many_ids(self):
-        """Test bulk action with > 1000 IDs raises error (lines 1141-1142, 1653-1654)."""
+        """Test bulk action with > 1000 IDs raises error."""
         ids = list(range(1001))
         max_allowed = 1000
 
@@ -259,7 +258,7 @@ class TestBulkActionEdgeCases:
 
     @pytest.mark.asyncio
     async def test_bulk_delete_too_many_ids(self):
-        """Test bulk delete with > 1000 IDs (line 1602-1603)."""
+        """Test bulk delete with > 1000 IDs."""
         ids = list(range(1001))
 
         error_detail = "Cannot delete more than 1000 items at once." if len(ids) > 1000 else None
@@ -272,7 +271,7 @@ class TestFkSearchEdgeCases:
 
     @pytest.mark.asyncio
     async def test_fk_search_model_not_in_registry(self):
-        """Test FK search falls back when model not in admin registry (line 1838-1839)."""
+        """Test FK search falls back when model not in admin registry."""
 
         model_class = None
 
@@ -286,10 +285,9 @@ class TestFkSearchEdgeCases:
 class TestLegacyEndpointBranches:
     """Tests for legacy endpoint branch coverage."""
 
-    # Line 1313, 1316: filter param application in legacy list
     @pytest.mark.asyncio
     async def test_legacy_list_filter_branch(self):
-        """Test filter application branch (lines 1312-1316)."""
+        """Test filter application branch."""
         allowed_fields = {"status", "category"}
         query_params = {
             "filter_status": "active",
@@ -307,10 +305,9 @@ class TestLegacyEndpointBranches:
         assert filters == {"status": "active"}
         assert "invalid" not in filters
 
-    # Line 1325: ordering fallback in legacy list
     @pytest.mark.asyncio
     async def test_legacy_list_ordering_fallback(self):
-        """Test ordering fallback when no sort param (line 1324-1325)."""
+        """Test ordering fallback when no sort param."""
         sort_field = ""
         ordering = ["-created_at"]
 
@@ -318,20 +315,19 @@ class TestLegacyEndpointBranches:
 
         assert final_ordering == ["-created_at"]
 
-    # Line 1371, 1380: create permission checks
     @pytest.mark.asyncio
     async def test_create_permission_denied(self):
-        """Test create returns PermissionDenied (lines 1371, 1380)."""
+        """Test create returns PermissionDenied."""
         has_add_permission = False
 
         error = "No permission to add" if not has_add_permission else None
 
         assert error is not None
 
-    # Lines 1421-1424: serializing response with datetime
+    # serializing response with datetime
     @pytest.mark.asyncio
     async def test_create_response_datetime_serialization(self):
-        """Test create response serializes datetime fields (lines 1421-1424)."""
+        """Test create response serializes datetime fields."""
 
         instance = MagicMock()
         instance.id = 1
@@ -350,18 +346,17 @@ class TestLegacyEndpointBranches:
         assert response_data["created"] == "2024-03-15T10:00:00"
         assert response_data["name"] == "Test"
 
-    # Line 1432: get instance permission
     @pytest.mark.asyncio
     async def test_get_instance_admin_required(self):
-        """Test get instance requires admin (line 1432)."""
+        """Test get instance requires admin."""
         is_staff = False
         error = "Admin access required." if not is_staff else None
         assert error is not None
 
-    # Lines 1449-1462: get instance serialization
+    # get instance serialization
     @pytest.mark.asyncio
     async def test_get_instance_serialization_branches(self):
-        """Test get instance serialization with various types (lines 1449-1462)."""
+        """Test get instance serialization with various types."""
 
         instance = MagicMock()
         instance.id = 1
@@ -390,25 +385,23 @@ class TestLegacyEndpointBranches:
         assert response_data["price"] == "99.99"
         assert response_data["tags"] == ["a", "b"]
 
-    # Line 1475: update admin required
     @pytest.mark.asyncio
     async def test_update_admin_required(self):
-        """Test update endpoint requires admin (line 1475)."""
+        """Test update endpoint requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1489: update change permission
     @pytest.mark.asyncio
     async def test_update_change_permission(self):
-        """Test update requires change permission (line 1489)."""
+        """Test update requires change permission."""
         has_change_permission = False
         error = "No permission to change" if not has_change_permission else None
         assert error is not None
 
-    # Lines 1506, 1510-1511: update readonly fields and coercion
+    # update readonly fields and coercion
     @pytest.mark.asyncio
     async def test_update_field_coercion_branches(self):
-        """Test update field coercion branches (lines 1506, 1510-1511)."""
+        """Test update field coercion branches."""
         data = {"name": "New", "readonly_field": "ignored", "extra": "value"}
         readonly_fields = ["readonly_field"]
         fields = {"name": MagicMock(), "readonly_field": MagicMock()}
@@ -416,20 +409,19 @@ class TestLegacyEndpointBranches:
         new_data = {}
         for field_name, value in data.items():
             if field_name in readonly_fields:
-                continue  # Line 1506
+                continue
             if field_name in fields:
-                new_data[field_name] = value  # Lines 1510-1511
+                new_data[field_name] = value
             else:
-                new_data[field_name] = value  # Lines 1513-1514
+                new_data[field_name] = value
 
         assert "name" in new_data
         assert "readonly_field" not in new_data
         assert "extra" in new_data
 
-    # Line 1526: log change if changes exist
     @pytest.mark.asyncio
     async def test_update_log_changes_branch(self):
-        """Test changes are only logged if there are changes (line 1526)."""
+        """Test changes are only logged if there are changes."""
         changes = {"name": {"old": "A", "new": "B"}}
         log_called = False
 
@@ -445,10 +437,10 @@ class TestLegacyEndpointBranches:
             log_called = True
         assert log_called is False
 
-    # Lines 1540-1543: update response serialization
+    # update response serialization
     @pytest.mark.asyncio
     async def test_update_response_serialization(self):
-        """Test update response serialization (lines 1540-1543)."""
+        """Test update response serialization."""
 
         instance = MagicMock()
         instance.id = 1
@@ -465,53 +457,46 @@ class TestLegacyEndpointBranches:
 
         assert response_data["updated"] == "2024-06-01T15:30:00"
 
-    # Line 1551: delete admin required
     @pytest.mark.asyncio
     async def test_delete_admin_required(self):
-        """Test delete requires admin (line 1551)."""
+        """Test delete requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1588: bulk delete admin required
     @pytest.mark.asyncio
     async def test_bulk_delete_admin_required(self):
-        """Test bulk delete requires admin (line 1588)."""
+        """Test bulk delete requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1634: bulk action admin required
     @pytest.mark.asyncio
     async def test_bulk_action_admin_required(self):
-        """Test bulk action requires admin (line 1634)."""
+        """Test bulk action requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1654: bulk action too many IDs
     @pytest.mark.asyncio
     async def test_bulk_action_limit_validation(self):
-        """Test bulk action validates ID count (line 1654)."""
+        """Test bulk action validates ID count."""
         ids = list(range(1001))
         error = "Cannot act on more than 1000 items at once." if len(ids) > 1000 else None
         assert error is not None
 
-    # Line 1692: filter options admin required
     @pytest.mark.asyncio
     async def test_filter_options_admin_required(self):
-        """Test filter options requires admin (line 1692)."""
+        """Test filter options requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1735: export admin required
     @pytest.mark.asyncio
     async def test_export_admin_required(self):
-        """Test export requires admin (line 1735)."""
+        """Test export requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1767: export datetime serialization
     @pytest.mark.asyncio
     async def test_export_datetime_serialization(self):
-        """Test export CSV datetime serialization (line 1767)."""
+        """Test export CSV datetime serialization."""
 
         instance = MagicMock()
         instance.id = 1
@@ -528,25 +513,22 @@ class TestLegacyEndpointBranches:
 
         assert row["created"] == "2024-02-14T09:00:00"
 
-    # Line 1789: history admin required
     @pytest.mark.asyncio
     async def test_history_admin_required(self):
-        """Test history requires admin (line 1789)."""
+        """Test history requires admin."""
         check_admin = False
         assert check_admin is False
 
-    # Line 1799: history instance not found
     @pytest.mark.asyncio
     async def test_history_instance_not_found(self):
-        """Test history returns 404 if instance not found (line 1799)."""
+        """Test history returns 404 if instance not found."""
         instance = None
         error = "not found" if not instance else None
         assert error is not None
 
-    # Line 1833: fk search admin required
     @pytest.mark.asyncio
     async def test_fk_search_admin_required(self):
-        """Test FK search requires admin (line 1833)."""
+        """Test FK search requires admin."""
         check_admin = False
         assert check_admin is False
 
@@ -554,18 +536,17 @@ class TestLegacyEndpointBranches:
 class TestPermissionChecks:
     """Tests for various permission check branches."""
 
-    # Lines 872, 911: get/update instance by app admin check
+    # get/update instance by app admin check
     @pytest.mark.asyncio
     async def test_get_instance_by_app_admin_check(self):
-        """Test get_instance_by_app admin check (line 872)."""
+        """Test get_instance_by_app admin check."""
         is_admin = False
         error = "Admin access required." if not is_admin else None
         assert error == "Admin access required."
 
-    # Line 952: update readonly skip
     @pytest.mark.asyncio
     async def test_update_by_app_readonly_skip(self):
-        """Test update skips readonly fields (line 952)."""
+        """Test update skips readonly fields."""
         data = {"name": "Test", "id": 1}
         readonly_fields = ["id"]
 
@@ -578,10 +559,9 @@ class TestPermissionChecks:
         assert "id" not in processed
         assert "name" in processed
 
-    # Line 990: inline FK not found continue
     @pytest.mark.asyncio
     async def test_inline_fk_not_found(self):
-        """Test inline FK not found causes continue (line 990)."""
+        """Test inline FK not found causes continue."""
         fk_name = None
         processed = []
 
@@ -592,34 +572,30 @@ class TestPermissionChecks:
 
         assert processed == []
 
-    # Line 1088: delete admin check
     @pytest.mark.asyncio
     async def test_delete_by_app_admin_check(self):
-        """Test delete_by_app admin check (line 1088)."""
+        """Test delete_by_app admin check."""
         is_admin = False
         error = "Admin access required." if not is_admin else None
         assert error is not None
 
-    # Line 1122: bulk action by app admin check
     @pytest.mark.asyncio
     async def test_bulk_action_by_app_admin_check(self):
-        """Test bulk_action_by_app admin check (line 1122)."""
+        """Test bulk_action_by_app admin check."""
         is_admin = False
         error = "Admin access required." if not is_admin else None
         assert error is not None
 
-    # Line 1170: export by app admin check
     @pytest.mark.asyncio
     async def test_export_by_app_admin_check(self):
-        """Test export_by_app admin check (line 1170)."""
+        """Test export_by_app admin check."""
         is_admin = False
         error = "Admin access required." if not is_admin else None
         assert error is not None
 
-    # Line 1205: export datetime field
     @pytest.mark.asyncio
     async def test_export_by_app_datetime(self):
-        """Test export datetime serialization (line 1205)."""
+        """Test export datetime serialization."""
 
         value = datetime(2024, 5, 20, 14, 30)
         if hasattr(value, "isoformat"):
@@ -627,18 +603,16 @@ class TestPermissionChecks:
 
         assert value == "2024-05-20T14:30:00"
 
-    # Line 1227: history by app admin check
     @pytest.mark.asyncio
     async def test_history_by_app_admin_check(self):
-        """Test history admin check (line 1227)."""
+        """Test history admin check."""
         is_admin = False
         error = "Admin access required." if not is_admin else None
         assert error is not None
 
-    # Line 1263: legacy list admin check
     @pytest.mark.asyncio
     async def test_legacy_list_admin_check(self):
-        """Test legacy list admin check (line 1263)."""
+        """Test legacy list admin check."""
         is_admin = False
         error = "Admin access required." if not is_admin else None
         assert error is not None
@@ -652,10 +626,10 @@ class TestPermissionChecks:
 class TestLegacyEndpointsUncovered:
     """Tests for legacy endpoint uncovered branches."""
 
-    # Lines 1313, 1316: legacy list filter application
+    # legacy list filter application
     @pytest.mark.asyncio
     async def test_legacy_list_filter_and_apply(self):
-        """Test filter_ params applied in legacy list (lines 1312-1316)."""
+        """Test filter_ params applied in legacy list."""
         allowed_fields = {"status", "category"}
         query_params = {"filter_status": "active", "filter_category": "tech"}
         filters = {}
@@ -668,14 +642,12 @@ class TestLegacyEndpointsUncovered:
         # Should have populated filters
         assert filters == {"status": "active", "category": "tech"}
 
-        # Line 1316: apply filters
         applied = bool(filters)
         assert applied is True
 
-    # Line 1325: legacy list ordering
     @pytest.mark.asyncio
     async def test_legacy_list_default_ordering(self):
-        """Test default ordering applied when no sort param (line 1325)."""
+        """Test default ordering applied when no sort param."""
         sort_field = ""
         ordering = ["-id", "name"]
 
@@ -683,10 +655,10 @@ class TestLegacyEndpointsUncovered:
 
         assert result_order == ["-id", "name"]
 
-    # Lines 1347-1353: legacy list isoformat serialization
+    # legacy list isoformat serialization
     @pytest.mark.asyncio
     async def test_legacy_list_isoformat_serialization(self):
-        """Test datetime isoformat serialization in legacy list (lines 1347-1353)."""
+        """Test datetime isoformat serialization in legacy list."""
 
         dt = datetime(2024, 1, 15, 10, 30, 0)
         value = dt
@@ -698,26 +670,23 @@ class TestLegacyEndpointsUncovered:
 
         assert value == "2024-01-15T10:30:00"
 
-    # Line 1371: legacy create admin check
     @pytest.mark.asyncio
     async def test_legacy_create_admin_check(self):
-        """Test admin check on legacy create (line 1371)."""
+        """Test admin check on legacy create."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1380: legacy create add permission
     @pytest.mark.asyncio
     async def test_legacy_create_add_permission_check(self):
-        """Test add permission check on legacy create (line 1380)."""
+        """Test add permission check on legacy create."""
         has_add = False
         permission_denied = not has_add
         assert permission_denied is True
 
-    # Line 1392: legacy create readonly field skip
     @pytest.mark.asyncio
     async def test_legacy_create_readonly_skip(self):
-        """Test readonly field skipped in legacy create (line 1392)."""
+        """Test readonly field skipped in legacy create."""
         data = {"name": "Test", "created_at": "2024-01-01"}
         readonly_fields = ["created_at"]
         coerced_data = {}
@@ -730,10 +699,10 @@ class TestLegacyEndpointsUncovered:
         assert "created_at" not in coerced_data
         assert coerced_data == {"name": "Test"}
 
-    # Lines 1421-1424: legacy create response isoformat
+    # legacy create response isoformat
     @pytest.mark.asyncio
     async def test_legacy_create_response_isoformat(self):
-        """Test datetime in legacy create response (lines 1421-1424)."""
+        """Test datetime in legacy create response."""
 
         fields = {"name": "test", "updated_at": datetime(2024, 1, 15)}
         response_data = {}
@@ -745,18 +714,17 @@ class TestLegacyEndpointsUncovered:
 
         assert response_data["updated_at"] == "2024-01-15T00:00:00"
 
-    # Line 1432: legacy get instance admin check
     @pytest.mark.asyncio
     async def test_legacy_get_instance_admin_check(self):
-        """Test admin check on legacy get (line 1432)."""
+        """Test admin check on legacy get."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Lines 1449-1462: legacy get instance serialization
+    # legacy get instance serialization
     @pytest.mark.asyncio
     async def test_legacy_get_instance_serialization(self):
-        """Test instance serialization in legacy get (lines 1449-1462)."""
+        """Test instance serialization in legacy get."""
 
         fields = {
             "name": "test",
@@ -775,26 +743,24 @@ class TestLegacyEndpointsUncovered:
         assert isinstance(response_data["created_at"], str)
         assert isinstance(response_data["uuid_field"], str)
 
-    # Line 1475: legacy update admin check
     @pytest.mark.asyncio
     async def test_legacy_update_admin_check(self):
-        """Test admin check on legacy update (line 1475)."""
+        """Test admin check on legacy update."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1489: legacy update change permission
     @pytest.mark.asyncio
     async def test_legacy_update_change_permission(self):
-        """Test change permission on legacy update (line 1489)."""
+        """Test change permission on legacy update."""
         has_change = False
         permission_denied = not has_change
         assert permission_denied is True
 
-    # Lines 1506, 1510-1511: legacy update readonly and field setting
+    # legacy update readonly and field setting
     @pytest.mark.asyncio
     async def test_legacy_update_readonly_and_set(self):
-        """Test readonly skip and field set in legacy update (lines 1506, 1510-1511)."""
+        """Test readonly skip and field set in legacy update."""
         data = {"name": "New Name", "created_at": "2024-01-01", "status": "active"}
         readonly_fields = ["created_at"]
         fields = {"name", "status", "created_at"}
@@ -802,9 +768,9 @@ class TestLegacyEndpointsUncovered:
 
         for field_name, value in data.items():
             if field_name in readonly_fields:
-                continue  # Line 1506
+                continue
             if field_name in fields:
-                setattr(instance, field_name, value)  # Lines 1510-1511
+                setattr(instance, field_name, value)
 
         assert (
             not hasattr(instance, "created_at")
@@ -813,10 +779,9 @@ class TestLegacyEndpointsUncovered:
         assert instance.name == "New Name"
         assert instance.status == "active"
 
-    # Line 1526: legacy update additional field setting
     @pytest.mark.asyncio
     async def test_legacy_update_non_model_field(self):
-        """Test non-model field setting in update (lines 1512-1514)."""
+        """Test non-model field setting in update."""
         data = {"custom_field": "value"}
         fields = {"name", "status"}
         instance = MagicMock()
@@ -827,10 +792,10 @@ class TestLegacyEndpointsUncovered:
 
         assert instance.custom_field == "value"
 
-    # Lines 1540-1543: legacy update response isoformat
+    # legacy update response isoformat
     @pytest.mark.asyncio
     async def test_legacy_update_response_isoformat(self):
-        """Test datetime in legacy update response (lines 1540-1543)."""
+        """Test datetime in legacy update response."""
 
         fields = {"name": "test", "modified": datetime(2024, 1, 15, 12, 0)}
         response_data = {}
@@ -842,84 +807,74 @@ class TestLegacyEndpointsUncovered:
 
         assert response_data["modified"] == "2024-01-15T12:00:00"
 
-    # Line 1551: legacy delete admin check
     @pytest.mark.asyncio
     async def test_legacy_delete_admin_check(self):
-        """Test admin check on legacy delete (line 1551)."""
+        """Test admin check on legacy delete."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1588: bulk delete admin check
     @pytest.mark.asyncio
     async def test_bulk_delete_admin_check(self):
-        """Test admin check on bulk delete (line 1588)."""
+        """Test admin check on bulk delete."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1634: bulk action admin check
     @pytest.mark.asyncio
     async def test_bulk_action_admin_check(self):
-        """Test admin check on bulk action (line 1634)."""
+        """Test admin check on bulk action."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1654: bulk action over 1000 limit
     @pytest.mark.asyncio
     async def test_bulk_action_over_limit(self):
-        """Test bulk action 1000 limit (line 1654)."""
+        """Test bulk action 1000 limit."""
         ids = list(range(1001))
         error = "Cannot act on more than 1000 items at once." if len(ids) > 1000 else None
         assert error is not None
 
-    # Line 1692: get filter options admin check
     @pytest.mark.asyncio
     async def test_get_filter_options_admin_check(self):
-        """Test admin check on get filter options (line 1692)."""
+        """Test admin check on get filter options."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1735: export admin check
     @pytest.mark.asyncio
     async def test_export_admin_check(self):
-        """Test admin check on export (line 1735)."""
+        """Test admin check on export."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1767: export isoformat serialization
     @pytest.mark.asyncio
     async def test_export_isoformat(self):
-        """Test datetime serialization in export (line 1767)."""
+        """Test datetime serialization in export."""
 
         value = datetime(2024, 1, 15, 9, 30)
         if hasattr(value, "isoformat"):
             value = value.isoformat()
         assert value == "2024-01-15T09:30:00"
 
-    # Line 1789: get history admin check
     @pytest.mark.asyncio
     async def test_get_history_admin_check(self):
-        """Test admin check on get history (line 1789)."""
+        """Test admin check on get history."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
 
-    # Line 1799: get history instance not found
     @pytest.mark.asyncio
     async def test_get_history_not_found(self):
-        """Test instance not found in get history (line 1799)."""
+        """Test instance not found in get history."""
         instance = None
         not_found = not instance
         assert not_found is True
 
-    # Line 1806: get history append record
     @pytest.mark.asyncio
     async def test_get_history_append_records(self):
-        """Test history record building (lines 1806+)."""
+        """Test history record building."""
         history = []
         record = MagicMock()
         record.id = 1
@@ -947,10 +902,9 @@ class TestLegacyEndpointsUncovered:
         assert history[0]["id"] == 1
         assert history[0]["action"] == "add"
 
-    # Line 1833: autocomplete admin check
     @pytest.mark.asyncio
     async def test_autocomplete_admin_check(self):
-        """Test admin check on autocomplete (line 1833)."""
+        """Test admin check on autocomplete."""
         is_admin = False
         permission_denied = not is_admin
         assert permission_denied is True
@@ -959,30 +913,28 @@ class TestLegacyEndpointsUncovered:
 class TestChildTableProcessing:
     """Tests for child table/inline processing in create/update."""
 
-    # Lines 792, 825: readonly field skip, no fk_name continue
+    # readonly field skip, no fk_name continue
     @pytest.mark.asyncio
     async def test_create_readonly_skip_and_no_fk(self):
-        """Test readonly skip in create (line 792) and no fk_name (line 825)."""
+        """Test readonly skip in create and no fk_name."""
         data = {"name": "Test", "readonly_field": "skip"}
         readonly_fields = ["readonly_field"]
         coerced_data = {}
 
         for field_name, value in data.items():
             if field_name in readonly_fields:
-                continue  # Line 792
+                continue
             coerced_data[field_name] = value
 
         assert "readonly_field" not in coerced_data
 
-        # Line 825: no fk_name found
         fk_name = None
         skipped = not fk_name
         assert skipped is True
 
-    # Line 844: create ValueError handling
     @pytest.mark.asyncio
     async def test_create_value_error_handling(self):
-        """Test ValueError handling in create (line 844)."""
+        """Test ValueError handling in create."""
         try:
             raise ValueError("Invalid field value")
         except ValueError as exc:
@@ -992,38 +944,37 @@ class TestChildTableProcessing:
         assert error_response == {"errors": {"__all__": "Invalid field value"}}
         assert status_code == 422
 
-    # Lines 872, 911: get/update by app admin checks
+    # get/update by app admin checks
     @pytest.mark.asyncio
     async def test_app_endpoints_admin_checks(self):
-        """Test admin checks on app endpoints (lines 872, 911)."""
+        """Test admin checks on app endpoints."""
         for _line in [872, 911]:
             is_admin = False
             permission_denied = not is_admin
             assert permission_denied is True
 
-    # Lines 952, 990: update readonly skip, no fk_name continue
+    # update readonly skip, no fk_name continue
     @pytest.mark.asyncio
     async def test_update_readonly_and_no_fk(self):
-        """Test readonly skip in update (line 952) and no fk (line 990)."""
+        """Test readonly skip in update and no fk."""
         data = {"name": "New", "immutable": "skip"}
         readonly_fields = ["immutable"]
 
         for field_name, _value in data.items():
             if field_name in readonly_fields:
-                skipped_readonly = True  # Line 952
+                skipped_readonly = True
                 continue
 
         assert skipped_readonly is True
 
-        # Line 990
         fk_name = None
         skipped_fk = not fk_name
         assert skipped_fk is True
 
-    # Lines 1040-1045: child serialization isoformat and str conversion
+    # child serialization isoformat and str conversion
     @pytest.mark.asyncio
     async def test_child_serialization(self):
-        """Test child table serialization (lines 1040-1045)."""
+        """Test child table serialization."""
 
         child_fields = ["name", "created_at", "ref_id"]
         child_inst = MagicMock()
@@ -1035,28 +986,28 @@ class TestChildTableProcessing:
         for f_name in child_fields:
             val = getattr(child_inst, f_name, None)
             if hasattr(val, "isoformat"):
-                val = val.isoformat()  # Line 1042
+                val = val.isoformat()
             elif val is not None and not isinstance(val, (str, int, float, bool, list, dict)):
-                val = str(val)  # Lines 1043-1044
-            child_data[f_name] = val  # Line 1045
+                val = str(val)
+            child_data[f_name] = val
 
         assert isinstance(child_data["created_at"], str)
         assert isinstance(child_data["ref_id"], str)
 
-    # Lines 1088, 1122: delete/bulk admin checks
+    # delete/bulk admin checks
     @pytest.mark.asyncio
     async def test_delete_bulk_admin_checks(self):
-        """Test admin checks on delete/bulk (lines 1088, 1122)."""
+        """Test admin checks on delete/bulk."""
         for _line in [1088, 1122]:
             is_admin = False
             if not is_admin:
                 permission_denied = True
             assert permission_denied is True
 
-    # Lines 1170, 1205: export admin check and isoformat
+    # export admin check and isoformat
     @pytest.mark.asyncio
     async def test_export_by_app_branches(self):
-        """Test export by app admin check (line 1170) and isoformat (line 1205)."""
+        """Test export by app admin check and isoformat."""
 
         is_admin = False
         if not is_admin:

@@ -505,7 +505,6 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
 
 # ── Diff-based migration generation ──────────────────────────────────────
 
-
 # Global dict to track columns that have been soft-removed across migrations.
 # Populated by read_migrated_state; maps (table_name, column_name) to col info.
 _soft_removed_columns: dict[tuple[str, str], dict[str, Any]] = {}

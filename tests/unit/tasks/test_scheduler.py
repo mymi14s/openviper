@@ -423,12 +423,9 @@ class TestEnqueue:
             assert mock_logger.warning.called
 
 
-# ── _tick_loop: _scheduler=None break (line 219) and fired logging (line 223) ─
-
-
 class TestTickLoopBranches:
     def test_tick_loop_breaks_when_scheduler_is_none(self):
-        """_tick_loop breaks out of the while loop when _scheduler is None (line 219)."""
+        """_tick_loop breaks out of the while loop when _scheduler is None."""
 
         with patch.object(_sched_mod, "_scheduler", None):
             with patch.object(_sched_mod, "_stop_event") as mock_event:
@@ -438,7 +435,7 @@ class TestTickLoopBranches:
                 mock_event.wait.assert_called_once()
 
     def test_tick_loop_logs_fired_entries(self):
-        """_tick_loop logs each fired task name when tick() returns non-empty (line 223)."""
+        """_tick_loop logs each fired task name when tick() returns non-empty."""
 
         mock_scheduler = MagicMock()
         mock_scheduler.tick.return_value = ["my_task", "other_task"]

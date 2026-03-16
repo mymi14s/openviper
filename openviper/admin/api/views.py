@@ -55,7 +55,6 @@ if TYPE_CHECKING:
     from openviper.db import Model
     from openviper.http.request import Request
 
-
 User = get_user_model()
 logger = logging.getLogger(__name__)
 

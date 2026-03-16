@@ -121,7 +121,7 @@ class TestEndpointPermissionChecks:
 
     @pytest.mark.asyncio
     async def test_change_password_requires_admin_access(self):
-        """Should check admin access for change_password endpoint - line 484."""
+        """Should check admin access for change_password endpoint"""
         handler = self.find_endpoint("/api/users/{user_id}/change-password/", "POST")
         if handler:
             mock_request = MagicMock()
@@ -136,7 +136,7 @@ class TestEndpointPermissionChecks:
 
     @pytest.mark.asyncio
     async def test_get_model_config_requires_admin_access(self):
-        """Should check admin access for get_model_config endpoint - line 613."""
+        """Should check admin access for get_model_config endpoint"""
         handler = self.find_endpoint("/api/models/{app_label}/{model_name}/", "GET")
         if handler:
             mock_request = MagicMock()
@@ -147,7 +147,7 @@ class TestEndpointPermissionChecks:
 
     @pytest.mark.asyncio
     async def test_get_field_choices_requires_admin_access(self):
-        """Should check admin access for get_field_choices endpoint - line 632."""
+        """Should check admin access for get_field_choices endpoint"""
         handler = self.find_endpoint("/api/{model_name}/field-choices/{field_name}/", "GET")
         if handler:
             mock_request = MagicMock()
@@ -158,7 +158,7 @@ class TestEndpointPermissionChecks:
 
     @pytest.mark.asyncio
     async def test_upload_file_requires_admin_access(self):
-        """Should check admin access for upload_file endpoint - line 758."""
+        """Should check admin access for upload_file endpoint"""
         handler = self.find_endpoint("/api/{model_name}/upload/", "POST")
         if handler:
             mock_request = MagicMock()
@@ -170,11 +170,11 @@ class TestEndpointPermissionChecks:
 
 
 class TestFormDataJsonParsing:
-    """Test FormData JSON parsing with fallback - lines 777-778, 925-935."""
+    """Test FormData JSON parsing with fallback"""
 
     @pytest.mark.asyncio
     async def test_create_view_handles_invalid_json_in_formdata(self):
-        """Should handle JSONDecodeError in create_view FormData parsing - lines 777-778."""
+        """Should handle JSONDecodeError in create_view FormData parsing"""
         router = get_admin_router()
         handler = None
         for route in router.routes:
@@ -222,7 +222,7 @@ class TestFormDataJsonParsing:
 
     @pytest.mark.asyncio
     async def test_update_view_handles_invalid_json_in_formdata(self):
-        """Should handle JSONDecodeError in update_view FormData parsing - lines 932-933."""
+        """Should handle JSONDecodeError in update_view FormData parsing"""
         router = get_admin_router()
         handler = None
         for route in router.routes:
@@ -275,11 +275,11 @@ class TestFormDataJsonParsing:
 
 
 class TestUpdateViewExceptionHandling:
-    """Test exception handling in update_view - lines 1055-1059."""
+    """Test exception handling in update_view"""
 
     @pytest.mark.asyncio
     async def test_update_view_handles_value_error(self):
-        """Should return 422 on ValueError - line 1055-1056."""
+        """Should return 422 on ValueError"""
         router = get_admin_router()
         handler = None
         for route in router.routes:
@@ -327,7 +327,7 @@ class TestUpdateViewExceptionHandling:
 
     @pytest.mark.asyncio
     async def test_update_view_handles_integrity_error(self):
-        """Should return 422 on IntegrityError - lines 1057-1059."""
+        """Should return 422 on IntegrityError"""
         router = get_admin_router()
         handler = None
         for route in router.routes:

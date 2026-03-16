@@ -107,6 +107,7 @@ _dispatcher_cache: Any = _UNSET
 
 # Background task tracking to prevent garbage collection and log exceptions.
 _background_tasks: set[asyncio.Task[Any]] = set()
+_MAX_BACKGROUND_TASKS: int = 1024
 
 # ---------------------------------------------------------------------------
 # Decorator-based handler registry
@@ -142,7 +143,6 @@ SUPPORTED_EVENTS: frozenset[str] = frozenset(
         "post_bulk_update",
     }
 )
-
 
 # ---------------------------------------------------------------------------
 # Dispatcher
@@ -419,6 +419,15 @@ def _call_handler(handler: Any, instance: Any, event_name: str, **kwargs: Any) -
     and to log any unhandled exceptions.
     """
     if inspect.iscoroutinefunction(handler):
+        if len(_background_tasks) >= _MAX_BACKGROUND_TASKS:
+            logger.warning(
+                "MODEL_EVENTS: background task limit (%d) reached — "
+                "skipping async handler %r for %s.",
+                _MAX_BACKGROUND_TASKS,
+                getattr(handler, "__qualname__", repr(handler)),
+                event_name,
+            )
+            return
         try:
             loop = asyncio.get_running_loop()
             task = loop.create_task(handler(instance, event=event_name, **kwargs))

@@ -21,7 +21,7 @@ from openviper.core.management.commands.shell import Command as ShellCommand
 from openviper.db.models import Model
 
 # ---------------------------------------------------------------------------
-# Shell command tests (lines 46-60, 72-73)
+# Shell command tests
 # ---------------------------------------------------------------------------
 
 
@@ -34,7 +34,7 @@ class TestShellModelDiscovery:
         return ShellCommand()
 
     def test_discover_models_import_error(self, shell_command):
-        """Test _discover_models handles ImportError gracefully (lines 42-44)."""
+        """Test _discover_models handles ImportError gracefully."""
         with patch("openviper.core.management.commands.shell.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = ["nonexistent_app"]
 
@@ -53,13 +53,12 @@ class TestShellModelDiscovery:
                         assert models == {}
 
     def test_discover_models_subclass_check(self, shell_command):
-        """Test _discover_models handles issubclass checks (lines 46-57)."""
+        """Test _discover_models handles issubclass checks."""
 
         # Create a real Model subclass with proper module
         class FakeModel(Model):
             pass
 
-        # This test verifies the branch logic in lines 46-57
         # Rather than fighting mocks, let's just check that empty apps works
         with patch("openviper.core.management.commands.shell.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = []
@@ -74,7 +73,7 @@ class TestShellModelDiscovery:
                     assert models == {}
 
     def test_discover_models_type_error_in_issubclass(self, shell_command):
-        """Test _discover_models catches TypeError from issubclass (lines 56-57)."""
+        """Test _discover_models catches TypeError from issubclass."""
         mock_module = MagicMock()
         mock_module.__name__ = "myapp.models"
 
@@ -107,7 +106,7 @@ class TestShellModelDiscovery:
                                 assert isinstance(models, dict)
 
     def test_discover_models_output_count(self, shell_command):
-        """Test _discover_models outputs model count when found (lines 59-63)."""
+        """Test _discover_models outputs model count when found."""
         mock_module = MagicMock()
         mock_module.__name__ = "myapp.models"
 
@@ -135,7 +134,7 @@ class TestShellModelDiscovery:
                         assert mock_stdout.called
 
     def test_discover_models_user_model_exception(self, shell_command):
-        """Test _discover_models handles get_user_model exception (lines 72-73)."""
+        """Test _discover_models handles get_user_model exception."""
         with patch("openviper.core.management.commands.shell.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = []
 
@@ -149,7 +148,7 @@ class TestShellModelDiscovery:
                     assert models == {}
 
     def test_discover_models_adds_user_model(self, shell_command):
-        """Test _discover_models adds user model if not already present (lines 65-71)."""
+        """Test _discover_models adds user model if not already present."""
         mock_user = MagicMock()
         mock_user.__name__ = "CustomUser"
 
@@ -167,7 +166,7 @@ class TestShellModelDiscovery:
 
 
 # ---------------------------------------------------------------------------
-# Changepassword command tests (lines 49-54, 85-86)
+# Changepassword command tests
 # ---------------------------------------------------------------------------
 
 
@@ -180,7 +179,7 @@ class TestChangepasswordBranches:
         return ChangePasswordCommand()
 
     def test_user_lookup_by_email(self, changepassword_command):
-        """Test user lookup by email field when no username field (lines 49-50)."""
+        """Test user lookup by email field when no username field."""
         field_names = {"email", "password", "is_active"}
 
         if "username" in field_names:
@@ -195,7 +194,7 @@ class TestChangepasswordBranches:
         assert lookup_field == "email"
 
     def test_user_lookup_by_name(self, changepassword_command):
-        """Test user lookup by name field (lines 51-52)."""
+        """Test user lookup by name field."""
         field_names = {"name", "password", "is_active"}
 
         if "username" in field_names:
@@ -210,7 +209,7 @@ class TestChangepasswordBranches:
         assert lookup_field == "name"
 
     def test_user_lookup_no_identity_field(self, changepassword_command):
-        """Test user lookup when no identity field exists (lines 53-54)."""
+        """Test user lookup when no identity field exists."""
         field_names = {"password", "is_active"}
 
         if "username" in field_names:
@@ -225,7 +224,7 @@ class TestChangepasswordBranches:
         assert lookup_field is None
 
     def test_handle_generic_exception(self, changepassword_command):
-        """Test handle wraps generic exception as CommandError (lines 85-86)."""
+        """Test handle wraps generic exception as CommandError."""
         mock_user_cls = MagicMock()
         mock_user_cls._fields = {"username": MagicMock()}
         mock_user_cls.objects.get_or_none = AsyncMock(side_effect=RuntimeError("DB error"))
@@ -267,7 +266,7 @@ class TestChangepasswordBranches:
 
 
 # ---------------------------------------------------------------------------
-# Createsuperuser command tests (lines 101, 107-108, 145, 197-198)
+# Createsuperuser command tests
 # ---------------------------------------------------------------------------
 
 
@@ -280,7 +279,7 @@ class TestCreatesuperuserBranches:
         return CreatesuperuserCommand()
 
     def test_prompt_email_invalid_preset(self, createsuperuser_command):
-        """Test _prompt_email raises CommandError for invalid preset (line 101)."""
+        """Test _prompt_email raises CommandError for invalid preset."""
 
         preset = "invalid-email"
         err = _validate_email(preset)
@@ -292,7 +291,7 @@ class TestCreatesuperuserBranches:
             createsuperuser_command._prompt_email(preset)
 
     def test_prompt_email_shows_error_and_retries(self, createsuperuser_command):
-        """Test _prompt_email shows error and continues on invalid input (lines 107-108)."""
+        """Test _prompt_email shows error and continues on invalid input."""
 
         # Simulate the retry logic
         inputs = ["invalid", "also-invalid", "valid@test.com"]
@@ -310,7 +309,7 @@ class TestCreatesuperuserBranches:
         assert result == "valid@test.com"
 
     def test_username_validation_no_input_mode(self, createsuperuser_command):
-        """Test username validation in --no-input mode raises CommandError (line 145)."""
+        """Test username validation in --no-input mode raises CommandError."""
 
         username = "ab"  # Too short or invalid
         err = _validate_username(username)
@@ -320,7 +319,7 @@ class TestCreatesuperuserBranches:
         assert err == "Username cannot be blank."
 
     def test_handle_generic_exception(self, createsuperuser_command):
-        """Test handle wraps generic exception as CommandError (lines 197-198)."""
+        """Test handle wraps generic exception as CommandError."""
         mock_user_cls = MagicMock()
         mock_user_cls._fields = {"username": MagicMock(), "email": MagicMock()}
         mock_user_cls.objects.get_or_none = AsyncMock(side_effect=RuntimeError("DB error"))

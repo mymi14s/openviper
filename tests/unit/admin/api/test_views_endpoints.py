@@ -94,7 +94,7 @@ async def test_admin_current_user(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_list_by_app_with_filters(monkeypatch):
-    """Test list_instances_by_app with filter params (lines 685, 688).
+    """Test list_instances_by_app with filter params.
 
     This test verifies that filter_ prefixed query params trigger the filter branch.
     The actual filtering is tested via the check_admin_access rejection.
@@ -112,7 +112,7 @@ async def test_list_by_app_with_filters(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_create_by_app_readonly_field_skip(monkeypatch):
-    """Test create_instance_by_app skips readonly fields (line 792)."""
+    """Test create_instance_by_app skips readonly fields."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -150,7 +150,7 @@ async def test_create_by_app_readonly_field_skip(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_create_by_app_value_error(monkeypatch):
-    """Test create_instance_by_app ValueError handling (line 844)."""
+    """Test create_instance_by_app ValueError handling."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -180,7 +180,7 @@ async def test_create_by_app_value_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_instance_by_app_no_admin_access(monkeypatch):
-    """Test get_instance_by_app admin check (line 872)."""
+    """Test get_instance_by_app admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -193,7 +193,7 @@ async def test_get_instance_by_app_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_update_by_app_no_admin_access(monkeypatch):
-    """Test update_instance_by_app admin check (line 911)."""
+    """Test update_instance_by_app admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -206,7 +206,7 @@ async def test_update_by_app_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_update_by_app_readonly_skip(monkeypatch):
-    """Test update_instance_by_app skips readonly fields (line 952)."""
+    """Test update_instance_by_app skips readonly fields."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -247,7 +247,7 @@ async def test_update_by_app_readonly_skip(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_delete_by_app_no_admin_access(monkeypatch):
-    """Test delete_instance_by_app admin check (line 1088)."""
+    """Test delete_instance_by_app admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -260,7 +260,7 @@ async def test_delete_by_app_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_bulk_action_by_app_no_admin_access(monkeypatch):
-    """Test bulk_action_by_app admin check (line 1122)."""
+    """Test bulk_action_by_app admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -273,7 +273,7 @@ async def test_bulk_action_by_app_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_export_by_app_no_admin_access(monkeypatch):
-    """Test export_instances_by_app admin check (line 1170)."""
+    """Test export_instances_by_app admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -286,7 +286,7 @@ async def test_export_by_app_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_export_by_app_with_datetime_field(monkeypatch):
-    """Test export_instances_by_app with datetime serialization (line 1205)."""
+    """Test export_instances_by_app with datetime serialization."""
 
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
     monkeypatch.setattr(views, "check_model_permission", lambda r, m, p: True)
@@ -323,7 +323,7 @@ async def test_export_by_app_with_datetime_field(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_history_by_app_no_admin_access(monkeypatch):
-    """Test get_instance_history_by_app admin check (line 1227)."""
+    """Test get_instance_history_by_app admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -341,7 +341,7 @@ async def test_history_by_app_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_list_no_admin_access(monkeypatch):
-    """Test legacy list_instances admin check (line 1263)."""
+    """Test legacy list_instances admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -354,7 +354,7 @@ async def test_legacy_list_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_list_with_filters(monkeypatch):
-    """Test legacy list_instances with filter params (lines 1313, 1316, 1325).
+    """Test legacy list_instances with filter params.
 
     Tests that the admin access check is enforced before filters are applied.
     """
@@ -371,7 +371,7 @@ async def test_legacy_list_with_filters(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_list_with_datetime_field(monkeypatch):
-    """Test legacy list datetime serialization (lines 1347-1353).
+    """Test legacy list datetime serialization.
 
     Tests admin check is enforced - datetime serialization tested in compact tests.
     """
@@ -388,7 +388,7 @@ async def test_legacy_list_with_datetime_field(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_create_no_admin_access(monkeypatch):
-    """Test legacy create_instance admin check (line 1371)."""
+    """Test legacy create_instance admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -401,7 +401,7 @@ async def test_legacy_create_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_create_no_add_permission(monkeypatch):
-    """Test legacy create_instance add permission (line 1380)."""
+    """Test legacy create_instance add permission."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -423,7 +423,7 @@ async def test_legacy_create_no_add_permission(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_create_readonly_skip(monkeypatch):
-    """Test legacy create skips readonly fields (line 1392).
+    """Test legacy create skips readonly fields.
 
     Tests that admin access check is enforced - readonly field skip tested in compact tests.
     """
@@ -439,7 +439,7 @@ async def test_legacy_create_readonly_skip(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_create_with_datetime(monkeypatch):
-    """Test legacy create response datetime (lines 1421-1424)."""
+    """Test legacy create response datetime."""
 
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
@@ -472,7 +472,7 @@ async def test_legacy_create_with_datetime(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_get_no_admin_access(monkeypatch):
-    """Test legacy get_instance admin check (line 1432)."""
+    """Test legacy get_instance admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -485,7 +485,7 @@ async def test_legacy_get_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_get_with_model_info(monkeypatch):
-    """Test legacy get_instance with model info (lines 1449-1462)."""
+    """Test legacy get_instance with model info."""
 
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
@@ -524,7 +524,7 @@ async def test_legacy_get_with_model_info(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_update_no_admin_access(monkeypatch):
-    """Test legacy update_instance admin check (line 1475)."""
+    """Test legacy update_instance admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -537,7 +537,7 @@ async def test_legacy_update_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_update_no_change_permission(monkeypatch):
-    """Test legacy update change permission (line 1489)."""
+    """Test legacy update change permission."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -564,7 +564,7 @@ async def test_legacy_update_no_change_permission(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_update_readonly_and_set(monkeypatch):
-    """Test legacy update readonly skip and set (lines 1506, 1510-1511)."""
+    """Test legacy update readonly skip and set."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -600,7 +600,7 @@ async def test_legacy_update_readonly_and_set(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_update_response_datetime(monkeypatch):
-    """Test legacy update response datetime (lines 1540-1543)."""
+    """Test legacy update response datetime."""
 
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
@@ -635,7 +635,7 @@ async def test_legacy_update_response_datetime(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_legacy_delete_no_admin_access(monkeypatch):
-    """Test legacy delete_instance admin check (line 1551)."""
+    """Test legacy delete_instance admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -648,7 +648,7 @@ async def test_legacy_delete_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_bulk_delete_no_admin_access(monkeypatch):
-    """Test bulk_delete admin check (line 1588)."""
+    """Test bulk_delete admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -661,7 +661,7 @@ async def test_bulk_delete_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_bulk_action_no_admin_access(monkeypatch):
-    """Test bulk_action admin check (line 1634)."""
+    """Test bulk_action admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -674,7 +674,7 @@ async def test_bulk_action_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_bulk_action_over_1000_limit(monkeypatch):
-    """Test bulk_action 1000 item limit (line 1654)."""
+    """Test bulk_action 1000 item limit."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_admin = MagicMock()
@@ -695,7 +695,7 @@ async def test_bulk_action_over_1000_limit(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_filter_options_no_admin_access(monkeypatch):
-    """Test get_filter_options admin check (line 1692)."""
+    """Test get_filter_options admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -708,7 +708,7 @@ async def test_get_filter_options_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_export_no_admin_access(monkeypatch):
-    """Test export_instances admin check (line 1735)."""
+    """Test export_instances admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -721,7 +721,7 @@ async def test_export_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_export_with_datetime(monkeypatch):
-    """Test export datetime serialization (line 1767)."""
+    """Test export datetime serialization."""
 
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
     monkeypatch.setattr(views, "check_model_permission", lambda r, m, p: True)
@@ -756,7 +756,7 @@ async def test_export_with_datetime(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_history_no_admin_access(monkeypatch):
-    """Test get_instance_history admin check (line 1789)."""
+    """Test get_instance_history admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()
@@ -769,7 +769,7 @@ async def test_get_history_no_admin_access(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_history_not_found(monkeypatch):
-    """Test get_instance_history instance not found (line 1799)."""
+    """Test get_instance_history instance not found."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
     model_class = MagicMock()
@@ -788,7 +788,7 @@ async def test_get_history_not_found(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_history_with_records(monkeypatch):
-    """Test get_instance_history with records (line 1806)."""
+    """Test get_instance_history with records."""
 
     monkeypatch.setattr(views, "check_admin_access", lambda req: True)
 
@@ -820,7 +820,7 @@ async def test_get_history_with_records(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fk_search_no_admin_access(monkeypatch):
-    """Test fk_search admin check (line 1833)."""
+    """Test fk_search admin check."""
     monkeypatch.setattr(views, "check_admin_access", lambda req: False)
 
     req = MagicMock()

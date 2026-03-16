@@ -26,7 +26,6 @@ from openviper.middleware.base import BaseMiddleware
 # can replace modulo in the hot path.
 _STRIPE_COUNT: Final[int] = 256
 
-
 # ---------------------------------------------------------------------------
 # Per-key bucket (slots for minimal overhead)
 # ---------------------------------------------------------------------------

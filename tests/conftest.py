@@ -7,7 +7,6 @@ import sys
 # Ensure the openviper package is importable from the repo root
 sys.path.insert(0, "/home/claude")
 
-
 # ---------------------------------------------------------------------------
 # ASGI helpers
 # ---------------------------------------------------------------------------

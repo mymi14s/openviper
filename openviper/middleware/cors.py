@@ -71,6 +71,14 @@ class CORSMiddleware(BaseMiddleware):
         self.max_age = max_age
 
         _origins = allowed_origins or ["*"]
+
+        # CORS spec forbids Access-Control-Allow-Credentials: true with
+        # Access-Control-Allow-Origin: *  — reject this misconfiguration early.
+        if allow_credentials and "*" in _origins:
+            raise ValueError(
+                "CORS: allow_credentials=True cannot be combined with a wildcard "
+                "origin ('*'). Specify explicit allowed origins instead."
+            )
         _methods = [m.upper() for m in (allowed_methods or ["*"])]
         _headers = [h.lower() for h in (allowed_headers or ["*"])]
         _expose = expose_headers or []

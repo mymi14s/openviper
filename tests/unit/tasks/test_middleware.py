@@ -332,12 +332,9 @@ class TestSerialise:
         assert "<dict" in result or "..." in result  # repr output
 
 
-# ── _get_flush_threshold exception fallback (lines 115-116) ────────────────
-
-
 class TestGetFlushThreshold:
     def test_returns_20_when_settings_raises(self):
-        """_get_flush_threshold returns 20 when settings raises on access (lines 115-116)."""
+        """_get_flush_threshold returns 20 when settings raises on access."""
 
         class _BadSettings:
             """Raises RuntimeError when any attribute is accessed."""

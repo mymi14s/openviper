@@ -310,11 +310,8 @@ class TestConfigureWorkerLoggingThreadSafety:
             logging.getLogger(name).handlers.clear()
 
 
-# ── configure_worker_logging double-checked lock inner guard (line 61) ──────
-
-
 def test_configure_worker_logging_inner_lock_guard():
-    """Inner double-checked-lock guard returns early when flag set under lock (line 61)."""
+    """Inner double-checked-lock guard returns early when flag set under lock."""
 
     class _SetFlagOnEnter:
         """Context manager that sets _LOGGING_CONFIGURED = True before yielding."""

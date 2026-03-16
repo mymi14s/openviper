@@ -36,7 +36,6 @@ from openviper.utils import timezone
 
 logger = logging.getLogger("openviper.migrations")
 
-
 # ── Enhanced Terminal Logging ─────────────────────────────────────────────────
 
 

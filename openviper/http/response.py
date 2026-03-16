@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import aiofiles
 import aiofiles.os
@@ -31,7 +32,6 @@ try:
 except ImportError:
     Environment = None  # type: ignore[misc, assignment]
     FileSystemLoader = None  # type: ignore[misc, assignment]
-
 
 # ---------------------------------------------------------------------------
 # JSON encoding helper
@@ -98,7 +98,6 @@ def _cache_clear() -> None:
 
 
 _get_jinja2_env.cache_clear = _cache_clear  # type: ignore[attr-defined]
-
 
 # ---------------------------------------------------------------------------
 # Base Response
@@ -330,6 +329,14 @@ class RedirectResponse(Response):
     ) -> None:
         if "\r" in url or "\n" in url:
             raise ValueError(f"Redirect URL must not contain CR or LF: {url!r}")
+        # Block protocol-relative URLs that could redirect to external sites
+        stripped = url.lstrip()
+        if stripped.startswith("//"):
+            raise ValueError(f"Protocol-relative redirect URLs are not allowed: {url!r}")
+        # For absolute URLs, only allow http and https schemes
+        parsed = urlparse(stripped)
+        if parsed.scheme and parsed.scheme not in ("http", "https", ""):
+            raise ValueError(f"Redirect URL has disallowed scheme '{parsed.scheme}': {url!r}")
         super().__init__(b"", status_code, {**(headers or {}), "location": url})
 
 

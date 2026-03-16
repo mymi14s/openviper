@@ -96,7 +96,6 @@ _INSECURE_JWT_ALGORITHMS: Final[frozenset[str]] = frozenset(
     }
 )
 
-
 # ---------------------------------------------------------------------------
 # Typed cast table for env-var overrides
 # ---------------------------------------------------------------------------
@@ -614,7 +613,6 @@ def _apply_env_overrides(instance: Settings) -> Settings:
 # ---------------------------------------------------------------------------
 
 settings = _LazySettings()
-
 
 # ---------------------------------------------------------------------------
 # Validation & utilities

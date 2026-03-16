@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
+from collections.abc import Callable
 from typing import Any, cast
+from urllib.parse import parse_qs
 
 from openviper.conf import settings
 from openviper.http.response import JSONResponse
@@ -100,6 +102,43 @@ class CSRFMiddleware(BaseMiddleware):
             raise RuntimeError("CSRFMiddleware requires a non-empty SECRET_KEY.")
         return cast("str", key)
 
+    async def _extract_form_token(
+        self,
+        receive: Callable[[], Any],
+    ) -> tuple[str, Callable[[], Any]]:
+        """Read the request body and extract the CSRF form field value.
+
+        Returns the token string and a new ``receive`` callable that replays
+        the already-consumed body so downstream middleware/apps still see it.
+        """
+        body_parts: list[bytes] = []
+        while True:
+            message = await receive()
+            chunk = message.get("body", b"")
+            if chunk:
+                body_parts.append(chunk)
+            if not message.get("more_body", False):
+                break
+
+        body = b"".join(body_parts)
+        token = ""
+        parsed = parse_qs(body.decode("latin-1"), keep_blank_values=True)
+        values = parsed.get(CSRF_FORM_FIELD)
+        if values:
+            token = values[0]
+
+        # Build a replay receive so the body is not lost for the app
+        replayed = False
+
+        async def replay_receive() -> dict[str, Any]:
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        return token, replay_receive
+
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
@@ -132,6 +171,17 @@ class CSRFMiddleware(BaseMiddleware):
         csrf_cookie = _extract_cookie_value(cookie_header, self._cookie_name)
 
         submitted = submitted_raw.decode("latin-1") if submitted_raw else ""
+
+        # If no header token, attempt extraction from form body for non-JS submissions
+        if not submitted:
+            content_type = b""
+            for name, value in scope.get("headers", []):
+                if name.lower() == b"content-type":
+                    content_type = value
+                    break
+            if b"application/x-www-form-urlencoded" in content_type:
+                submitted, receive = await self._extract_form_token(receive)
+
         secret = self._get_secret()
 
         if (

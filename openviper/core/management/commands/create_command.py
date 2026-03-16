@@ -15,7 +15,6 @@ import argparse
 
 from openviper.core.management.base import BaseCommand
 
-
 class Command(BaseCommand):
     help = "Describe your command here."
 

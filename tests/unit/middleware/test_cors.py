@@ -404,15 +404,9 @@ class TestCORSFromSettings:
 
     @pytest.mark.asyncio
     async def test_no_credentials_with_wildcard_origin(self):
-        """allow_credentials=True is ignored when origin is wildcard (security)."""
-        # Per CORS spec, credentials cannot be used with wildcard origin.
-        # CORSMiddleware should not set credentials header for non-specific origins.
-        stack = self._build_stack(
-            CORS_ALLOWED_ORIGINS=None,  # → ["*"]
-            CORS_ALLOW_CREDENTIALS=True,
-        )
-        hd, _ = await _run(stack, _make_scope(origin="https://example.com"))
-        # With wildcard origin, the middleware reflects the specific origin back
-        # but credentials header behaviour depends on implementation.
-        # At minimum the response should be served (not blocked).
-        assert hd.get(b"access-control-allow-origin") is not None
+        """allow_credentials=True with wildcard origin raises ValueError (CORS spec)."""
+        with pytest.raises(ValueError, match="allow_credentials.*wildcard"):
+            self._build_stack(
+                CORS_ALLOWED_ORIGINS=None,  # → ["*"]
+                CORS_ALLOW_CREDENTIALS=True,
+            )

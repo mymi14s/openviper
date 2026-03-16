@@ -533,7 +533,7 @@ class TestDiscoverAppStaticDirs:
 class TestServeMIMEFallback:
     @pytest.mark.asyncio
     async def test_unknown_extension_uses_octet_stream(self):
-        """Files with no known extension get application/octet-stream MIME (line 143)."""
+        """Files with no known extension get application/octet-stream MIME."""
         with tempfile.TemporaryDirectory() as tmpdir:
             (Path(tmpdir) / "datafile.unknownxyz").write_bytes(b"binary data")
             mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
@@ -545,7 +545,7 @@ class TestServeMIMEFallback:
 
     @pytest.mark.asyncio
     async def test_gz_file_has_content_encoding_header(self):
-        """Compressed files get content-encoding header (line 155)."""
+        """Compressed files get content-encoding header."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # .gz → mimetypes.guess_type returns (None, 'gzip') on all platforms
             (Path(tmpdir) / "bundle.gz").write_bytes(b"compressed")
@@ -559,13 +559,13 @@ class TestServeMIMEFallback:
 
 
 # ---------------------------------------------------------------------------
-# _discover_app_static_dirs: AppResolver fallback success (lines 236-241)
+# _discover_app_static_dirs: AppResolver fallback success
 # ---------------------------------------------------------------------------
 
 
 class TestDiscoverAppStaticDirsResolverFallback:
     def test_app_resolver_fallback_finds_static_dir(self, tmp_path):
-        """AppResolver fallback discovers static/ dir when importlib path fails (lines 236-241)."""
+        """AppResolver fallback discovers static/ dir when importlib path fails."""
         static_dir = tmp_path / "static"
         static_dir.mkdir()
 
@@ -584,13 +584,13 @@ class TestDiscoverAppStaticDirsResolverFallback:
 
 
 # ---------------------------------------------------------------------------
-# collect_static: _copy_tree skips subdirectories (line 289)
+# collect_static: _copy_tree skips subdirectories
 # ---------------------------------------------------------------------------
 
 
 class TestCollectStaticCopyTreeSkipsDirs:
     def test_copy_tree_skips_non_file_items(self, tmp_path):
-        """_copy_tree skips subdirectory items during rglob (line 289)."""
+        """_copy_tree skips subdirectory items during rglob."""
         source = tmp_path / "source"
         source.mkdir()
         dest = tmp_path / "dest"

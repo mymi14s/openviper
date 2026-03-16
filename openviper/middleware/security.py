@@ -92,9 +92,16 @@ class SecurityMiddleware(BaseMiddleware):
             self._fixed_headers.append((b"x-xss-protection", b"1; mode=block"))
         if self.csp:
             if isinstance(self.csp, dict):
-                csp_str = "; ".join(
-                    f"{k} {' '.join(v) if isinstance(v, list) else v}" for k, v in self.csp.items()
-                )
+                sanitized_parts: list[str] = []
+                for k, v in self.csp.items():
+                    # Strip semicolons to prevent directive injection
+                    key = str(k).replace(";", "")
+                    if isinstance(v, list):
+                        val = " ".join(str(item).replace(";", "") for item in v)
+                    else:
+                        val = str(v).replace(";", "")
+                    sanitized_parts.append(f"{key} {val}")
+                csp_str = "; ".join(sanitized_parts)
             else:
                 csp_str = str(self.csp)
             self._fixed_headers.append((b"content-security-policy", csp_str.encode("latin-1")))
@@ -127,11 +134,24 @@ class SecurityMiddleware(BaseMiddleware):
         for name, value in scope.get("headers", []):
             if name == b"host":
                 raw: str = value.decode("latin-1")
-                return raw.rsplit(":", 1)[0] if ":" in raw else raw
+                return self._strip_port(raw)
         server = scope.get("server")
         if server:
             return cast("str", server[0])
         return ""
+
+    @staticmethod
+    def _strip_port(raw: str) -> str:
+        """Remove port from host, handling IPv6 bracket notation."""
+        if raw.startswith("["):
+            # IPv6 bracket notation: [::1]:8000 or [::1]
+            bracket_end = raw.find("]")
+            if bracket_end != -1:
+                return raw[1:bracket_end]
+            return raw[1:]
+        if ":" in raw:
+            return raw.rsplit(":", 1)[0]
+        return raw
 
     async def _send_400(self, send: Any, host: str) -> None:
         """Send a 400 Bad Request response for disallowed hosts."""
@@ -159,8 +179,8 @@ class SecurityMiddleware(BaseMiddleware):
         for name, value in scope.get("headers", []):
             if name == b"host":
                 raw_host = value.decode("latin-1")
-                # Strip port for ALLOWED_HOSTS comparison
-                host = raw_host.rsplit(":", 1)[0] if ":" in raw_host else raw_host
+                # Strip port for ALLOWED_HOSTS comparison (handles IPv6)
+                host = self._strip_port(raw_host)
                 break
         if not host:
             server = scope.get("server")

@@ -468,13 +468,10 @@ class TestDatabaseBrokerEtaTimezone:
             assert mock_conn.execute.called
 
 
-# ── _get_sync_engine: MySQL timeout (lines 82-83) ───────────────────────────
-
-
 class TestMySQLEngineTimeout:
     @patch("openviper.tasks.db_broker.settings")
     def test_mysql_url_sets_read_write_timeout(self, mock_settings):
-        """MySQL URL sets read_timeout and write_timeout connect_args (lines 82-83)."""
+        """MySQL URL sets read_timeout and write_timeout connect_args."""
         mock_settings.DATABASE_URL = "mysql://user:pass@localhost/testdb"
         mock_settings.TASKS = {"db_query_timeout": 15}
 
@@ -490,15 +487,12 @@ class TestMySQLEngineTimeout:
         assert kwargs["connect_args"]["write_timeout"] == 15
 
 
-# ── _DatabaseConsumer.consume: exponential back-off (lines 209-213) ────────
-
-
 class TestConsumerBackoff:
     @patch("openviper.tasks.db_broker.timezone.now")
     @patch("openviper.tasks.db_broker.time.sleep")
     @patch("openviper.tasks.db_broker.time.monotonic")
     def test_consume_exponential_backoff_on_empty_poll(self, mock_monotonic, mock_sleep, mock_now):
-        """Exponential back-off executes when first poll returns empty (lines 209-213)."""
+        """Exponential back-off executes when first poll returns empty."""
 
         mock_now.return_value = datetime(2026, 1, 1, tzinfo=dt.UTC)
         # monotonic calls: start_time, elapsed check 1, remaining_s calc, elapsed check 2 (timeout)
@@ -532,5 +526,5 @@ class TestConsumerBackoff:
                     result = next(consumer)
 
         assert result is None
-        # time.sleep was called once (lines 211-212)
+        # time.sleep was called once
         mock_sleep.assert_called_once()

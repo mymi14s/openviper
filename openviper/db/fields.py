@@ -486,6 +486,20 @@ class ForeignKey(Field):
         related_name: Attribute name on the related model for reverse access.
     """
 
+    _VALID_ON_DELETE: frozenset[str] = frozenset(
+        {
+            "CASCADE",
+            "PROTECT",
+            "SET_NULL",
+            "SET_DEFAULT",
+            "DO_NOTHING",
+            "SET NULL",
+            "SET DEFAULT",
+            "NO ACTION",
+            "RESTRICT",
+        }
+    )
+
     def __init__(
         self,
         to: type | str,
@@ -493,6 +507,11 @@ class ForeignKey(Field):
         related_name: str | None = None,
         **kwargs: Any,
     ) -> None:
+        if on_delete not in self._VALID_ON_DELETE:
+            raise ValueError(
+                f"Invalid on_delete value {on_delete!r}. "
+                f"Must be one of: {', '.join(sorted(self._VALID_ON_DELETE))}"
+            )
         kwargs.setdefault("db_index", True)
         super().__init__(**kwargs)
         self.to = to

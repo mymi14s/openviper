@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openviper"
-version = "0.0.1"
+version = "0.0.2"
 description = "A production-ready, high-performance, async-first Python web framework."
 readme = "README.md"
 license = { text = "MIT" }

@@ -1105,11 +1105,6 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
                 if result.rowcount == 0:
                     # No row matched the UPDATE — the PK was user-assigned on a new instance.
                     # Fall back to INSERT.
-                    logger.warning(
-                        "UPDATE matched 0 rows for %s (pk=%s), falling back to INSERT",
-                        model_cls.__name__,
-                        pk_val,
-                    )
                     ins_stmt = sa.insert(table).values(**data)
                     await conn.execute(ins_stmt)
         except Exception as e:

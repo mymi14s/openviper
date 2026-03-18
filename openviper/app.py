@@ -151,7 +151,7 @@ class OpenViper:
                 "This exposes sensitive information and should be disabled."
             )
         self.title = cast("str", title or getattr(settings, "OPENAPI_TITLE", "OpenViper API"))
-        self.version = cast("str", version or getattr(settings, "OPENAPI_VERSION", "0.0.1"))
+        self.version = cast("str", version or getattr(settings, "OPENAPI_VERSION", "3.0.0"))
         self.openapi_url = cast(
             "str",
             openapi_url or getattr(settings, "OPENAPI_SCHEMA_URL", "/open-api/openapi.json"),

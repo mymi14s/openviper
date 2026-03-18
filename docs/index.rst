@@ -1,4 +1,4 @@
-.. OpenViper documentation master file, version 0.0.2
+.. OpenViper documentation master file
 
 .. _index:
 

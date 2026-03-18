@@ -521,7 +521,16 @@ It should be started in a separate terminal from the server.
 Step 8 — Optional: AI Content Generator
 ------------------------------------------
 
-Enable the AI registry in ``myblog/settings.py``:
+First, install the AI extras:
+
+.. code-block:: bash
+
+    pip install openviper[ai]
+
+This installs the ``openai``, ``anthropic``, and ``google-genai`` SDKs.
+Providers that only use ``httpx`` (Ollama, Grok) work without the extra.
+
+Then enable the AI registry in ``myblog/settings.py``:
 
 .. code-block:: python
 

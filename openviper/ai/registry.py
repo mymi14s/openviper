@@ -389,8 +389,8 @@ class ProviderRegistry:
                     logger.warning(
                         "ProviderRegistry: could not initialise provider %r: %s", name, exc
                     )
-        except Exception:
-            pass  # gracefully handle settings parse errors
+        except Exception as exc:
+            logger.error("ProviderRegistry: failed to load from settings: %s", exc)
 
 
 # Pre-import cache for known providers to avoid dynamic import overhead.

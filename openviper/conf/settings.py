@@ -47,6 +47,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Final
 
+from openviper._version import __version__ as _framework_version
 from openviper.exceptions import ImproperlyConfigured, SettingsValidationError
 
 logger = logging.getLogger("openviper.conf")
@@ -151,7 +152,7 @@ class Settings:
 
     # ── Project ───────────────────────────────────────────────────────────
     PROJECT_NAME: str = "OpenViper Application"
-    VERSION: str = "0.0.1"
+    VERSION: str = _framework_version
     DEBUG: bool = True
     ALLOWED_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1")
     ROOT_URLCONF: str = ""

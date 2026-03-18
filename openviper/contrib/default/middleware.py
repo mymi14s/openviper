@@ -10,6 +10,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from openviper._version import __version__
 from openviper.contrib.default.landing import LANDING_HTML
 from openviper.http.response import HTMLResponse
 
@@ -36,7 +37,7 @@ class DefaultLandingMiddleware:
         app: Any,
         *,
         debug: bool = False,
-        version: str = "0.0.1",
+        version: str = __version__,
         has_custom_root: bool = False,
     ) -> None:
         self.app = app

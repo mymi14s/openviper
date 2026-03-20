@@ -25,10 +25,15 @@ const isDirty = computed(() => {
 })
 
 const model = computed(() => adminStore.currentModel)
-const loading = computed(() => adminStore.loading)
+const loading = ref(false)
 
 onMounted(async () => {
-  await adminStore.fetchModel(props.appLabel, props.modelName)
+  loading.value = true
+  try {
+    await adminStore.fetchModel(props.appLabel, props.modelName)
+  } finally {
+    loading.value = false
+  }
 })
 
 watch(model, (newModel) => {

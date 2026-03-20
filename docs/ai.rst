@@ -7,6 +7,24 @@ The ``openviper.ai`` package provides a unified, async-native AI provider
 registry that abstracts multiple inference backends (OpenAI, Anthropic,
 Gemini, Ollama, Grok, and custom providers) behind a single interface.
 
+Installation
+------------
+
+The AI providers are an **optional** dependency.  Install them with:
+
+.. code-block:: bash
+
+    pip install openviper[ai]
+
+This pulls in the ``openai``, ``anthropic``, and ``google-genai`` SDKs.
+Providers that only need ``httpx`` (Ollama, Grok) work without the extra.
+
+If you are developing locally from a clone of the repository:
+
+.. code-block:: bash
+
+    pip install -e '.[ai]'
+
 Overview
 --------
 

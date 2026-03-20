@@ -47,6 +47,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Final
 
+from openviper._version import __version__ as _framework_version
 from openviper.exceptions import ImproperlyConfigured, SettingsValidationError
 
 logger = logging.getLogger("openviper.conf")
@@ -151,7 +152,7 @@ class Settings:
 
     # ── Project ───────────────────────────────────────────────────────────
     PROJECT_NAME: str = "OpenViper Application"
-    VERSION: str = "0.0.1"
+    VERSION: str = _framework_version
     DEBUG: bool = True
     ALLOWED_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1")
     ROOT_URLCONF: str = ""
@@ -518,6 +519,13 @@ class _LazySettings:
 
             # Apply env-var overrides (these take final priority)
             instance = _apply_env_overrides(instance)
+
+            # Auto-generate SECRET_KEY for development/test if missing/empty
+            env = os.environ.get("OPENVIPER_ENV", "development")
+            if env != "production" and (
+                not instance.SECRET_KEY or instance.SECRET_KEY in ("INSECURE-CHANGE-ME", "")
+            ):
+                object.__setattr__(instance, "SECRET_KEY", generate_secret_key())
 
             object.__setattr__(self, "_instance", instance)
             object.__setattr__(self, "_configured", True)

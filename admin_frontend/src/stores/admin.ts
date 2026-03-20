@@ -6,7 +6,8 @@ import type {
   PaginatedResponse,
   DashboardStats,
   ChangeHistoryEntry,
-  AdminConfig
+  AdminConfig,
+  FilterOption
 } from '@/types/admin'
 import { modelsApi, dashboardApi, historyApi } from '@/api/client'
 
@@ -32,6 +33,10 @@ export const useAdminStore = defineStore('admin', () => {
   })
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const filterOptions = ref<FilterOption[]>([])
+  const activeFilters = ref<Record<string, any>>({})
+  const filterSidebarOpen = ref(false)
+  const filterLoading = ref(false)
 
   const modelsByApp = computed(() => {
     const grouped: Record<string, ModelConfig[]> = {}
@@ -47,27 +52,21 @@ export const useAdminStore = defineStore('admin', () => {
   const appLabels = computed(() => Object.keys(modelsByApp.value).sort())
 
   async function fetchModels(): Promise<void> {
-    loading.value = true
     error.value = null
     try {
       models.value = await modelsApi.getModels()
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch models'
-    } finally {
-      loading.value = false
     }
   }
 
   async function fetchModel(appLabel: string, modelName: string): Promise<void> {
-    loading.value = true
     error.value = null
     try {
       currentModel.value = await modelsApi.getModel(appLabel, modelName)
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch model'
       currentModel.value = null
-    } finally {
-      loading.value = false
     }
   }
 
@@ -82,7 +81,6 @@ export const useAdminStore = defineStore('admin', () => {
       filters?: Record<string, any>
     } = {}
   ): Promise<void> {
-    loading.value = true
     error.value = null
     permissionDenied.value = false
     permissionMessage.value = null
@@ -112,8 +110,6 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch instances'
       instances.value = []
-    } finally {
-      loading.value = false
     }
   }
 
@@ -122,15 +118,12 @@ export const useAdminStore = defineStore('admin', () => {
     modelName: string,
     id: string | number
   ): Promise<void> {
-    loading.value = true
     error.value = null
     try {
       currentInstance.value = await modelsApi.getModelInstance(appLabel, modelName, id)
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch instance'
       currentInstance.value = null
-    } finally {
-      loading.value = false
     }
   }
 
@@ -173,7 +166,6 @@ export const useAdminStore = defineStore('admin', () => {
     modelName: string,
     id: string | number
   ): Promise<boolean> {
-    loading.value = true
     error.value = null
     try {
       await modelsApi.deleteModelInstance(appLabel, modelName, id)
@@ -185,8 +177,6 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to delete instance'
       return false
-    } finally {
-      loading.value = false
     }
   }
 
@@ -196,7 +186,6 @@ export const useAdminStore = defineStore('admin', () => {
     action: string,
     ids: Array<string | number>
   ): Promise<{ success: boolean; affected: number }> {
-    loading.value = true
     error.value = null
     try {
       const result = await modelsApi.bulkAction(appLabel, modelName, { action, ids })
@@ -207,23 +196,17 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to perform bulk action'
       return { success: false, affected: 0 }
-    } finally {
-      loading.value = false
     }
   }
 
   async function fetchDashboard(): Promise<void> {
-    loading.value = true
     error.value = null
     try {
       const data = await dashboardApi.getStats()
       dashboardStats.value = data
-      // Also populate recentActivity from dashboard response
       recentActivity.value = data.recent_activity || []
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch dashboard'
-    } finally {
-      loading.value = false
     }
   }
 
@@ -253,6 +236,39 @@ export const useAdminStore = defineStore('admin', () => {
     } catch {
       return []
     }
+  }
+
+  async function fetchFilterOptions(appLabel: string, modelName: string): Promise<void> {
+    filterLoading.value = true
+    try {
+      filterOptions.value = await modelsApi.getFilterOptions(appLabel, modelName)
+    } catch {
+      filterOptions.value = []
+    } finally {
+      filterLoading.value = false
+    }
+  }
+
+  function setActiveFilter(fieldName: string, value: any): void {
+    if (value === undefined || value === null || value === '') {
+      const updated = { ...activeFilters.value }
+      delete updated[fieldName]
+      activeFilters.value = updated
+    } else {
+      activeFilters.value = { ...activeFilters.value, [fieldName]: value }
+    }
+  }
+
+  function clearAllFilters(): void {
+    activeFilters.value = {}
+  }
+
+  function toggleFilterSidebar(): void {
+    filterSidebarOpen.value = !filterSidebarOpen.value
+  }
+
+  function closeFilterSidebar(): void {
+    filterSidebarOpen.value = false
   }
 
   const isSidebarOpen = ref(false)
@@ -289,6 +305,15 @@ export const useAdminStore = defineStore('admin', () => {
     isSidebarOpen,
     toggleSidebar,
     closeSidebar,
+    filterOptions,
+    activeFilters,
+    filterSidebarOpen,
+    filterLoading,
+    fetchFilterOptions,
+    setActiveFilter,
+    clearAllFilters,
+    toggleFilterSidebar,
+    closeFilterSidebar,
     clearCache,
     models,
     currentModel,

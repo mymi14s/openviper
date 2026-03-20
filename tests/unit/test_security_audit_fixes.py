@@ -272,11 +272,12 @@ class TestJWTKeyFormatValidation:
 
     def test_hs256_with_string_key_allowed(self) -> None:
         """HMAC algorithms accept plain string keys — should not raise."""
-        assert jwt_mod._JWT_ALGORITHM in {
+        secret, algo = jwt_mod._get_jwt_config()
+        assert algo in {
             "HS256",
             "HS384",
             "HS512",
-        } or jwt_mod._JWT_SECRET.strip().startswith("-----")
+        } or secret.strip().startswith("-----")
 
 
 class TestForeignKeyOnDeleteValidation:

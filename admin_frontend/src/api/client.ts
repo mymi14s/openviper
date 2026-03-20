@@ -13,7 +13,8 @@ import type {
   DashboardStats,
   BulkActionRequest,
   ExportFormat,
-  AdminConfig
+  AdminConfig,
+  FilterOption
 } from '@/types/admin'
 
 const API_BASE = '/admin/api'
@@ -165,11 +166,29 @@ export const modelsApi = {
       filters?: Record<string, any>
     } = {}
   ): Promise<PaginatedResponse<ModelInstance>> {
+    const flatParams: Record<string, any> = {
+      page: params.page,
+      per_page: params.per_page,
+      search: params.search,
+      ordering: params.ordering,
+    }
+    if (params.filters) {
+      for (const [key, value] of Object.entries(params.filters)) {
+        if (value !== undefined && value !== null && value !== '') {
+          flatParams[`filter_${key}`] = value
+        }
+      }
+    }
     const response = await client.get<PaginatedResponse<ModelInstance>>(
       `/models/${appLabel}/${modelName}/list/`,
-      { params }
+      { params: flatParams }
     )
     return response.data
+  },
+
+  async getFilterOptions(appLabel: string, modelName: string): Promise<FilterOption[]> {
+    const response = await client.get(`/models/${appLabel}/${modelName}/filters/`)
+    return response.data.filters
   },
 
   async getModelInstance(

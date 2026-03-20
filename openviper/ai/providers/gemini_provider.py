@@ -139,8 +139,8 @@ class GeminiProvider(AIProvider):
             from google.genai import types  # type: ignore[import-untyped]
         except ImportError as exc:
             raise ImportError(
-                "google-genai could not be imported. "
-                "Try upgrading: pip install --upgrade google-genai"
+                "The 'google-genai' package is required for GeminiProvider. "
+                "Install it with: pip install openviper[ai]"
             ) from exc
 
         self._genai = genai

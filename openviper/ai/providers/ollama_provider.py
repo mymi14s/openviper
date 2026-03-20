@@ -19,6 +19,12 @@ _log = logging.getLogger("openviper.ai")
 # Protects against memory exhaustion from a malicious or buggy Ollama server.
 _MAX_LINE_BYTES = 1 * 1024 * 1024  # 1 MiB
 
+# Allowed kwargs forwarded to the Ollama generate API.
+_ALLOWED_GENERATE_KWARGS = frozenset(
+    {"options", "system", "template", "context", "raw", "format", "keep_alive", "images"}
+)
+_ALLOWED_EMBED_KWARGS = frozenset({"options", "keep_alive"})
+
 # Private IPv4/IPv6 ranges that must not be targeted (SSRF prevention).
 _PRIVATE_NETWORKS = [
     ipaddress.ip_network("10.0.0.0/8"),
@@ -90,9 +96,21 @@ class OllamaProvider(AIProvider):
             await self._client.aclose()
             self._client = None
 
+    @staticmethod
+    def _filter_kwargs(kwargs: dict[str, Any], allowed: frozenset[str]) -> dict[str, Any]:
+        """Return only whitelisted keys from *kwargs*, warning on unknown ones."""
+        filtered = {}
+        for k, v in kwargs.items():
+            if k in allowed:
+                filtered[k] = v
+            else:
+                _log.warning("OllamaProvider: ignoring unknown kwarg %r", k)
+        return filtered
+
     async def generate(self, prompt: str, **kwargs: Any) -> str:
         prompt, kwargs = await self.before_inference(prompt, kwargs)
         model = kwargs.pop("model", self.model)
+        extra = self._filter_kwargs(kwargs, _ALLOWED_GENERATE_KWARGS)
 
         client = self._get_client()
         response = await client.post(
@@ -101,7 +119,7 @@ class OllamaProvider(AIProvider):
                 "model": model,
                 "prompt": prompt,
                 "stream": False,
-                **kwargs,
+                **extra,
             },
         )
         response.raise_for_status()
@@ -112,12 +130,13 @@ class OllamaProvider(AIProvider):
     async def stream(self, prompt: str, **kwargs: Any) -> AsyncIterator[str]:
         prompt, kwargs = await self.before_inference(prompt, kwargs)
         model = kwargs.pop("model", self.model)
+        extra = self._filter_kwargs(kwargs, _ALLOWED_GENERATE_KWARGS)
 
         client = self._get_client()
         async with client.stream(
             "POST",
             f"{self.base_url}/api/generate",
-            json={"model": model, "prompt": prompt, "stream": True, **kwargs},
+            json={"model": model, "prompt": prompt, "stream": True, **extra},
         ) as stream:
             async for raw_line in stream.aiter_lines():
                 # Guard against memory exhaustion from oversized lines.
@@ -142,10 +161,11 @@ class OllamaProvider(AIProvider):
 
     async def embed(self, text: str, **kwargs: Any) -> list[float]:
         model = kwargs.pop("model", self.model)
+        extra = self._filter_kwargs(kwargs, _ALLOWED_EMBED_KWARGS)
         client = self._get_client()
         response = await client.post(
             f"{self.base_url}/api/embeddings",
-            json={"model": model, "prompt": text},
+            json={"model": model, "prompt": text, **extra},
         )
         response.raise_for_status()
         return response.json().get("embedding", [])

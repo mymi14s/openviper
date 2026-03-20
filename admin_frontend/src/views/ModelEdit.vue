@@ -56,7 +56,7 @@ function getChangedFields(): Record<string, any> {
 
 const model = computed(() => adminStore.currentModel)
 const instance = computed(() => adminStore.currentInstance)
-const loading = computed(() => adminStore.loading)
+const loading = ref(false)
 
 const canChange = computed(() => model.value?.permissions?.change ?? true)
 const canDelete = computed(() => model.value?.permissions?.delete ?? true)
@@ -72,13 +72,20 @@ const isUserModel = computed(() => {
 })
 
 async function loadData() {
-  await adminStore.fetchModel(props.appLabel, props.modelName)
-  await adminStore.fetchInstance(props.appLabel, props.modelName, props.id)
+  loading.value = true
+  originalData.value = {}
+  adminStore.clearCurrent()
 
-  if (instance.value) {
-    // Deep clone to preserve original state
-    originalData.value = JSON.parse(JSON.stringify(instance.value))
-    formData.value = { ...instance.value }
+  try {
+    await adminStore.fetchModel(props.appLabel, props.modelName)
+    await adminStore.fetchInstance(props.appLabel, props.modelName, props.id)
+
+    if (instance.value) {
+      originalData.value = JSON.parse(JSON.stringify(instance.value))
+      formData.value = { ...instance.value }
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -86,7 +93,7 @@ onMounted(loadData)
 
 watch(
   () => [props.appLabel, props.modelName, props.id],
-  loadData
+  async () => { await loadData() }
 )
 
 function scrollToFormTop() {

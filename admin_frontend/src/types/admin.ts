@@ -159,6 +159,13 @@ export interface AdminPlugin {
 // Theme types
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+// Filter sidebar types
+export interface FilterOption {
+  name: string
+  type: string
+  choices: Array<{ value: any; label: string }>
+}
+
 // Filter types
 export interface FilterValue {
   field: string

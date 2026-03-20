@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 
@@ -8,13 +8,18 @@ const adminStore = useAdminStore()
 const stats = computed(() => adminStore.dashboardStats)
 const recentActivity = computed(() => adminStore.recentActivity)
 const models = computed(() => adminStore.models)
-const loading = computed(() => adminStore.loading)
+const loading = ref(false)
 
 onMounted(async () => {
-  await Promise.all([
-    adminStore.fetchDashboard(),
-    adminStore.fetchModels(),
-  ])
+  loading.value = true
+  try {
+    await Promise.all([
+      adminStore.fetchDashboard(),
+      adminStore.fetchModels(),
+    ])
+  } finally {
+    loading.value = false
+  }
 })
 
 function formatDate(dateStr: string): string {

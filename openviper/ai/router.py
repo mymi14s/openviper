@@ -78,8 +78,9 @@ class ModelRouter:
     def _get_provider(self, model: str | None = None) -> AIProvider:
         """Resolve the provider for *model* (falls back to active model).
 
-        Takes a local snapshot of ``_model`` under the lock to avoid a race
-        with concurrent :meth:`set_model` calls.
+        Takes a local snapshot of ``_model`` to avoid a race with concurrent
+        :meth:`set_model` calls.  String attribute reads are atomic in CPython
+        so we only need the lock for writes.
 
         Args:
             model: Override the active model for this call only.
@@ -92,11 +93,7 @@ class ModelRouter:
                 Neither *model* nor the active model is registered.
             RuntimeError: No model has been set and no override supplied.
         """
-        if model is not None:
-            target = model
-        else:
-            with self._lock:
-                target = self._model
+        target = model if model is not None else self._model
         if not target:
             raise RuntimeError("No model selected. Call model_router.set_model('model-id') first.")
         return self._registry.get_by_model(target)

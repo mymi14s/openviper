@@ -690,13 +690,39 @@ def get_admin_router() -> Router:
                         break
 
         # Apply filters from query params — only allow known model fields
-        allowed_fields = set(getattr(model_class, "_fields", {}).keys())
+        model_fields = getattr(model_class, "_fields", {})
+        allowed_fields = set(model_fields.keys())
+        _int_field_types = frozenset(
+            {
+                "IntegerField",
+                "BigIntegerField",
+                "PositiveIntegerField",
+                "FloatField",
+                "DecimalField",
+            }
+        )
         filters = {}
         for key, value in request.query_params.items():
             if key.startswith("filter_"):
                 field_name = key[7:]
-                if field_name in allowed_fields:
+                if field_name not in allowed_fields:
+                    continue
+                field_type = model_fields[field_name].__class__.__name__
+                if field_type in ("ForeignKey", "OneToOneField"):
+                    # Filter on the FK column (e.g. category_id) directly.
+                    # icontains works for string PKs; exact for numeric ids.
+                    fk_col = model_fields[field_name].column_name  # e.g. "category_id"
+                    if value.isdigit():
+                        filters[fk_col] = value
+                    else:
+                        filters[f"{fk_col}__icontains"] = value
+                elif field_type == "BooleanField":
+                    filters[field_name] = value.lower() in ("true", "1", "yes")
+                elif field_type in _int_field_types or field_type in ("DateField", "DateTimeField"):
                     filters[field_name] = value
+                else:
+                    # CharField, TextField, UUIDField, EmailField, etc.
+                    filters[f"{field_name}__icontains"] = value
 
         if filters:
             qs = qs.filter(**filters)
@@ -956,6 +982,55 @@ def get_admin_router() -> Router:
             request, model_admin, model_class, instance
         )
         return JSONResponse(response_data, status_code=201)
+
+    @router.get("/models/{app_label}/{model_name}/filters/")
+    async def get_filter_options_by_app(
+        request: Request, app_label: str, model_name: str
+    ) -> JSONResponse:
+        """Get available filter options for a model (app-label variant)."""
+        if not check_admin_access(request):
+            raise PermissionDenied("Admin access required.")
+
+        try:
+            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
+            model_class = admin.get_model_by_app_and_name(app_label, model_name)
+        except NotRegistered as exc:
+            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+
+        list_filter = model_admin.get_list_filter(request)
+        fields = getattr(model_class, "_fields", {})
+
+        filters = []
+        for field_name in list_filter:
+            if field_name not in fields:
+                continue
+            field = fields[field_name]
+            field_type = field.__class__.__name__
+            filter_info: dict = {"name": field_name, "type": field_type, "choices": []}
+
+            if hasattr(field, "choices") and field.choices:
+                filter_info["choices"] = [{"value": c[0], "label": c[1]} for c in field.choices]
+            elif field_type == "BooleanField":
+                filter_info["choices"] = [
+                    {"value": "true", "label": "Yes"},
+                    {"value": "false", "label": "No"},
+                ]
+            elif field_type in ("ForeignKey", "OneToOneField"):
+                related_model = field.resolve_target()
+                if related_model is not None:
+                    try:
+                        related_qs = await asyncio.to_thread(
+                            lambda rm=related_model: list(rm.objects.all()[:200])
+                        )
+                        filter_info["choices"] = [
+                            {"value": str(obj.id), "label": str(obj)} for obj in related_qs
+                        ]
+                    except Exception:
+                        pass
+
+            filters.append(filter_info)
+
+        return JSONResponse({"filters": filters})
 
     @router.get("/models/{app_label}/{model_name}/{obj_id}/")
     async def get_instance_by_app(

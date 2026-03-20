@@ -11,8 +11,7 @@ from jose import jwt as jose_jwt
 
 import openviper.middleware.auth as _auth_mod
 from openviper.auth.jwt import (
-    _JWT_ALGORITHM,
-    _JWT_SECRET,
+    _get_jwt_config,
     create_access_token,
 )
 from openviper.auth.models import AnonymousUser
@@ -141,7 +140,8 @@ class TestAuthMiddlewareJWT:
             "exp": timezone.now() - datetime.timedelta(hours=24),
             "type": "access",
         }
-        token = jose_jwt.encode(claims, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
+        secret, algo = _get_jwt_config()
+        token = jose_jwt.encode(claims, secret, algorithm=algo)
         captured = {}
 
         async def app(scope, receive, send):
@@ -191,7 +191,8 @@ class TestAuthMiddlewareJWT:
             "exp": timezone.now() + datetime.timedelta(hours=1),
             "type": "access",
         }
-        token = jose_jwt.encode(claims, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
+        secret, algo = _get_jwt_config()
+        token = jose_jwt.encode(claims, secret, algorithm=algo)
         captured = {}
 
         async def app(scope, receive, send):

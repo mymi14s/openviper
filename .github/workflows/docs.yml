@@ -39,12 +39,12 @@ jobs:
 
       - name: Build Sphinx docs
         run: make html
-        working-directory: docs/0.0.2
+        working-directory: docs
 
       - name: Normalize static asset paths
         run: |
-          mv docs/0.0.2/_build/html/_static docs/0.0.2/_build/html/static
-          find docs/0.0.2/_build/html -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) \
+          mv docs/_build/html/_static docs/_build/html/static
+          find docs/_build/html -type f \( -name '*.html' -o -name '*.css' -o -name '*.js' \) \
             -exec sed -i 's|_static/|static/|g' {} +
 
       - name: Setup Pages
@@ -53,7 +53,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/0.0.2/_build/html
+          path: docs/_build/html
 
   deploy:
     needs: build

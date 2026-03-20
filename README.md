@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.14%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.1-orange)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.0.2-orange)](pyproject.toml)
 
 </div>
 

@@ -1,15 +1,30 @@
-"""AI providers package."""
+"""AI providers package.
 
-from openviper.ai.providers.anthropic_provider import AnthropicProvider
-from openviper.ai.providers.gemini_provider import GeminiProvider
-from openviper.ai.providers.grok_provider import GrokProvider
-from openviper.ai.providers.ollama_provider import OllamaProvider
-from openviper.ai.providers.openai_provider import OpenAIProvider
+Providers are lazily imported so that missing third-party SDKs
+(``openai``, ``anthropic``, ``google-genai``) do not crash the
+framework at import time.  Install the extras with::
 
-__all__ = [
-    "OpenAIProvider",
-    "AnthropicProvider",
-    "OllamaProvider",
-    "GeminiProvider",
-    "GrokProvider",
-]
+    pip install openviper[ai]
+"""
+
+from __future__ import annotations
+
+import importlib
+from typing import Any
+
+_PROVIDER_MAP: dict[str, str] = {
+    "AnthropicProvider": "openviper.ai.providers.anthropic_provider",
+    "GeminiProvider": "openviper.ai.providers.gemini_provider",
+    "GrokProvider": "openviper.ai.providers.grok_provider",
+    "OllamaProvider": "openviper.ai.providers.ollama_provider",
+    "OpenAIProvider": "openviper.ai.providers.openai_provider",
+}
+
+__all__ = list(_PROVIDER_MAP)
+
+
+def __getattr__(name: str) -> Any:
+    if name in _PROVIDER_MAP:
+        module = importlib.import_module(_PROVIDER_MAP[name])
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

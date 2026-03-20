@@ -110,7 +110,9 @@ class AIProvider(abc.ABC):
             )
 
         # Isolate user content from instructions with a clear delimiter to
-        # prevent prompt injection attacks.
+        # prevent prompt injection attacks.  Replace the closing tag in the
+        # user text so that injected markup cannot break out of the sandbox.
+        safe_content = safe_content.replace("</content>", "&lt;/content&gt;")
         prompt = (
             "You are a strict content moderation AI.\n"
             "Analyze the text between the <content> tags and respond ONLY with "

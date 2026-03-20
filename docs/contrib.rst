@@ -22,7 +22,7 @@ Key Classes & Functions
 ``openviper.contrib.default.middleware``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. py:class:: DefaultLandingMiddleware(app, debug=False, version="0.0.2")
+.. py:class:: DefaultLandingMiddleware(app, debug=False, version=__version__, has_custom_root=False)
 
    ASGI middleware that intercepts ``GET /`` when no user-defined route
    exists for the root path.

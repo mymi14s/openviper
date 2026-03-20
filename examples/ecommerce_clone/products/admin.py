@@ -18,4 +18,4 @@ class CategoryAdmin(ModelAdmin):
 class ProductAdmin(ModelAdmin):
     list_display = ["id", "name", "price", "stock", "category", "created_at"]
     search_fields = ["name", "description"]
-    list_filter = ["category"]
+    list_filter = ["category", "name"]

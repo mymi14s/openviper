@@ -1,21 +1,30 @@
 # Configuration file for the Sphinx documentation builder.
 #
-# OpenViper 0.0.2 Documentation
+# OpenViper Documentation
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import datetime
 import os
 import sys
+import tomllib
+from pathlib import Path
 
 # Add the project root to sys.path so autodoc can import openviper modules.
 sys.path.insert(0, os.path.abspath("../.."))
 
+# Read version from pyproject.toml — single source of truth.
+_pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+with _pyproject.open("rb") as _f:
+    _meta = tomllib.load(_f)
+_project_version: str = _meta["project"]["version"]
+
 # -- Project information -----------------------------------------------------
 
 project = "OpenViper"
-copyright = "2026, OpenViper Contributors"  # noqa: A001
+copyright = f"{datetime.datetime.now(tz=datetime.UTC).year}, OpenViper Contributors"  # noqa: A001
 author = "E.A"
-release = "0.0.2"
-version = "0.0.2"
+release = _project_version
+version = _project_version
 
 # -- General configuration ---------------------------------------------------
 
@@ -85,7 +94,7 @@ html_context = {
     "github_user": "openviper",
     "github_repo": "openviper",
     "github_version": "main",
-    "conf_py_path": "/docs/0.0.2/",
+    "conf_py_path": "/docs",
 }
 
 # -- Options for todo extension ----------------------------------------------

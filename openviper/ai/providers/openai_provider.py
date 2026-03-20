@@ -1,4 +1,9 @@
-"""OpenAI provider implementation."""
+"""OpenAI provider implementation.
+
+Requires the ``openai`` package::
+
+    pip install openviper[ai]
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,13 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from openai import AsyncOpenAI
+try:
+    from openai import AsyncOpenAI
+except ImportError as _exc:
+    raise ImportError(
+        "The 'openai' package is required for OpenAIProvider. "
+        "Install it with: pip install openviper[ai]"
+    ) from _exc
 
 from openviper.ai.base import AIProvider
 

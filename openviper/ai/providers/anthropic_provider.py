@@ -1,4 +1,9 @@
-"""Anthropic Claude provider implementation."""
+"""Anthropic Claude provider implementation.
+
+Requires the ``anthropic`` package::
+
+    pip install openviper[ai]
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,13 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from anthropic import AsyncAnthropic
+try:
+    from anthropic import AsyncAnthropic
+except ImportError as _exc:
+    raise ImportError(
+        "The 'anthropic' package is required for AnthropicProvider. "
+        "Install it with: pip install openviper[ai]"
+    ) from _exc
 
 from openviper.ai.base import AIProvider
 

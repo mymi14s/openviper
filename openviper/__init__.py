@@ -5,9 +5,9 @@ with modern async capabilities.
 
 import importlib
 import sys
-from importlib.metadata import version as _version
 from typing import Any
 
+from openviper._version import __version__ as __version__
 from openviper.app import OpenViper
 from openviper.conf import settings
 from openviper.exceptions import (
@@ -58,7 +58,6 @@ def setup(force: bool = False) -> None:
     settings._setup(force=force)
 
 
-__version__: str = _version("openviper")
 __all__ = [
     "OpenViper",
     "Request",

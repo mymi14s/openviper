@@ -80,17 +80,17 @@ Verifying the Installation
 
 After installing, the ``openviper`` CLI should be available:
 
-.. code-block:: bash
+.. parsed-literal::
 
    openviper version
-   # OpenViper 0.0.2
+   # OpenViper |release|
 
 You can also verify from Python:
 
-.. code-block:: python
+.. parsed-literal::
 
    import openviper
-   print(openviper.__version__)   # 0.0.2
+   print(openviper.__version__)   # |release|
 
 Development Server
 ------------------

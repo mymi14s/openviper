@@ -35,6 +35,14 @@ onMounted(async () => {
   await adminStore.fetchConfig()
   document.title = adminStore.config.admin_title
 })
+
+// Fetch models when user logs in without requiring a refresh
+watch(() => authStore.isAuthenticated, async (isAuth) => {
+  if (isAuth) {
+    await adminStore.fetchModels()
+    await adminStore.fetchConfig()
+  }
+})
 </script>
 
 <template>
@@ -69,10 +77,8 @@ onMounted(async () => {
 
           <!-- Page content -->
           <main class="flex-1 overflow-y-auto p-4 md:p-6">
-            <router-view v-slot="{ Component }">
-              <transition name="fade" mode="out-in">
-                <component :is="Component" />
-              </transition>
+            <router-view v-slot="{ Component, route: routerRoute }">
+              <component :is="Component" :key="routerRoute.fullPath" />
             </router-view>
           </main>
         </div>

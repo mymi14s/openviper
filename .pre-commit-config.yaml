@@ -62,8 +62,10 @@ repos:
   - repo: local
     hooks:
       - id: test
-        args: ["tests/", "-v"]
         name: test
         entry: .venv/bin/pytest
+        args: ["tests/", "-v"]
         language: system
+        pass_filenames: false
+        always_run: true
         types: [python]

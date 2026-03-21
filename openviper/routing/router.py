@@ -209,7 +209,8 @@ class Router:
         self.prefix = prefix.rstrip("/")
         self.middlewares: list[Middleware] = middlewares or []
         self._routes: list[Route] = []
-        self._sub_routers: list[Router] = []
+        self._sub_routers: list[tuple[str, Router]] = []
+        self._parents: set[Router] = set()
         # Cache — invalidated whenever routes or sub-routers change.
         self._cached_routes: list[Route] | None = None
         # Dispatch index: first static segment -> candidate routes.
@@ -223,11 +224,17 @@ class Router:
     # ── Cache management ───────────────────────────────────────────────────
 
     def _invalidate(self) -> None:
-        """Mark the route cache and dispatch index stale."""
+        """Mark the route cache and dispatch index stale.
+
+        Propagates invalidation up to all parent routers.
+        """
         self._cached_routes = None
         self._index = None
         self._name_index = None
         self._exact_index = None
+
+        for parent in self._parents:
+            parent._invalidate()
 
     def _build_index(self, routes: list[Route]) -> dict[str, list[Route]]:
         """Build dispatch index by first path segment."""
@@ -286,6 +293,7 @@ class Router:
                 )
             )
             self._invalidate()
+            self._register_actions(path, func)
             return func
 
         return decorator
@@ -343,15 +351,60 @@ class Router:
             )
         )
         self._invalidate()
+        self._register_actions(path, handler)
+
+    def _register_actions(self, path: str, handler: Handler) -> None:
+        """Discover and register custom actions attached to a handler.
+
+        This allows class-based views to automatically register @action
+        methods when the main view is mounted.
+        """
+        actions = getattr(handler, "_openviper_actions", [])
+        view_class = getattr(handler, "view_class", None)
+        if not (actions and view_class):
+            return
+
+        base_path = path.rstrip("/")
+        for action_info in actions:
+            # Build sub-path
+            # - Collection action (detail=False): prefix/custom_path
+            # - Member action (detail=True): prefix/{id}/custom_path
+            if action_info["detail"]:
+                # Avoid doubling up placeholders if the base path already includes one
+                if "{id}" in base_path or "{pk}" in base_path:
+                    action_path = f"{base_path}/{action_info['url_path']}"
+                else:
+                    action_path = f"{base_path}/{{id}}/{action_info['url_path']}"
+            else:
+                action_path = f"{base_path}/{action_info['url_path']}"
+
+            # Create a specialized as_view handler for this specific action
+            action_handler = view_class.as_view(
+                _action_name=action_info["method_name"],
+                **getattr(handler, "view_initkwargs", {}),
+            )
+
+            # Register it on this router instance
+            self.add(
+                action_path,
+                action_handler,
+                methods=action_info["methods"],
+                namespace=f"{handler.__name__.lower()}_{action_info['name']}",
+            )
 
     # ── Sub-routers ────────────────────────────────────────────────────────
 
-    def include_router(self, router: Router) -> None:
-        """Mount a sub-router, prefixing all its routes with this router's prefix."""
-        # We use the include() helper to create a version of the router tree
-        # adjusted for this router's prefix. This avoids the duplication bug
-        # where routes were both flattened into _routes AND kept in _sub_routers.
-        self._sub_routers.append(include(router, prefix=self.prefix))
+    def include_router(self, router: Router, prefix: str = "") -> None:
+        """Mount a sub-router as a live reference.
+
+        Any routes added to the sub-router later will automatically be visible
+        through this router's prefix.
+        """
+        # Track parent for invalidation propagation
+        router._parents.add(self)
+
+        # We store the base prefix to apply during flattening
+        self._sub_routers.append((prefix, router))
         self._invalidate()
 
     # ── Route resolution ───────────────────────────────────────────────────
@@ -360,9 +413,25 @@ class Router:
     def routes(self) -> list[Route]:
         """All routes including sub-router routes, flattened (cached)."""
         if self._cached_routes is None:
+            # Start with local routes (with this router's prefix)
             all_routes: list[Route] = list(self._routes)
-            for sub in self._sub_routers:
-                all_routes.extend(sub.routes)
+
+            # Pull routes from sub-routers and apply their extra prefixes
+            for extra_prefix, sub in self._sub_routers:
+                # Apply the current router's prefix + the sub-router's extra prefix
+                # to all routes coming from the sub-router.
+                combined_prefix = self.prefix + (extra_prefix or "")
+                for route in sub.routes:
+                    all_routes.append(
+                        Route(
+                            path=combined_prefix + route.path,
+                            methods=route.methods,
+                            handler=route.handler,
+                            name=route.name,
+                            middlewares=route.middlewares + self.middlewares,
+                        )
+                    )
+
             self._cached_routes = all_routes
             # Build all indices once
             self._index = self._build_index(all_routes)
@@ -527,6 +596,8 @@ def include(router: Router, prefix: str = "") -> Router:
             for route in router._routes
         ]
         # Recursively wrap sub-routers with the same prefix.
-        adjusted._sub_routers = [include(sub, prefix=prefix) for sub in router._sub_routers]
+        adjusted._sub_routers = [
+            (extra_prefix, include(sub, prefix=prefix)) for extra_prefix, sub in router._sub_routers
+        ]
         return adjusted
     return router

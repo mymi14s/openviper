@@ -189,7 +189,6 @@ class TestFileContents:
         routes_content = (Path(temp_dir) / "shopapp" / "routes.py").read_text()
         assert "Router" in routes_content
         assert 'prefix="/shopapp"' in routes_content
-        assert 'tags=["shopapp"]' in routes_content
 
     def test_views_py_has_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)

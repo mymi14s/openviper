@@ -208,17 +208,16 @@ class TestAsView:
 
 
 class TestRegister:
-    def test_register_calls_router_route(self):
+    def test_register_calls_router_add(self):
         class MyView(View):
             async def get(self, req, **kw):
                 return Response(b"")
 
         router = MagicMock()
-        router.route = MagicMock(return_value=lambda fn: fn)
         MyView.register(router, "/my-path")
-        router.route.assert_called_once()
-        call_kwargs = router.route.call_args
-        assert "/my-path" in call_kwargs.args or call_kwargs.kwargs.get("path") == "/my-path"
+        router.add.assert_called_once()
+        args = router.add.call_args.args
+        assert "/my-path" in args or router.add.call_args.kwargs.get("path") == "/my-path"
 
     def test_register_includes_options_when_methods_exist(self):
         class MyView(View):
@@ -227,13 +226,12 @@ class TestRegister:
 
         methods_used = []
 
-        def fake_route(path, methods=None, name=None):
+        def fake_add(path, handler, methods=None, **kwargs):
             if methods:
                 methods_used.extend(methods)
-            return lambda fn: fn
 
         router = MagicMock()
-        router.route = fake_route
+        router.add = fake_add
         MyView.register(router, "/path")
         assert "OPTIONS" in methods_used
 
@@ -244,12 +242,11 @@ class TestRegister:
 
         captured = {}
 
-        def fake_route(path, methods=None, name=None):
-            captured["name"] = name
-            return lambda fn: fn
+        def fake_add(path, handler, namespace=None, **kwargs):
+            captured["name"] = namespace
 
         router = MagicMock()
-        router.route = fake_route
+        router.add = fake_add
         MyView.register(router, "/path", name="custom-name")
         assert captured["name"] == "custom-name"
 

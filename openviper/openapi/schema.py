@@ -233,6 +233,14 @@ def _resolve_request_schema(handler: Any) -> type | None:
             return cast("type", schema_cls)
 
         # Scan the view class's mutating methods for serializer usage
+        view_action = getattr(handler, "view_action", None)
+        if view_action:
+            method = getattr(view_cls, view_action, None)
+            if method is not None:
+                detected = _detect_serializer_from_source(method)
+                if detected is not None:
+                    return detected
+
         for method_name in ("post", "put", "patch"):
             method = getattr(view_cls, method_name, None)
             if method is not None:

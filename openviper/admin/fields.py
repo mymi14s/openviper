@@ -58,6 +58,10 @@ def get_field_component_type(field: Field) -> str:
     Returns:
         The component type string (e.g., 'text', 'number', 'select').
     """
+    # If field has choices, it should be a select dropdown
+    if getattr(field, "choices", None):
+        return "select"
+
     field_class_name = field.__class__.__name__
     return FIELD_COMPONENT_MAP.get(field_class_name, "text")
 
@@ -82,6 +86,10 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
     # Choices
     if hasattr(field, "choices") and field.choices:
         config["choices"] = [{"value": c[0], "label": c[1]} for c in field.choices]
+        # Map back from Enum if labels are LazyStrings
+        for choice in config["choices"]:
+            if not isinstance(choice["label"], (str, int, float, bool)):
+                choice["label"] = str(choice["label"])
 
     # Field-specific config
     if field_class_name == "CharField":
@@ -127,6 +135,13 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
             if allowed_ext:
                 config["allowed_extensions"] = list(allowed_ext)
 
+    if field_class_name in ("ForeignKey", "OneToOneField"):
+        config["searchable"] = True
+        config["filterable"] = True
+
+    if getattr(field, "primary_key", False):
+        config["filterable"] = True
+
     return config
 
 
@@ -142,6 +157,7 @@ def _get_field_schema_cached(
     db_index: bool,
     default_str: str,
     related_model_str: str | None,
+    component: str,
 ) -> dict[str, Any]:
     """Cached version of field schema computation.
 
@@ -164,7 +180,7 @@ def _get_field_schema_cached(
     schema = {
         "name": field_name,
         "type": field_class_name,
-        "component": FIELD_COMPONENT_MAP.get(field_class_name, "text"),
+        "component": component,
         "column_type": column_type,
         "primary_key": primary_key,
         "null": null,
@@ -264,6 +280,7 @@ def get_field_schema(field: Field) -> dict[str, Any]:
         db_index,
         default_str,
         related_model_str,
+        get_field_component_type(field),
     )
 
     # Add widget config (not cached as it may have dynamic choices)

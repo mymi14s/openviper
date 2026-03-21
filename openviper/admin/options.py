@@ -180,6 +180,8 @@ class ModelAdmin:
 
         if self.ordering:
             result = [self.ordering] if isinstance(self.ordering, str) else list(self.ordering)
+        elif hasattr(self.model, "_ordering") and self.model._ordering:
+            result = list(self.model._ordering)
         else:
             result = ["-id"]
 
@@ -534,8 +536,10 @@ class ModelAdmin:
             "name": self._model_name,
             "app": self._app_name,
             "table": self._table_name,
-            "verbose_name": self._model_name,
-            "verbose_name_plural": f"{self._model_name}s",
+            "verbose_name": getattr(self.model, "_verbose_name", self._model_name),
+            "verbose_name_plural": getattr(
+                self.model, "_verbose_name_plural", f"{self._model_name}s"
+            ),
             "fields": fields_info,
             "fieldsets": filtered_fieldsets if filtered_fieldsets else None,
             "list_display": self.get_list_display(),

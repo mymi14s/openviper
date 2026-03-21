@@ -37,3 +37,11 @@ def cast_to_pk_type(model_class: type[Model], value: Any) -> Any:
             return value
 
     return value
+
+
+class ClassProperty:
+    def __init__(self, func):
+        self.func = func
+
+    def __get__(self, instance, owner):
+        return self.func(owner)

@@ -29,6 +29,7 @@ import logging
 import re
 from collections.abc import AsyncGenerator
 from contextvars import ContextVar
+from enum import Enum
 from typing import Any, ClassVar, TypeVar, cast
 
 from sqlalchemy import insert
@@ -65,6 +66,7 @@ from openviper.db.fields import (
     LazyFK,
     OneToOneField,
 )
+from openviper.db.utils import ClassProperty
 from openviper.exceptions import DoesNotExist, FieldError, MultipleObjectsReturned
 from openviper.utils import timezone
 
@@ -152,24 +154,81 @@ class ModelMeta(type):
 
         # Determine table name: use Meta.table_name or auto-generate {app_name}_{model_name}
         meta = namespace.get("Meta")
-        if meta and hasattr(meta, "table_name") and meta.table_name:
-            table_name = meta.table_name
-        else:
+        table_name = ""
+        is_abstract = False
+        meta_indexes: list[Index] = []
+        meta_unique_together: list[list[str]] = []
+        verbose_name: str | None = None
+        verbose_name_plural: str | None = None
+        ordering: list[str] = []
+
+        if meta:
+            is_abstract = getattr(meta, "abstract", False)
+            if hasattr(meta, "table_name") and meta.table_name:
+                table_name = meta.table_name
+
+            # Parse composite indexes and unique constraints
+            if hasattr(meta, "indexes"):
+                meta_indexes = list(meta.indexes)
+            if hasattr(meta, "unique_together"):
+                ut = meta.unique_together
+                # Normalize unique_together to a list of lists: [["f1"], ["f2", "f3"]]
+                if isinstance(ut, (list, tuple)):
+                    if ut and isinstance(ut[0], (list, tuple)):
+                        meta_unique_together = [list(item) for item in ut]
+                    else:
+                        meta_unique_together = [list(ut)]
+
+            # Parse verbose names and ordering
+            verbose_name = getattr(meta, "verbose_name", None)
+            verbose_name_plural = getattr(meta, "verbose_name_plural", None)
+            if hasattr(meta, "ordering"):
+                ord_val = meta.ordering
+                if isinstance(ord_val, str):
+                    ordering = [ord_val]
+                elif isinstance(ord_val, (list, tuple)):
+                    ordering = list(ord_val)
+
+        if not table_name:
             # Auto-generate: {app_name}_{model_name} in snake_case
             model_snake = mcs._camel_to_snake(name)
-            if app_name and app_name != "default" and name != "Model":
+            if app_name and app_name != "default" and name != "Model" and not is_abstract:
                 table_name = f"{app_name}_{model_snake}".lower()
             else:
                 # Fallback to pluralize snake_case for backward compatibility
                 table_name = _CAMEL_RE3.sub("_", name).lower() + "s"
+
+        # Validate that all metadata fields actually exist on the model
+        for idx in meta_indexes:
+            for f_name in idx.fields:
+                if f_name not in fields:
+                    raise FieldError(f"Index field '{f_name}' not found on {name}")
+
+        for ut_fields in meta_unique_together:
+            for f_name in ut_fields:
+                if f_name not in fields:
+                    raise FieldError(f"unique_together field '{f_name}' not found on {name}")
+
+        for f_name in ordering:
+            clean_name = f_name[1:] if f_name.startswith("-") else f_name
+            if clean_name not in fields:
+                raise FieldError(f"Ordering field '{clean_name}' not found on {name}")
+
+        if verbose_name is None:
+            verbose_name = name
+        if verbose_name_plural is None:
+            verbose_name_plural = f"{verbose_name}s"
+
         namespace["_table_name"] = table_name
+        namespace["_meta_indexes"] = meta_indexes
+        namespace["_meta_unique_together"] = meta_unique_together
+        namespace["_verbose_name"] = verbose_name
+        namespace["_verbose_name_plural"] = verbose_name_plural
+        namespace["_ordering"] = ordering
 
         cls = super().__new__(mcs, name, bases, namespace)
 
         # Attach the Manager and register with metadata
-        meta = namespace.get("Meta")
-        is_abstract = getattr(meta, "abstract", False) if meta else False
-
         if name != "Model" and not is_abstract:
             manager = Manager(cast("Any", cls))
             cls.objects = manager  # type: ignore[attr-defined]
@@ -220,6 +279,30 @@ class ModelMeta(type):
         # Insert underscore before uppercase letters (except at start)
         s1 = _CAMEL_RE1.sub(r"\1_\2", name)
         return _CAMEL_RE2.sub(r"\1_\2", s1).lower()
+
+
+class Index:
+    """Represents a database index.
+
+    Use in ``Meta.indexes`` to define composite or named indexes.
+
+    Example::
+
+        class User(Model):
+            class Meta:
+                indexes = [
+                    Index(fields=["first_name", "last_name"], name="idx_user_names")
+                ]
+    """
+
+    __slots__ = ("fields", "name")
+
+    def __init__(self, fields: list[str], name: str | None = None) -> None:
+        self.fields = fields
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"Index(fields={self.fields!r}, name={self.name!r})"
 
 
 # ── F expression ─────────────────────────────────────────────────────────────
@@ -751,7 +834,7 @@ class QuerySet:
         self._filters: list[dict[str, Any]] = []
         self._excludes: list[dict[str, Any]] = []
         self._q_filters: list[Q] = []
-        self._order: list[str] = []
+        self._order: list[str] = list(getattr(model, "_ordering", []))
         self._limit: int | None = None
         self._offset: int | None = None
         self._distinct: bool = False
@@ -1831,3 +1914,40 @@ class AbstractModel(Model):
 
     class Meta:
         abstract = True
+
+
+class TextChoice(str, Enum):  # noqa: UP042
+    """TextChoic with value + label."""
+
+    def __new__(cls, value: str, label: str):
+        obj = str.__new__(cls, value)
+        obj._value_ = value  # enum value
+        obj.label = label  # human-readable label
+        return obj
+
+    @ClassProperty
+    def choices(cls) -> list[tuple[str, str]]:  # noqa: N805
+        return [(member.value, member.label) for member in cls]
+
+    @ClassProperty
+    def values(cls) -> list[str]:  # noqa: N805
+        return [member.value for member in cls]
+
+    @ClassProperty
+    def labels(cls) -> list[str]:  # noqa: N805
+        return [member.label for member in cls]
+
+    @ClassProperty
+    def names(cls) -> list[str]:  # noqa: N805
+        return [member.name for member in cls]
+
+    @classmethod
+    def from_value(cls, value: str) -> TextChoice:
+        return cls(value)  # type: ignore[call-arg]
+
+    @classmethod
+    def from_label(cls, label: str) -> TextChoice:
+        for member in cls:
+            if member.label == label:
+                return member
+        raise ValueError(f"{label!r} is not a valid label for {cls.__name__}")

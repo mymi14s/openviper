@@ -2,26 +2,38 @@
 
 Provides :class:`View` — a base class that dispatches incoming requests
 to handler methods named after the HTTP verb (``get``, ``post``, ``put``,
-``patch``, ``delete``, ``head``, ``options``).
+``patch``, ``delete``, ``head``, ``options``) or custom methods
+decorated with :func:`action`.
 
 Usage with a router::
 
-    from openviper.http.views import View
-    from openviper.http.response import JSONResponse
+    from openviper.http.views import View, action
 
-    class UserListView(View):
+    class UserView(View):
         async def get(self, request):
-            users = await User.objects.all()
-            return JSONResponse([u._to_dict() for u in users])
+            # dict/list return values are automatically wrapped in JSONResponse
+            return {"users": []}
 
-        async def post(self, request):
-            data = await request.json()
-            user = await User.objects.create(**data)
-            return JSONResponse(user._to_dict(), status_code=201)
+        @action(detail=False)
+        async def me(self, request):
+            # Use 'Request:' and 'Example Response:' tags in the docstring
+            '''Get current user info.
 
-    router.route("/users", methods=["GET", "POST"])(UserListView.as_view())
-    # — or use the shorthand —
-    UserListView.register(router, "/users")
+            Request: UserSerializer
+            Example Response: {"id": 1, "username": "admin"}
+            '''
+            return request.user.to_dict()
+
+    # Mounting the view automatically registers all actions
+    router.add("/users", UserView.as_view())
+    # OR use explicitly:
+    # UserView.register(router, "/users")
+
+OpenAPI Integration:
+    The schema generator automatically detects request metadata from docstrings:
+    - ``Request: <SerializerName>``: Link a serializer to the request body.
+    - ``Example Request: { ... }``: Provide a sample JSON payload for the request.
+    - ``Example Response: { ... }``: Provide a sample JSON payload for the 200 response.
 """
 
 from __future__ import annotations

@@ -65,6 +65,19 @@ Model Validation (cross-field)::
             if self.password != self.confirm_password:
                 raise ValueError("Passwords do not match")
             return self
+
+OpenAPI Integration::
+
+    The OpenAPI schema generator automatically produces JSON Schema for
+    both ``Serializer`` and ``ModelSerializer``. You can link them to
+    your view handlers using docstring tags::
+
+        class UserView(View):
+            async def post(self, request):
+                '''
+                Request: UserSerializer
+                '''
+                ...
 """
 
 from __future__ import annotations

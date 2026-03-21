@@ -57,6 +57,7 @@ class Field:
         auto_increment: bool = False,
         choices: list[tuple[Any, str]] | None = None,
         help_text: str = "",
+        editable: bool = True,
     ) -> None:
         self.primary_key = primary_key
         self.null = null
@@ -69,6 +70,7 @@ class Field:
         self.choices = choices or []
         self._choices_set: frozenset[Any] = frozenset(c[0] for c in self.choices)
         self.help_text = help_text
+        self.editable = editable
         self.name: str = ""  # Set by ModelMeta
 
     @functools.cached_property

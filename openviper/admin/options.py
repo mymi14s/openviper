@@ -180,7 +180,11 @@ class ModelAdmin:
 
         if self.ordering:
             result = [self.ordering] if isinstance(self.ordering, str) else list(self.ordering)
-        elif hasattr(self.model, "_ordering") and self.model._ordering:
+        elif (
+            hasattr(self.model, "_ordering")
+            and isinstance(self.model._ordering, (list, tuple))
+            and self.model._ordering
+        ):
             result = list(self.model._ordering)
         else:
             result = ["-id"]
@@ -233,10 +237,21 @@ class ModelAdmin:
         """
         if self.fields is not None:
             return list(self.fields)
-        # All fields except excluded and auto-fields
+        # All fields except excluded, auto-fields, and non-editable fields (in Create mode)
         all_fields = list(self._fields.keys())
         excluded = self.get_exclude(request, obj)
-        return [f for f in all_fields if f not in excluded and f != "id"]
+        is_create = obj is None or getattr(obj, "pk", None) is None
+
+        fields = []
+        for f in all_fields:
+            if f in excluded or f == "id":
+                continue
+            field = self._fields.get(f)
+            # If editable=False, exclude from Create form
+            if is_create and field and not getattr(field, "editable", True):
+                continue
+            fields.append(f)
+        return fields
 
     def get_exclude(self, request: Request | None = None, obj: Model | None = None) -> list[str]:
         """Get fields to exclude from the form.
@@ -422,11 +437,32 @@ class ModelAdmin:
             The saved model instance.
         """
         # Apply form data to object
+        readonly = self.get_readonly_fields(request, obj)
         for field_name, value in form_data.items():
-            if field_name not in self.get_readonly_fields(request, obj):
-                setattr(obj, field_name, value)
+            # In Create mode (change=False), allow setting fields that are in readonly_fields,
+            # but still block fields that are intrinsically read-only (AutoField, auto_now, etc).
+            if not change:
+                field = self._fields.get(field_name)
+                if field and self._is_intrinsically_readonly(field):
+                    continue
+            elif field_name in readonly:
+                continue
+
+            setattr(obj, field_name, value)
         await obj.save()
         return obj
+
+    def _is_intrinsically_readonly(self, field: Any) -> bool:
+        """Return True if a field is auto-managed by the system and should not be edited.
+
+        This includes auto-incrementing primary keys (AutoField), and fields with
+        auto_now or auto_now_add set to True.
+        """
+        if field.__class__.__name__ == "AutoField":
+            return True
+        if getattr(field, "auto_increment", False) and getattr(field, "primary_key", False):
+            return True
+        return bool(getattr(field, "auto_now", False) or getattr(field, "auto_now_add", False))
 
     async def delete_model(self, request: Request, obj: Model) -> None:
         """Delete a model instance.

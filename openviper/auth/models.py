@@ -181,11 +181,13 @@ class AbstractUser(Model):
     is_staff = BooleanField(default=False)
     role_profile = ForeignKey(to="RoleProfile", null=True, blank=True, on_delete="CASCADE")
     #: Account creation timestamp.
-    created_at = DateTimeField(auto_now_add=True)
+    created_at = DateTimeField(auto_now_add=True, editable=False)
     #: Last modification timestamp.
-    updated_at = DateTimeField(auto_now=True)
+    updated_at = DateTimeField(auto_now=True, editable=False)
     #: Last successful login timestamp.
-    last_login = DateTimeField(null=True)
+    last_login = DateTimeField(null=True, editable=False)
+
+    date_joined = DateTimeField(auto_now_add=True, editable=False)
 
     class Meta:
         abstract = True

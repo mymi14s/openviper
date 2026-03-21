@@ -80,7 +80,13 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
 
     # Common config
     config["required"] = not getattr(field, "null", True) and not getattr(field, "blank", True)
-    config["readonly"] = field.__class__.__name__ == "AutoField"
+    # Fields that are intrinsically read-only (auto-managed by the system)
+    config["readonly"] = (
+        field.__class__.__name__ == "AutoField"
+        or getattr(field, "auto_increment", False)
+        or getattr(field, "auto_now", False)
+        or getattr(field, "auto_now_add", False)
+    )
     config["help_text"] = getattr(field, "help_text", "")
 
     # Choices
@@ -158,6 +164,7 @@ def _get_field_schema_cached(
     default_str: str,
     related_model_str: str | None,
     component: str,
+    editable: bool,
 ) -> dict[str, Any]:
     """Cached version of field schema computation.
 
@@ -188,6 +195,7 @@ def _get_field_schema_cached(
         "unique": unique,
         "db_index": db_index,
         "default": None if default_str == "__none__" else default_str,
+        "editable": editable,
     }
 
     if related_model_str:
@@ -281,6 +289,7 @@ def get_field_schema(field: Field) -> dict[str, Any]:
         default_str,
         related_model_str,
         get_field_component_type(field),
+        getattr(field, "editable", True),
     )
 
     # Add widget config (not cached as it may have dynamic choices)

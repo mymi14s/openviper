@@ -39,7 +39,7 @@ from openviper.db import fields
 
 from openviper.routing import Router
 
-router = Router(prefix="/{{ app_label }}", tags=["{{ app_label }}"])
+router = Router(prefix="/{{ app_label }}")
 
 # Register your routes here.
 ''',

@@ -57,3 +57,13 @@ repos:
         language: system
         types: [python]
         files: ^openviper/
+
+  # ── Testing ──────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: test
+        args: ["tests/", "-v"]
+        name: test
+        entry: .venv/bin/pytest
+        language: system
+        types: [python]

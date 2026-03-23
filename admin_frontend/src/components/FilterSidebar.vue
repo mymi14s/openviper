@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAdminStore } from '@/stores/admin'
 import { formatFieldName } from '@/utils/formatters'
 import type { FilterOption } from '@/types/admin'
 
@@ -12,7 +11,6 @@ const emit = defineEmits<{
   (e: 'change', filters: Record<string, any>): void
 }>()
 
-const adminStore = useAdminStore()
 const activeFilters = ref<Record<string, any>>({})
 const debounceTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
@@ -68,8 +66,42 @@ function clearAll() {
           {{ formatFieldName(filter.name) }}
         </p>
 
-        <!-- Choice pills -->
-        <div v-if="filter.choices.length > 0" class="flex flex-col gap-1">
+        <!-- Date picker -->
+        <div v-if="filter.component === 'date'" class="flex flex-col gap-1">
+          <input
+            type="date"
+            :value="activeFilters[filter.name] ?? ''"
+            @change="applyFilter(filter.name, ($event.target as HTMLInputElement).value)"
+            class="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+
+        <!-- DateTime picker -->
+        <div v-else-if="filter.component === 'datetime'" class="flex flex-col gap-1">
+          <input
+            type="datetime-local"
+            :value="activeFilters[filter.name] ?? ''"
+            @change="applyFilter(filter.name, ($event.target as HTMLInputElement).value)"
+            class="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+
+        <!-- Choices (Dropdown for many, pills for few) -->
+        <div v-else-if="filter.choices.length > 5 || filter.component === 'select'" class="flex flex-col gap-1">
+          <select
+            :value="activeFilters[filter.name] ?? ''"
+            @change="applyFilter(filter.name, ($event.target as HTMLSelectElement).value)"
+            class="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">All</option>
+            <option v-for="choice in filter.choices" :key="String(choice.value)" :value="choice.value">
+              {{ choice.label }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Choice pills (for small sets) -->
+        <div v-else-if="filter.choices.length > 0" class="flex flex-col gap-1">
           <button
             v-for="choice in filter.choices"
             :key="String(choice.value)"
@@ -83,7 +115,7 @@ function clearAll() {
           </button>
         </div>
 
-        <!-- Free text -->
+        <!-- Free text (fallback) -->
         <div v-else>
           <input
             type="text"

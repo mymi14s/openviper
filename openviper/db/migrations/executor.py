@@ -826,6 +826,33 @@ class CreateIndex(Operation):
 
 
 @dataclass
+class RemoveIndex(Operation):
+    """Drop a composite or named index."""
+
+    table_name: str
+    index_name: str
+
+    def forward_sql(self) -> list[str]:
+        dialect = _get_dialect()
+        quoted_index = _quote_identifier(self.index_name, dialect)
+        if dialect == "mssql":
+            quoted_table = _quote_identifier(self.table_name, dialect)
+            index_escaped = self.index_name.replace("'", "''")
+            table_escaped = self.table_name.replace("'", "''")
+            return [
+                f"IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'{index_escaped}'"
+                f" AND object_id = OBJECT_ID(N'{table_escaped}'))\n"
+                f"DROP INDEX {quoted_index} ON {quoted_table}"
+            ]
+        return [f"DROP INDEX IF EXISTS {quoted_index}"]
+
+    def backward_sql(self) -> list[str]:
+        # Backward requires knowing columns/unique, which we don't store here.
+        # In practice, usually handled via manual migration editing if needed.
+        return []
+
+
+@dataclass
 class RunSQL(Operation):
     """Arbitrary forward/backward SQL."""
 

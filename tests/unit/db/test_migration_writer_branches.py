@@ -40,16 +40,24 @@ def test_validate_identifier_rejects_invalid_names():
 
 def test_diff_states_restores_legacy_removed_column_name():
     existing = {
-        "accounts": [
-            {"name": "id", "type": "INTEGER"},
-            {"name": "_removed_nickname", "type": "TEXT"},
-        ]
+        "accounts": {
+            "columns": [
+                {"name": "id", "type": "INTEGER"},
+                {"name": "_removed_nickname", "type": "TEXT"},
+            ],
+            "indexes": [],
+            "unique_together": [],
+        }
     }
     current = {
-        "accounts": [
-            {"name": "id", "type": "INTEGER"},
-            {"name": "nickname", "type": "TEXT"},
-        ]
+        "accounts": {
+            "columns": [
+                {"name": "id", "type": "INTEGER"},
+                {"name": "nickname", "type": "TEXT"},
+            ],
+            "indexes": [],
+            "unique_together": [],
+        }
     }
 
     ops = _diff_states(current, existing)
@@ -96,7 +104,7 @@ def test_model_state_snapshot_no_column_type():
 
     state = model_state_snapshot([NoTypeModel])
     assert "no_type_model" in state
-    cols = state["no_type_model"]
+    cols = state["no_type_model"]["columns"]
     # Should have columns; if _column_type is empty it uses "TEXT" fallback
     assert any(c["name"] == "value" for c in cols)
 
@@ -108,14 +116,22 @@ def test_diff_states_circular_dependency_does_not_crash():
     """Tables with circular FK references should not crash topological sort."""
     existing = {}
     current = {
-        "table_a": [
-            {"name": "id", "type": "INTEGER", "primary_key": True},
-            {"name": "b_id", "type": "INTEGER", "target_table": "table_b"},
-        ],
-        "table_b": [
-            {"name": "id", "type": "INTEGER", "primary_key": True},
-            {"name": "a_id", "type": "INTEGER", "target_table": "table_a"},
-        ],
+        "table_a": {
+            "columns": [
+                {"name": "id", "type": "INTEGER", "primary_key": True},
+                {"name": "b_id", "type": "INTEGER", "target_table": "table_b"},
+            ],
+            "indexes": [],
+            "unique_together": [],
+        },
+        "table_b": {
+            "columns": [
+                {"name": "id", "type": "INTEGER", "primary_key": True},
+                {"name": "a_id", "type": "INTEGER", "target_table": "table_a"},
+            ],
+            "indexes": [],
+            "unique_together": [],
+        },
     }
     ops = _diff_states(current, existing)
     # Should not raise, and should produce 2 CreateTable ops
@@ -130,8 +146,14 @@ def test_diff_states_incompatible_type_with_soft_removed_exits():
 
     _soft_removed_columns[("t2", "col")] = {"name": "col", "type": "INTEGER"}
     try:
-        existing = {"t2": []}
-        current = {"t2": [{"name": "col", "type": "TEXT", "nullable": True}]}
+        existing = {"t2": {"columns": [], "indexes": [], "unique_together": []}}
+        current = {
+            "t2": {
+                "columns": [{"name": "col", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         with pytest.raises(SystemExit):
             _diff_states(current, existing)
     finally:
@@ -218,7 +240,7 @@ def test_model_state_snapshot_skips_field_with_empty_column_type():
             table_name = "with_m2m_model"
 
     state = model_state_snapshot([WithM2MModel])
-    cols = state.get("with_m2m_model", [])
+    cols = state.get("with_m2m_model", {}).get("columns", [])
     assert not any(c["name"] == "labels" for c in cols)
 
 
@@ -339,16 +361,24 @@ def test_parse_restore_column_missing_args_is_noop(tmp_path):
 def test_diff_states_removed_prefix_incompatible_type_exits():
 
     existing = {
-        "my_table": [
-            {"name": "id", "type": "INTEGER"},
-            {"name": "_removed_score", "type": "INTEGER"},
-        ]
+        "my_table": {
+            "columns": [
+                {"name": "id", "type": "INTEGER"},
+                {"name": "_removed_score", "type": "INTEGER"},
+            ],
+            "indexes": [],
+            "unique_together": [],
+        }
     }
     current = {
-        "my_table": [
-            {"name": "id", "type": "INTEGER"},
-            {"name": "score", "type": "TEXT"},  # incompatible with INTEGER
-        ]
+        "my_table": {
+            "columns": [
+                {"name": "id", "type": "INTEGER"},
+                {"name": "score", "type": "TEXT"},  # incompatible with INTEGER
+            ],
+            "indexes": [],
+            "unique_together": [],
+        }
     }
 
     with pytest.raises(SystemExit):
@@ -400,4 +430,4 @@ def test_parse_create_table_ast_constant_dict_column():
     state: dict = {}
     _parse_create_table(call_node, state)
     assert "things" in state
-    assert {"name": "id", "type": "INTEGER"} in state["things"]
+    assert {"name": "id", "type": "INTEGER"} in state["things"]["columns"]

@@ -240,6 +240,9 @@ The ``status_code`` parameter accepts any integer.  Commonly used values:
    methods (``get``, ``post``, ``put``, ``patch``, ``delete``, ``head``,
    ``options``).  Unimplemented methods return **405 Method Not Allowed**.
 
+   Handlers can return a :class:`Response` object, or a ``dict``/``list`` which
+   is automatically wrapped in a :class:`JSONResponse`.
+
    **Class attributes:**
 
    .. py:attribute:: http_method_names
@@ -268,6 +271,20 @@ The ``status_code`` parameter accepts any integer.  Commonly used values:
 
       Shorthand to register the view on *router* at *path*.  Automatically
       determines which HTTP methods are implemented.
+
+.. py:decorator:: action(methods=None, detail=False, url_path=None, name=None)
+
+   Mark a :class:`View` method as a custom action for automatic routing.
+
+   :param list[str] methods: List of HTTP methods (e.g. ``["GET", "POST"]``).
+      Defaults to ``["GET"]``.
+   :param bool detail:
+      - If ``False`` (default), the action is for the collection (e.g. ``/users/search``).
+      - If ``True``, the action is for a single instance (e.g. ``/users/{id}/deactivate``).
+   :param str url_path: Optional override for the URL segment. Defaults to
+      the method name.
+   :param str name: Optional name for the reverse URL lookup. Defaults to
+      the method name.
 
 Example Usage
 -------------
@@ -343,6 +360,38 @@ Class-Based Views
 
     # Register with router
     PostDetailView.register(router, "/posts/{post_id:int}")
+
+Extra View Actions
+~~~~~~~~~~~~~~~~~~
+
+You can add custom endpoints to a :class:`View` using the ``@action`` decorator.
+These are automatically registered when the view is mounted.
+
+.. code-block:: python
+
+    from openviper.http.views import View, action
+
+    class UserView(View):
+        async def get(self, request):
+            """List users."""
+            return {"users": []}
+
+        @action(detail=False, methods=["GET"])
+        async def search(self, request):
+            """Search users: GET /users/search?q=..."""
+            q = request.query_params.get("q")
+            return {"query": q, "results": []}
+
+        @action(detail=True, methods=["POST"])
+        async def deactivate(self, request, id):
+            """Deactivate a user: POST /users/{id}/deactivate"""
+            return {"id": id, "active": False}
+
+    # Registering UserView at "/users" will create:
+    # GET  /users                  -> UserView.get
+    # GET  /users/search           -> UserView.search
+    # POST /users/{id}/deactivate  -> UserView.deactivate
+    UserView.register(router, "/users")
 
 File Upload
 ~~~~~~~~~~~

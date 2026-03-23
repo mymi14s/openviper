@@ -34,7 +34,16 @@ function updateField(fieldName: string, value: any) {
 }
 
 function isReadonly(field: ModelField): boolean {
-  return field.readonly || props.readonlyFields?.includes(field.name) || false
+  // Always honor intrinsic readonly from field schema (e.g. AutoField, auto_now)
+  if (field.readonly) return true
+
+  // For policy-based readonlyFields (from ModelAdmin.readonly_fields):
+  // Only apply them in 'edit' mode, allow editing in 'create' mode.
+  if (props.mode === 'create') {
+    return false
+  }
+
+  return props.readonlyFields?.includes(field.name) || false
 }
 
 const visibleFields = computed(() => {

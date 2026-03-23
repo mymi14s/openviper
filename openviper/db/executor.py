@@ -333,7 +333,17 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
         columns.append(col)
         added_columns.add(col_name)
 
-    return sa.Table(table_name, metadata, *columns, extend_existing=True)
+    # Add composite indexes and unique constraints from Meta
+    table_args: list[Any] = list(columns)
+    for idx in getattr(model_cls, "_meta_indexes", []):
+        # Generate a default index name if not provided
+        index_name = idx.name or f"idx_{table_name}_{'_'.join(idx.fields)}"
+        table_args.append(sa.Index(index_name, *idx.fields))
+
+    for ut_fields in getattr(model_cls, "_meta_unique_together", []):
+        table_args.append(sa.UniqueConstraint(*ut_fields))
+
+    return sa.Table(table_name, metadata, *table_args, extend_existing=True)
 
 
 def get_table(model_cls: type[Model]) -> sa.Table:

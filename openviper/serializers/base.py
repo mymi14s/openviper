@@ -65,6 +65,19 @@ Model Validation (cross-field)::
             if self.password != self.confirm_password:
                 raise ValueError("Passwords do not match")
             return self
+
+OpenAPI Integration::
+
+    The OpenAPI schema generator automatically produces JSON Schema for
+    both ``Serializer`` and ``ModelSerializer``. You can link them to
+    your view handlers using docstring tags::
+
+        class UserView(View):
+            async def post(self, request):
+                '''
+                Request: UserSerializer
+                '''
+                ...
 """
 
 from __future__ import annotations
@@ -173,7 +186,7 @@ class Serializer(BaseModel):
     )
 
     # Subclasses may list field names that should be read-only (never set on create/update)
-    read_only_fields: ClassVar[tuple[str, ...]] = ()
+    readonly_fields: ClassVar[tuple[str, ...]] = ()
     # Fields to exclude from serialization output by default
     write_only_fields: ClassVar[tuple[str, ...]] = ()
     # Number of objects per batch when streaming a QuerySet through serialize_many
@@ -513,7 +526,7 @@ class _ModelSerializerMeta(type(BaseModel)):
         # Determine which fields to include
         fields_opt: str | list[str] = getattr(meta, "fields", "__all__")
         exclude_opt: list[str] | tuple[str, ...] = getattr(meta, "exclude", ())
-        read_only: tuple[str, ...] = getattr(meta, "read_only_fields", ())
+        read_only: tuple[str, ...] = getattr(meta, "readonly_fields", ())
         write_only: tuple[str, ...] = getattr(meta, "write_only_fields", ())
         extra_kwargs: dict[str, dict[str, Any]] = getattr(meta, "extra_kwargs", {})
 
@@ -554,9 +567,9 @@ class _ModelSerializerMeta(type(BaseModel)):
 
         namespace["__annotations__"] = annotations
 
-        # Wire up read_only_fields & write_only_fields as ClassVars from Meta
-        if read_only and "read_only_fields" not in namespace:
-            namespace["read_only_fields"] = read_only
+        # Wire up readonly_fields & write_only_fields as ClassVars from Meta
+        if read_only and "readonly_fields" not in namespace:
+            namespace["readonly_fields"] = read_only
         if write_only and "write_only_fields" not in namespace:
             namespace["write_only_fields"] = write_only
 
@@ -580,7 +593,7 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
                 model = Blog
                 fields = "__all__"          # or ["title", "body"]
                 # exclude = ["secret"]      # alternative to ``fields``
-                # read_only_fields = ("id", "created_at")
+                # readonly_fields = ("id", "created_at")
                 # extra_kwargs = {"title": {"required": False}}
 
     ``ModelSerializer`` inherits every helper from :class:`Serializer`
@@ -715,7 +728,7 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
         # uuid defaults, etc.) with None for fields the caller never set.
         data = self.model_dump(exclude_none=True)
         # Remove read-only fields before create
-        for f in self.read_only_fields:
+        for f in self.readonly_fields:
             data.pop(f, None)
         # Also drop an explicit None PK in case it survived exclude_none
         pk_val = data.get("id")
@@ -737,7 +750,7 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
         # are applied — avoids clobbering existing DB values with None for
         # fields the PATCH request omitted.
         data = self.model_dump(exclude_unset=True)
-        for f in self.read_only_fields:
+        for f in self.readonly_fields:
             data.pop(f, None)
         data.pop("id", None)  # never update the PK
 

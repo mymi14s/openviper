@@ -209,7 +209,8 @@ class Router:
         self.prefix = prefix.rstrip("/")
         self.middlewares: list[Middleware] = middlewares or []
         self._routes: list[Route] = []
-        self._sub_routers: list[Router] = []
+        self._sub_routers: list[tuple[str, Router]] = []
+        self._parents: set[Router] = set()
         # Cache — invalidated whenever routes or sub-routers change.
         self._cached_routes: list[Route] | None = None
         # Dispatch index: first static segment -> candidate routes.
@@ -223,11 +224,17 @@ class Router:
     # ── Cache management ───────────────────────────────────────────────────
 
     def _invalidate(self) -> None:
-        """Mark the route cache and dispatch index stale."""
+        """Mark the route cache and dispatch index stale.
+
+        Propagates invalidation up to all parent routers.
+        """
         self._cached_routes = None
         self._index = None
         self._name_index = None
         self._exact_index = None
+
+        for parent in self._parents:
+            parent._invalidate()
 
     def _build_index(self, routes: list[Route]) -> dict[str, list[Route]]:
         """Build dispatch index by first path segment."""
@@ -259,6 +266,7 @@ class Router:
         """Build exact match index for literal paths (fast path)."""
         exact_index: dict[str, Route] = {}
         for route in routes:
+            # Note: routes passed here are already absolute (from self.routes)
             if route._is_literal:
                 exact_index[route.path] = route
         return exact_index
@@ -275,10 +283,10 @@ class Router:
         """Decorator to register a handler for a path and methods."""
 
         def decorator(func: Handler) -> Handler:
-            full_path = self.prefix + path
+            # Store path exactly as provided.
             self._routes.append(
                 Route(
-                    path=full_path,
+                    path=path,
                     methods=set(methods),
                     handler=func,
                     name=name or func.__name__,
@@ -286,6 +294,7 @@ class Router:
                 )
             )
             self._invalidate()
+            self._register_actions(path, func)
             return func
 
         return decorator
@@ -332,10 +341,11 @@ class Router:
         """
         methods = methods or ["GET"]
         name = namespace or handler.__name__
-        full_path = self.prefix + path
+        # Store path exactly as provided (it will be prefixed by this router's prefix
+        # and any parent prefixes during flattening in the .routes property).
         self._routes.append(
             Route(
-                path=full_path,
+                path=path,
                 methods=set(methods),
                 handler=handler,
                 name=name,
@@ -343,32 +353,124 @@ class Router:
             )
         )
         self._invalidate()
+        self._register_actions(path, handler)
+
+    def _register_actions(self, path: str, handler: Handler) -> None:
+        """Discover and register custom actions attached to a handler.
+
+        This allows class-based views to automatically register @action
+        methods when the main view is mounted.
+        """
+        actions = getattr(handler, "_openviper_actions", [])
+        view_class = getattr(handler, "view_class", None)
+        if not (actions and view_class):
+            return
+
+        base_path = path.rstrip("/")
+        for action_info in actions:
+            # Build sub-path
+            # - Collection action (detail=False): prefix/custom_path
+            # - Member action (detail=True): prefix/{id}/custom_path
+            if action_info["detail"]:
+                # Avoid doubling up placeholders if the base path already includes one
+                if "{id}" in base_path or "{pk}" in base_path:
+                    action_path = f"{base_path}/{action_info['url_path']}"
+                else:
+                    action_path = f"{base_path}/{{id}}/{action_info['url_path']}"
+            else:
+                action_path = f"{base_path}/{action_info['url_path']}"
+
+            # Create a specialized as_view handler for this specific action
+            action_handler = view_class.as_view(
+                _action_name=action_info["method_name"],
+                **getattr(handler, "view_initkwargs", {}),
+            )
+
+            # Register it on this router instance
+            self.add(
+                action_path,
+                action_handler,
+                methods=action_info["methods"],
+                namespace=f"{handler.__name__.lower()}_{action_info['name']}",
+            )
 
     # ── Sub-routers ────────────────────────────────────────────────────────
 
-    def include_router(self, router: Router) -> None:
-        """Mount a sub-router, prefixing all its routes with this router's prefix."""
-        # We use the include() helper to create a version of the router tree
-        # adjusted for this router's prefix. This avoids the duplication bug
-        # where routes were both flattened into _routes AND kept in _sub_routers.
-        self._sub_routers.append(include(router, prefix=self.prefix))
+    def include_router(self, router: Router, prefix: str = "") -> None:
+        """Mount a sub-router as a live reference.
+
+        Any routes added to the sub-router later will automatically be visible
+        through this router's prefix.
+        """
+        # Track parent for invalidation propagation
+        router._parents.add(self)
+
+        # We store the base prefix to apply during flattening
+        self._sub_routers.append((prefix, router))
         self._invalidate()
 
     # ── Route resolution ───────────────────────────────────────────────────
 
     @property
     def routes(self) -> list[Route]:
-        """All routes including sub-router routes, flattened (cached)."""
+        """All routes including sub-router routes, flattened and absolute (cached)."""
         if self._cached_routes is None:
-            all_routes: list[Route] = list(self._routes)
-            for sub in self._sub_routers:
-                all_routes.extend(sub.routes)
+
+            def _get_absolute(router: Router, current_abs: str) -> list[Route]:
+                # Combine this router's specific absolute prefix with its own prefix
+                # to get the total base for local routes and children.
+                base = _normalize_path(current_abs.rstrip("/") + router.prefix)
+                res = []
+
+                # Accumulate local routes
+                for r in router._routes:
+                    res.append(
+                        Route(
+                            path=_normalize_path(base + r.path),
+                            methods=r.methods,
+                            handler=r.handler,
+                            name=r.name,
+                            middlewares=r.middlewares + router.middlewares,
+                        )
+                    )
+
+                # Accumulate sub-router routes recursively
+                for extra_prefix, sub in router._sub_routers:
+                    # 'extra_prefix' is the mount point relative to this router's root
+                    res.extend(_get_absolute(sub, base + (extra_prefix or "")))
+
+                return res
+
+            all_routes = _get_absolute(self, "")
             self._cached_routes = all_routes
-            # Build all indices once
+
+            # Build indices
             self._index = self._build_index(all_routes)
             self._name_index = self._build_name_index(all_routes)
             self._exact_index = self._build_exact_index(all_routes)
+
         return self._cached_routes
+
+    def _all_relative_routes(self) -> list[Route]:
+        """Return all local and sub-router routes relative to THIS router's root.
+
+        This includes sub-router routes prefixed with their respective mount points.
+        It does NOT include this router's own prefix.
+        """
+        res = list(self._routes)
+        for extra_prefix, sub in self._sub_routers:
+            mount = (extra_prefix or "").rstrip("/")
+            for r in sub._all_relative_routes():
+                res.append(
+                    Route(
+                        path=_normalize_path(mount + r.path),
+                        methods=r.methods,
+                        handler=r.handler,
+                        name=r.name,
+                        middlewares=r.middlewares + self.middlewares,
+                    )
+                )
+        return res
 
     def _candidate_routes(self, path: str) -> Iterable[Route]:
         """Return only the routes that *could* match *path* using the dispatch index.
@@ -513,20 +615,16 @@ def include(router: Router, prefix: str = "") -> Router:
         >>> app.include_router(include(user_router, prefix="/api/v1"))
     """
     if prefix:
-        adjusted = Router(prefix=prefix + router.prefix)
-        # Re-create each route with the extra prefix prepended to its path.
-        # (Route paths already contain the original router prefix.)
-        adjusted._routes = [
-            Route(
-                path=prefix + route.path,
-                methods=route.methods,
-                handler=route.handler,
-                name=route.name,
-                middlewares=route.middlewares,
-            )
-            for route in router._routes
-        ]
-        # Recursively wrap sub-routers with the same prefix.
-        adjusted._sub_routers = [include(sub, prefix=prefix) for sub in router._sub_routers]
-        return adjusted
+        # include(router, "/v1") creates a wrapper router that represents the
+        # included router at the combined prefix. To maintain a live reference
+        # without duplicating the router.prefix in the final path, we share
+        # the route and sub-router lists directly and link them for invalidation.
+        wrapper = Router(prefix=_normalize_path(prefix + router.prefix))
+        wrapper._routes = router._routes
+        wrapper._sub_routers = router._sub_routers
+        wrapper.middlewares = router.middlewares
+
+        # Link for invalidation: changes to 'router' invalidate 'wrapper'.
+        router._parents.add(wrapper)
+        return wrapper
     return router

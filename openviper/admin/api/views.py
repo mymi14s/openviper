@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy.exc
 
 from openviper.admin.actions import ActionResult, get_action
-from openviper.admin.fields import coerce_field_value
+from openviper.admin.fields import coerce_field_value, get_field_component_type
 from openviper.admin.history import (
     ChangeAction,
     compute_changes,
@@ -1006,7 +1006,12 @@ def get_admin_router() -> Router:
                 continue
             field = fields[field_name]
             field_type = field.__class__.__name__
-            filter_info: dict = {"name": field_name, "type": field_type, "choices": []}
+            filter_info: dict = {
+                "name": field_name,
+                "type": field_type,
+                "component": get_field_component_type(field),
+                "choices": [],
+            }
 
             if hasattr(field, "choices") and field.choices:
                 filter_info["choices"] = [{"value": c[0], "label": c[1]} for c in field.choices]
@@ -1988,6 +1993,7 @@ def get_admin_router() -> Router:
                 filter_info = {
                     "name": field_name,
                     "type": field.__class__.__name__,
+                    "component": get_field_component_type(field),
                 }
 
                 # Get choices if available

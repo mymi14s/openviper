@@ -2,34 +2,47 @@
 
 Provides :class:`View` — a base class that dispatches incoming requests
 to handler methods named after the HTTP verb (``get``, ``post``, ``put``,
-``patch``, ``delete``, ``head``, ``options``).
+``patch``, ``delete``, ``head``, ``options``) or custom methods
+decorated with :func:`action`.
 
 Usage with a router::
 
-    from openviper.http.views import View
-    from openviper.http.response import JSONResponse
+    from openviper.http.views import View, action
 
-    class UserListView(View):
+    class UserView(View):
         async def get(self, request):
-            users = await User.objects.all()
-            return JSONResponse([u._to_dict() for u in users])
+            # dict/list return values are automatically wrapped in JSONResponse
+            return {"users": []}
 
-        async def post(self, request):
-            data = await request.json()
-            user = await User.objects.create(**data)
-            return JSONResponse(user._to_dict(), status_code=201)
+        @action(detail=False)
+        async def me(self, request):
+            # Use 'Request:' and 'Example Response:' tags in the docstring
+            '''Get current user info.
 
-    router.route("/users", methods=["GET", "POST"])(UserListView.as_view())
-    # — or use the shorthand —
-    UserListView.register(router, "/users")
+            Request: UserSerializer
+            Example Response: {"id": 1, "username": "admin"}
+            '''
+            return request.user.to_dict()
+
+    # Mounting the view automatically registers all actions
+    router.add("/users", UserView.as_view())
+    # OR use explicitly:
+    # UserView.register(router, "/users")
+
+OpenAPI Integration:
+    The schema generator automatically detects request metadata from docstrings:
+    - ``Request: <SerializerName>``: Link a serializer to the request body.
+    - ``Example Request: { ... }``: Provide a sample JSON payload for the request.
+    - ``Example Response: { ... }``: Provide a sample JSON payload for the 200 response.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from openviper.exceptions import MethodNotAllowed
-from openviper.http.response import Response
+from openviper.http.response import JSONResponse, Response
 
 if TYPE_CHECKING:
     from openviper.http.request import Request
@@ -37,6 +50,34 @@ if TYPE_CHECKING:
 
 # HTTP methods that View can dispatch to.
 _HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "head", "options"})
+
+
+def action(
+    methods: list[str] | None = None,
+    detail: bool = False,
+    url_path: str | None = None,
+    name: str | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Decorator to mark a View method as a custom action for automatic routing.
+
+    Args:
+        methods: List of HTTP methods (e.g., ["GET", "POST"]). Defaults to ["GET"].
+        detail: If True, the action is for a single instance (member).
+            If False, it's for the full collection.
+        url_path: Optional override for the URL segment. Defaults to method name.
+        name: Optional name for the route. Defaults to method name.
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        func._openviper_action = {
+            "methods": [m.upper() for m in methods or ["GET"]],
+            "detail": detail,
+            "url_path": url_path or func.__name__,
+            "name": name or func.__name__,
+        }
+        return func
+
+    return decorator
 
 
 class View:
@@ -83,7 +124,10 @@ class View:
         if method not in self.http_method_names:
             return cast("Response", self.http_method_not_allowed(request))
         handler = getattr(self, method, self.http_method_not_allowed)
-        return cast("Response", await handler(request, **kwargs))
+        result = await handler(request, **kwargs)
+        if isinstance(result, (dict, list)):
+            return JSONResponse(result)
+        return cast("Response", result)
 
     def http_method_not_allowed(self, request: Request, **kwargs: Any) -> Any:
         """Return a 405 Method Not Allowed error."""
@@ -122,7 +166,7 @@ class View:
     # ── Integration with Router ───────────────────────────────────────────
 
     @classmethod
-    def as_view(cls, **initkwargs: Any) -> Any:
+    def as_view(cls, _action_name: str | None = None, **initkwargs: Any) -> Any:
         """Return an async callable suitable for use as a route handler.
 
         Any *initkwargs* are forwarded to the view's ``__init__`` and
@@ -143,14 +187,38 @@ class View:
 
         async def view(request: Request, **kwargs: Any) -> Response:
             self = cls(**initkwargs)
-            return await self.dispatch(request, **kwargs)
+            # If an explicit action name was provided (via register()), skip dispatch
+            # and call that specific method directly.
+            if _action_name:
+                handler = getattr(self, _action_name)
+                result = await handler(request, **kwargs)
+            else:
+                result = await self.dispatch(request, **kwargs)
+
+            if isinstance(result, (dict, list)) and not isinstance(result, Response):
+                return JSONResponse(result)
+            return cast("Response", result)
 
         # Preserve metadata for introspection / debugging
-        view.__name__ = cls.__name__
-        view.__qualname__ = cls.__qualname__
-        view.__doc__ = cls.__doc__
+        view.__name__ = f"{cls.__name__}_{_action_name}" if _action_name else cls.__name__
+        view.__qualname__ = (
+            f"{cls.__qualname__}.{_action_name}" if _action_name else cls.__qualname__
+        )
+        view.__doc__ = getattr(cls, _action_name).__doc__ if _action_name else cls.__doc__
         view.view_class = cls  # type: ignore[attr-defined]
+        view.view_action = _action_name  # type: ignore[attr-defined]
         view.view_initkwargs = initkwargs  # type: ignore[attr-defined]
+
+        # ── Discover custom @action methods ───────────────────────────────
+        if not _action_name:
+            actions = []
+            for attr_name in dir(cls):
+                attr = getattr(cls, attr_name, None)
+                action_info = getattr(attr, "_openviper_action", None)
+                if action_info:
+                    actions.append({**action_info, "method_name": attr_name})
+            view._openviper_actions = actions  # type: ignore[attr-defined]
+
         return view
 
     @classmethod
@@ -181,4 +249,4 @@ class View:
             methods.append("OPTIONS")
 
         handler = cls.as_view(**initkwargs)
-        router.route(path, methods=methods, name=name or cls.__name__)(handler)
+        router.add(path, handler, methods=methods, namespace=name or cls.__name__)

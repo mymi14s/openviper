@@ -255,7 +255,7 @@ Edit ``blog/serializers.py``:
        class Meta:
            model            = Post
            fields           = "__all__"
-           read_only_fields = ("id", "slug", "published_at", "created_at", "updated_at")
+           readonly_fields = ("id", "slug", "published_at", "created_at", "updated_at")
            extra_kwargs     = {
                "author": {"required": False},   # set from request.user in view
            }

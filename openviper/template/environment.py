@@ -17,6 +17,8 @@ Usage::
 from __future__ import annotations
 
 import functools
+import importlib
+import os
 from typing import Any
 
 try:
@@ -26,6 +28,7 @@ except ImportError:
     FileSystemLoader = None  # type: ignore[misc, assignment]
     select_autoescape = None  # type: ignore[assignment]
 
+from openviper.conf import settings
 from openviper.template import plugin_loader
 
 
@@ -54,3 +57,34 @@ def get_jinja2_env(search_paths: tuple[str, ...]) -> Any:
     )
     plugin_loader.load(env)
     return env
+
+
+def get_template_directories() -> tuple[str, ...]:
+    """Return a deduplicated tuple of absolute paths to template directories.
+
+    Scans ``settings.INSTALLED_APPS`` for ``templates/`` folders and includes
+    the project-level ``settings.TEMPLATES_DIR``.
+    """
+    paths: list[str] = []
+
+    # 1. Project-level
+    if settings.TEMPLATES_DIR:
+        project_templates = os.path.abspath(settings.TEMPLATES_DIR)
+        if os.path.isdir(project_templates):
+            paths.append(project_templates)
+
+    # 2. App-level
+    for app_label in settings.INSTALLED_APPS:
+        try:
+            mod = importlib.import_module(app_label)
+            if not (hasattr(mod, "__file__") and mod.__file__):
+                continue
+            app_templates = os.path.join(os.path.dirname(mod.__file__), "templates")
+            if os.path.isdir(app_templates):
+                abs_path = os.path.abspath(app_templates)
+                if abs_path not in paths:
+                    paths.append(abs_path)
+        except ImportError:
+            continue
+
+    return tuple(paths)

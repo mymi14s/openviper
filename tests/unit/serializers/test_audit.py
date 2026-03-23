@@ -183,7 +183,7 @@ class TestModelSerializerCreate:
         assert call_kwargs["name"] == "alice"
 
     @pytest.mark.asyncio
-    async def test_create_excludes_read_only_fields(self):
+    async def test_create_excludes_readonly_fields(self):
         class FakeModel:
             _fields = {
                 "id": _make_field(primary_key=True),
@@ -199,7 +199,7 @@ class TestModelSerializerCreate:
             class Meta:
                 model = FakeModel
                 fields = ["id", "title", "created_at"]
-                read_only_fields = ("created_at",)
+                readonly_fields = ("created_at",)
 
         s = FakeSerializer.validate({"title": "hello"})
         await s.create()

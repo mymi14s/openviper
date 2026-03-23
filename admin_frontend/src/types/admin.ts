@@ -164,6 +164,7 @@ export interface FilterOption {
   name: string
   type: string
   choices: Array<{ value: any; label: string }>
+  component?: string
 }
 
 // Filter types

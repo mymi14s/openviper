@@ -7,6 +7,7 @@ import contextlib
 import functools
 import hashlib
 import inspect
+import json
 import re
 import textwrap
 import typing
@@ -211,6 +212,54 @@ def _detect_serializer_from_source(handler: Any) -> type | None:
     return result
 
 
+def _detect_serializer_from_docstring(handler: Any) -> type | None:
+    """Try to detect a Serializer subclass from the handler's docstring.
+
+    Scans for tags like ``Request: <Name>`` or ``Body: <Name>`` and
+    resolves the name against the handler's globals.
+    """
+    doc = inspect.getdoc(handler)
+    if not doc:
+        return None
+
+    # Match "Request: SerializerName" or "Body: SerializerName"
+    m = re.search(r"(?:Request|Body):\s*([a-zA-Z_][a-zA-Z0-9_]*)", doc)
+    if not m:
+        return None
+
+    cls_name = m.group(1)
+    # Resolve the name in the handler's module globals
+    handler_globals = getattr(handler, "__globals__", {})
+    cls = handler_globals.get(cls_name)
+    if cls is not None and hasattr(cls, "model_json_schema"):
+        return cast("type", cls)
+    return None
+
+
+def _extract_json_from_docstring(doc: str | None, header: str) -> dict[str, Any] | None:
+    """Extract and parse a JSON block following a specific header in the docstring.
+
+    Example:
+        Example Request:
+        {
+            "foo": "bar"
+        }
+    """
+    if not doc:
+        return None
+
+    # Find the header and the block following it
+    pattern = rf"{re.escape(header)}:\s*\n?\s*(\{{.*\}})"
+    m = re.search(pattern, doc, re.DOTALL)
+    if not m:
+        return None
+
+    try:
+        return cast("dict[str, Any]", json.loads(m.group(1).strip()))
+    except json.JSONDecodeError, ValueError:
+        return None
+
+
 def _resolve_request_schema(handler: Any) -> type | None:
     """Determine the request body schema class for *handler*.
 
@@ -233,25 +282,53 @@ def _resolve_request_schema(handler: Any) -> type | None:
             return cast("type", schema_cls)
 
         # Scan the view class's mutating methods for serializer usage
-        for method_name in ("post", "put", "patch"):
-            method = getattr(view_cls, method_name, None)
+        view_action = getattr(handler, "view_action", None)
+        if view_action:
+            method = getattr(view_cls, view_action, None)
             if method is not None:
+                detected = _detect_serializer_from_docstring(method)
+                if detected is not None:
+                    return detected
                 detected = _detect_serializer_from_source(method)
                 if detected is not None:
                     return detected
 
-    # 3. Auto-detect from function body source
+        for method_name in ("post", "put", "patch"):
+            method = getattr(view_cls, method_name, None)
+            if method is not None:
+                detected = _detect_serializer_from_docstring(method)
+                if detected is not None:
+                    return detected
+                detected = _detect_serializer_from_source(method)
+                if detected is not None:
+                    return detected
+
+    # 3. Docstring detection (Request: MySerializer)
+    detected = _detect_serializer_from_docstring(handler)
+    if detected is not None:
+        return detected
+
+    # 4. Auto-detect from function body source
     return _detect_serializer_from_source(handler)
 
 
 def _build_request_body(handler: Any, method: str, hints: dict[str, Any]) -> dict[str, Any] | None:
     """Resolve request body schema for *handler* at *method*."""
     schema_cls = _resolve_request_schema(handler)
+    content: dict[str, Any] = {}
     if schema_cls is not None and hasattr(schema_cls, "model_json_schema"):
-        return {
-            "required": True,
-            "content": {"application/json": {"schema": schema_cls.model_json_schema()}},
-        }
+        content["application/json"] = {"schema": schema_cls.model_json_schema()}
+
+    # Extract example from docstring if present
+    doc = inspect.getdoc(handler)
+    example = _extract_json_from_docstring(doc, "Example Request")
+    if example:
+        if "application/json" not in content:
+            content["application/json"] = {"schema": {"type": "object", "title": "Request Body"}}
+        content["application/json"]["example"] = example
+
+    if content:
+        return {"required": True, "content": content}
 
     # Fallback: check function parameter annotations for Pydantic models
     sig = inspect.signature(handler)
@@ -316,6 +393,13 @@ def _build_operation(route: Route, method: str) -> dict[str, Any]:
     responses: dict[str, Any] = {"200": {"description": "Successful Response"}}
     if response_schema:
         responses["200"]["content"] = {"application/json": {"schema": response_schema}}
+
+    # Extract response example from docstring if present
+    resp_example = _extract_json_from_docstring(docstring, "Example Response")
+    if resp_example:
+        if "content" not in responses["200"]:
+            responses["200"]["content"] = {"application/json": {}}
+        responses["200"]["content"]["application/json"]["example"] = resp_example
     if method.upper() in ("POST", "PUT", "PATCH", "DELETE"):
         responses["422"] = {"description": "Validation Error"}
 

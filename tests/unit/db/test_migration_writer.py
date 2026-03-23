@@ -97,7 +97,7 @@ class TestMigrationWriterHelpers:
 
         snapshot = model_state_snapshot([SnapModel])
         assert "snap" in snapshot
-        cols = snapshot["snap"]
+        cols = snapshot["snap"]["columns"]
         assert len(cols) == 3  # age, id, name
         # order is alphabetical by name
         assert cols[0]["name"] == "age"
@@ -117,7 +117,7 @@ operations = [
 """)
             state = read_migrated_state(tmpdir)
             assert "t1" in state
-            assert state["t1"][0]["name"] == "id"
+            assert state["t1"]["columns"][0]["name"] == "id"
 
     def test_read_migrated_state_complex(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -136,7 +136,7 @@ operations = [
             assert "t1" in state
             # c1 was removed then restored as TEXT
             # c2 was renamed to c2_renamed
-            col_names = [c["name"] for c in state["t1"]]
+            col_names = [c["name"] for c in state["t1"]["columns"]]
             assert "c1" in col_names
             assert "c2_renamed" in col_names
             assert "c2" not in col_names
@@ -158,16 +158,20 @@ operations = [
 """)
             state = read_migrated_state(tmpdir)
             assert "t1" in state
-            assert state["t1"][0]["name"] == "c1"
+            assert state["t1"]["columns"][0]["name"] == "c1"
 
 
 class TestMigrationDiff:
     def test_diff_states_new_table(self):
         current = {
-            "users": [
-                {"name": "id", "type": "INTEGER", "primary_key": True},
-                {"name": "name", "type": "VARCHAR(100)"},
-            ]
+            "users": {
+                "columns": [
+                    {"name": "id", "type": "INTEGER", "primary_key": True},
+                    {"name": "name", "type": "VARCHAR(100)"},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
         }
         existing = {}
         ops = _diff_states(current, existing)
@@ -177,15 +181,21 @@ class TestMigrationDiff:
 
     def test_diff_states_add_column(self):
         existing = {
-            "users": [
-                {"name": "id", "type": "INTEGER", "primary_key": True},
-            ]
+            "users": {
+                "columns": [{"name": "id", "type": "INTEGER", "primary_key": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
         }
         current = {
-            "users": [
-                {"name": "id", "type": "INTEGER", "primary_key": True},
-                {"name": "name", "type": "VARCHAR(100)", "nullable": True},
-            ]
+            "users": {
+                "columns": [
+                    {"name": "id", "type": "INTEGER", "primary_key": True},
+                    {"name": "name", "type": "VARCHAR(100)", "nullable": True},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
         }
         ops = _diff_states(current, existing)
         assert len(ops) == 1
@@ -193,7 +203,13 @@ class TestMigrationDiff:
         assert ops[0].column_name == "name"
 
     def test_diff_states_drop_table(self):
-        existing = {"users": [{"name": "id", "type": "INTEGER"}]}
+        existing = {
+            "users": {
+                "columns": [{"name": "id", "type": "INTEGER"}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         current = {}
         ops = _diff_states(current, existing)
         assert len(ops) == 1
@@ -205,8 +221,14 @@ class TestMigrationDiff:
         # Mocking _soft_removed_columns for the test
         _soft_removed_columns[("t1", "c1")] = {"name": "c1", "type": "INTEGER"}
 
-        current = {"t1": [{"name": "c1", "type": "TEXT"}]}
-        existing = {"t1": []}
+        current = {
+            "t1": {
+                "columns": [{"name": "c1", "type": "TEXT"}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        existing = {"t1": {"columns": [], "indexes": [], "unique_together": []}}
 
         with pytest.raises(SystemExit):
             _diff_states(current, existing)
@@ -427,8 +449,20 @@ class TestHasModelChanges:
 
 class TestDiffStatesAlterColumns:
     def test_type_change(self):
-        existing = {"t": [{"name": "c", "type": "VARCHAR(100)", "nullable": True}]}
-        current = {"t": [{"name": "c", "type": "VARCHAR(200)", "nullable": True}]}
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "VARCHAR(100)", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "VARCHAR(200)", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         ops = _diff_states(current, existing)
         assert len(ops) == 1
         assert isinstance(ops[0], AlterColumn)
@@ -436,8 +470,20 @@ class TestDiffStatesAlterColumns:
         assert ops[0].old_type == "VARCHAR(100)"
 
     def test_nullable_change(self):
-        existing = {"t": [{"name": "c", "type": "TEXT", "nullable": True}]}
-        current = {"t": [{"name": "c", "type": "TEXT", "nullable": False}]}
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": False}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         ops = _diff_states(current, existing)
         assert len(ops) == 1
         assert isinstance(ops[0], AlterColumn)
@@ -445,8 +491,20 @@ class TestDiffStatesAlterColumns:
         assert ops[0].old_nullable is True
 
     def test_default_change(self):
-        existing = {"t": [{"name": "c", "type": "INTEGER", "nullable": True, "default": 0}]}
-        current = {"t": [{"name": "c", "type": "INTEGER", "nullable": True, "default": 42}]}
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "INTEGER", "nullable": True, "default": 0}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "INTEGER", "nullable": True, "default": 42}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         ops = _diff_states(current, existing)
         assert len(ops) == 1
         assert isinstance(ops[0], AlterColumn)
@@ -455,10 +513,22 @@ class TestDiffStatesAlterColumns:
 
     def test_field_class_change(self):
         existing = {
-            "t": [{"name": "c", "type": "TEXT", "nullable": True, "field_class": "TextField"}]
+            "t": {
+                "columns": [
+                    {"name": "c", "type": "TEXT", "nullable": True, "field_class": "TextField"}
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
         }
         current = {
-            "t": [{"name": "c", "type": "TEXT", "nullable": True, "field_class": "CharField"}]
+            "t": {
+                "columns": [
+                    {"name": "c", "type": "TEXT", "nullable": True, "field_class": "CharField"}
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
         }
         ops = _diff_states(current, existing)
         assert len(ops) == 1
@@ -469,8 +539,14 @@ class TestDiffStatesSoftRemovedRestore:
     def test_restore_compatible_type(self):
         _soft_removed_columns[("t", "old_col")] = {"name": "old_col", "type": "TEXT"}
         try:
-            existing = {"t": []}
-            current = {"t": [{"name": "old_col", "type": "TEXT", "nullable": True}]}
+            existing = {"t": {"columns": [], "indexes": [], "unique_together": []}}
+            current = {
+                "t": {
+                    "columns": [{"name": "old_col", "type": "TEXT", "nullable": True}],
+                    "indexes": [],
+                    "unique_together": [],
+                }
+            }
             ops = _diff_states(current, existing)
             assert any(isinstance(op, RestoreColumn) for op in ops)
         finally:
@@ -479,8 +555,14 @@ class TestDiffStatesSoftRemovedRestore:
     def test_restore_not_null_warns(self, capsys):
         _soft_removed_columns[("t", "col")] = {"name": "col", "type": "TEXT"}
         try:
-            existing = {"t": []}
-            current = {"t": [{"name": "col", "type": "TEXT", "nullable": False}]}
+            existing = {"t": {"columns": [], "indexes": [], "unique_together": []}}
+            current = {
+                "t": {
+                    "columns": [{"name": "col", "type": "TEXT", "nullable": False}],
+                    "indexes": [],
+                    "unique_together": [],
+                }
+            }
             ops = _diff_states(current, existing)
             assert any(isinstance(op, RestoreColumn) for op in ops)
             assert any(isinstance(op, AlterColumn) and op.nullable is False for op in ops)
@@ -492,8 +574,14 @@ class TestDiffStatesSoftRemovedRestore:
     def test_restore_incompatible_type_exits(self):
         _soft_removed_columns[("t", "col")] = {"name": "col", "type": "INTEGER"}
         try:
-            existing = {"t": []}
-            current = {"t": [{"name": "col", "type": "TEXT", "nullable": True}]}
+            existing = {"t": {"columns": [], "indexes": [], "unique_together": []}}
+            current = {
+                "t": {
+                    "columns": [{"name": "col", "type": "TEXT", "nullable": True}],
+                    "indexes": [],
+                    "unique_together": [],
+                }
+            }
             with pytest.raises(SystemExit):
                 _diff_states(current, existing)
         finally:
@@ -547,7 +635,7 @@ class TestModelStateSnapshotExtended:
                 table_name = "snap_model"
 
         state = model_state_snapshot([SnapModel])
-        cols = state["snap_model"]
+        cols = state["snap_model"]["columns"]
         code_col = next((c for c in cols if c["name"] == "code"), None)
         count_col = next((c for c in cols if c["name"] == "count"), None)
         assert code_col is not None
@@ -570,7 +658,7 @@ class TestModelStateSnapshotExtended:
                 table_name = "fk_source"
 
         state = model_state_snapshot([FKTarget, FKSource])
-        cols = state["fk_source"]
+        cols = state["fk_source"]["columns"]
         ref_col = next((c for c in cols if c["name"] == "ref_id"), None)
         assert ref_col is not None
 
@@ -622,7 +710,7 @@ class TestParseOperationBranches:
             "]\n"
         )
         state = read_migrated_state(str(mig_dir))
-        assert any(c.get("name") == "age" for c in state.get("t", []))
+        assert any(c.get("name") == "age" for c in state.get("t", {}).get("columns", []))
 
     def test_parse_rename_column(self, tmp_path):
         """RenameColumn renames in state."""
@@ -638,7 +726,7 @@ class TestParseOperationBranches:
             "]\n"
         )
         state = read_migrated_state(str(mig_dir))
-        cols = state.get("t", [])
+        cols = state.get("t", {}).get("columns", [])
         assert any(c.get("name") == "new_col" for c in cols)
 
     def test_parse_alter_column(self, tmp_path):
@@ -655,7 +743,7 @@ class TestParseOperationBranches:
             "]\n"
         )
         state = read_migrated_state(str(mig_dir))
-        cols = state.get("t", [])
+        cols = state.get("t", {}).get("columns", [])
         val_col = next((c for c in cols if c.get("name") == "val"), None)
         assert val_col is not None
         assert val_col["type"] == "VARCHAR(100)"
@@ -676,7 +764,7 @@ class TestParseOperationBranches:
             "]\n"
         )
         state = read_migrated_state(str(mig_dir))
-        cols = state.get("t", [])
+        cols = state.get("t", {}).get("columns", [])
         assert any(c.get("name") == "x" for c in cols)
 
 
@@ -754,11 +842,19 @@ class TestDiffStatesTopologicalSort:
         """topological sort of new tables with FK deps."""
         existing = {}
         current = {
-            "authors": [{"name": "id", "type": "INTEGER", "primary_key": True}],
-            "posts": [
-                {"name": "id", "type": "INTEGER", "primary_key": True},
-                {"name": "author_id", "type": "INTEGER", "target_table": "authors"},
-            ],
+            "authors": {
+                "columns": [{"name": "id", "type": "INTEGER", "primary_key": True}],
+                "indexes": [],
+                "unique_together": [],
+            },
+            "posts": {
+                "columns": [
+                    {"name": "id", "type": "INTEGER", "primary_key": True},
+                    {"name": "author_id", "type": "INTEGER", "target_table": "authors"},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            },
         }
         ops = _diff_states(current, existing)
         create_ops = [op for op in ops if isinstance(op, CreateTable)]
@@ -766,13 +862,25 @@ class TestDiffStatesTopologicalSort:
         assert table_names.index("authors") < table_names.index("posts")
 
     def test_removed_columns_in_diff(self):
-        existing = {"t": [{"name": "old_col", "type": "TEXT", "nullable": True}]}
-        current = {"t": []}
+        existing = {
+            "t": {
+                "columns": [{"name": "old_col", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {"t": {"columns": [], "indexes": [], "unique_together": []}}
         ops = _diff_states(current, existing)
         assert any(isinstance(op, RemoveColumn) and op.column_name == "old_col" for op in ops)
 
     def test_dropped_table_in_diff(self):
-        existing = {"old_table": [{"name": "id", "type": "INTEGER"}]}
+        existing = {
+            "old_table": {
+                "columns": [{"name": "id", "type": "INTEGER"}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         current = {}
         ops = _diff_states(current, existing)
         assert any(isinstance(op, DropTable) and op.table_name == "old_table" for op in ops)

@@ -266,6 +266,7 @@ class Router:
         """Build exact match index for literal paths (fast path)."""
         exact_index: dict[str, Route] = {}
         for route in routes:
+            # Note: routes passed here are already absolute (from self.routes)
             if route._is_literal:
                 exact_index[route.path] = route
         return exact_index
@@ -282,10 +283,10 @@ class Router:
         """Decorator to register a handler for a path and methods."""
 
         def decorator(func: Handler) -> Handler:
-            full_path = self.prefix + path
+            # Store path exactly as provided.
             self._routes.append(
                 Route(
-                    path=full_path,
+                    path=path,
                     methods=set(methods),
                     handler=func,
                     name=name or func.__name__,
@@ -340,10 +341,11 @@ class Router:
         """
         methods = methods or ["GET"]
         name = namespace or handler.__name__
-        full_path = self.prefix + path
+        # Store path exactly as provided (it will be prefixed by this router's prefix
+        # and any parent prefixes during flattening in the .routes property).
         self._routes.append(
             Route(
-                path=full_path,
+                path=path,
                 methods=set(methods),
                 handler=handler,
                 name=name,
@@ -411,33 +413,64 @@ class Router:
 
     @property
     def routes(self) -> list[Route]:
-        """All routes including sub-router routes, flattened (cached)."""
+        """All routes including sub-router routes, flattened and absolute (cached)."""
         if self._cached_routes is None:
-            # Start with local routes (with this router's prefix)
-            all_routes: list[Route] = list(self._routes)
 
-            # Pull routes from sub-routers and apply their extra prefixes
-            for extra_prefix, sub in self._sub_routers:
-                # Apply the current router's prefix + the sub-router's extra prefix
-                # to all routes coming from the sub-router.
-                combined_prefix = self.prefix + (extra_prefix or "")
-                for route in sub.routes:
-                    all_routes.append(
+            def _get_absolute(router: Router, current_abs: str) -> list[Route]:
+                # Combine this router's specific absolute prefix with its own prefix
+                # to get the total base for local routes and children.
+                base = _normalize_path(current_abs.rstrip("/") + router.prefix)
+                res = []
+
+                # Accumulate local routes
+                for r in router._routes:
+                    res.append(
                         Route(
-                            path=combined_prefix + route.path,
-                            methods=route.methods,
-                            handler=route.handler,
-                            name=route.name,
-                            middlewares=route.middlewares + self.middlewares,
+                            path=_normalize_path(base + r.path),
+                            methods=r.methods,
+                            handler=r.handler,
+                            name=r.name,
+                            middlewares=r.middlewares + router.middlewares,
                         )
                     )
 
+                # Accumulate sub-router routes recursively
+                for extra_prefix, sub in router._sub_routers:
+                    # 'extra_prefix' is the mount point relative to this router's root
+                    res.extend(_get_absolute(sub, base + (extra_prefix or "")))
+
+                return res
+
+            all_routes = _get_absolute(self, "")
             self._cached_routes = all_routes
-            # Build all indices once
+
+            # Build indices
             self._index = self._build_index(all_routes)
             self._name_index = self._build_name_index(all_routes)
             self._exact_index = self._build_exact_index(all_routes)
+
         return self._cached_routes
+
+    def _all_relative_routes(self) -> list[Route]:
+        """Return all local and sub-router routes relative to THIS router's root.
+
+        This includes sub-router routes prefixed with their respective mount points.
+        It does NOT include this router's own prefix.
+        """
+        res = list(self._routes)
+        for extra_prefix, sub in self._sub_routers:
+            mount = (extra_prefix or "").rstrip("/")
+            for r in sub._all_relative_routes():
+                res.append(
+                    Route(
+                        path=_normalize_path(mount + r.path),
+                        methods=r.methods,
+                        handler=r.handler,
+                        name=r.name,
+                        middlewares=r.middlewares + self.middlewares,
+                    )
+                )
+        return res
 
     def _candidate_routes(self, path: str) -> Iterable[Route]:
         """Return only the routes that *could* match *path* using the dispatch index.
@@ -582,22 +615,16 @@ def include(router: Router, prefix: str = "") -> Router:
         >>> app.include_router(include(user_router, prefix="/api/v1"))
     """
     if prefix:
-        adjusted = Router(prefix=prefix + router.prefix)
-        # Re-create each route with the extra prefix prepended to its path.
-        # (Route paths already contain the original router prefix.)
-        adjusted._routes = [
-            Route(
-                path=prefix + route.path,
-                methods=route.methods,
-                handler=route.handler,
-                name=route.name,
-                middlewares=route.middlewares,
-            )
-            for route in router._routes
-        ]
-        # Recursively wrap sub-routers with the same prefix.
-        adjusted._sub_routers = [
-            (extra_prefix, include(sub, prefix=prefix)) for extra_prefix, sub in router._sub_routers
-        ]
-        return adjusted
+        # include(router, "/v1") creates a wrapper router that represents the
+        # included router at the combined prefix. To maintain a live reference
+        # without duplicating the router.prefix in the final path, we share
+        # the route and sub-router lists directly and link them for invalidation.
+        wrapper = Router(prefix=_normalize_path(prefix + router.prefix))
+        wrapper._routes = router._routes
+        wrapper._sub_routers = router._sub_routers
+        wrapper.middlewares = router.middlewares
+
+        # Link for invalidation: changes to 'router' invalidate 'wrapper'.
+        router._parents.add(wrapper)
+        return wrapper
     return router

@@ -109,6 +109,7 @@ from pydantic import (
     model_validator as pydantic_model_validator,
 )
 
+from openviper.core.context import current_user
 from openviper.exceptions import DoesNotExist, PermissionDenied, ValidationError
 from openviper.storage import default_storage
 
@@ -211,11 +212,10 @@ class Serializer(BaseModel):
         """
         request = self.context.get("request")
         if not request:
-            from openviper.core.context import current_user
-
             user = current_user.get()
             if not user:
-                return  # Cannot check permissions without a user context
+                # Neither a bound request nor an ambient user — nothing to check.
+                return
 
         for permission_class in self.permission_classes:
             permission = permission_class()
@@ -717,7 +717,13 @@ class ModelSerializer(Serializer, metaclass=_ModelSerializerMeta):
             raw_name = getattr(value, "filename", None) or getattr(value, "name", None) or "file"
             filename = os.path.basename(raw_name) or "file"
             upload_to = getattr(orm_field, "upload_to", "uploads/")
-            target_name = f"{upload_to}{filename}"
+            # Sanitize upload_to: strip leading slashes and collapse any '..' segments
+            # to prevent a maliciously-configured field from writing outside the
+            # storage root.
+            norm_upload_to = os.path.normpath(upload_to.lstrip("/"))
+            clean_parts = [p for p in norm_upload_to.split(os.sep) if p not in ("", ".", "..")]
+            clean_upload_to = "/".join(clean_parts) if clean_parts else "uploads"
+            target_name = f"{clean_upload_to}/{filename}"
 
             # Read bytes from value
             if isinstance(value, bytes):

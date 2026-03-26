@@ -6,7 +6,6 @@ Delegates to the configured session store via ``get_session_store()``.
 from __future__ import annotations
 
 import logging
-import re
 import secrets
 from http.cookies import SimpleCookie
 from typing import Any
@@ -21,19 +20,10 @@ from openviper.conf import settings
 
 logger = logging.getLogger("openviper.auth.sessions")
 
-_SESSION_KEY_RE = re.compile(r"^[\w-]+$")
-
 
 def generate_session_key() -> str:
     """Generate a cryptographically secure URL-safe session key."""
     return secrets.token_urlsafe(48)
-
-
-def _is_valid_session_key(key: Any) -> bool:
-    """Return True if *key* looks like a valid session key."""
-    if not isinstance(key, str) or not key:
-        return False
-    return bool(_SESSION_KEY_RE.match(key))
 
 
 async def create_session(user_id: Any, data: dict[str, Any] | None = None) -> str:

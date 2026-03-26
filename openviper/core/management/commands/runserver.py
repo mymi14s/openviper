@@ -17,6 +17,16 @@ from openviper.core.management.base import BaseCommand
 from openviper.core.management.utils import get_banner
 from openviper.db.migrations.executor import MigrationExecutor, discover_migrations
 
+try:
+    import uvicorn
+except ImportError:  # pragma: no cover
+    uvicorn = None  # type: ignore[assignment]
+
+try:
+    import openviper as _openviper_pkg
+except Exception:  # pragma: no cover
+    _openviper_pkg = None  # type: ignore[assignment]
+
 logger = logging.getLogger("openviper.runserver")
 
 # Thread pool for background migration check
@@ -62,9 +72,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, **options):  # type: ignore[override]
-        try:
-            import uvicorn
-        except ImportError:
+        if uvicorn is None:
             self.stderr(self.style_error("uvicorn is required: pip install uvicorn"))
             return
 
@@ -112,15 +120,11 @@ class Command(BaseCommand):
         edits also trigger a reload.
         """
         dirs = [root]
-        try:
-            import openviper as _openviper_pkg
-
+        if _openviper_pkg is not None:
             pkg_parent = str(Path(_openviper_pkg.__file__).parent.parent.resolve())
             # Only add when it's a dev/source install, not a pip install.
             if "site-packages" not in pkg_parent and pkg_parent not in dirs:
                 dirs.append(pkg_parent)
-        except Exception:
-            pass
         return dirs
 
     def _run_with_cache_clear(self, uvicorn, app_path: str, host: str, port: int) -> None:

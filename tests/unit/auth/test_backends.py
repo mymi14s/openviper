@@ -119,10 +119,13 @@ class TestLogin:
 
     @pytest.mark.asyncio
     async def test_creates_session(self, mock_user, mock_request):
+        mock_session = MagicMock()
+        mock_session.key = "test-session-key"
+        mock_store = MagicMock()
+        mock_store.create = AsyncMock(return_value=mock_session)
+        mock_request._session = None
 
-        with patch(
-            "openviper.auth.backends.create_session", new=AsyncMock(return_value="test-session-key")
-        ):
+        with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
             session_key = await login(mock_request, mock_user)
 
         assert session_key == "test-session-key"
@@ -130,13 +133,16 @@ class TestLogin:
 
     @pytest.mark.asyncio
     async def test_sets_cookie_on_response(self, mock_user, mock_request):
-
         mock_response = MagicMock()
         mock_response.set_cookie = MagicMock()
 
-        with patch(
-            "openviper.auth.backends.create_session", new=AsyncMock(return_value="test-key")
-        ):
+        mock_session = MagicMock()
+        mock_session.key = "test-key"
+        mock_store = MagicMock()
+        mock_store.create = AsyncMock(return_value=mock_session)
+        mock_request._session = None
+
+        with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
             with patch("openviper.auth.backends.settings") as mock_settings:
                 mock_settings.SESSION_COOKIE_NAME = "sessionid"
                 mock_settings.SESSION_COOKIE_DOMAIN = None

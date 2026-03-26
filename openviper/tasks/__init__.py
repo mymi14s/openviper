@@ -36,6 +36,7 @@ Start the worker::
 
 from __future__ import annotations
 
+import logging
 import os
 
 from openviper.db.events import (
@@ -77,14 +78,10 @@ if os.environ.get("OPENVIPER_WORKER"):
 
     configure_worker_logging_from_settings()
 
-    import logging as _logging
-
     try:
         setup_broker()  # noqa: F821  # already imported at top-level
     except Exception as _exc:
-        _logging.getLogger("openviper.tasks").warning(
-            "Worker: eager broker setup failed — %s", _exc
-        )
+        logging.getLogger("openviper.tasks").warning("Worker: eager broker setup failed — %s", _exc)
 
 __all__ = [
     # Decorators

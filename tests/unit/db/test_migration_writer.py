@@ -34,6 +34,7 @@ from openviper.db.migrations.writer import (
     write_migration,
 )
 from openviper.db.models import Model
+from openviper.exceptions import MigrationError
 
 
 class TestMigrationWriterHelpers:
@@ -230,7 +231,7 @@ class TestMigrationDiff:
         }
         existing = {"t1": {"columns": [], "indexes": [], "unique_together": []}}
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(MigrationError):
             _diff_states(current, existing)
 
         _soft_removed_columns.clear()
@@ -582,7 +583,7 @@ class TestDiffStatesSoftRemovedRestore:
                     "unique_together": [],
                 }
             }
-            with pytest.raises(SystemExit):
+            with pytest.raises(MigrationError):
                 _diff_states(current, existing)
         finally:
             _soft_removed_columns.clear()

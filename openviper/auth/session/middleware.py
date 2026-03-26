@@ -72,7 +72,10 @@ class SessionMiddleware:
                 if active_session.key:
                     headers = list(message.get("headers", []))
 
-                    cookie_value = f"{cookie_name}={active_session.key}; Path=/; HttpOnly"
+                    cookie_path = getattr(settings, "SESSION_COOKIE_PATH", "/")
+                    cookie_value = f"{cookie_name}={active_session.key}; Path={cookie_path}"
+                    if getattr(settings, "SESSION_COOKIE_HTTPONLY", True):
+                        cookie_value += "; HttpOnly"
                     if getattr(settings, "SESSION_COOKIE_SECURE", True) or request.is_secure():
                         cookie_value += "; Secure"
 

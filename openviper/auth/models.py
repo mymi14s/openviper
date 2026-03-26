@@ -370,10 +370,7 @@ class User(AbstractUser):
 
     class Meta:
         table_name = "auth_users"
-        abstract = (
-            getattr(settings, "USER_MODEL", getattr(settings, "AUTH_USER_MODEL", None))
-            != "openviper.auth.models.User"
-        )
+        abstract = getattr(settings, "USER_MODEL", None) != "openviper.auth.models.User"
 
 
 class AnonymousUser:
@@ -424,10 +421,7 @@ async def _reset_user_permission_cache(user_id: int) -> None:
 
 async def _reset_all_superusers() -> None:
     """Reset caches for all superusers (they implicitly have all permissions)."""
-    # Use dynamic model lookup because User might be replaced by a custom model
     try:
-        from openviper.auth.models import UserModel
-
         superusers = await UserModel.objects.filter(is_superuser=True).all()
         for user in superusers:
             await _reset_user_permission_cache(user.pk)

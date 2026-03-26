@@ -1,9 +1,7 @@
 """Unit tests for runserver management command."""
 
-import builtins
 import concurrent.futures
 import contextlib
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -75,7 +73,7 @@ class TestHandleBasic:
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch.dict(sys.modules, {"uvicorn": mock_uvicorn}):
+        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="myproject.asgi:app"):
                     with patch(
@@ -97,7 +95,7 @@ class TestHandleBasic:
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch.dict(sys.modules, {"uvicorn": mock_uvicorn}):
+        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="myproject.asgi:app"):
                     with patch(
@@ -116,29 +114,11 @@ class TestHandleBasic:
 
     def test_handle_missing_uvicorn_shows_error(self, command, capsys):
         """Test that missing uvicorn shows appropriate error."""
+        with patch("openviper.core.management.commands.runserver.uvicorn", None):
+            command.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
 
-        # Save original modules
-        original_modules = sys.modules.copy()
-        original_import = builtins.__import__
-
-        try:
-            # Remove uvicorn to simulate it not being installed
-            if "uvicorn" in sys.modules:
-                del sys.modules["uvicorn"]
-
-            def mock_import(name, *args, **kwargs):
-                if name == "uvicorn":
-                    raise ImportError("No module named 'uvicorn'")
-                return original_import(name, *args, **kwargs)
-
-            with patch.object(builtins, "__import__", side_effect=mock_import):
-                command.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
-
-            captured = capsys.readouterr()
-            assert "uvicorn is required" in captured.err
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+        captured = capsys.readouterr()
+        assert "uvicorn is required" in captured.err
 
 
 class TestResolveAppPath:
@@ -181,7 +161,7 @@ class TestReloadDirs:
 
     def test_reload_dirs_handles_exception(self, command):
         """Test reload dirs handles ImportError."""
-        with patch.dict(sys.modules, {"openviper": None}):
+        with patch("openviper.core.management.commands.runserver._openviper_pkg", None):
             dirs = command._reload_dirs("/project/root")
             assert dirs == ["/project/root"]
 
@@ -360,7 +340,7 @@ class TestHandleOptions:
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch.dict(sys.modules, {"uvicorn": mock_uvicorn}):
+        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="app:main"):
                     with patch(
@@ -384,7 +364,7 @@ class TestHandleOptions:
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch.dict(sys.modules, {"uvicorn": mock_uvicorn}):
+        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="app:main"):
                     with patch.object(command, "_run_with_cache_clear") as mock_cache_clear:
@@ -411,7 +391,7 @@ class TestBanner:
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch.dict(sys.modules, {"uvicorn": mock_uvicorn}):
+        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="app:main"):
                     with patch(

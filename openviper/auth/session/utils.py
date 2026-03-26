@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import secrets
+from typing import Any
 
 import sqlalchemy as sa
 
@@ -11,6 +13,7 @@ from openviper.utils import timezone
 
 _SESSION_TABLE: sa.Table | None = None
 _TABLE_ENSURED: bool = False
+_TABLE_ENSURE_LOCK = asyncio.Lock()
 
 
 def generate_session_key() -> str:
@@ -18,7 +21,7 @@ def generate_session_key() -> str:
     return secrets.token_urlsafe(48)
 
 
-def _is_valid_session_key(key: str) -> bool:
+def _is_valid_session_key(key: Any) -> bool:
     """Validate session key format."""
     if not key or not isinstance(key, str):
         return False
@@ -36,7 +39,7 @@ def _get_session_table() -> sa.Table:
             "openviper_sessions",
             meta,
             sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-            sa.Column("session_key", sa.String(64), unique=True, nullable=False),
+            sa.Column("session_key", sa.String(128), unique=True, nullable=False),
             sa.Column("user_id", sa.String(64), nullable=True),
             sa.Column("data", sa.Text, nullable=False, default="{}"),
             sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
@@ -49,16 +52,20 @@ async def _ensure_table() -> None:
     """Ensure the session table exists in the database.
 
     Uses a module-level flag so the DDL check runs at most once per
-    process lifetime.
+    process lifetime. An asyncio.Lock prevents duplicate DDL execution
+    when multiple coroutines reach this point concurrently at startup.
     """
     global _TABLE_ENSURED
     if _TABLE_ENSURED:
         return
-    table = _get_session_table()
-    engine = await get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(table.metadata.create_all)
-    _TABLE_ENSURED = True
+    async with _TABLE_ENSURE_LOCK:
+        if _TABLE_ENSURED:
+            return
+        table = _get_session_table()
+        engine = await get_engine()
+        async with engine.begin() as conn:
+            await conn.run_sync(table.metadata.create_all)
+        _TABLE_ENSURED = True
 
 
 def _reset_table_ensured() -> None:

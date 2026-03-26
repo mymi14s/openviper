@@ -12,8 +12,8 @@ from typing import Any
 
 from openviper.auth.hashers import _ARGON2_DUMMY_HASH, check_password
 from openviper.auth.models import AnonymousUser
-from openviper.auth.session.store import Session, get_session_store
-from openviper.auth.sessions import create_session, delete_session
+from openviper.auth.session.store import get_session_store
+from openviper.auth.sessions import delete_session
 from openviper.auth.user import get_user_by_id
 from openviper.auth.utils import get_user_model
 from openviper.conf import settings
@@ -154,16 +154,23 @@ async def login(request: Any, user: Any, response: Any = None) -> str:
         return response
     """
 
-    session_key = await create_session(user_id=user.pk, data={"user_id": user.pk})
-    request.user = user
+    store = get_session_store()
+    data = {"user_id": str(user.pk)}
 
-    # Attach the new session to the request and scope so that
-    # SessionMiddleware's send_wrapper sees it and writes the cookie.
-    new_session = Session(
-        key=session_key,
-        data={"user_id": str(user.pk)},
-        store=get_session_store(),
-    )
+    # Rotate the existing session if one is present — prevents session-fixation.
+    existing_session = getattr(request, "_session", None)
+    existing_key = existing_session.key if existing_session and existing_session.key else None
+    if not existing_key:
+        _cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
+        existing_key = request.cookies.get(_cookie_name)
+
+    if existing_key:
+        new_session = await store.rotate(existing_key, user_id=user.pk, data=data)
+    else:
+        new_session = await store.create(user_id=user.pk, data=data)
+
+    session_key = new_session.key
+    request.user = user
     request._session = new_session
     scope = getattr(request, "_scope", None)
     if isinstance(scope, dict):

@@ -101,7 +101,7 @@ class TestSessionAuthentication:
         request = FakeRequest(session=session)
         auth = SessionAuthentication()
 
-        with patch("openviper.auth.session.store.get_session_store", return_value=mock_store):
+        with patch("openviper.auth.authentications.get_session_store", return_value=mock_store):
             result = await auth.authenticate(request)
 
         assert result is not None
@@ -123,7 +123,7 @@ class TestSessionAuthentication:
         request = FakeRequest(cookies={"sessionid": "cookie-session-key"})
         auth = SessionAuthentication()
 
-        with patch("openviper.auth.session.store.get_session_store", return_value=mock_store):
+        with patch("openviper.auth.authentications.get_session_store", return_value=mock_store):
             result = await auth.authenticate(request)
 
         assert result is not None

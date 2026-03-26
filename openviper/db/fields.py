@@ -19,7 +19,7 @@ import aiofiles
 from pydantic_core import CoreSchema, core_schema
 
 from openviper.conf import settings
-from openviper.http.request import UploadFile
+from openviper.http.uploads import UploadFile
 from openviper.utils import import_string, timezone
 
 if TYPE_CHECKING:

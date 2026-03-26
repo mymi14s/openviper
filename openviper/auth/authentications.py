@@ -10,8 +10,10 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Final
 
 from openviper.auth.jwt import decode_access_token
+from openviper.auth.session.store import get_session_store
 from openviper.auth.token_blocklist import is_token_revoked
 from openviper.auth.user import get_user_by_id
+from openviper.conf import settings
 from openviper.exceptions import TokenExpired
 
 if TYPE_CHECKING:
@@ -153,17 +155,13 @@ class SessionAuthentication(BaseAuthentication):
         # If no session was populated by SessionMiddleware, try loading
         # directly from the cookie so SessionAuthentication works standalone.
         if not session_key:
-            from openviper.conf import settings as _settings
-
-            cookie_name = getattr(_settings, "SESSION_COOKIE_NAME", "sessionid")
+            cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
             session_key = request.cookies.get(cookie_name)
 
         if not session_key:
             return None
 
         try:
-            from openviper.auth.session.store import get_session_store
-
             store = get_session_store()
 
             user = await store.get_user(session_key)

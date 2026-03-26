@@ -20,12 +20,16 @@ Usage::
 
 from __future__ import annotations
 
+import importlib.util
 import logging
+import sys
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import cast
 
 logger = logging.getLogger("openviper.tasks")
+
+_MISSING = object()  # Sentinel for sys.modules lookup when key is absent
 
 __all__ = [
     "Schedule",
@@ -259,9 +263,13 @@ class CronSchedule(Schedule):
 
 def _try_import_croniter() -> bool:
     """Return ``True`` if ``croniter`` is importable."""
-    try:
-        import croniter  # noqa: F401
-
+    # Check sys.modules first so test patches (sys.modules[name]=None) are respected.
+    _in_modules = sys.modules.get("croniter", _MISSING)
+    if _in_modules is None:
+        return False
+    if _in_modules is not _MISSING:
         return True
-    except ImportError:
+    try:
+        return importlib.util.find_spec("croniter") is not None
+    except ValueError, ModuleNotFoundError:
         return False

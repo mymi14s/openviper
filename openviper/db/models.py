@@ -33,6 +33,7 @@ from enum import Enum
 from typing import Any, ClassVar, TypeVar, cast
 
 from sqlalchemy import insert
+from sqlalchemy.exc import IntegrityError
 
 from openviper.auth.permission_core import (
     PermissionError as ModelPermissionError,
@@ -614,8 +615,14 @@ class Manager:
             return obj, False
         except DoesNotExist:
             params = {**kwargs, **(defaults or {})}
-            obj = await self.create(**params)
-            return obj, True
+            try:
+                obj = await self.create(**params)
+                return obj, True
+            except IntegrityError:
+                # Another concurrent coroutine created the row between our
+                # DoesNotExist check and this create() — fetch and return it.
+                obj = await self.get(**kwargs)
+                return obj, False
 
     async def bulk_create(
         self, objs: list[Model], ignore_permissions: bool = False, batch_size: int | None = None

@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from openviper.auth.session.utils import _is_valid_session_key
 from openviper.auth.sessions import (
-    _is_valid_session_key,
     clear_session_cache,
     create_session,
     delete_session,

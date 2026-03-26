@@ -81,11 +81,14 @@ class Request:
         "state",
         "user",
         "auth",
+        "_session",
     )
 
     def __init__(self, scope: dict[str, Any], receive: Any = None) -> None:
-        if scope.get("type") != "http":
-            raise TypeError(f"Request requires an HTTP scope, got {scope.get('type')!r}")
+        if scope.get("type") not in ("http", "websocket"):
+            raise TypeError(
+                f"Request requires an HTTP or websocket scope, got {scope.get('type')!r}"
+            )
         self._scope = scope
         self._receive = receive
         self._headers: Headers | None = None
@@ -100,6 +103,7 @@ class Request:
         self.state: dict[str, Any] = {}
         self.user: Any = None  # Set by AuthenticationMiddleware
         self.auth: Any = None  # Set by AuthenticationMiddleware
+        self._session: Any = None  # Set by SessionMiddleware
 
     # ── Basic properties ──────────────────────────────────────────────────
 
@@ -145,6 +149,24 @@ class Request:
                 cookie.load(cookie_header)
                 self._cookies = {key: morsel.value for key, morsel in cookie.items()}
         return self._cookies
+
+    @property
+    def session(self) -> Any:
+        """Lazy access to the session object.
+
+        Requires SessionMiddleware to be active to populate _session.
+        If not populated, checks the ASGI scope for an existing session.
+        If still not found, returns an empty Session object with no store.
+        """
+        if self._session is None:
+            # Check if session is already in the ASGI scope (from SessionMiddleware)
+            if "session" in self._scope:
+                self._session = self._scope["session"]
+            else:
+                from openviper.auth.session.store import Session
+
+                self._session = Session(key="")
+        return self._session
 
     @property
     def client(self) -> tuple[str, int] | None:

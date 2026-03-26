@@ -147,12 +147,7 @@ class CSRFMiddleware(BaseMiddleware):
         method = scope.get("method", "GET").upper()
         path = scope.get("path", "/")
 
-        if path in self._exempt_paths or method in CSRF_SAFE_METHODS:
-            await self.app(scope, receive, send)
-            return
-
-        # Targeted header scan: extract only the 2 headers we need instead
-        # of building a full dict on every unsafe request.
+        # Extraction logic
         cookie_raw = b""
         submitted_raw = b""
         header_name_lower = self._header_name.encode("latin-1")
@@ -162,35 +157,51 @@ class CSRFMiddleware(BaseMiddleware):
                 cookie_raw = value
             elif lower == header_name_lower:
                 submitted_raw = value
-            if cookie_raw and submitted_raw:
-                break
 
         cookie_header = cookie_raw.decode("latin-1") if cookie_raw else ""
-
-        # Extract CSRF cookie using optimized parser
         csrf_cookie = _extract_cookie_value(cookie_header, self._cookie_name)
 
-        submitted = submitted_raw.decode("latin-1") if submitted_raw else ""
+        # Validation for unsafe methods
+        if path not in self._exempt_paths and method not in CSRF_SAFE_METHODS:
+            submitted = submitted_raw.decode("latin-1") if submitted_raw else ""
+            if not submitted:
+                content_type = b""
+                for name, value in scope.get("headers", []):
+                    if name.lower() == b"content-type":
+                        content_type = value
+                        break
+                if b"application/x-www-form-urlencoded" in content_type:
+                    submitted, receive = await self._extract_form_token(receive)
 
-        # If no header token, attempt extraction from form body for non-JS submissions
-        if not submitted:
-            content_type = b""
-            for name, value in scope.get("headers", []):
-                if name.lower() == b"content-type":
-                    content_type = value
-                    break
-            if b"application/x-www-form-urlencoded" in content_type:
-                submitted, receive = await self._extract_form_token(receive)
+            secret = self._get_secret()
+            if (
+                not csrf_cookie
+                or not submitted
+                or not _verify_csrf_token(csrf_cookie, submitted, secret)
+            ):
+                response = JSONResponse({"detail": "CSRF verification failed."}, status_code=403)
+                await response(scope, receive, send)
+                return
 
-        secret = self._get_secret()
+        # Wrap send to set cookie if missing
+        async def send_wrapper(message: dict[str, Any]) -> None:
+            if message["type"] == "http.response.start" and not csrf_cookie:
+                new_token = _generate_csrf_token()
+                headers = list(message.get("headers", []))
 
-        if (
-            not csrf_cookie
-            or not submitted
-            or not _verify_csrf_token(csrf_cookie, submitted, secret)
-        ):
-            response = JSONResponse({"detail": "CSRF verification failed."}, status_code=403)
-            await response(scope, receive, send)
-            return
+                cookie_value = f"{self._cookie_name}={new_token}; Path=/"
+                if getattr(settings, "CSRF_COOKIE_SECURE", False) or scope.get("scheme") == "https":
+                    cookie_value += "; Secure"
+                if getattr(settings, "CSRF_COOKIE_HTTPONLY", False):
+                    cookie_value += "; HttpOnly"
 
-        await self.app(scope, receive, send)
+                samesite = getattr(settings, "CSRF_COOKIE_SAMESITE", "Lax")
+                if samesite:
+                    cookie_value += f"; SameSite={samesite}"
+
+                headers.append((b"set-cookie", cookie_value.encode("latin-1")))
+                message["headers"] = headers
+
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

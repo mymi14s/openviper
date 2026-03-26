@@ -9,7 +9,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from jose import jwt as jose_jwt
 
-import openviper.middleware.auth as _auth_mod
+import openviper.auth.authentications as _auth_mod
+from openviper.auth.authentications import (
+    _USER_CACHE,
+    _get_user_cache_lock,
+)
+from openviper.auth.authentications import (
+    get_user_cached as _get_user_cached,
+)
 from openviper.auth.jwt import (
     _get_jwt_config,
     create_access_token,
@@ -17,10 +24,7 @@ from openviper.auth.jwt import (
 from openviper.auth.models import AnonymousUser
 from openviper.core.context import current_user as ctx_user
 from openviper.middleware.auth import (
-    _USER_CACHE,
     AuthenticationMiddleware,
-    _get_user_cache_lock,
-    _get_user_cached,
 )
 from openviper.utils import timezone
 
@@ -121,10 +125,10 @@ class TestAuthMiddlewareJWT:
 
         mw = AuthenticationMiddleware(app)
         with patch(
-            "openviper.middleware.auth._get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
-                "openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=False)
+                "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
             ):
                 await mw(_bearer_scope(token), None, None)
 
@@ -158,7 +162,9 @@ class TestAuthMiddlewareJWT:
         async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
-        with patch("openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=True)):
+        with patch(
+            "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=True)
+        ):
             await AuthenticationMiddleware(app)(_bearer_scope(token), None, None)
 
         assert isinstance(captured["user"], AnonymousUser)
@@ -174,10 +180,10 @@ class TestAuthMiddlewareJWT:
             captured["user"] = scope.get("user")
 
         with patch(
-            "openviper.middleware.auth._get_user_cached", new=AsyncMock(return_value=inactive)
+            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=inactive)
         ):
             with patch(
-                "openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=False)
+                "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
             ):
                 await AuthenticationMiddleware(app)(_bearer_scope(token), None, None)
 
@@ -236,17 +242,17 @@ class TestAuthMiddlewareSession:
     async def test_valid_session_sets_user(self):
         session_user = MagicMock()
         session_user.is_active = True
+        session_user.is_authenticated = True
         captured = {}
 
         async def app(scope, receive, send):
             captured["user"] = scope.get("user")
             captured["auth"] = scope.get("auth")
 
-        with patch(
-            "openviper.middleware.auth.get_user_from_session",
-            new=AsyncMock(return_value=session_user),
-        ):
-            await AuthenticationMiddleware(app)(_cookie_scope("sessionid=abc"), None, None)
+        scope = _cookie_scope("sessionid=abc")
+        scope["user"] = session_user
+
+        await AuthenticationMiddleware(app)(scope, None, None)
 
         assert captured["user"] is session_user
         assert captured["auth"]["type"] == "session"
@@ -255,15 +261,16 @@ class TestAuthMiddlewareSession:
     async def test_inactive_session_user_becomes_anonymous(self):
         inactive = MagicMock()
         inactive.is_active = False
+        inactive.is_authenticated = True
         captured = {}
 
         async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
-        with patch(
-            "openviper.middleware.auth.get_user_from_session", new=AsyncMock(return_value=inactive)
-        ):
-            await AuthenticationMiddleware(app)(_cookie_scope("sessionid=fake"), None, None)
+        scope = _cookie_scope("sessionid=fake")
+        scope["user"] = inactive
+
+        await AuthenticationMiddleware(app)(scope, None, None)
 
         assert isinstance(captured["user"], AnonymousUser)
 
@@ -274,11 +281,9 @@ class TestAuthMiddlewareSession:
         async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
-        with patch(
-            "openviper.middleware.auth.get_user_from_session",
-            new=AsyncMock(side_effect=Exception("db error")),
-        ):
-            await AuthenticationMiddleware(app)(_cookie_scope("sessionid=bad"), None, None)
+        scope = _cookie_scope("sessionid=bad")
+
+        await AuthenticationMiddleware(app)(scope, None, None)
 
         assert isinstance(captured["user"], AnonymousUser)
 
@@ -289,10 +294,9 @@ class TestAuthMiddlewareSession:
         async def app(scope, receive, send):
             captured["user"] = scope.get("user")
 
-        with patch(
-            "openviper.middleware.auth.get_user_from_session", new=AsyncMock(return_value=None)
-        ):
-            await AuthenticationMiddleware(app)(_cookie_scope("sessionid=x"), None, None)
+        scope = _cookie_scope("sessionid=x")
+
+        await AuthenticationMiddleware(app)(scope, None, None)
 
         assert isinstance(captured["user"], AnonymousUser)
 
@@ -321,10 +325,10 @@ class TestAuthMiddlewarePrecedence:
             ]
         )
         with patch(
-            "openviper.middleware.auth._get_user_cached", new=AsyncMock(return_value=jwt_user)
+            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=jwt_user)
         ):
             with patch(
-                "openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=False)
+                "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
             ):
                 await AuthenticationMiddleware(app)(scope, None, None)
 
@@ -337,6 +341,7 @@ class TestAuthMiddlewarePrecedence:
         token = create_access_token(user_id=7)
         session_user = MagicMock()
         session_user.is_active = True
+        session_user.is_authenticated = True
         captured = {}
 
         async def app(scope, receive, send):
@@ -348,12 +353,11 @@ class TestAuthMiddlewarePrecedence:
                 (b"cookie", b"sessionid=valid-session"),
             ]
         )
-        with patch("openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=True)):
-            with patch(
-                "openviper.middleware.auth.get_user_from_session",
-                new=AsyncMock(return_value=session_user),
-            ):
-                await AuthenticationMiddleware(app)(scope, None, None)
+        scope["user"] = session_user
+        with patch(
+            "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=True)
+        ):
+            await AuthenticationMiddleware(app)(scope, None, None)
 
         assert captured["auth"]["type"] == "session"
 
@@ -416,10 +420,10 @@ class TestAuthMiddlewareContextVar:
             seen = ctx_user.get(None)
 
         with patch(
-            "openviper.middleware.auth._get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
-                "openviper.middleware.auth.is_token_revoked", new=AsyncMock(return_value=False)
+                "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
             ):
                 await AuthenticationMiddleware(app)(_bearer_scope(token), None, None)
 
@@ -438,7 +442,7 @@ class TestUserCache:
         fake_user = MagicMock()
 
         with patch(
-            "openviper.middleware.auth.get_user_by_id", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ) as mock_get:
             u1 = await _get_user_cached(100)
             u2 = await _get_user_cached(100)
@@ -455,7 +459,8 @@ class TestUserCache:
         user_b = MagicMock()
 
         with patch(
-            "openviper.middleware.auth.get_user_by_id", new=AsyncMock(side_effect=[user_a, user_b])
+            "openviper.auth.authentications.get_user_by_id",
+            new=AsyncMock(side_effect=[user_a, user_b]),
         ) as mock_get:
             r1 = await _get_user_cached(200)
             r2 = await _get_user_cached(201)
@@ -471,7 +476,7 @@ class TestUserCache:
         fake_user = MagicMock()
 
         with patch(
-            "openviper.middleware.auth.get_user_by_id", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ) as mock_get:
             await _get_user_cached(300)
             # Manually expire the entry
@@ -488,7 +493,7 @@ class TestUserCache:
         fake_user = MagicMock()
 
         with patch(
-            "openviper.middleware.auth.get_user_by_id", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ):
             # Pre-fill with 4096 expired entries
             for i in range(4096):
@@ -511,7 +516,7 @@ class TestUserCache:
             call_count += 1
             return fake_user
 
-        with patch("openviper.middleware.auth.get_user_by_id", new=fake_get_user):
+        with patch("openviper.auth.authentications.get_user_by_id", new=fake_get_user):
             # First call populates cache; subsequent ones hit cache
             await _get_user_cached(400)
             await asyncio.gather(*[_get_user_cached(400) for _ in range(10)])
@@ -564,7 +569,7 @@ class TestUserCacheLRUEviction:
             async def fake_get_user(uid):
                 return fake_user
 
-            with patch("openviper.middleware.auth.get_user_by_id", new=fake_get_user):
+            with patch("openviper.auth.authentications.get_user_by_id", new=fake_get_user):
                 # Cache is full, no expired entries → LRU fallback
                 await _get_user_cached(1003)
 

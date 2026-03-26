@@ -162,6 +162,7 @@ class Settings:
     MIDDLEWARE: tuple[str, ...] = (
         "openviper.middleware.security.SecurityMiddleware",
         "openviper.middleware.cors.CORSMiddleware",
+        "openviper.auth.session.middleware.SessionMiddleware",
         "openviper.middleware.auth.AuthenticationMiddleware",
     )
 
@@ -195,7 +196,7 @@ class Settings:
     # Cookie security settings
     # IMPORTANT: SESSION_COOKIE_SECURE should be True in production (requires HTTPS)
     # Set to False only for local development without HTTPS
-    SESSION_COOKIE_SECURE: bool = True  # Secure by default
+    SESSION_COOKIE_SECURE: bool = False  # Changed to False for better dev experience
     SESSION_COOKIE_HTTPONLY: bool = True  # Always True for XSS protection
     SESSION_COOKIE_SAMESITE: str = (
         "Lax"  # Lax=good default, Strict=max security, None=requires Secure
@@ -205,14 +206,19 @@ class Settings:
 
     USER_MODEL: str = "openviper.auth.models.User"
     AUTH_SESSION_ENABLED: bool = True
-    SESSION_STORE: str = "database"  # "database" | "redis" | "memory"
-    SESSION_ENGINE: str = "django.contrib.sessions.backends.db"  # Database-backed sessions
+    SESSION_STORE: str = "database"  # "database" | custom dotted path
     AUTH_BACKENDS: tuple[str, ...] = dataclasses.field(
         default_factory=lambda: (
             "openviper.auth.backends.jwt_backend.JWTBackend",
             "openviper.auth.backends.session_backend.SessionBackend",
         )
     )
+
+    DEFAULT_AUTHENTICATION_CLASSES: tuple[str, ...] = (
+        "openviper.auth.authentications.JWTAuthentication",
+        "openviper.auth.authentications.SessionAuthentication",
+    )
+    DEFAULT_PERMISSION_CLASSES: tuple[str, ...] = ("openviper.http.permissions.IsAuthenticated",)
 
     # ── JWT ───────────────────────────────────────────────────────────────
     JWT_ALGORITHM: str = "HS256"
@@ -226,7 +232,9 @@ class Settings:
     # ── CSRF ──────────────────────────────────────────────────────────────
     CSRF_COOKIE_NAME: str = "csrftoken"
     CSRF_COOKIE_SECURE: bool = False
-    CSRF_COOKIE_HTTPONLY: bool = True
+    CSRF_COOKIE_HTTPONLY: bool = (
+        False  # Must be False for double-submit cookie pattern (JS reads the token)
+    )
     CSRF_COOKIE_SAMESITE: str = "Lax"
     CSRF_TRUSTED_ORIGINS: tuple[str, ...] = ()
 

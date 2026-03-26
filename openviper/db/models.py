@@ -64,6 +64,7 @@ from openviper.db.fields import (
     ForeignKey,
     IntegerField,
     LazyFK,
+    ManyToManyField,
     OneToOneField,
 )
 from openviper.db.utils import ClassProperty
@@ -220,6 +221,7 @@ class ModelMeta(type):
             verbose_name_plural = f"{verbose_name}s"
 
         namespace["_table_name"] = table_name
+        namespace["_is_abstract"] = is_abstract
         namespace["_meta_indexes"] = meta_indexes
         namespace["_meta_unique_together"] = meta_unique_together
         namespace["_verbose_name"] = verbose_name
@@ -227,6 +229,11 @@ class ModelMeta(type):
         namespace["_ordering"] = ordering
 
         cls = super().__new__(mcs, name, bases, namespace)
+
+        # Call contribute_to_class for ManyToManyFields to set up descriptors
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField) and hasattr(field_obj, "contribute_to_class"):
+                field_obj.contribute_to_class(cls, field_name)
 
         # Attach the Manager and register with metadata
         if name != "Model" and not is_abstract:
@@ -575,6 +582,12 @@ class Manager:
         async for batch in QuerySet(self.model).id_batch(size=size):
             yield batch
 
+    async def first(self) -> Model | None:
+        return await QuerySet(self.model).first()
+
+    async def last(self) -> Model | None:
+        return await QuerySet(self.model).last()
+
     async def get(self, **kwargs: Any) -> Model:
         ignore_permissions = kwargs.pop("ignore_permissions", False)
         return (
@@ -815,6 +828,46 @@ class TraversalLookup:
         return f"TraversalLookup({self.key})"
 
 
+class Page:
+    """Query results page with metadata.
+
+    Attributes:
+        items: List of model instances for the current page.
+        number: Current page number (1-indexed).
+        page_size: Maximum number of items per page.
+        total_count: Total number of records matching the query.
+        num_pages: Total number of pages available.
+    """
+
+    __slots__ = ("items", "number", "page_size", "total_count", "num_pages")
+
+    def __init__(self, items: list[Model], number: int, page_size: int, total_count: int) -> None:
+        self.items = items
+        self.number = number
+        self.page_size = page_size
+        self.total_count = total_count
+        self.num_pages = (total_count + page_size - 1) // page_size if page_size > 0 else 0
+
+    @property
+    def has_next(self) -> bool:
+        return self.number < self.num_pages
+
+    @property
+    def has_previous(self) -> bool:
+        return self.number > 1
+
+    @property
+    def next_page_number(self) -> int:
+        return self.number + 1
+
+    @property
+    def previous_page_number(self) -> int:
+        return self.number - 1
+
+    def __repr__(self) -> str:
+        return f"<Page {self.number} of {self.num_pages} ({len(self.items)} items)>"
+
+
 # ── QuerySet ──────────────────────────────────────────────────────────────────
 
 
@@ -945,6 +998,27 @@ class QuerySet:
         clone = self._clone()
         clone._annotations = {**self._annotations, **kwargs}
         return clone
+
+    async def paginate(self, page_number: int = 1, page_size: int = 20) -> Page:
+        """Paginate the query and return a :class:`Page`.
+
+        Calculates offset/limit and runs a COUNT query.
+
+        Args:
+            page_number: 1-indexed page number.
+            page_size: Number of items per page.
+
+        Returns:
+            :class:`Page` instance.
+        """
+        if page_number < 1:
+            raise ValueError("Page number must be >= 1.")
+
+        total_count = await self.count()
+        offset = (page_number - 1) * page_size
+        items = await self.limit(page_size).offset(offset).all()
+
+        return Page(items, page_number, page_size, total_count)
 
     async def all(self) -> list[Model]:
         token = None
@@ -1746,7 +1820,7 @@ class Model(metaclass=ModelMeta):
         table = get_table(cls)
         return insert(table)
 
-    def _trigger_event(self, event_name: str) -> None:
+    def _trigger_event(self, event_name: str, **kwargs: Any) -> None:
         """Fire MODEL_EVENTS handlers for *event_name* on this instance.
 
         A no-op when the task system is disabled or no handlers are registered
@@ -1756,6 +1830,7 @@ class Model(metaclass=ModelMeta):
         Args:
             event_name: One of the nine lifecycle hook names (e.g.
                         ``"after_insert"``, ``"on_change"``, ``"after_delete"``).
+            **kwargs:   Extra context forwarded verbatim to every handler.
         """
         try:
             from openviper.db.events import (  # deferred; avoids circular import
@@ -1768,10 +1843,10 @@ class Model(metaclass=ModelMeta):
             if dispatcher is not None:
                 # Settings-based handlers (MODEL_EVENTS) + decorator handlers
                 # are both dispatched inside dispatcher.trigger().
-                dispatcher.trigger(model_path, event_name, self)
+                dispatcher.trigger(model_path, event_name, self, **kwargs)
             else:
                 # Task system disabled — still fire @model_event.trigger() handlers.
-                _dispatch_decorator_handlers(model_path, event_name, self)
+                _dispatch_decorator_handlers(model_path, event_name, self, **kwargs)
         except Exception:
             pass  # never let event dispatch break model persistence
 
@@ -1820,12 +1895,16 @@ class Model(metaclass=ModelMeta):
                 if is_create:
                     await _call_hook(self.after_insert)
                     self._trigger_event("after_insert")
+                    # on_change on creation: all fields are treated as changed
+                    initial_state = self._to_dict()
+                    await _call_hook(self.on_change, initial_state)
+                    self._trigger_event("on_change", change_dict=initial_state)
                 else:
                     await _call_hook(self.on_update)
                     self._trigger_event("on_update")
                     if pre_save_state:
                         await _call_hook(self.on_change, pre_save_state)
-                        self._trigger_event("on_change")
+                        self._trigger_event("on_change", change_dict=pre_save_state)
             finally:
                 if token:
                     ignore_permissions_ctx.reset(token)
@@ -1834,7 +1913,7 @@ class Model(metaclass=ModelMeta):
             self._previous_state = self._snapshot()
         except Exception as e:
             logger.error(
-                "Save failed for %s (pk=%s): %s",
+                "Save failed for %s (pk=%s, is_create=%s): %s",
                 self.__class__.__name__,
                 self.pk,
                 is_create,

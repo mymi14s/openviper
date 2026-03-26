@@ -97,6 +97,47 @@ _SOFT_REMOVED_CACHE: dict[str, frozenset[str]] = {}
 _SOFT_REMOVED_LOADED: bool = False
 _soft_removed_lock: asyncio.Lock | None = None
 
+# Cache for actual column names in the database to handle legacy/mismatched schemas
+_REAL_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
+_real_columns_lock: asyncio.Lock | None = None
+
+
+def _get_real_columns_lock() -> asyncio.Lock:
+    global _real_columns_lock
+    if _real_columns_lock is None:
+        _real_columns_lock = asyncio.Lock()
+    return _real_columns_lock
+
+
+async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None:
+    """Return the actual column names present in the database for *table_name*.
+
+    Currently only implemented for SQLite. Returns None for other dialects
+    to fall back to the model-defined schema.
+    """
+    if "sqlite" not in str(conn.engine.url):
+        return None
+
+    if table_name in _REAL_COLUMNS_CACHE:
+        return _REAL_COLUMNS_CACHE[table_name]
+
+    lock = _get_real_columns_lock()
+    async with lock:
+        if table_name in _REAL_COLUMNS_CACHE:
+            return _REAL_COLUMNS_CACHE[table_name]
+
+        try:
+            # PRAGMA table_info returns [cid, name, type, notnull, dflt_value, pk]
+            result = await conn.execute(sa.text(f"PRAGMA table_info({table_name})"))
+            cols = {row[1] for row in result.fetchall()}
+            if not cols:
+                return None
+            _REAL_COLUMNS_CACHE[table_name] = frozenset(cols)
+            return _REAL_COLUMNS_CACHE[table_name]
+        except Exception:
+            return None
+
+
 # ---------------------------------------------------------------------------
 # TraversalLookup cache — parse each (key, model) pair at most once
 # ---------------------------------------------------------------------------
@@ -286,17 +327,49 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
                 elif isinstance(target_str, str):
                     from openviper.db.models import ModelMeta
 
-                    if "." in target_str:
+                    # Try to look up in registry first before falling back to string parsing
+                    if target_str in ModelMeta.registry:
+                        target_model_cls = ModelMeta.registry[target_str]
+                        related_table = getattr(target_model_cls, "_table_name", "")
+                    elif "." in target_str:
                         parts = target_str.split(".")
-                        app_name = parts[0]
                         model_name = parts[-1]
-                        model_snake = ModelMeta._camel_to_snake(model_name)
 
-                        if model_name == "get_user_model":
-                            if "auth" in parts:
-                                related_table = "auth_users"
+                        # For full paths like "openviper.auth.models.User", extract app name
+                        # Check if "auth" or other known apps are in the path
+                        app_name = None
+                        if "auth" in parts:
+                            app_name = "auth"
+                        elif len(parts) >= 2:
+                            # Use second-to-last as app name if available
+                            app_name = parts[-2] if parts[-2] != "models" else parts[0]
                         else:
-                            related_table = f"{app_name}_{model_snake}".lower()
+                            app_name = parts[0]
+
+                        # Try various registry key combinations
+                        registry_keys = [
+                            target_str,  # Full path
+                            f"{app_name}.{model_name}",  # app.Model
+                            model_name,  # Just Model name
+                        ]
+
+                        for key in registry_keys:
+                            if key in ModelMeta.registry:
+                                target_model_cls = ModelMeta.registry[key]
+                                related_table = getattr(target_model_cls, "_table_name", "")
+                                break
+
+                        if not related_table:
+                            # Fallback to string parsing
+                            model_snake = ModelMeta._camel_to_snake(model_name)
+
+                            if model_name == "get_user_model":
+                                if "auth" in parts:
+                                    related_table = "auth_users"
+                            elif model_name == "User" and "auth" in parts:
+                                related_table = "auth_users"
+                            else:
+                                related_table = f"{app_name}_{model_snake}".lower()
                     else:
                         model_snake = ModelMeta._camel_to_snake(target_str)
                         app_name = getattr(model_cls, "_app_name", "default")
@@ -314,6 +387,8 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
                     related_table = "auth_users"
                 elif related_table == "auth_permission":
                     related_table = "auth_permissions"
+                elif related_table == "auth_contenttype" or related_table == "auth_content_type":
+                    related_table = "auth_content_types"
 
                 args.append(sa.ForeignKey(f"{related_table}.id", ondelete=field.on_delete))
 
@@ -831,6 +906,10 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
     model_cls = qs._model
     table = get_table(model_cls)
 
+    # ── Column selection (only / defer) ───────────────────────────────────
+    only_fields: set[str] = set(getattr(qs, "_only_fields", []))
+    defer_fields: set[str] = set(getattr(qs, "_defer_fields", []))
+
     # ── select_related JOINs ──────────────────────────────────────────────
     from_clause: Any = table
     extra_cols: list[Any] = []
@@ -850,12 +929,29 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             table.c[field.column_name] == related_table.c.id,
             isouter=False,
         )
-        extra_cols.extend(col.label(f"{field_name}__{col.name}") for col in related_table.c)
+
+        # Schema resilience: Skip columns that do not exist in the database
+        async with _connect() as conn:
+            real_cols = await _get_real_columns(conn, related_table.name)
+
+        # Respect only/defer for related columns if specified via "relation__field"
+        prefix = f"{field_name}__"
+        for col in related_table.c:
+            if real_cols is not None and col.name not in real_cols:
+                continue
+
+            label = f"{prefix}{col.name}"
+            if (
+                only_fields
+                and label not in only_fields
+                and col.name != "id"
+                or defer_fields
+                and label in defer_fields
+            ):
+                continue
+            extra_cols.append(col.label(label))
 
     # ── WHERE + traversal JOINs (chains off any select_related joins) ─────
-    # Build WHERE and final from_clause together so traversal JOINs are
-    # stacked on top of select_related JOINs in a single pass, avoiding
-    # the need to rebuild the statement after the fact.
     q_filters = getattr(qs, "_q_filters", [])
     where, from_clause = _build_where_clause_with_traversals(
         model_cls,
@@ -866,21 +962,28 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
         initial_from_clause=from_clause,
     )
 
-    # ── Column selection (only / defer) ───────────────────────────────────
-    only_fields: list[str] = getattr(qs, "_only_fields", [])
-    defer_fields: list[str] = getattr(qs, "_defer_fields", [])
+    async with _connect() as conn:
+        real_cols = await _get_real_columns(conn, table.name)
 
     if only_fields:
-        wanted: set[str] = set(only_fields) | {"id"}
-        base_cols: list[Any] = [col for col in table.c if col.name in wanted]
+        wanted: set[str] = only_fields | {"id"}
+        base_cols: list[Any] = [
+            col
+            for col in table.c
+            if col.name in wanted and (real_cols is None or col.name in real_cols)
+        ]
     elif defer_fields:
         deferred: set[str] = {
             (model_cls._fields[f].column_name if f in model_cls._fields else f)
             for f in defer_fields
         }
-        base_cols = [col for col in table.c if col.name not in deferred]
+        base_cols = [
+            col
+            for col in table.c
+            if col.name not in deferred and (real_cols is None or col.name in real_cols)
+        ]
     else:
-        base_cols = list(table.c)
+        base_cols = [col for col in table.c if real_cols is None or col.name in real_cols]
 
     # ── Build SELECT statement once with the final from_clause ────────────
     # Avoids rebuilding sa.select() multiple times as JOINs are discovered.
@@ -1064,6 +1167,12 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
 
     data = {}
     for name, field in model_cls._fields.items():
+        # Skip ManyToMany fields - they don't have database columns
+        from openviper.db.fields import ManyToManyField
+
+        if isinstance(field, ManyToManyField):
+            continue
+
         val = getattr(instance, name)
         await field.pre_save(instance, val)
         # Re-fetch value in case pre_save modified it (e.g. UploadFile -> str path)

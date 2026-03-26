@@ -26,6 +26,12 @@ current_request: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
     "current_request", default=None
 )
 
+# Tracks per-request permission cache to avoid redundant DB/Cache lookups.
+# Default is None (not a mutable dict) to prevent cross-request cache leakage.
+request_perms_cache: contextvars.ContextVar[dict[Any, set[str]] | None] = contextvars.ContextVar(
+    "request_perms_cache", default=None
+)
+
 
 def get_current_user() -> Any | None:
     """Get the currently authenticated user from the context.

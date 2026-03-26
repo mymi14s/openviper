@@ -109,7 +109,7 @@ from pydantic import (
     model_validator as pydantic_model_validator,
 )
 
-from openviper.exceptions import DoesNotExist, ValidationError
+from openviper.exceptions import DoesNotExist, PermissionDenied, ValidationError
 from openviper.storage import default_storage
 
 T = TypeVar("T", bound="Serializer")
@@ -191,6 +191,40 @@ class Serializer(BaseModel):
     write_only_fields: ClassVar[tuple[str, ...]] = ()
     # Number of objects per batch when streaming a QuerySet through serialize_many
     PAGE_SIZE: ClassVar[int] = 25
+    MAX_PAGE_SIZE: ClassVar[int] = 1000
+    # List of permission classes to apply to this serializer
+    permission_classes: ClassVar[list[Any]] = []
+
+    def __init__(self, **data: Any) -> None:
+        context = data.pop("_context", {})
+        super().__init__(**data)
+        object.__setattr__(self, "_context", context)
+
+    @property
+    def context(self) -> dict[str, Any]:
+        return getattr(self, "_context", {})
+
+    async def check_permissions(self) -> None:
+        """Check permissions for this serializer.
+
+        Requires a 'request' to be present in self.context.
+        """
+        request = self.context.get("request")
+        if not request:
+            from openviper.core.context import current_user
+
+            user = current_user.get()
+            if not user:
+                return  # Cannot check permissions without a user context
+
+        for permission_class in self.permission_classes:
+            permission = permission_class()
+            if not await permission.has_permission(request, self):
+                self.permission_denied(request)
+
+    def permission_denied(self, request: Any, message: str | None = None) -> None:
+        """Raise a PermissionDenied exception."""
+        raise PermissionDenied(message or "Permission denied.")
 
     @classmethod
     def _build_partial_class(cls: type[T]) -> type[T]:
@@ -225,7 +259,9 @@ class Serializer(BaseModel):
         return partial_cls
 
     @classmethod
-    def validate(cls: type[T], data: Any, *, partial: bool = False) -> T:
+    def validate(
+        cls: type[T], data: Any, *, partial: bool = False, context: dict[str, Any] | None = None
+    ) -> T:
         """Parse *data* into this serializer, raising
         :class:`~openviper.exceptions.ValidationError`.
 
@@ -236,10 +272,13 @@ class Serializer(BaseModel):
                 records which fields were supplied via ``model_fields_set``;
                 pass ``model_dump(exclude_unset=True)`` to :meth:`update` when
                 only the changed keys should be written.
+            context: Optional dictionary of extra context (e.g. {'request': request}).
         """
         target = cls._build_partial_class() if partial else cls
         try:
-            return target.model_validate(data)  # type: ignore[return-value]
+            if isinstance(data, dict):
+                return target(**data, _context=context or {})  # type: ignore[return-value]
+            return target.model_validate(data, context=context)  # type: ignore[return-value]
         except PydanticValidationError as exc:
             errors = []
             for error in exc.errors(include_url=False):
@@ -382,6 +421,8 @@ class Serializer(BaseModel):
         Optimized to batch serialize objects and reduce N+1 queries.
         """
         ps = page_size if page_size is not None else cls.PAGE_SIZE
+        ps = max(1, min(ps, cls.MAX_PAGE_SIZE))
+        page = max(1, page)
         total: int = await qs.count()
         offset = (page - 1) * ps
         page_qs = qs.offset(offset).limit(ps)

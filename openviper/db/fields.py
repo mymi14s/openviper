@@ -792,10 +792,222 @@ class OneToOneField(ForeignKey):
         super().__init__(to, **kwargs)
 
 
+class ManyToManyManager:
+    """Manager for ManyToMany relationships providing add, remove, all, clear methods."""
+
+    def __init__(
+        self,
+        instance: Any,
+        field: ManyToManyField,
+        through_model: type,
+        target_model: type,
+        source_field_name: str,
+        target_field_name: str,
+    ):
+        self.instance = instance
+        self.field = field
+        self.through_model = through_model
+        self.target_model = target_model
+        self.source_field_name = source_field_name
+        self.target_field_name = target_field_name
+
+    async def all(self) -> list[Any]:
+        """Get all related objects."""
+        if not self.instance.pk:
+            return []
+
+        # Query through table with select_related on target
+        filter_kwargs = {self.source_field_name: self.instance.pk}
+        through_objects = (
+            await self.through_model.objects.filter(**filter_kwargs)
+            .select_related(self.target_field_name)
+            .all()
+        )
+
+        # Extract target objects
+        results = []
+        ids_to_fetch = []
+        for through_obj in through_objects:
+            target_obj = getattr(through_obj, self.target_field_name, None)
+            if hasattr(target_obj, "pk"):
+                results.append(target_obj)
+            elif isinstance(target_obj, int):
+                ids_to_fetch.append(target_obj)
+
+        # Fetch any remaining IDs
+        if ids_to_fetch:
+            fetched = await self.target_model.objects.filter(id__in=ids_to_fetch).all()
+            results.extend(fetched)
+
+        return results
+
+    async def add(self, *objects: Any) -> None:
+        """Add one or more objects to the relationship."""
+        if not self.instance.pk:
+            raise ValueError("Cannot add to ManyToMany before saving the instance")
+
+        for obj in objects:
+            target_pk = obj.pk if hasattr(obj, "pk") else obj
+            if not target_pk:
+                raise ValueError("Cannot add unsaved object to ManyToMany")
+
+            # Check if relationship already exists
+            filter_kwargs = {
+                self.source_field_name: self.instance.pk,
+                self.target_field_name: target_pk,
+            }
+            existing = await self.through_model.objects.filter(**filter_kwargs).first()
+
+            if not existing:
+                # Create new through object
+                create_kwargs = {
+                    self.source_field_name: self.instance.pk,
+                    self.target_field_name: target_pk,
+                }
+                await self.through_model.objects.create(**create_kwargs)
+
+    async def remove(self, *objects: Any) -> None:
+        """Remove one or more objects from the relationship."""
+        if not self.instance.pk:
+            return
+
+        for obj in objects:
+            target_pk = obj.pk if hasattr(obj, "pk") else obj
+            filter_kwargs = {
+                self.source_field_name: self.instance.pk,
+                self.target_field_name: target_pk,
+            }
+            through_obj = await self.through_model.objects.filter(**filter_kwargs).first()
+            if through_obj:
+                await through_obj.delete()
+
+    async def clear(self) -> None:
+        """Remove all objects from the relationship."""
+        if not self.instance.pk:
+            return
+
+        filter_kwargs = {self.source_field_name: self.instance.pk}
+        through_objects = await self.through_model.objects.filter(**filter_kwargs).all()
+        for through_obj in through_objects:
+            await through_obj.delete()
+
+    async def count(self) -> int:
+        """Get the count of related objects."""
+        if not self.instance.pk:
+            return 0
+
+        filter_kwargs = {self.source_field_name: self.instance.pk}
+        return await self.through_model.objects.filter(**filter_kwargs).count()
+
+
+class ManyToManyDescriptor:
+    """Descriptor that returns a ManyToManyManager when accessed from an instance."""
+
+    def __init__(self, field: ManyToManyField):
+        self.field = field
+
+    def __get__(
+        self, instance: Any, owner: type | None = None
+    ) -> ManyToManyManager | ManyToManyDescriptor:
+        if instance is None:
+            return self
+
+        # Return a manager instance
+        # Resolve through model and target model
+        from openviper.db.models import ModelMeta
+
+        # Resolve target model
+        if isinstance(self.field.to, str):
+            target_model = ModelMeta.registry.get(self.field.to)
+            if not target_model:
+                raise ValueError(f"Cannot resolve target model '{self.field.to}'")
+        else:
+            target_model = self.field.to
+
+        # Resolve through model
+        if self.field.through:
+            if isinstance(self.field.through, str):
+                through_model = ModelMeta.registry.get(self.field.through)
+                if not through_model:
+                    raise ValueError(f"Cannot resolve through model '{self.field.through}'")
+            else:
+                through_model = self.field.through
+        else:
+            # Auto-generate through model name (not implemented, raise error)
+            raise ValueError(
+                f"ManyToManyField '{self.field.name}' must specify 'through' parameter"
+            )
+
+        # Determine field names in through model
+        # Convention: source_field_name is usually the lowercase model name
+        source_model_name = instance.__class__.__name__.lower()
+        target_model_name = target_model.__name__.lower()
+
+        # Check through model fields to find the correct names
+        through_fields = through_model._fields
+        source_field_name = None
+        target_field_name = None
+
+        for fname, fobj in through_fields.items():
+            if isinstance(fobj, ForeignKey):
+                # Check if it points to source or target
+                fk_to = fobj.to
+                if isinstance(fk_to, str):
+                    # Compare string names
+                    if source_model_name in fk_to.lower() or instance.__class__.__name__ in fk_to:
+                        source_field_name = fname
+                    elif target_model_name in fk_to.lower() or target_model.__name__ in fk_to:
+                        target_field_name = fname
+                else:
+                    # Compare types
+                    if fk_to == instance.__class__ or fk_to.__name__ == instance.__class__.__name__:
+                        source_field_name = fname
+                    elif fk_to == target_model or fk_to.__name__ == target_model.__name__:
+                        target_field_name = fname
+
+        if not source_field_name or not target_field_name:
+            raise ValueError(
+                f"Cannot determine field names in through model '{through_model.__name__}'. "
+                f"Found source={source_field_name}, target={target_field_name}"
+            )
+
+        return ManyToManyManager(
+            instance=instance,
+            field=self.field,
+            through_model=through_model,
+            target_model=target_model,
+            source_field_name=source_field_name,
+            target_field_name=target_field_name,
+        )
+
+    def __set__(self, instance: Any, value: Any) -> None:
+        # Allow setting to None during initialization
+        if value is None:
+            return
+        raise AttributeError("Cannot set ManyToMany field directly, use add()/remove() methods")
+
+
 class ManyToManyField(Field):
     """Many-to-many relationship via a junction table.
 
     This field does not create a column in the model's table.
+
+    Args:
+        to: Target model class or string reference
+        through: Junction table model class or string reference (required)
+        related_name: Name for reverse relation (optional)
+
+    Example:
+        class User(Model):
+            roles = ManyToManyField(to="Role", through="UserRole")
+
+        class Role(Model):
+            permissions = ManyToManyField(to="Permission", through="RolePermission")
+
+        # Usage:
+        await user.roles.add(role)
+        roles = await user.roles.all()
+        await user.roles.remove(role)
     """
 
     _column_type = ""  # No direct column
@@ -811,6 +1023,11 @@ class ManyToManyField(Field):
         self.to = to
         self.through = through
         self.related_name = related_name
+
+    def contribute_to_class(self, model_class: type, name: str) -> None:
+        """Called by metaclass to set up the descriptor."""
+        self.name = name
+        setattr(model_class, name, ManyToManyDescriptor(self))
 
 
 class EmailField(CharField):

@@ -1,70 +1,99 @@
 """Session middleware for OpenViper.
 
-Lightweight ASGI middleware that reads the session cookie and populates
-``scope["user"]`` from the session store.  Suitable for use in middleware
-stacks that do not need the full JWT + session pipeline provided by
-:class:`~openviper.middleware.auth.AuthenticationMiddleware`.
+ASGI middleware that handles the session lifecycle:
+1. Loads session from cookie on request.
+2. Attaches session to request object.
+3. Persists session changes on response.
+4. Sets the session cookie on response.
 """
 
 from __future__ import annotations
 
+import datetime
 import logging
 from typing import Any
 
 from openviper.auth.models import AnonymousUser
-from openviper.auth.session.store import DatabaseSessionStore
+from openviper.auth.session.store import Session, get_session_store
+from openviper.conf import settings
+from openviper.http.request import Request
 
 logger = logging.getLogger("openviper.auth.session")
 
 
 class SessionMiddleware:
-    """ASGI middleware that authenticates requests via session cookies.
-
-    Reads the configured ``SESSION_COOKIE_NAME`` cookie, looks up the session in
-    the store, and sets ``scope["user"]``.  Falls back to
-    :class:`~openviper.auth.models.AnonymousUser` when no valid session is found.
-
-    This middleware does **not** handle JWT tokens.  Use
-    :class:`~openviper.auth.middleware.AuthenticationMiddleware` (which delegates
-    to :class:`~openviper.auth.manager.AuthManager`) if you need both JWT and
-    session support.
+    """ASGI middleware for session management.
 
     Args:
         app: The next ASGI application.
-        store: Optional :class:`~openviper.auth.session.store.DatabaseSessionStore`
-               instance.  Defaults to a fresh ``DatabaseSessionStore``.
-
-    Example::
-
-        app = SessionMiddleware(app)
+        store: Optional session store instance. Defaults to the configured store.
     """
 
     def __init__(self, app: Any, store: Any | None = None) -> None:
         self.app = app
-        if store is None:
-            store = DatabaseSessionStore()
-        self.store = store
+        self.store = store or get_session_store()
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
-        cookie_header = b""
-        for name, value in scope.get("headers", []):
-            if name == b"cookie":
-                cookie_header = value
-                break
+        request = Request(scope, receive)
+        cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
+        session_key = request.cookies.get(cookie_name)
 
-        user: Any = AnonymousUser()
-        if cookie_header:
-            try:
-                cookie_str = cookie_header.decode("latin-1")
-                result = await self.store.get_user(cookie_str)
-                if result and getattr(result, "is_active", True):
-                    user = result
-            except Exception as exc:
-                logger.warning("Session middleware error: %s", exc)
+        session: Session | None = None
+        if session_key:
+            session = await self.store.load(session_key)
+            logger.debug(
+                "Loaded session for key %s...: %s",
+                session_key[:8],
+                "Found" if session else "Not Found",
+            )
 
-        scope.setdefault("user", user)
-        await self.app(scope, receive, send)
+        if session is None:
+            session = Session(key="", store=self.store)
+
+        request._session = session
+        scope["session"] = session
+
+        if scope.get("user") is None:
+            user = await self.store.get_user(session.key) if session.key else None
+            logger.debug("Middleware identifying user from session: %s", user)
+            scope["user"] = user or AnonymousUser()
+
+        async def send_wrapper(message: dict[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                # Read the CURRENT session from scope — login() may have
+                # replaced it after the middleware initially ran.
+                active_session = scope.get("session", session)
+                await active_session.save()
+
+                if active_session.key:
+                    headers = list(message.get("headers", []))
+
+                    cookie_value = f"{cookie_name}={active_session.key}; Path=/; HttpOnly"
+                    if getattr(settings, "SESSION_COOKIE_SECURE", True) or request.is_secure():
+                        cookie_value += "; Secure"
+
+                    samesite = getattr(settings, "SESSION_COOKIE_SAMESITE", "Lax")
+                    if samesite:
+                        cookie_value += f"; SameSite={samesite}"
+
+                    timeout = getattr(settings, "SESSION_TIMEOUT", datetime.timedelta(hours=1))
+                    if isinstance(timeout, datetime.timedelta):
+                        max_age = int(timeout.total_seconds())
+                    else:
+                        max_age = int(timeout)
+                    cookie_value += f"; Max-Age={max_age}"
+
+                    domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+                    if domain:
+                        cookie_value += f"; Domain={domain}"
+
+                    headers.append((b"set-cookie", cookie_value.encode("latin-1")))
+                    message["headers"] = headers
+
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

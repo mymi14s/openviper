@@ -61,10 +61,19 @@ repos:
   # ── Testing ──────────────────────────────────────────────────────────
   - repo: local
     hooks:
-      - id: test
-        name: test
+      - id: test-unit
+        name: test-unit
         entry: .venv/bin/pytest
-        args: ["tests/", "-v"]
+        args: ["tests/unit", "-v"]
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+      - id: test-integration
+        name: test-integration
+        entry: .venv/bin/pytest
+        args: ["tests/integration", "-v"]
         language: system
         pass_filenames: false
         always_run: true

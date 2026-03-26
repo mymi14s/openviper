@@ -291,12 +291,16 @@ class Operation:
 
 
 def _quote_identifier(name: str, dialect: str) -> str:
-    """Quote a table or column name based on the database dialect."""
+    """Quote a table or column name based on the database dialect.
+
+    Escapes embedded quote characters to prevent SQL injection
+    through crafted identifier names.
+    """
     if dialect == "mysql":
-        return f"`{name}`"
+        return f"`{name.replace('`', '``')}`"
     if dialect == "mssql":
         return f"[{name.replace(']', ']]')}]"
-    return f'"{name}"'
+    return f'"{name.replace(chr(34), chr(34) + chr(34))}"'
 
 
 # Valid ON DELETE actions for foreign key constraints.
@@ -638,8 +642,21 @@ class AlterColumn(Operation):
                 stmts.append(f"ALTER TABLE {quoted_table} MODIFY {quoted_column} {raw_type}")
             elif dialect == "mssql":
                 stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {raw_type}")
+            elif dialect == "sqlite":
+                # SQLite doesn't support ALTER COLUMN TYPE.
+                # Since SQLite is manifest typed, we can often skip the type change
+                # if it's just a length or minor type distinction (e.g. VARCHAR -> TEXT).
+                # For major changes, a full table rebuild (shadow table) would be needed.
+                logger.warning(
+                    "SQLite does not support native ALTER COLUMN TYPE for %s.%s to %s. "
+                    "Skipping SQL execution; schema may be out of sync if storage "
+                    "conversion was required.",
+                    self.table_name,
+                    self.column_name,
+                    raw_type,
+                )
             else:
-                # SQLite doesn't support ALTER COLUMN natively.
+                # Generic fallback (may fail on some dialects)
                 stmts.append(
                     f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} TYPE {raw_type}"
                 )
@@ -696,6 +713,9 @@ class AlterColumn(Operation):
                 stmts.append(f"ALTER TABLE {quoted_table} MODIFY {quoted_column} {raw_type}")
             elif dialect == "mssql":
                 stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {raw_type}")
+            elif dialect == "sqlite":
+                # No-op for rollback on SQLite for the same reasons as forward
+                pass
             else:
                 stmts.append(
                     f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} TYPE {raw_type}"

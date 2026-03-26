@@ -10,6 +10,7 @@ from openviper.auth.models import (
     Role,
     User,
 )
+from openviper.core.context import request_perms_cache
 
 
 class TestPermissionModel:
@@ -138,10 +139,10 @@ class TestAbstractUserPermissionMethods:
 
         user = User()
         user.is_superuser = False
-        user._cached_perms = {"post.create", "post.read"}
 
-        assert await user.has_perm("post.create") is True
-        assert await user.has_perm("post.delete") is False
+        with patch.object(user, "get_permissions", new=AsyncMock(return_value={"post.create"})):
+            assert await user.has_perm("post.create") is True
+            assert await user.has_perm("post.delete") is False
 
     @pytest.mark.asyncio
     async def test_has_role_returns_true_for_superuser(self):
@@ -183,28 +184,29 @@ class TestAbstractUserPermissionMethods:
         """Superusers should get all permissions."""
 
         user = User()
+        user.id = 99
         user.is_superuser = True
 
-        mock_perm1 = MagicMock()
-        mock_perm1.codename = "perm1"
-        mock_perm2 = MagicMock()
-        mock_perm2.codename = "perm2"
-
-        with patch("openviper.auth.models.Permission.objects.filter") as mock_filter:
-            mock_filter.return_value.all = AsyncMock(return_value=[mock_perm1, mock_perm2])
-
+        with patch(
+            "openviper.auth.models.Permission.objects.values_list",
+            new=AsyncMock(return_value=["perm1", "perm2"]),
+        ):
             perms = await user.get_permissions()
             assert perms == {"perm1", "perm2"}
 
     @pytest.mark.asyncio
     async def test_get_permissions_uses_cache(self):
-        """Should use cached permissions if available."""
+        """Should use cached permissions if available in the request ContextVar."""
 
         user = User()
-        user._cached_perms = {"cached.perm"}
+        user.id = 1
 
-        perms = await user.get_permissions()
-        assert perms == {"cached.perm"}
+        token = request_perms_cache.set({1: {"cached.perm"}})
+        try:
+            perms = await user.get_permissions()
+            assert perms == {"cached.perm"}
+        finally:
+            request_perms_cache.reset(token)
 
 
 class TestAbstractUserRoleMethods:
@@ -260,10 +262,13 @@ class TestAbstractUserRoleMethods:
         mock_role = MagicMock()
         mock_role.pk = 2
 
+        mock_ur = MagicMock()
+        mock_ur.delete = AsyncMock()
+
         with patch("openviper.auth.models.UserRole.objects.filter") as mock_filter:
-            mock_filter.return_value.delete = AsyncMock()
+            mock_filter.return_value.first = AsyncMock(return_value=mock_ur)
             await user.remove_role(mock_role)
-            mock_filter.return_value.delete.assert_called_once()
+            mock_ur.delete.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_get_roles_returns_roles_from_role_profile(self):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from openviper.cache.base import BaseCache
 from openviper.cache.memory import InMemoryCache
+from openviper.cache.redis import RedisCache
 from openviper.conf import settings
 from openviper.utils.importlib import import_string
 
@@ -23,6 +24,10 @@ def get_cache() -> BaseCache:
 
     if backend == "memory":
         _cache_instance = InMemoryCache()
+    elif backend == "redis":
+        # Pull redis URL from settings if available, else use default local
+        redis_url = getattr(settings, "REDIS_URL", "redis://localhost:6379")
+        _cache_instance = RedisCache(url=redis_url)
     elif "." in backend:
         # Load custom backend class via dotted path
         cache_cls = import_string(backend)
@@ -34,4 +39,4 @@ def get_cache() -> BaseCache:
     return _cache_instance
 
 
-__all__ = ["InMemoryCache", "get_cache", "BaseCache"]
+__all__ = ["InMemoryCache", "get_cache", "BaseCache", "RedisCache"]

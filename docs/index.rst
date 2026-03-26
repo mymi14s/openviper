@@ -91,6 +91,7 @@ For a production-grade multi-app example with AI moderation see `examples/ai_mod
    storage
    staticfiles
    exceptions
+   cache
 
 .. toctree::
    :maxdepth: 2

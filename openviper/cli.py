@@ -91,6 +91,7 @@ class ProjectSettings(Settings):
     MIDDLEWARE: tuple[str, ...] = (
         "openviper.middleware.security.SecurityMiddleware",
         "openviper.middleware.cors.CORSMiddleware",
+        "openviper.auth.session.middleware.SessionMiddleware",
         "openviper.middleware.auth.AuthenticationMiddleware",
         "openviper.admin.middleware.AdminMiddleware",
     )

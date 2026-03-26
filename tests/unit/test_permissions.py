@@ -98,11 +98,19 @@ async def test_view_check_object_permissions():
 
     user = MagicMock()
     user.username = "alice"
+    user.is_superuser = False  # Ensure superuser bypass is not triggered
     request = MockRequest(user=user)
 
     # Owner matches
     await view.check_object_permissions(request, {"owner": "alice"})
 
-    # Owner mismatch
+    # Owner mismatch — should raise for regular users
     with pytest.raises(PermissionDenied):
         await view.check_object_permissions(request, {"owner": "bob"})
+
+    # Superusers are always exempt from object-level permission checks
+    superuser = MagicMock()
+    superuser.username = "admin"
+    superuser.is_superuser = True
+    super_request = MockRequest(user=superuser)
+    await view.check_object_permissions(super_request, {"owner": "bob"})  # no exception

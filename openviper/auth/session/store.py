@@ -265,8 +265,13 @@ class DatabaseSessionStore(BaseSessionStore):
             logger.debug("get_user: No session found for key")
             return None
 
-        if row.expires_at < timezone.now():
-            logger.debug("get_user: Session expired at %s", row.expires_at)
+        # SQLite returns offset-naive datetimes, so we must coerce to aware if USE_TZ is on
+        expires_at = row.expires_at
+        if timezone.is_naive(expires_at) and settings.USE_TZ:
+            expires_at = expires_at.replace(tzinfo=datetime.UTC)
+
+        if expires_at < timezone.now():
+            logger.debug("get_user: Session expired at %s", expires_at)
             return None
 
         if row.user_id is None:

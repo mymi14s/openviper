@@ -187,15 +187,23 @@ class View:
         Raises:
             PermissionDenied: If any permission check fails.
         """
+        # Superusers bypass all view-level permission checks.
+        if getattr(request.user, "is_superuser", False):
+            return
+
         for permission in self.get_permissions():
             if not await permission.has_permission(request, self):
                 self.permission_denied(request)
 
     async def check_object_permissions(self, request: Request, obj: Any) -> None:
-        """Check if the request should be permitted to access the given object.
-
+        """
+        Check if the request should be permitted to access the given object.
         Raises PermissionDenied if any permission check fails.
         """
+        # Superusers bypass all object-level permission checks.
+        if getattr(request.user, "is_superuser", False):
+            return
+
         for permission in self.get_permissions():
             if not await permission.has_object_permission(request, self, obj):
                 self.permission_denied(request)

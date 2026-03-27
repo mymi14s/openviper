@@ -15,6 +15,11 @@ from openviper.auth.hashers import check_password
 from openviper.auth.jwt import create_access_token, decode_access_token
 from openviper.auth.models import Permission, Role, User
 from openviper.cache import get_cache
+from tests.integration._credentials import (
+    _ADMIN_PASSWORD,
+    _USER_PASSWORD,
+    _WRONG_PASSWORD,
+)
 
 if TYPE_CHECKING:
     from openviper.app import OpenViper
@@ -31,13 +36,13 @@ class TestUserCreationFlow:
             email="newuser@example.com",
             is_active=True,
         )
-        await user.set_password("secure_password")
+        await user.set_password(_USER_PASSWORD)
         await user.save()
 
         assert user.id is not None
         assert user.username == "newuser"
-        assert await check_password("secure_password", user.password)
-        assert not await check_password("wrong_password", user.password)
+        assert await check_password(_USER_PASSWORD, user.password)
+        assert not await check_password(_WRONG_PASSWORD, user.password)
 
     @pytest.mark.asyncio
     async def test_create_multiple_users(self, test_database):
@@ -51,7 +56,7 @@ class TestUserCreationFlow:
         created_users = []
         for data in users_data:
             user = User(**data)
-            await user.set_password("password123")
+            await user.set_password(_USER_PASSWORD)
             await user.save()
             created_users.append(user)
 
@@ -75,7 +80,7 @@ class TestUserCreationFlow:
                 json={
                     "username": "apiuser",
                     "email": "api@example.com",
-                    "password": "api123",
+                    "password": _USER_PASSWORD,
                 },
             )
 
@@ -95,10 +100,10 @@ class TestUserAuthenticationFlow:
     @pytest.mark.asyncio
     async def test_password_verification(self, test_database, admin_user: User):
         """Test password verification for existing user."""
-        is_valid = await check_password("admin123", admin_user.password)
+        is_valid = await check_password(_ADMIN_PASSWORD, admin_user.password)
         assert is_valid is True
 
-        is_valid = await check_password("wrongpassword", admin_user.password)
+        is_valid = await check_password(_WRONG_PASSWORD, admin_user.password)
         assert is_valid is False
 
     @pytest.mark.asyncio

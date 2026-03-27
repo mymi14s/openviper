@@ -17,6 +17,7 @@ from openviper.db.connection import get_metadata
 from openviper.db.events import _background_tasks
 from openviper.http.response import JSONResponse
 from tests.factories.db import create_test_engine
+from tests.integration._credentials import _ADMIN_PASSWORD, _USER_PASSWORD
 
 
 async def _drain_tasks() -> None:
@@ -89,7 +90,7 @@ async def admin_user(test_database) -> User:
         is_superuser=True,
         is_staff=True,
     )
-    await user.set_password("admin123")
+    await user.set_password(_ADMIN_PASSWORD)
     await user.save()
     return user
 
@@ -104,7 +105,7 @@ async def regular_user(test_database) -> User:
         is_superuser=False,
         is_staff=False,
     )
-    await user.set_password("password123")
+    await user.set_password(_USER_PASSWORD)
     await user.save()
     return user
 
@@ -133,7 +134,7 @@ async def user_with_role(test_database, test_cache) -> tuple[User, Role]:
         is_superuser=False,
         is_staff=False,
     )
-    await user.set_password("password123")
+    await user.set_password(_USER_PASSWORD)
     await user.save()
 
     await user.roles.add(role)

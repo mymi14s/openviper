@@ -13,9 +13,15 @@ from typing import Any
 import pytest
 
 from openviper.app import OpenViper
+from openviper.auth.hashers import check_password
 from openviper.auth.models import Permission, Role, User
 from openviper.cache import get_cache
 from openviper.http.response import HTMLResponse, JSONResponse
+from tests.integration._credentials import (
+    _ADMIN_PASSWORD,
+    _EDITOR_PASSWORD,
+    _USER_PASSWORD,
+)
 
 
 class TestFullSystemIntegration:
@@ -35,7 +41,7 @@ class TestFullSystemIntegration:
                 json={
                     "username": "lifecycle_user",
                     "email": "lifecycle@example.com",
-                    "password": "secure123",
+                    "password": _USER_PASSWORD,
                 },
             )
 
@@ -69,10 +75,8 @@ class TestFullSystemIntegration:
         admin_user: User,
     ):
         """Test authentication flow with session creation and validation."""
-        from openviper.auth.hashers import check_password
-
         assert admin_user.username == "admin"
-        assert await check_password("admin123", admin_user.password)
+        assert await check_password(_ADMIN_PASSWORD, admin_user.password)
 
         perms = await admin_user.get_permissions()
         assert isinstance(perms, set)
@@ -338,7 +342,7 @@ class TestFullSystemIntegration:
             payload = {
                 "username": "jsonuser",
                 "email": "json@example.com",
-                "password": "json123",
+                "password": _USER_PASSWORD,
             }
 
             response = await client.post("/users", json=payload)
@@ -365,7 +369,7 @@ class TestFullSystemIntegration:
             is_active=True,
             is_staff=True,
         )
-        await admin.set_password("admin123")
+        await admin.set_password(_ADMIN_PASSWORD)
         await admin.save()
 
         await admin.roles.add(admin_role)
@@ -388,7 +392,7 @@ class TestFullSystemIntegration:
             email="editor@example.com",
             is_active=True,
         )
-        await editor.set_password("editor123")
+        await editor.set_password(_EDITOR_PASSWORD)
         await editor.save()
 
         editor_role = sample_test_data["editor_role"]

@@ -38,6 +38,10 @@ class SessionMiddleware:
             await self.app(scope, receive, send)
             return
 
+        if not getattr(settings, "AUTH_SESSION_ENABLED", True):
+            await self.app(scope, receive, send)
+            return
+
         request = Request(scope, receive)
         cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
         session_key = request.cookies.get(cookie_name)

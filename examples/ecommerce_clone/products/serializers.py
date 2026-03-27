@@ -2,31 +2,28 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from openviper.serializers import ModelSerializer
 
-from openviper.serializers import Serializer
-
-
-class CategorySerializer(Serializer):
-    id: str | None = None
-    name: str
-    created_at: str | None = None
+from .models import Category, Product
 
 
-class ProductSerializer(Serializer):
-    id: str | None = None
-    name: str
-    description: str | None = None
-    price: Decimal
-    stock: int = 0
-    category_id: str | None = None
-    image: str | None = None
-    created_at: str | None = None
+class ProductSerializer(ModelSerializer):
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "name",
+            "description",
+            "price",
+            "stock",
+            "category_id",
+            "image",
+            "image_url",
+            "created_at",
+        ]
 
 
-class ProductCreateSerializer(Serializer):
-    name: str
-    description: str | None = None
-    price: Decimal
-    stock: int = 0
-    category_id: str | None = None
+class CategorySerializer(ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ["id", "name", "created_at"]

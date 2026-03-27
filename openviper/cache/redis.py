@@ -25,7 +25,7 @@ class RedisCache(BaseCache):
                 "Install it with: pip install redis"
             )
         if url is None:
-            url = getattr(settings, "REDIS_URL", "redis://localhost:6379")
+            url = settings.CACHE_URL or "redis://localhost:6379"
         self.client = redis.Redis.from_url(url, **kwargs)
 
     async def get(self, key: str, default: Any = None) -> Any:

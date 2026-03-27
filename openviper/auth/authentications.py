@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib
+import inspect
 import logging
+import re
 import secrets
 import threading
 import time
@@ -475,3 +478,228 @@ class TokenAuthentication(BaseAuthentication):
 
     def authenticate_header(self, request: Request) -> str:
         return "Token"
+
+
+# ---------------------------------------------------------------------------
+# OAuth2 event handling
+# ---------------------------------------------------------------------------
+
+# Allowlist of recognised event names — guards against arbitrary key injection.
+_OAUTH2_EVENT_NAMES: frozenset[str] = frozenset({"on_success", "on_fail", "on_error", "on_initial"})
+
+# Validates a dotted Python import path: <pkg>.<module>.<callable>
+_DOTTED_PATH_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)+$")
+
+
+class OAuth2Authentication(BaseAuthentication):
+    """OAuth2 authentication backend with configurable lifecycle events.
+
+    This class provides ``authenticate`` for Bearer-token-based OAuth2
+    flows and a full event system driven by ``OAUTH2_EVENTS`` in settings.
+
+    Event hooks
+    -----------
+    Configure ``OAUTH2_EVENTS`` in your project settings to wire up async
+    or sync callables for any of the four lifecycle points:
+
+    .. code-block:: python
+
+        OAUTH2_EVENTS = {
+            "on_success": "myapp.events.oauth_success",
+            "on_fail":    "myapp.events.oauth_fail",
+            "on_error":   "myapp.events.oauth_error",
+            "on_initial": "myapp.events.oauth_initial",
+        }
+
+    Each handler receives a single ``payload`` dict with at minimum the keys
+    documented in :attr:`_build_payload`.
+    """
+
+    async def authenticate(self, request: Request) -> tuple[Any, Any] | None:
+        """Validate an OAuth2 Bearer token from the ``Authorization`` header.
+
+        Returns ``(user, {"type": "oauth2", "token": token})`` on success,
+        ``None`` if the header is absent or the scheme is not ``Bearer``.
+        Subclasses should override this method and call ``trigger_event``
+        at the appropriate lifecycle points.
+        """
+        auth_header: str | None = request.headers.get("authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return None
+
+        token = auth_header[7:]
+        if not token:
+            return None
+
+        try:
+            payload = self._build_payload(
+                token=token, request=request, authentication_type="oauth2"
+            )
+            user_id = await self._resolve_oauth2_user(token)
+            if user_id is None:
+                await self.trigger_event("on_fail", payload)
+                return None
+
+            user = await get_user_cached(user_id)
+            if not user or not getattr(user, "is_active", True):
+                await self.trigger_event("on_fail", payload)
+                return None
+
+            payload = self._build_payload(
+                token=token,
+                request=request,
+                authentication_type="oauth2",
+                email=getattr(user, "email", ""),
+                name=getattr(user, "username", ""),
+                provider_user_id=str(user_id),
+            )
+
+            if await self._is_first_login(user):
+                await self.trigger_event("on_initial", payload)
+
+            await self.trigger_event("on_success", payload)
+            return user, {"type": "oauth2", "token": token}
+
+        except Exception as exc:
+            error_payload = self._build_payload(
+                token=token, request=request, authentication_type="oauth2", error=str(exc)
+            )
+            await self.trigger_event("on_error", error_payload)
+            logger.warning("OAuth2 authentication error: %s", exc)
+            return None
+
+    def authenticate_header(self, request: Request) -> str:
+        return "Bearer"
+
+    # ── Event API ──────────────────────────────────────────────────────────
+
+    def load_oauth2_events(self) -> dict[str, str]:
+        """Return the ``OAUTH2_EVENTS`` mapping from settings.
+
+        Returns an empty dict when the setting is absent, ensuring the event
+        system degrades gracefully with no configuration required.
+        """
+        return dict(getattr(settings, "OAUTH2_EVENTS", {}))
+
+    def resolve_event_handler(self, path: str) -> Any:
+        """Import and return the callable at the given dotted *path*.
+
+        Args:
+            path: A fully-qualified dotted import path such as
+                ``"myapp.events.oauth_success"``.
+
+        Returns:
+            The imported callable.
+
+        Raises:
+            ValueError: If *path* does not look like a valid dotted path.
+            ImportError: If the module cannot be imported.
+            AttributeError: If the attribute is absent from the module.
+        """
+        if not _DOTTED_PATH_RE.match(path):
+            raise ValueError(
+                f"Invalid event handler path {path!r}. "
+                "Expected a fully-qualified dotted Python path "
+                "(e.g. 'myapp.events.oauth_success')."
+            )
+        module_path, func_name = path.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        return getattr(module, func_name)
+
+    async def trigger_event(self, event_name: str, payload: dict[str, Any]) -> None:
+        """Trigger the named OAuth2 lifecycle event with *payload*.
+
+        The call is completely safe: import errors and handler exceptions are
+        both caught, logged, and swallowed so that authentication is never
+        interrupted by a broken event handler.
+
+        Args:
+            event_name: One of ``on_success``, ``on_fail``, ``on_error``,
+                ``on_initial``.
+            payload: Arbitrary dict passed verbatim to the handler.
+        """
+        if event_name not in _OAUTH2_EVENT_NAMES:
+            logger.debug("Unknown OAuth2 event name %r — skipping.", event_name)
+            return
+
+        events = self.load_oauth2_events()
+        handler_path = events.get(event_name)
+        if not handler_path:
+            return
+
+        try:
+            handler = self.resolve_event_handler(handler_path)
+        except (ImportError, AttributeError, ValueError) as exc:
+            logger.error(
+                "OAuth2 event %r: could not import handler %r — %s",
+                event_name,
+                handler_path,
+                exc,
+            )
+            return
+
+        try:
+            if inspect.iscoroutinefunction(handler):
+                await handler(payload)
+            else:
+                handler(payload)
+        except Exception as exc:
+            logger.error(
+                "OAuth2 event %r: handler %r raised %s — %s",
+                event_name,
+                handler_path,
+                type(exc).__name__,
+                exc,
+            )
+
+    # ── Internal helpers ──────────────────────────────────────────────────
+
+    def _build_payload(
+        self,
+        *,
+        token: str,
+        request: Any,
+        authentication_type: str,
+        provider: str = "",
+        user_info: dict[str, Any] | None = None,
+        email: str = "",
+        name: str = "",
+        provider_user_id: str = "",
+        error: str = "",
+    ) -> dict[str, Any]:
+        """Assemble the standard event payload dict."""
+        return {
+            "provider": provider,
+            "access_token": token,
+            "user_info": user_info or {},
+            "email": email,
+            "name": name,
+            "provider_user_id": provider_user_id,
+            "request": request,
+            "authentication_type": authentication_type,
+            "error": error,
+        }
+
+    async def _resolve_oauth2_user(self, token: str) -> Any | None:
+        """Decode the OAuth2 Bearer token and return the user ID, or ``None``.
+
+        The default implementation attempts JWT decoding via the shared
+        :func:`decode_access_token` helper.  Subclasses can override this
+        to support provider-specific introspection.
+        """
+        try:
+            jwt_payload = decode_access_token(token)
+            jti = jwt_payload.get("jti")
+            if jti and await is_token_revoked(jti):
+                return None
+            return jwt_payload.get("sub")
+        except Exception:
+            return None
+
+    async def _is_first_login(self, user: Any) -> bool:
+        """Return ``True`` when *user* has never logged in before.
+
+        Checks ``last_login`` on the user object.  Subclasses may override
+        to query an external store.
+        """
+        return getattr(user, "last_login", None) is None

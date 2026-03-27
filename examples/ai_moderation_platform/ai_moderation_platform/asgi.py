@@ -16,14 +16,5 @@ os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "ai_moderation_platform.setti
 # Initialize Openviper settings
 openviper.setup()
 
-try:
-    from .routes import route_paths
-except ImportError:
-    route_paths = []
-
 # Create application
 app = OpenViper()
-
-# Include routers
-for prefix, router in route_paths:
-    app.include_router(router, prefix=prefix)

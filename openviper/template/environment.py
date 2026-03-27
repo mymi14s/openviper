@@ -51,9 +51,11 @@ def get_jinja2_env(search_paths: tuple[str, ...]) -> Any:
     """
     if Environment is None:
         raise ImportError("jinja2 is required for template rendering")
+    auto_reload = getattr(settings, "TEMPLATE_AUTO_RELOAD", True)
     env = Environment(
         loader=FileSystemLoader(list(search_paths)),
         autoescape=select_autoescape(enabled_extensions=("html", "jinja2"), default=True),
+        auto_reload=auto_reload,
     )
     plugin_loader.load(env)
     return env

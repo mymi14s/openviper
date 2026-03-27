@@ -25,8 +25,7 @@ def get_cache() -> BaseCache:
     if backend == "memory":
         _cache_instance = InMemoryCache()
     elif backend == "redis":
-        # Pull redis URL from settings if available, else use default local
-        redis_url = getattr(settings, "REDIS_URL", "redis://localhost:6379")
+        redis_url = settings.CACHE_URL or "redis://localhost:6379"
         _cache_instance = RedisCache(url=redis_url)
     elif "." in backend:
         # Load custom backend class via dotted path

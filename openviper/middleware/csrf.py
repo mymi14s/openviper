@@ -163,25 +163,40 @@ class CSRFMiddleware(BaseMiddleware):
 
         # Validation for unsafe methods
         if path not in self._exempt_paths and method not in CSRF_SAFE_METHODS:
-            submitted = submitted_raw.decode("latin-1") if submitted_raw else ""
-            if not submitted:
-                content_type = b""
-                for name, value in scope.get("headers", []):
-                    if name.lower() == b"content-type":
-                        content_type = value
-                        break
-                if b"application/x-www-form-urlencoded" in content_type:
-                    submitted, receive = await self._extract_form_token(receive)
+            # Requests from a CSRF_TRUSTED_ORIGINS entry skip token validation.
+            origin_raw = b""
+            for name, value in scope.get("headers", []):
+                if name.lower() == b"origin":
+                    origin_raw = value
+                    break
+            is_trusted = False
+            if origin_raw:
+                origin = origin_raw.decode("latin-1").rstrip("/")
+                trusted: tuple[str, ...] = getattr(settings, "CSRF_TRUSTED_ORIGINS", ())
+                is_trusted = any(origin == t.rstrip("/") for t in trusted)
 
-            secret = self._get_secret()
-            if (
-                not csrf_cookie
-                or not submitted
-                or not _verify_csrf_token(csrf_cookie, submitted, secret)
-            ):
-                response = JSONResponse({"detail": "CSRF verification failed."}, status_code=403)
-                await response(scope, receive, send)
-                return
+            if not is_trusted:
+                submitted = submitted_raw.decode("latin-1") if submitted_raw else ""
+                if not submitted:
+                    content_type = b""
+                    for name, value in scope.get("headers", []):
+                        if name.lower() == b"content-type":
+                            content_type = value
+                            break
+                    if b"application/x-www-form-urlencoded" in content_type:
+                        submitted, receive = await self._extract_form_token(receive)
+
+                secret = self._get_secret()
+                if (
+                    not csrf_cookie
+                    or not submitted
+                    or not _verify_csrf_token(csrf_cookie, submitted, secret)
+                ):
+                    response = JSONResponse(
+                        {"detail": "CSRF verification failed."}, status_code=403
+                    )
+                    await response(scope, receive, send)
+                    return
 
         # Wrap send to set cookie if missing
         async def send_wrapper(message: dict[str, Any]) -> None:

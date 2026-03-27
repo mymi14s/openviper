@@ -41,8 +41,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
-from openviper.exceptions import MethodNotAllowed
+from openviper.conf import settings
+from openviper.exceptions import MethodNotAllowed, PermissionDenied
 from openviper.http.response import JSONResponse, Response
+from openviper.utils.importlib import import_string
 
 if TYPE_CHECKING:
     from openviper.http.request import Request
@@ -106,7 +108,17 @@ class View:
     #: Optional Pydantic serializer class for request body schema.
     #: When set, the OpenAPI schema generator uses it to produce the
     #: ``requestBody`` entry so that Swagger UI displays input fields.
-    serializer_class: Any = None
+    serializer_class: list[Any] = []
+
+    #: List of authentication classes to apply to this view.
+    #: When ``None``, falls back to ``settings.DEFAULT_AUTHENTICATION_CLASSES``.
+    #: Set to ``[]`` to explicitly disable per-view authentication.
+    authentication_classes: list[Any] = []
+
+    #: List of permission classes to apply to this view.
+    #: When ``None``, falls back to ``settings.DEFAULT_PERMISSION_CLASSES``.
+    #: Set to ``[]`` to explicitly disable per-view permission checks.
+    permission_classes: list[Any] = []
 
     def __init__(self, **kwargs: Any) -> None:
         for key, value in kwargs.items():
@@ -123,11 +135,103 @@ class View:
         method = request.method.lower()
         if method not in self.http_method_names:
             return cast("Response", self.http_method_not_allowed(request))
+
+        # Perform authentication and check permissions before dispatching
+        await self.perform_authentication(request)
+        await self.check_permissions(request)
+
         handler = getattr(self, method, self.http_method_not_allowed)
         result = await handler(request, **kwargs)
         if isinstance(result, (dict, list)):
             return JSONResponse(result)
         return cast("Response", result)
+
+    async def perform_authentication(self, request: Request) -> None:
+        """
+        Attempt to authenticate the request using the configured
+        authentication classes.
+        """
+        for authenticator in self.get_authenticators():
+            try:
+                result = await authenticator.authenticate(request)
+                if result is not None:
+                    request.user, request.auth = result
+                    return
+            except Exception:
+                # Authentication failures in per-view auth are ignored
+                # unless explicitly required by a permission class.
+                pass
+
+    def get_authenticators(self) -> list[Any]:
+        """Load and instantiate the authentication classes."""
+        authenticators = []
+        auth_classes = self.authentication_classes
+        if auth_classes is None:
+            auth_classes = settings.DEFAULT_AUTHENTICATION_CLASSES
+
+        for auth_class in auth_classes:
+            if isinstance(auth_class, str):
+                auth_class = import_string(auth_class)
+            authenticators.append(auth_class())
+        return authenticators
+
+    async def check_permissions(self, request: Request) -> None:
+        """Check if the request should be permitted.
+
+        Iterates through :attr:`permission_classes` and calls
+        ``has_permission(request, self)`` on each.
+
+        Args:
+            request: The incoming request.
+
+        Raises:
+            PermissionDenied: If any permission check fails.
+        """
+        # Superusers bypass all view-level permission checks.
+        if getattr(request.user, "is_superuser", False):
+            return
+
+        for permission in self.get_permissions():
+            if not await permission.has_permission(request, self):
+                self.permission_denied(request)
+
+    async def check_object_permissions(self, request: Request, obj: Any) -> None:
+        """
+        Check if the request should be permitted to access the given object.
+        Raises PermissionDenied if any permission check fails.
+        """
+        # Superusers bypass all object-level permission checks.
+        if getattr(request.user, "is_superuser", False):
+            return
+
+        for permission in self.get_permissions():
+            if not await permission.has_object_permission(request, self, obj):
+                self.permission_denied(request)
+
+    def get_permissions(self) -> list[Any]:
+        """Instantiate and return the list of permissions that this view requires.
+
+        Handles permission classes (types), already-instantiated permissions,
+        dotted-path strings (from settings), and ``OperandHolder`` composites.
+        """
+        perm_sources = self.permission_classes
+        if perm_sources is None:
+            perm_sources = settings.DEFAULT_PERMISSION_CLASSES
+
+        permissions: list[Any] = []
+        for entry in perm_sources:
+            if isinstance(entry, str):
+                entry = import_string(entry)
+            # callable but not a type covers OperandHolder
+            if isinstance(entry, type) or callable(entry) and not hasattr(entry, "has_permission"):
+                permissions.append(entry())
+            else:
+                permissions.append(entry)
+        return permissions
+
+    def permission_denied(self, request: Request, message: str | None = None) -> None:
+        """If request is not permitted, determine what kind of exception to raise."""
+        raise PermissionDenied(detail=message)
 
     def http_method_not_allowed(self, request: Request, **kwargs: Any) -> Any:
         """Return a 405 Method Not Allowed error."""
@@ -190,6 +294,8 @@ class View:
             # If an explicit action name was provided (via register()), skip dispatch
             # and call that specific method directly.
             if _action_name:
+                await self.perform_authentication(request)
+                await self.check_permissions(request)
                 handler = getattr(self, _action_name)
                 result = await handler(request, **kwargs)
             else:

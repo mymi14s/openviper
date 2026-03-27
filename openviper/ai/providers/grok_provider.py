@@ -9,10 +9,10 @@ Installation:
 Configuration:
     .. code-block:: python
 
-        from openviper.ai.registry import ai_registry
+        from openviper.ai.registry import provider_registry
         from openviper.ai.providers.grok_provider import GrokProvider
 
-        ai_registry.register("grok", GrokProvider, config={
+        provider_registry.register("grok", GrokProvider, config={
             "api_key": "YOUR_XAI_API_KEY",
             "model": "grok-2-latest",
         })

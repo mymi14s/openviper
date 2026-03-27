@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ModelConfig, ModelInstance } from '@/types/admin'
-import { formatFieldName } from '@/utils/formatters'
+import { formatFieldName, isValidUrl } from '@/utils/formatters'
 
 const props = defineProps<{
   model: ModelConfig
@@ -179,6 +179,16 @@ function getFieldLabel(fieldName: string): string {
                   </svg>
                 </span>
               </div>
+            </template>
+            <template v-else-if="props.model.fields.find(f => f.name === column)?.type === 'URLField' && isValidUrl(instance[column])">
+              <a
+                :href="instance[column]"
+                target="_blank"
+                class="text-primary-600 hover:text-primary-700 dark:text-primary-400 underline"
+                @click.stop
+              >
+                {{ formatValue(instance[column]) }}
+              </a>
             </template>
             <template v-else>
               {{ formatValue(instance[column]) }}

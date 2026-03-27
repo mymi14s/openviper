@@ -103,7 +103,7 @@ class PermissionDenied(HTTPException):
 
     __slots__ = ()
 
-    def __init__(self, detail: str = "Permission denied.") -> None:
+    def __init__(self, detail: str | None = "Permission denied.") -> None:
         super().__init__(403, detail)
 
 

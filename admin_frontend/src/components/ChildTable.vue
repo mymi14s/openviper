@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import type { ModelField } from '@/types/admin'
 import ForeignKeyField from '@/components/ForeignKeyField.vue'
-import { formatFieldName } from '@/utils/formatters'
+import { formatFieldName, isValidUrl } from '@/utils/formatters'
 
 interface ChildTableConfig {
   name: string
@@ -430,6 +430,44 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                   rows="2"
                   class="block w-full px-2 py-1.5 text-sm font-mono border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white min-w-[200px]"
                 ></textarea>
+
+                <!-- URL Field -->
+                <div v-else-if="getFieldType(config.fields[fieldName]) === 'url'" class="space-y-1">
+                  <div v-if="isReadonly(fieldName)" class="py-1">
+                    <a
+                      v-if="isValidUrl(row[fieldName])"
+                      :href="row[fieldName]"
+                      target="_blank"
+                      class="text-primary-600 hover:text-primary-700 dark:text-primary-400 underline text-sm break-all"
+                    >
+                      {{ row[fieldName] }}
+                    </a>
+                    <span v-else class="text-gray-500 dark:text-gray-400 italic text-sm">
+                      {{ row[fieldName] || 'Not set' }}
+                    </span>
+                  </div>
+                  <div v-else class="flex space-x-1">
+                    <input
+                      :type="getFieldType(config.fields[fieldName])"
+                      :value="formatDateTimeValue(row[fieldName], getFieldType(config.fields[fieldName]))"
+                      :disabled="isReadonly(fieldName)"
+                      :required="config.fields[fieldName].required"
+                      @input="handleDateTimeChange(idx, fieldName, ($event.target as HTMLInputElement).value, getFieldType(config.fields[fieldName]))"
+                      class="block w-full px-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+                    />
+                    <a
+                      v-if="isValidUrl(row[fieldName])"
+                      :href="row[fieldName]"
+                      target="_blank"
+                      class="inline-flex items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                      title="Open link in new tab"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                </div>
 
                 <!-- Input -->
                 <div v-else class="space-y-1">

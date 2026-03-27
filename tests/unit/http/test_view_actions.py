@@ -24,6 +24,9 @@ def request_mock():
 
 
 class UserView(View):
+    authentication_classes = []
+    permission_classes = []
+
     async def get(self, request, **kwargs):
         return JSONResponse({"action": "list"})
 

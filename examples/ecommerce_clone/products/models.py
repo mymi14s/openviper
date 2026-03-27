@@ -13,6 +13,7 @@ from openviper.db.fields import (
     TextField,
     UUIDField,
 )
+from openviper.db.models import Index
 
 
 class Category(Model):
@@ -51,6 +52,9 @@ class Product(Model):
 
     class Meta:
         table_name = "products_product"
+        indexes = [
+            Index(fields=["name", "id"], name="idx_product_name_id"),
+        ]
 
     def __str__(self) -> str:
         return self.name or ""

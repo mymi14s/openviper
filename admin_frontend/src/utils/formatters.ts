@@ -34,3 +34,18 @@ export function getFieldLabel(field: { label?: string; name: string }): string {
   const label = field.label || field.name
   return formatFieldName(label)
 }
+
+/**
+ * Checks if a string is a valid HTTP or HTTPS URL
+ * @param url - The string to check
+ * @returns True if valid URL
+ */
+export function isValidUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}

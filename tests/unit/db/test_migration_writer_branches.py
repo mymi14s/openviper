@@ -28,6 +28,7 @@ from openviper.db.migrations.writer import (
     write_migration,
 )
 from openviper.db.models import Model
+from openviper.exceptions import MigrationError
 
 
 def test_validate_identifier_rejects_invalid_names():
@@ -154,7 +155,7 @@ def test_diff_states_incompatible_type_with_soft_removed_exits():
                 "unique_together": [],
             }
         }
-        with pytest.raises(SystemExit):
+        with pytest.raises(MigrationError):
             _diff_states(current, existing)
     finally:
         _soft_removed_columns.clear()
@@ -381,7 +382,7 @@ def test_diff_states_removed_prefix_incompatible_type_exits():
         }
     }
 
-    with pytest.raises(SystemExit):
+    with pytest.raises(MigrationError):
         _diff_states(current, existing)
 
 

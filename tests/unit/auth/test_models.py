@@ -4,12 +4,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from openviper.auth._user_cache import _USER_CACHE, invalidate_user_cache
 from openviper.auth.models import (
     AnonymousUser,
     Permission,
     Role,
     User,
+    _on_user_update,
 )
+from openviper.core.context import request_perms_cache
 
 
 class TestPermissionModel:
@@ -138,10 +141,10 @@ class TestAbstractUserPermissionMethods:
 
         user = User()
         user.is_superuser = False
-        user._cached_perms = {"post.create", "post.read"}
 
-        assert await user.has_perm("post.create") is True
-        assert await user.has_perm("post.delete") is False
+        with patch.object(user, "get_permissions", new=AsyncMock(return_value={"post.create"})):
+            assert await user.has_perm("post.create") is True
+            assert await user.has_perm("post.delete") is False
 
     @pytest.mark.asyncio
     async def test_has_role_returns_true_for_superuser(self):
@@ -183,28 +186,29 @@ class TestAbstractUserPermissionMethods:
         """Superusers should get all permissions."""
 
         user = User()
+        user.id = 99
         user.is_superuser = True
 
-        mock_perm1 = MagicMock()
-        mock_perm1.codename = "perm1"
-        mock_perm2 = MagicMock()
-        mock_perm2.codename = "perm2"
-
-        with patch("openviper.auth.models.Permission.objects.filter") as mock_filter:
-            mock_filter.return_value.all = AsyncMock(return_value=[mock_perm1, mock_perm2])
-
+        with patch(
+            "openviper.auth.models.Permission.objects.values_list",
+            new=AsyncMock(return_value=["perm1", "perm2"]),
+        ):
             perms = await user.get_permissions()
             assert perms == {"perm1", "perm2"}
 
     @pytest.mark.asyncio
     async def test_get_permissions_uses_cache(self):
-        """Should use cached permissions if available."""
+        """Should use cached permissions if available in the request ContextVar."""
 
         user = User()
-        user._cached_perms = {"cached.perm"}
+        user.id = 1
 
-        perms = await user.get_permissions()
-        assert perms == {"cached.perm"}
+        token = request_perms_cache.set({1: {"cached.perm"}})
+        try:
+            perms = await user.get_permissions()
+            assert perms == {"cached.perm"}
+        finally:
+            request_perms_cache.reset(token)
 
 
 class TestAbstractUserRoleMethods:
@@ -260,10 +264,13 @@ class TestAbstractUserRoleMethods:
         mock_role = MagicMock()
         mock_role.pk = 2
 
+        mock_ur = MagicMock()
+        mock_ur.delete = AsyncMock()
+
         with patch("openviper.auth.models.UserRole.objects.filter") as mock_filter:
-            mock_filter.return_value.delete = AsyncMock()
+            mock_filter.return_value.first = AsyncMock(return_value=mock_ur)
             await user.remove_role(mock_role)
-            mock_filter.return_value.delete.assert_called_once()
+            mock_ur.delete.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_get_roles_returns_roles_from_role_profile(self):
@@ -448,3 +455,36 @@ class TestAnonymousUser:
         """Should have descriptive repr."""
         user = AnonymousUser()
         assert repr(user) == "AnonymousUser"
+
+
+class TestOnUserUpdate:
+    """User.on_update model event evicts the user from the in-process auth cache."""
+
+    def test_invalidate_user_cache_called_with_user_pk(self) -> None:
+        """Event handler calls invalidate_user_cache with the instance pk."""
+        instance = MagicMock()
+        instance.pk = 42
+        with patch("openviper.auth.models.invalidate_user_cache") as mock_invalidate:
+            _on_user_update(instance, event="on_update")
+            mock_invalidate.assert_called_once_with(42)
+
+    def test_no_call_when_pk_is_none(self) -> None:
+        """Event handler does nothing when the instance has no pk."""
+        instance = MagicMock()
+        instance.pkg = None
+        instance.pk = None
+        with patch("openviper.auth.models.invalidate_user_cache") as mock_invalidate:
+            _on_user_update(instance, event="on_update")
+            mock_invalidate.assert_not_called()
+
+    def test_invalidate_user_cache_removes_entry(self) -> None:
+        """invalidate_user_cache pops the user id from _USER_CACHE."""
+        _USER_CACHE[99] = (MagicMock(), 9999999.0)
+        assert 99 in _USER_CACHE
+        invalidate_user_cache(99)
+        assert 99 not in _USER_CACHE
+
+    def test_invalidate_user_cache_noop_for_missing_id(self) -> None:
+        """invalidate_user_cache does not raise when the id is absent."""
+        _USER_CACHE.pop(1000, None)
+        invalidate_user_cache(1000)  # must not raise

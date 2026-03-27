@@ -11,6 +11,8 @@ import bcrypt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
+from openviper.conf import settings
+
 # Singleton PasswordHasher instances to avoid recreation overhead
 _ARGON2_HASHER_MAKE = PasswordHasher(
     time_cost=2,
@@ -30,7 +32,7 @@ _DUMMY_PASSWORD_SECRET = secrets.token_urlsafe(32)
 _ARGON2_DUMMY_HASH: str = "argon2$" + _ARGON2_HASHER_MAKE.hash(_DUMMY_PASSWORD_SECRET)
 
 
-async def make_password(raw_password: str, algorithm: str = "argon2") -> str:
+async def make_password(raw_password: str, algorithm: str | None = None) -> str:
     """Hash a raw password (CPU-intensive, runs in thread pool).
 
     Args:
@@ -40,6 +42,9 @@ async def make_password(raw_password: str, algorithm: str = "argon2") -> str:
     Returns:
         The hashed password string (prefixed with algorithm identifier).
     """
+    if algorithm is None:
+        hashers: tuple[str, ...] = getattr(settings, "PASSWORD_HASHERS", ("argon2", "bcrypt"))
+        algorithm = hashers[0] if hashers else "argon2"
     # Testing-only plain hasher — never use in production
     if algorithm == "plain":
         env = os.environ.get("ENVIRONMENT", "").lower()

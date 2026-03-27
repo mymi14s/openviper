@@ -257,9 +257,6 @@ def get_field_schema(field: Field) -> dict[str, Any]:
                             resolved_model = getattr(module, model_name, None)
                         except ImportError, AttributeError:
                             pass
-
-                if resolved_model is not None:
-                    # Got the actual model class - use its _app_name
                     app_name = getattr(
                         resolved_model,
                         "_app_name",

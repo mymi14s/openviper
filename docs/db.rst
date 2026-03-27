@@ -211,11 +211,40 @@ Key Classes & Functions
 
    .. py:method:: limit(n) -> QuerySet
 
-      Limit the number of rows returned.
+      Limit the number of rows returned (SQL ``LIMIT``).
+
+      .. code-block:: python
+
+         # Get first 10 posts
+         posts = await Post.objects.order_by("-created_at").limit(10).all()
+
+         # Combine with offset for manual pagination
+         page_size = 20
+         page = 3
+         offset = (page - 1) * page_size
+         posts = await Post.objects.limit(page_size).offset(offset).all()
 
    .. py:method:: offset(n) -> QuerySet
 
-      Skip the first *n* rows.
+      Skip the first *n* rows (SQL ``OFFSET``).
+
+      .. warning::
+         ``OFFSET`` performance degrades linearly with the offset value.
+         For example, ``OFFSET 1000000`` requires scanning 1M rows before
+         returning results. For deep pagination, prefer keyset (cursor)
+         pagination using :meth:`paginate` with a cursor, or use
+         :meth:`iterator` for streaming large datasets.
+
+      .. code-block:: python
+
+         # Manual pagination with offset (simple but slow for deep pages)
+         page_size = 20
+         page_number = 2
+         offset = (page_number - 1) * page_size
+         posts = await Post.objects.order_by("id").limit(page_size).offset(offset).all()
+
+         # Better: Use paginate() which runs COUNT + fetch concurrently
+         page = await Post.objects.order_by("id").paginate(page_number=2, page_size=20)
 
    .. py:method:: distinct() -> QuerySet
 
@@ -312,6 +341,50 @@ Key Classes & Functions
 
       Return the database ``EXPLAIN`` plan for the current query.
 
+   .. py:method:: raw_sql() -> str
+
+      Return the raw SQL query string with literal parameter values.
+      Non-async method useful for debugging and logging.
+
+      .. code-block:: python
+
+         qs = Post.objects.filter(is_published=True).order_by("-created_at").limit(10)
+         print(qs.raw_sql())
+         # SELECT posts.* FROM posts WHERE is_published = 1
+         # ORDER BY created_at DESC LIMIT 10
+
+   .. py:method:: paginate(page_number=1, page_size=25, cursor=None) -> Awaitable[Page]
+
+      Paginate the queryset efficiently using concurrent COUNT and data fetch.
+      Returns a :class:`Page` object containing items, total count, and cursor.
+
+      Uses ``asyncio.gather()`` to run the count and fetch queries in parallel
+      for ~2x faster performance. Supports both OFFSET-based pagination (via
+      ``page_number``) and keyset cursor pagination for sequential navigation.
+
+      .. code-block:: python
+
+         # Basic pagination
+         page = await Post.objects.filter(is_published=True).paginate(
+             page_number=2,
+             page_size=20
+         )
+         # page.items         → list[Post] (20 items)
+         # page.total_count   → total matching rows
+         # page.number        → current page (2)
+         # page.page_size     → items per page (20)
+         # page.next_cursor   → cursor for next page (or None)
+
+         # With cursor for fast sequential navigation
+         page = await Post.objects.order_by("created_at", "id").paginate(
+             page_number=1,
+             page_size=20,
+             cursor=request.query_params.get("cursor")
+         )
+
+      **Performance:** COUNT and data fetch execute concurrently. Deep pages
+      using OFFSET can be slow (O(N)); prefer cursors for Next/Prev navigation.
+
    **Streaming / large datasets:**
 
    .. py:method:: iterator(chunk_size=2000) -> AsyncGenerator[Model, None]
@@ -340,6 +413,36 @@ Key Classes & Functions
 
    Encapsulate filter conditions supporting ``|`` (OR), ``&`` (AND), and
    ``~`` (NOT).
+
+.. py:class:: Page
+
+   Pagination result container returned by :meth:`QuerySet.paginate`.
+
+   .. py:attribute:: items
+      :type: list[Model]
+
+      The list of model instances for this page.
+
+   .. py:attribute:: total_count
+      :type: int
+
+      Total number of matching rows across all pages.
+
+   .. py:attribute:: number
+      :type: int
+
+      Current page number (1-indexed).
+
+   .. py:attribute:: page_size
+      :type: int
+
+      Maximum items per page.
+
+   .. py:attribute:: next_cursor
+      :type: str | None
+
+      Base64-encoded cursor for the next page (for keyset pagination).
+      ``None`` if this is the last page.
 
 **Aggregate classes:**
 

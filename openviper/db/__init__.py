@@ -8,6 +8,7 @@ from openviper.db.connection import (
     get_engine,
     init_db,
 )
+from openviper.db.executor import preload_table_schemas
 from openviper.db.models import AbstractModel, Manager, Model, QuerySet
 
 __all__ = [
@@ -16,6 +17,7 @@ __all__ = [
     "init_db",
     "close_db",
     "configure_db",
+    "preload_table_schemas",
     "Model",
     "AbstractModel",
     "Manager",

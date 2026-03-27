@@ -49,21 +49,41 @@ class SecurityMiddleware(BaseMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        ssl_redirect: bool = False,
-        hsts_seconds: int = 0,
-        hsts_include_subdomains: bool = False,
-        hsts_preload: bool = False,
-        x_frame_options: str = "DENY",
+        ssl_redirect: bool | None = None,
+        hsts_seconds: int | None = None,
+        hsts_include_subdomains: bool | None = None,
+        hsts_preload: bool | None = None,
+        x_frame_options: str | None = None,
         content_type_nosniff: bool = True,
         xss_filter: bool | None = None,
         csp: dict[str, Any] | str | None = None,
     ) -> None:
         super().__init__(app)
-        self.ssl_redirect = ssl_redirect
-        self.hsts_seconds = hsts_seconds
-        self.hsts_include_subdomains = hsts_include_subdomains
-        self.hsts_preload = hsts_preload
-        self.x_frame_options = x_frame_options
+        self.ssl_redirect = (
+            ssl_redirect
+            if ssl_redirect is not None
+            else getattr(settings, "SECURE_SSL_REDIRECT", False)
+        )
+        self.hsts_seconds = (
+            hsts_seconds
+            if hsts_seconds is not None
+            else getattr(settings, "SECURE_HSTS_SECONDS", 0)
+        )
+        self.hsts_include_subdomains = (
+            hsts_include_subdomains
+            if hsts_include_subdomains is not None
+            else getattr(settings, "SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+        )
+        self.hsts_preload = (
+            hsts_preload
+            if hsts_preload is not None
+            else getattr(settings, "SECURE_HSTS_PRELOAD", False)
+        )
+        self.x_frame_options = (
+            x_frame_options
+            if x_frame_options is not None
+            else getattr(settings, "X_FRAME_OPTIONS", "DENY")
+        )
         self.content_type_nosniff = content_type_nosniff
         self.xss_filter = (
             xss_filter
@@ -78,14 +98,14 @@ class SecurityMiddleware(BaseMiddleware):
         self._fixed_headers: list[tuple[bytes, bytes]] = []
         if content_type_nosniff:
             self._fixed_headers.append((b"x-content-type-options", b"nosniff"))
-        if x_frame_options:
-            self._fixed_headers.append((b"x-frame-options", x_frame_options.encode("latin-1")))
+        if self.x_frame_options:
+            self._fixed_headers.append((b"x-frame-options", self.x_frame_options.encode("latin-1")))
         self._fixed_headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
-        if hsts_seconds > 0:
-            hsts = f"max-age={hsts_seconds}"
-            if hsts_include_subdomains:
+        if self.hsts_seconds > 0:
+            hsts = f"max-age={self.hsts_seconds}"
+            if self.hsts_include_subdomains:
                 hsts += "; includeSubDomains"
-            if hsts_preload:
+            if self.hsts_preload:
                 hsts += "; preload"
             self._fixed_headers.append((b"strict-transport-security", hsts.encode("latin-1")))
         if self.xss_filter:

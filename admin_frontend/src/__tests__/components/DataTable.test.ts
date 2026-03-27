@@ -14,20 +14,21 @@ const mockModel: any = {
   table: 'blog_post',
   verbose_name: 'Post',
   verbose_name_plural: 'Posts',
-  list_display: ['id', 'title', 'is_published'],
+  list_display: ['id', 'title', 'is_published', 'website'],
   list_filter: [],
   search_fields: ['title'],
   fields: [
     { name: 'id', type: 'integer', label: 'ID' },
     { name: 'title', type: 'string', label: 'Title' },
     { name: 'is_published', type: 'boolean', label: 'Published' },
+    { name: 'website', type: 'URLField', label: 'Website' },
   ],
   permissions: { view: true, add: true, change: true, delete: true },
 }
 
 const mockInstances = [
-  { id: 1, title: 'First Post', is_published: true },
-  { id: 2, title: 'Second Post', is_published: false },
+  { id: 1, title: 'First Post', is_published: true, website: 'https://example.com' },
+  { id: 2, title: 'Second Post', is_published: false, website: 'not-a-url' },
 ]
 
 function mountDataTable(props = {}) {
@@ -53,8 +54,8 @@ describe('DataTable Component', () => {
     it('renders headers based on list_display', () => {
       const wrapper = mountDataTable()
       const headers = wrapper.findAll('th')
-      // 3 data columns
-      expect(headers.length).toBe(3)
+      // 4 data columns (id, title, is_published, website)
+      expect(headers.length).toBe(4)
       expect(headers[1].text()).toBe('Title')
     })
 
@@ -63,8 +64,7 @@ describe('DataTable Component', () => {
       const rows = wrapper.findAll('tbody tr')
       expect(rows).toHaveLength(2)
       expect(wrapper.text()).toContain('First Post')
-      expect(wrapper.text()).toContain('Yes') // Boolean formatting
-      expect(wrapper.text()).toContain('No')  // Boolean formatting
+      // Note: Booleans are rendered as icons, so they don't appear in text()
     })
 
     it('shows loading spinner when loading is true', () => {
@@ -75,6 +75,24 @@ describe('DataTable Component', () => {
     it('shows empty state message when no instances', () => {
       const wrapper = mountDataTable({ instances: [] })
       expect(wrapper.text()).toContain('No items found')
+    })
+
+    it('renders valid URLField as a link', () => {
+      const wrapper = mountDataTable()
+      const links = wrapper.findAll('a')
+      const websiteLink = links.find(a => a.text() === 'https://example.com')
+      expect(websiteLink).toBeTruthy()
+      expect(websiteLink?.attributes('href')).toBe('https://example.com')
+      expect(websiteLink?.attributes('target')).toBe('_blank')
+    })
+
+    it('renders invalid URLField as plain text', () => {
+      const wrapper = mountDataTable()
+      const cells = wrapper.findAll('td')
+      const invalidUrlCell = cells.find(td => td.text() === 'not-a-url')
+      expect(invalidUrlCell).toBeTruthy()
+      // Should NOT be an anchor tag
+      expect(invalidUrlCell?.find('a').exists()).toBe(false)
     })
   })
 

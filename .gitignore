@@ -159,7 +159,7 @@ secrets/
 # Openviper Specific
 # ===============================
 instance/
-*media/*
+media/
 openviper/admin/static/
 openviper.egg-info
 *worker_debug*.txt

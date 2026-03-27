@@ -14,6 +14,8 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import importlib
+import importlib.util
 import logging
 import os
 import signal
@@ -26,6 +28,8 @@ from openviper.core.management.base import BaseCommand
 from openviper.tasks.worker import run_worker
 
 logger = logging.getLogger("openviper.tasks")
+
+_MISSING = object()  # Sentinel for sys.modules lookup when key is absent
 
 _SKIP_DIRS: frozenset[str] = frozenset(
     {"migrations", "tests", "__pycache__", ".git", "static", "templates"}
@@ -91,7 +95,7 @@ class Command(BaseCommand):
 
     def handle(self, **options) -> None:  # type: ignore[override]
         try:
-            import dramatiq  # noqa: F401
+            importlib.import_module("dramatiq")
         except ImportError:
             self.stderr(self.style_error("dramatiq is required: pip install 'openviper[tasks]'"))
             sys.exit(1)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import secrets
 import time
 from collections import deque
 from collections.abc import Callable
@@ -22,9 +23,64 @@ from openviper.http.request import Request
 from openviper.http.response import JSONResponse
 from openviper.middleware.base import BaseMiddleware
 
+try:
+    import redis.asyncio as _aioredis
+
+    _REDIS_AVAILABLE: bool = True
+except ImportError:
+    _aioredis = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
+
 # Number of independent lock stripes.  Must be a power of two so bitwise AND
 # can replace modulo in the hot path.
 _STRIPE_COUNT: Final[int] = 256
+
+# ---------------------------------------------------------------------------
+# Redis sliding-window counter
+# ---------------------------------------------------------------------------
+
+
+class _RedisWindowCounter:
+    """Sliding-window rate counter backed by a Redis sorted set.
+
+    Each key maps to a sorted set whose members are unique request tokens
+    and whose scores are Unix timestamps.  Stale entries (outside the
+    current window) are pruned atomically via ZREMRANGEBYSCORE.
+
+    Requires ``redis>=7.4.0`` (``openviper[redis]``).
+    """
+
+    __slots__ = ("max_requests", "window", "_client")
+
+    def __init__(self, max_requests: int, window_seconds: float) -> None:
+        if not _REDIS_AVAILABLE:
+            raise ImportError(
+                "redis package is required for RATE_LIMIT_BACKEND='redis'. "
+                "Install it with: pip install 'openviper[redis]'"
+            )
+        self.max_requests = max_requests
+        self.window = window_seconds
+        url: str = settings.CACHE_URL or "redis://localhost:6379"
+        self._client = _aioredis.Redis.from_url(url)
+
+    async def is_allowed(self, key: str) -> tuple[bool, int]:
+        """Return ``(allowed, remaining)`` for *key* using a Redis sorted set."""
+        now = time.time()
+        cutoff = now - self.window
+        rk = f"rl:{key}"
+        token = secrets.token_hex(8)
+        pipe = self._client.pipeline()
+        pipe.zremrangebyscore(rk, 0, cutoff)
+        pipe.zadd(rk, {token: now})
+        pipe.zcard(rk)
+        pipe.expire(rk, int(self.window) + 1)
+        results = await pipe.execute()
+        count: int = results[2]
+        if count > self.max_requests:
+            await self._client.zrem(rk, token)
+            return False, 0
+        return True, self.max_requests - count
+
 
 # ---------------------------------------------------------------------------
 # Per-key bucket (slots for minimal overhead)
@@ -149,7 +205,12 @@ class RateLimitMiddleware(BaseMiddleware):
             if window_seconds is not None
             else float(getattr(settings, "RATE_LIMIT_WINDOW", 60))
         )
-        self.counter = _SlidingWindowCounter(self.max_requests, self.window_seconds)
+        self.counter: _SlidingWindowCounter | _RedisWindowCounter = _SlidingWindowCounter(
+            self.max_requests, self.window_seconds
+        )
+        backend = getattr(settings, "RATE_LIMIT_BACKEND", "memory")
+        if backend == "redis":
+            self.counter = _RedisWindowCounter(self.max_requests, self.window_seconds)
         self._key_func = key_func or self._default_key
 
     @staticmethod

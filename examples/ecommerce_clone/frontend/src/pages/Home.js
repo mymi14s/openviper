@@ -9,7 +9,7 @@ const Home = () => {
 
   useEffect(() => {
     getProducts({ page: 1, page_size: 8 }).then((data) => {
-      const items = data?.items ?? (Array.isArray(data) ? data : []);
+      const items = data?.results ?? (Array.isArray(data) ? data : []);
       setProducts(items);
     });
     getCategories().then((data) => setCategories(Array.isArray(data) ? data : []));

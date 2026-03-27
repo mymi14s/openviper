@@ -22,6 +22,7 @@ import aiofiles.os
 import orjson as _orjson
 
 from openviper.conf import settings
+from openviper.core.context import current_request
 from openviper.template.environment import get_jinja2_env
 from openviper.utils.datastructures import MutableHeaders
 
@@ -297,8 +298,6 @@ class HTMLResponse(Response):
         # Auto-inject the current request if not already in context
         if "request" not in context:
             try:
-                from openviper.core.context import current_request
-
                 req = current_request.get()
                 if req is not None:
                     context = {**context, "request": req}

@@ -27,6 +27,7 @@ from openviper.db.migrations.executor import (
     RestoreColumn,
     _types_compatible,
 )
+from openviper.exceptions import MigrationError
 
 # Pattern for valid SQL/Python identifiers
 _IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -734,7 +735,7 @@ def _diff_states(
                 old_col = old_cols[removed_name]
                 new_col = cur_cols[col_name]
                 if not _types_compatible(old_col.get("type", "TEXT"), new_col.get("type", "TEXT")):
-                    raise SystemExit(f"Incompatible types for restored column {col_name}")
+                    raise MigrationError(f"Incompatible types for restored column {col_name}")
                 ops.append(
                     RenameColumn(table_name=table_name, old_name=removed_name, new_name=col_name)
                 )
@@ -747,7 +748,7 @@ def _diff_states(
             if was_soft:
                 new_col = cur_cols[col_name]
                 if not _types_compatible(was_soft.get("type", "TEXT"), new_col.get("type", "TEXT")):
-                    raise SystemExit(f"Incompatible types for soft-restored column {col_name}")
+                    raise MigrationError(f"Incompatible types for soft-restored column {col_name}")
                 ops.append(
                     RestoreColumn(
                         table_name=table_name, column_name=col_name, column_type=new_col["type"]

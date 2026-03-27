@@ -467,7 +467,9 @@ class Router:
                         methods=r.methods,
                         handler=r.handler,
                         name=r.name,
-                        middlewares=r.middlewares + self.middlewares,
+                        # FIX (Bug 3): use the sub-router's own middlewares,
+                        # not self.middlewares (the parent's stack).
+                        middlewares=r.middlewares + sub.middlewares,
                     )
                 )
         return res
@@ -507,11 +509,6 @@ class Router:
         if self._exact_index is None:
             _ = self.routes
 
-        # Fast path: try exact match for literal paths first
-        exact_route = self._exact_index.get(path)  # type: ignore[union-attr]
-        if exact_route and method in exact_route.methods:
-            return exact_route, {}
-
         # Build candidate paths: always try the original path first, then
         # a slash-normalised alternative so that routes registered with a
         # trailing slash are reachable without one and vice-versa.
@@ -530,14 +527,13 @@ class Router:
         params: dict[str, Any] = {}
 
         for candidate in candidates:
-            # Try exact match first for this candidate
             exact_route = self._exact_index.get(candidate)  # type: ignore[union-attr]
             if exact_route:
                 allowed_methods.update(exact_route.methods)
                 if method in exact_route.methods:
                     return exact_route, {}
 
-            # Fall back to regex matching
+            # Fall back to regex matching.
             # Sort candidate routes by specificity: more specific (more literal
             # segments) first. This ensures /path/literal matches before /path/{param}.
             sorted_routes = sorted(
@@ -577,23 +573,21 @@ class Router:
             URL string.
 
         Raises:
-            KeyError: Route name not found.
+            KeyError: Route name not found, or a required path parameter is missing.
         """
-        # Trigger lazy build of indices if needed
         if self._name_index is None:
             _ = self.routes
 
-        # O(1) lookup via name index
         route = self._name_index.get(name)  # type: ignore[union-attr]
         if route is None:
             raise KeyError(f"No route named '{name}'")
 
-        # Single-pass replacement: _PARAM_PLACEHOLDER_RE matches both
-        # {name} and {name:type} in one scan, avoiding the previous O(n*k)
-        # nested loop (n params × k converter names).
         def _replace(m: re.Match[str]) -> str:
             key = m.group(1)
-            return str(path_params[key]) if key in path_params else m.group(0)
+            if key not in path_params:
+                # If key is missing, preserve the original placeholder {key} or {key:type}
+                return m.group(0)
+            return str(path_params[key])
 
         return str(_PARAM_PLACEHOLDER_RE.sub(_replace, route.path))
 
@@ -615,16 +609,10 @@ def include(router: Router, prefix: str = "") -> Router:
         >>> app.include_router(include(user_router, prefix="/api/v1"))
     """
     if prefix:
-        # include(router, "/v1") creates a wrapper router that represents the
-        # included router at the combined prefix. To maintain a live reference
-        # without duplicating the router.prefix in the final path, we share
-        # the route and sub-router lists directly and link them for invalidation.
         wrapper = Router(prefix=_normalize_path(prefix + router.prefix))
-        wrapper._routes = router._routes
-        wrapper._sub_routers = router._sub_routers
+        wrapper._routes = list(router._routes)
+        wrapper._sub_routers = list(router._sub_routers)
         wrapper.middlewares = router.middlewares
-
-        # Link for invalidation: changes to 'router' invalidate 'wrapper'.
         router._parents.add(wrapper)
         return wrapper
     return router

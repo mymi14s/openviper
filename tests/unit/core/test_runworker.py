@@ -1,6 +1,6 @@
 """Unit tests for runworker management command."""
 
-import builtins
+import importlib
 import signal
 import subprocess
 import sys
@@ -38,31 +38,23 @@ class TestDramatiqImport:
 
     def test_handle_missing_dramatiq_exits(self, command, capsys):
         """Test that missing dramatiq exits with error."""
+        original_import_module = importlib.import_module
 
-        # Save original modules
-        original_modules = sys.modules.copy()
-        original_import = builtins.__import__
+        def mock_import_module(name: str, *args, **kwargs):
+            if name == "dramatiq":
+                raise ImportError("No module named 'dramatiq'")
+            return original_import_module(name, *args, **kwargs)
 
-        try:
-            # Remove dramatiq from sys.modules if present
-            if "dramatiq" in sys.modules:
-                del sys.modules["dramatiq"]
+        with patch(
+            "openviper.core.management.commands.runworker.importlib.import_module",
+            side_effect=mock_import_module,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                command.handle(modules=[], queues=None, threads=8, processes=1)
 
-            def mock_import(name, *args, **kwargs):
-                if name == "dramatiq":
-                    raise ImportError("No module named 'dramatiq'")
-                return original_import(name, *args, **kwargs)
-
-            with patch.object(builtins, "__import__", side_effect=mock_import):
-                with pytest.raises(SystemExit) as exc_info:
-                    command.handle(modules=[], queues=None, threads=8, processes=1)
-
-            assert exc_info.value.code == 1
-            captured = capsys.readouterr()
-            assert "dramatiq is required" in captured.err
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "dramatiq is required" in captured.err
 
 
 class TestDatabaseBroker:

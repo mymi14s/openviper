@@ -1,17 +1,25 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { formatFieldName } from '@/utils/formatters'
 import type { FilterOption } from '@/types/admin'
 
 const props = defineProps<{
   filterOptions: FilterOption[]
+  initialFilters?: Record<string, any>
 }>()
 
 const emit = defineEmits<{
   (e: 'change', filters: Record<string, any>): void
 }>()
 
-const activeFilters = ref<Record<string, any>>({})
+const activeFilters = ref<Record<string, any>>({ ...(props.initialFilters ?? {}) })
+
+watch(
+  () => props.initialFilters,
+  (newFilters) => {
+    activeFilters.value = { ...(newFilters ?? {}) }
+  }
+)
 const debounceTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
 const activeFilterCount = computed(() => Object.keys(activeFilters.value).length)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import json
 import re
@@ -11,7 +10,15 @@ from collections.abc import AsyncIterator
 from http.cookies import SimpleCookie
 from typing import Any, cast
 
+from openviper.http.uploads import UploadFile
 from openviper.utils.datastructures import Headers, ImmutableMultiDict, QueryParams
+
+try:
+    from multipart.multipart import FormParser
+    from multipart.multipart import parse_options_header as _parse_options_header
+except ImportError:
+    FormParser = None  # type: ignore[assignment,misc]
+    _parse_options_header = None  # type: ignore[assignment]
 
 # Maximum request body size (10 MB). Prevents unbounded memory allocation.
 MAX_BODY_SIZE: int = 10 * 1024 * 1024
@@ -21,37 +28,6 @@ MAX_FILES_PER_REQUEST: int = 100
 
 # Allow hostname chars + optional port; rejects Host header injection.
 _VALID_HOST_RE = re.compile(r"^[A-Za-z0-9.\-]+(:\d{1,5})?$")
-
-
-class UploadFile:
-    """Represents an uploaded file from a multipart form submission."""
-
-    __slots__ = ("filename", "content_type", "_file")
-
-    def __init__(
-        self,
-        filename: str,
-        content_type: str,
-        file: Any,  # SpooledTemporaryFile or similar
-    ) -> None:
-        self.filename = filename
-        self.content_type = content_type
-        self._file = file
-
-    async def read(self, size: int = -1) -> bytes:
-        """Read bytes from the underlying (sync) SpooledTemporaryFile off-thread."""
-        return await asyncio.to_thread(self._file.read, size)
-
-    async def seek(self, offset: int) -> None:
-        """Seek to *offset* in the underlying file off-thread."""
-        await asyncio.to_thread(self._file.seek, offset)
-
-    async def close(self) -> None:
-        """Close the underlying file off-thread."""
-        await asyncio.to_thread(self._file.close)
-
-    def __repr__(self) -> str:
-        return f"UploadFile(filename={self.filename!r}, content_type={self.content_type!r})"
 
 
 class Request:
@@ -81,11 +57,14 @@ class Request:
         "state",
         "user",
         "auth",
+        "_session",
     )
 
     def __init__(self, scope: dict[str, Any], receive: Any = None) -> None:
-        if scope.get("type") != "http":
-            raise TypeError(f"Request requires an HTTP scope, got {scope.get('type')!r}")
+        if scope.get("type") not in ("http", "websocket"):
+            raise TypeError(
+                f"Request requires an HTTP or websocket scope, got {scope.get('type')!r}"
+            )
         self._scope = scope
         self._receive = receive
         self._headers: Headers | None = None
@@ -100,6 +79,7 @@ class Request:
         self.state: dict[str, Any] = {}
         self.user: Any = None  # Set by AuthenticationMiddleware
         self.auth: Any = None  # Set by AuthenticationMiddleware
+        self._session: Any = None  # Set by SessionMiddleware
 
     # ── Basic properties ──────────────────────────────────────────────────
 
@@ -145,6 +125,26 @@ class Request:
                 cookie.load(cookie_header)
                 self._cookies = {key: morsel.value for key, morsel in cookie.items()}
         return self._cookies
+
+    @property
+    def session(self) -> Any:
+        """Lazy access to the session object.
+
+        Requires SessionMiddleware to be active to populate _session.
+        If not populated, checks the ASGI scope for an existing session.
+        If still not found, returns an empty Session object with no store.
+        """
+        if self._session is None:
+            # Check if session is already in the ASGI scope (from SessionMiddleware)
+            if "session" in self._scope:
+                self._session = self._scope["session"]
+            else:
+                # `auth.session.middleware` which imports `Request` from this
+                # module — making a module-level import of Session circular.
+                from openviper.auth.session.store import Session  # noqa: PLC0415
+
+                self._session = Session(key="")
+        return self._session
 
     @property
     def client(self) -> tuple[str, int] | None:
@@ -246,8 +246,11 @@ class Request:
                 items = [(k, v) for k, vals in parsed.items() for v in vals]
                 self._form = ImmutableMultiDict(items)
             elif "multipart/form-data" in content_type:
-                from multipart.multipart import FormParser, parse_options_header
-
+                if FormParser is None or _parse_options_header is None:
+                    raise ImportError(
+                        "The 'python-multipart' package is required for multipart form "
+                        "parsing. Install it with: pip install python-multipart"
+                    )
                 form_items: list[tuple[str, str | UploadFile]] = []
                 file_count = 0  # Track file uploads
 
@@ -287,7 +290,7 @@ class Request:
                     )
                     form_items.append((file.field_name.decode(), upload))
 
-                ctype, options = parse_options_header(content_type)
+                ctype, options = _parse_options_header(content_type)
                 boundary = options.get(b"boundary") or options.get("boundary")
 
                 if not boundary:

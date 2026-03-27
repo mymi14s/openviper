@@ -21,7 +21,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libpq-dev unixodbc-dev
+          sudo apt-get install -y libpq-dev unixodbc-dev redis-server
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -29,9 +29,34 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run unit tests
         env:
-          SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-test-secret-key-do-not-use-in-production-must-be-long-enough' }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
         run: |
           pytest tests/unit -v --no-cov
+
+  integration_tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libpq-dev unixodbc-dev redis-server
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[all]'
+          pip install -r requirements-dev.txt
+      - name: Run integration tests
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          pytest tests/integration -v
 
   admin_frontend_tests:
     name: Admin Frontend Tests

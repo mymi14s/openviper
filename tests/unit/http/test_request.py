@@ -215,8 +215,8 @@ class TestRequestProperties:
         assert req.path_params["id"] == 42
 
     def test_wrong_scope_type_raises(self):
-        scope = {"type": "websocket"}
-        with pytest.raises(TypeError, match="HTTP scope"):
+        scope = {"type": "lifespan"}
+        with pytest.raises(TypeError, match="HTTP or websocket scope"):
             Request(scope)
 
     def test_repr(self):

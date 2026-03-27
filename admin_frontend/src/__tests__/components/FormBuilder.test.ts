@@ -34,6 +34,8 @@ const mockModel = {
     { name: 'is_published', type: 'boolean', label: 'Published', required: false, readonly: false },
     { name: 'category', type: 'select', label: 'Category', required: false, readonly: false, choices: [{ value: 'tech', label: 'Technology' }] },
     { name: 'author', type: 'ForeignKey', label: 'Author', required: false, readonly: false, related_model: 'auth.User' },
+    { name: 'website', type: 'URLField', label: 'Website', required: false, readonly: false },
+    { name: 'social', type: 'URLField', label: 'Social', required: false, readonly: true },
   ],
 }
 
@@ -43,6 +45,8 @@ const defaultModelValue = {
   is_published: false,
   category: '',
   author: null,
+  website: 'https://example.com',
+  social: 'https://twitter.com/openviper',
 }
 
 describe('FormBuilder Component', () => {
@@ -89,8 +93,39 @@ describe('FormBuilder Component', () => {
     })
 
     const checkbox = wrapper.find('input[type="checkbox"]')
-    await checkbox.setChecked(true)
+    await checkbox.setValue(true)
 
     expect(wrapper.emitted('update:modelValue')![0][0]).toEqual({ ...defaultModelValue, is_published: true })
+  })
+
+  it('renders URLField as a link when readonly', () => {
+    const wrapper = mount(FormBuilder, {
+      props: {
+        model: mockModel as any,
+        modelValue: defaultModelValue,
+      },
+    })
+
+    const socialLink = wrapper.find('a[href="https://twitter.com/openviper"]')
+    expect(socialLink.exists()).toBe(true)
+    expect(socialLink.attributes('target')).toBe('_blank')
+    expect(socialLink.text()).toBe('https://twitter.com/openviper')
+  })
+
+  it('renders URLField with a link button when editable', () => {
+    const wrapper = mount(FormBuilder, {
+      props: {
+        model: mockModel as any,
+        modelValue: defaultModelValue,
+      },
+    })
+
+    const websiteInput = wrapper.find('input[type="url"]')
+    expect(websiteInput.exists()).toBe(true)
+    expect((websiteInput.element as HTMLInputElement).value).toBe('https://example.com')
+
+    const linkButton = wrapper.find('a[title="Open link in new tab"]')
+    expect(linkButton.exists()).toBe(true)
+    expect(linkButton.attributes('href')).toBe('https://example.com')
   })
 })

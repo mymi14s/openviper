@@ -230,6 +230,8 @@ class TestSessionCookieSecureDefault:
 
     @pytest.mark.asyncio
     async def test_secure_defaults_to_true(self) -> None:
+        from openviper.auth.backends import login
+
         with patch("openviper.auth.backends.settings") as ms:
             ms.SESSION_COOKIE_NAME = "sessionid"
             ms.SESSION_COOKIE_DOMAIN = None
@@ -245,13 +247,18 @@ class TestSessionCookieSecureDefault:
             response = MagicMock()
             request = MagicMock()
             request.user = None
+            request.cookies = {}
+            request._session = None
             user = MagicMock()
             user.pk = 1
 
-            with patch("openviper.auth.backends.create_session", new_callable=AsyncMock) as cs:
-                cs.return_value = "session-key-abc"
-                from openviper.auth.backends import login
+            mock_session = MagicMock()
+            mock_session.key = "session-key-abc"
+            mock_store = MagicMock()
+            mock_store.create = AsyncMock(return_value=mock_session)
+            mock_store.rotate = AsyncMock(return_value=mock_session)
 
+            with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
                 await login(request, user, response)
 
             call_kwargs = response.set_cookie.call_args

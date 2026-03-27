@@ -28,6 +28,7 @@ from openviper.utils import timezone
 
 _BLOCKLIST_TABLE: sa.Table | None = None
 _TABLE_ENSURED: bool = False
+_TABLE_ENSURE_LOCK: asyncio.Lock = asyncio.Lock()
 
 # ---------------------------------------------------------------------------
 # Dual cache: positive (revoked) and negative (not revoked)
@@ -96,12 +97,15 @@ async def _ensure_table() -> None:
     global _TABLE_ENSURED
     if _TABLE_ENSURED:
         return
-    table = _get_blocklist_table()
-    engine = await get_engine()
-    with contextlib.suppress(Exception):  # Table/sequence already exists - this is fine
-        async with engine.begin() as conn:
-            await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
-    _TABLE_ENSURED = True
+    async with _TABLE_ENSURE_LOCK:
+        if _TABLE_ENSURED:
+            return
+        table = _get_blocklist_table()
+        engine = await get_engine()
+        with contextlib.suppress(Exception):  # Table/sequence already exists - this is fine
+            async with engine.begin() as conn:
+                await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
+        _TABLE_ENSURED = True
 
 
 async def revoke_token(

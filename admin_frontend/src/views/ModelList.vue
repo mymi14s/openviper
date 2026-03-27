@@ -23,6 +23,27 @@ const showBulkConfirm = ref(false)
 const filterOptions = ref<FilterOption[]>([])
 const activeFilters = ref<Record<string, any>>({})
 
+function filterStorageKey(appLabel: string, modelName: string): string {
+  return `openviper_filters__${appLabel}__${modelName}`
+}
+
+function loadSavedFilters(appLabel: string, modelName: string): Record<string, any> {
+  try {
+    const raw = localStorage.getItem(filterStorageKey(appLabel, modelName))
+    return raw ? (JSON.parse(raw) as Record<string, any>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveFilters(appLabel: string, modelName: string, filters: Record<string, any>): void {
+  if (Object.keys(filters).length === 0) {
+    localStorage.removeItem(filterStorageKey(appLabel, modelName))
+  } else {
+    localStorage.setItem(filterStorageKey(appLabel, modelName), JSON.stringify(filters))
+  }
+}
+
 const model = computed(() => adminStore.currentModel)
 const instances = computed(() => adminStore.instances)
 const pagination = computed(() => adminStore.pagination)
@@ -61,19 +82,21 @@ async function loadData(page: number = 1) {
 
 function handleFilterChange(filters: Record<string, any>) {
   activeFilters.value = { ...filters }
+  saveFilters(props.appLabel, props.modelName, activeFilters.value)
   loadData(1)
 }
 
 onMounted(async () => {
+  activeFilters.value = loadSavedFilters(props.appLabel, props.modelName)
   await Promise.all([loadData(), loadFilterOptions()])
 })
 
 watch(
   () => [props.appLabel, props.modelName],
-  async () => {
+  async ([newApp, newModel]) => {
     search.value = ''
     selectedIds.value = []
-    activeFilters.value = {}
+    activeFilters.value = loadSavedFilters(newApp as string, newModel as string)
     await Promise.all([loadData(), loadFilterOptions()])
   }
 )
@@ -234,6 +257,7 @@ async function handleExport(format: 'csv' | 'json') {
     <div v-if="hasFilters" class="w-56 flex-shrink-0 sticky top-6">
       <FilterSidebar
         :filter-options="filterOptions"
+        :initial-filters="activeFilters"
         @change="handleFilterChange"
       />
     </div>

@@ -119,10 +119,13 @@ class TestLogin:
 
     @pytest.mark.asyncio
     async def test_creates_session(self, mock_user, mock_request):
+        mock_session = MagicMock()
+        mock_session.key = "test-session-key"
+        mock_store = MagicMock()
+        mock_store.create = AsyncMock(return_value=mock_session)
+        mock_request._session = None
 
-        with patch(
-            "openviper.auth.backends.create_session", new=AsyncMock(return_value="test-session-key")
-        ):
+        with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
             session_key = await login(mock_request, mock_user)
 
         assert session_key == "test-session-key"
@@ -130,13 +133,16 @@ class TestLogin:
 
     @pytest.mark.asyncio
     async def test_sets_cookie_on_response(self, mock_user, mock_request):
-
         mock_response = MagicMock()
         mock_response.set_cookie = MagicMock()
 
-        with patch(
-            "openviper.auth.backends.create_session", new=AsyncMock(return_value="test-key")
-        ):
+        mock_session = MagicMock()
+        mock_session.key = "test-key"
+        mock_store = MagicMock()
+        mock_store.create = AsyncMock(return_value=mock_session)
+        mock_request._session = None
+
+        with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
             with patch("openviper.auth.backends.settings") as mock_settings:
                 mock_settings.SESSION_COOKIE_NAME = "sessionid"
                 mock_settings.SESSION_COOKIE_DOMAIN = None
@@ -186,9 +192,10 @@ class TestLogout:
         with patch("openviper.auth.backends.delete_session", new=AsyncMock()):
             with patch("openviper.auth.backends.settings") as mock_settings:
                 mock_settings.SESSION_COOKIE_NAME = "sessionid"
+                mock_settings.SESSION_COOKIE_DOMAIN = None
                 await logout(mock_request, mock_response)
 
-        mock_response.delete_cookie.assert_called_once_with("sessionid")
+        mock_response.delete_cookie.assert_called_once_with("sessionid", domain=None)
 
     @pytest.mark.asyncio
     async def test_handles_no_session_gracefully(self):
@@ -213,18 +220,54 @@ class TestGetClientIp:
         assert _get_client_ip(None) == "unknown"
 
     def test_extracts_from_x_forwarded_for(self):
-
+        # Headers are only trusted when the direct connection comes from a
+        # configured TRUSTED_PROXIES address.
         request = MagicMock()
-        request.headers = {"x-forwarded-for": "10.0.0.1, 192.168.1.1"}
+        request.client.host = "10.10.0.1"
+        request.headers = {"x-forwarded-for": "203.0.113.5, 10.10.0.1"}
 
-        assert _get_client_ip(request) == "10.0.0.1"
+        with patch("openviper.auth.backends.settings") as mock_settings:
+            mock_settings.TRUSTED_PROXIES = ["10.10.0.1"]
+            assert _get_client_ip(request) == "203.0.113.5"
+
+    def test_x_forwarded_for_ignored_without_trusted_proxies(self):
+        # Without TRUSTED_PROXIES, proxy headers must not override the real IP.
+        request = MagicMock()
+        request.client.host = "1.2.3.4"
+        request.headers = {"x-forwarded-for": "5.6.7.8"}
+
+        with patch("openviper.auth.backends.settings") as mock_settings:
+            mock_settings.TRUSTED_PROXIES = []
+            assert _get_client_ip(request) == "1.2.3.4"
 
     def test_extracts_from_x_real_ip(self):
-
         request = MagicMock()
-        request.headers = {"x-real-ip": "172.16.0.1"}
+        request.client.host = "10.10.0.2"
+        request.headers = {"x-forwarded-for": None, "x-real-ip": "172.16.0.1"}
 
-        assert _get_client_ip(request) == "172.16.0.1"
+        mock_headers = MagicMock()
+        mock_headers.get.side_effect = lambda k, d=None: {
+            "x-forwarded-for": None,
+            "x-real-ip": "172.16.0.1",
+        }.get(k, d)
+        request.headers = mock_headers
+
+        with patch("openviper.auth.backends.settings") as mock_settings:
+            mock_settings.TRUSTED_PROXIES = ["10.10.0.2"]
+            assert _get_client_ip(request) == "172.16.0.1"
+
+    def test_x_real_ip_ignored_without_trusted_proxies(self):
+        request = MagicMock()
+        request.client.host = "1.2.3.4"
+        mock_headers = MagicMock()
+        mock_headers.get.side_effect = lambda k, d=None: {
+            "x-real-ip": "9.9.9.9",
+        }.get(k, d)
+        request.headers = mock_headers
+
+        with patch("openviper.auth.backends.settings") as mock_settings:
+            mock_settings.TRUSTED_PROXIES = []
+            assert _get_client_ip(request) == "1.2.3.4"
 
     def test_falls_back_to_client_host(self):
 

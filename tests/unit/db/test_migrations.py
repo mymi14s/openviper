@@ -183,8 +183,8 @@ class TestOperations:
             assert "ALTER COLUMN [c] VARCHAR(200)" in sql
 
         with patch("openviper.db.migrations.executor._get_dialect", return_value="sqlite"):
-            sql = op.forward_sql()[0]
-            assert 'ALTER COLUMN "c" TYPE VARCHAR(200)' in sql
+            # SQLite does not support ALTER COLUMN TYPE, should return empty list
+            assert op.forward_sql() == []
 
     def test_alter_column_details(self):
         # Test type and nullability changes for postgres

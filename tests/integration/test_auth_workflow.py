@@ -15,7 +15,7 @@ from openviper.auth.jwt import (
     decode_refresh_token,
 )
 from openviper.auth.permissions import check_permission_for_model
-from openviper.auth.sessions import generate_session_key
+from openviper.auth.sessions import create_session
 from openviper.auth.token_blocklist import is_token_revoked, revoke_token
 from openviper.http.response import JSONResponse
 
@@ -93,10 +93,9 @@ class TestSessionManagement:
     """Integration tests for session management."""
 
     @pytest.mark.asyncio
-    @patch("openviper.auth.sessions._SESSION_CACHE", {})
-    async def test_session_create_and_retrieve(self):
-        """Test creating and retrieving a session."""
-        session_key = generate_session_key()
+    async def test_session_create_and_retrieve(self, test_database, test_cache):
+        """Test creating a session."""
+        session_key = await create_session(user_id=1, data={"username": "testuser"})
 
         assert session_key is not None
         assert len(session_key) > 20  # Should be URL-safe random string

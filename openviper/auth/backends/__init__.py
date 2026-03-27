@@ -12,7 +12,8 @@ from typing import Any
 
 from openviper.auth.hashers import _ARGON2_DUMMY_HASH, check_password
 from openviper.auth.models import AnonymousUser
-from openviper.auth.sessions import create_session, delete_session
+from openviper.auth.session.store import get_session_store
+from openviper.auth.sessions import delete_session
 from openviper.auth.user import get_user_by_id
 from openviper.auth.utils import get_user_model
 from openviper.conf import settings
@@ -105,27 +106,28 @@ async def _update_last_login(user: Any) -> None:
 def _get_client_ip(request: Any) -> str:
     """Extract client IP address from request.
 
-    Checks X-Forwarded-For, X-Real-IP headers and falls back to direct connection IP.
+    Only trusts ``X-Forwarded-For`` / ``X-Real-IP`` when the direct TCP
+    connection originates from a configured trusted proxy
+    (``settings.TRUSTED_PROXIES``).  Without that configuration the direct
+    connection IP is returned, preventing IP spoofing via forged headers.
     """
     if not request:
         return "unknown"
 
-    # Check for proxy headers (be cautious with these in production)
-    if hasattr(request, "headers"):
+    direct_ip = "unknown"
+    if hasattr(request, "client") and request.client:
+        direct_ip = getattr(request.client, "host", "unknown")
+
+    trusted_proxies: frozenset[str] = frozenset(getattr(settings, "TRUSTED_PROXIES", ()))
+    if trusted_proxies and direct_ip in trusted_proxies and hasattr(request, "headers"):
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            # X-Forwarded-For can contain multiple IPs, use the first one
             return str(forwarded.split(",")[0].strip())
-
         real_ip = request.headers.get("x-real-ip")
         if real_ip:
             return str(real_ip.strip())
 
-    # Fall back to direct connection IP
-    if hasattr(request, "client") and request.client:
-        return getattr(request.client, "host", "unknown")
-
-    return "unknown"
+    return direct_ip
 
 
 async def login(request: Any, user: Any, response: Any = None) -> str:
@@ -152,8 +154,27 @@ async def login(request: Any, user: Any, response: Any = None) -> str:
         return response
     """
 
-    session_key = await create_session(user_id=user.pk, data={"user_id": user.pk})
+    store = get_session_store()
+    data = {"user_id": str(user.pk)}
+
+    # Rotate the existing session if one is present — prevents session-fixation.
+    existing_session = getattr(request, "_session", None)
+    existing_key = existing_session.key if existing_session and existing_session.key else None
+    if not existing_key:
+        _cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
+        existing_key = request.cookies.get(_cookie_name)
+
+    if existing_key:
+        new_session = await store.rotate(existing_key, user_id=user.pk, data=data)
+    else:
+        new_session = await store.create(user_id=user.pk, data=data)
+
+    session_key = new_session.key
     request.user = user
+    request._session = new_session
+    scope = getattr(request, "_scope", None)
+    if isinstance(scope, dict):
+        scope["session"] = new_session
 
     # Audit log for session creation
     client_ip = _get_client_ip(request)
@@ -171,7 +192,10 @@ async def login(request: Any, user: Any, response: Any = None) -> str:
         cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
         cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
         session_timeout = getattr(settings, "SESSION_TIMEOUT", datetime.timedelta(hours=1))
-        max_age_seconds = int(session_timeout.total_seconds())
+        if isinstance(session_timeout, datetime.timedelta):
+            max_age_seconds = int(session_timeout.total_seconds())
+        else:
+            max_age_seconds = int(session_timeout)
 
         # Calculate expires timestamp (needed for older browsers)
         expires_timestamp = int(time.time()) + max_age_seconds
@@ -228,6 +252,7 @@ async def logout(request: Any, response: Any = None) -> None:
         )
 
     if response is not None:
-        response.delete_cookie(cookie_name)
+        cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+        response.delete_cookie(cookie_name, domain=cookie_domain)
 
     request.user = AnonymousUser()

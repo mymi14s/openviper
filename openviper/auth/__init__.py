@@ -1,5 +1,13 @@
 """OpenViper authentication package."""
 
+from openviper.auth.authentications import (
+    TokenAuthentication,
+    clear_token_auth_cache,
+    create_token,
+)
+from openviper.auth.authentications import (
+    revoke_token as revoke_auth_token,
+)
 from openviper.auth.backends import authenticate, get_user_by_id, login, logout
 from openviper.auth.backends.jwt_backend import JWTBackend
 from openviper.auth.backends.session_backend import SessionBackend
@@ -30,6 +38,13 @@ from openviper.auth.session import DatabaseSessionStore, SessionManager, Session
 from openviper.auth.sessions import clear_session_cache
 from openviper.auth.token_blocklist import clear_token_cache
 from openviper.auth.utils import get_user_model
+from openviper.auth.views.base_login import BaseLoginView
+from openviper.auth.views.jwt_login import JWTLoginView
+from openviper.auth.views.logout import LogoutView
+from openviper.auth.views.me import MeView
+from openviper.auth.views.routes import all_auth_routes, jwt_routes, session_routes, token_routes
+from openviper.auth.views.session_login import SessionLoginView
+from openviper.auth.views.token_login import TokenLoginView
 
 __all__ = [
     "User",
@@ -56,6 +71,11 @@ __all__ = [
     "staff_required",
     "clear_session_cache",
     "clear_token_cache",
+    # Token authentication
+    "TokenAuthentication",
+    "create_token",
+    "revoke_auth_token",
+    "clear_token_auth_cache",
     # New session system
     "AuthManager",
     "JWTBackend",
@@ -63,4 +83,16 @@ __all__ = [
     "DatabaseSessionStore",
     "SessionManager",
     "SessionMiddleware",
+    # Auth views
+    "BaseLoginView",
+    "JWTLoginView",
+    "TokenLoginView",
+    "SessionLoginView",
+    "LogoutView",
+    "MeView",
+    # Auth route lists
+    "jwt_routes",
+    "token_routes",
+    "session_routes",
+    "all_auth_routes",
 ]

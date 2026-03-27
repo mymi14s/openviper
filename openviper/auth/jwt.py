@@ -94,15 +94,14 @@ def create_access_token(
 ) -> str:
     now = timezone.now()
     expire = now + _JWT_ACCESS_EXPIRE
-    claims: dict[str, Any] = {
+    core_claims: dict[str, Any] = {
         "sub": str(user_id),
         "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": expire,
         "type": "access",
     }
-    if extra_claims:
-        claims.update(extra_claims)
+    claims: dict[str, Any] = {**(extra_claims or {}), **core_claims}
     secret, algo = _get_jwt_config()
     return cast("str", jwt.encode(claims, secret, algorithm=algo))
 

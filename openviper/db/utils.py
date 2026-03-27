@@ -40,8 +40,8 @@ def cast_to_pk_type(model_class: type[Model], value: Any) -> Any:
 
 
 class ClassProperty:
-    def __init__(self, func):
+    def __init__(self, func: Any) -> None:
         self.func = func
 
-    def __get__(self, instance, owner):
+    def __get__(self, instance: Any, owner: type[Any]) -> Any:
         return self.func(owner)

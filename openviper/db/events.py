@@ -546,6 +546,23 @@ class _ModelEventProxy:
 
         return decorator
 
+    def __getattr__(self, name: str) -> Any:
+        if name in SUPPORTED_EVENTS:
+            return self._make_shortcut_decorator(name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute {name!r}")
+
+    def _make_shortcut_decorator(self, event_name: str) -> Callable[[str], Any]:
+        def decorator_factory(model_path: str) -> Any:
+            def decorator(fn: Any) -> Any:
+                with _dec_registry_lock:
+                    model_events = _decorator_registry.setdefault(model_path, {})
+                    model_events.setdefault(event_name, []).append(fn)
+                return fn
+
+            return decorator
+
+        return decorator_factory
+
 
 #: Singleton proxy for decorator-based model event registration.
 #: See :class:`_ModelEventProxy` for usage.

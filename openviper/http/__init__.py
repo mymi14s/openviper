@@ -11,6 +11,7 @@ from openviper.http.response import (
     Response,
     StreamingResponse,
 )
+from openviper.http.uploads import UploadFile
 from openviper.http.views import View
 
 __all__ = [

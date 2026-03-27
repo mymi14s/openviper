@@ -254,4 +254,38 @@ operations = [
             },
         ],
     ),
+    # ── Depends on auth_users ────────────────────────────────────────────
+    migrations.CreateTable(
+        table_name="auth_tokens",
+        columns=[
+            {
+                "name": "id",
+                "type": "INTEGER",
+                "nullable": False,
+                "primary_key": True,
+                "autoincrement": True,
+            },
+            {
+                "name": "key_hash",
+                "type": "VARCHAR",
+                "nullable": False,
+                "unique": True,
+            },
+            {
+                "name": "user_id",
+                "type": "INTEGER",
+                "nullable": False,
+                "target_table": _USER_TABLE,
+                "on_delete": "CASCADE",
+            },
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
+            {"name": "expires_at", "type": "DATETIME", "nullable": True},
+            {
+                "name": "is_active",
+                "type": "BOOLEAN",
+                "nullable": False,
+                "default": True,
+            },
+        ],
+    ),
 ]

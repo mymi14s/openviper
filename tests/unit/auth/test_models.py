@@ -4,11 +4,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from openviper.auth._user_cache import _USER_CACHE, invalidate_user_cache
 from openviper.auth.models import (
     AnonymousUser,
     Permission,
     Role,
     User,
+    _on_user_update,
 )
 from openviper.core.context import request_perms_cache
 
@@ -453,3 +455,36 @@ class TestAnonymousUser:
         """Should have descriptive repr."""
         user = AnonymousUser()
         assert repr(user) == "AnonymousUser"
+
+
+class TestOnUserUpdate:
+    """User.on_update model event evicts the user from the in-process auth cache."""
+
+    def test_invalidate_user_cache_called_with_user_pk(self) -> None:
+        """Event handler calls invalidate_user_cache with the instance pk."""
+        instance = MagicMock()
+        instance.pk = 42
+        with patch("openviper.auth.models.invalidate_user_cache") as mock_invalidate:
+            _on_user_update(instance, event="on_update")
+            mock_invalidate.assert_called_once_with(42)
+
+    def test_no_call_when_pk_is_none(self) -> None:
+        """Event handler does nothing when the instance has no pk."""
+        instance = MagicMock()
+        instance.pkg = None
+        instance.pk = None
+        with patch("openviper.auth.models.invalidate_user_cache") as mock_invalidate:
+            _on_user_update(instance, event="on_update")
+            mock_invalidate.assert_not_called()
+
+    def test_invalidate_user_cache_removes_entry(self) -> None:
+        """invalidate_user_cache pops the user id from _USER_CACHE."""
+        _USER_CACHE[99] = (MagicMock(), 9999999.0)
+        assert 99 in _USER_CACHE
+        invalidate_user_cache(99)
+        assert 99 not in _USER_CACHE
+
+    def test_invalidate_user_cache_noop_for_missing_id(self) -> None:
+        """invalidate_user_cache does not raise when the id is absent."""
+        _USER_CACHE.pop(1000, None)
+        invalidate_user_cache(1000)  # must not raise

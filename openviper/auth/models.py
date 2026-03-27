@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any, cast
 
+from openviper.auth._user_cache import invalidate_user_cache
 from openviper.auth.hashers import check_password, make_password
 from openviper.cache import InMemoryCache, get_cache
 from openviper.conf import settings
@@ -563,3 +564,16 @@ def _on_role_delete(instance: Any, event: str | None = None, **kwargs: Any) -> N
     task2 = asyncio.create_task(_reset_all_superusers())
     _background_tasks.add(task2)
     task2.add_done_callback(_background_tasks.discard)
+
+
+@model_event.on_update(UserModel)
+def _on_user_update(instance: Any, **kwargs: Any) -> None:
+    """Evict the updated user from the in-process auth cache.
+
+    Ensures that changes to fields such as ``is_active``, ``is_staff``, or
+    ``password`` take effect on the next authenticated request without waiting
+    for the 30-second TTL to expire naturally.
+    """
+    user_id = getattr(instance, "pk", None)
+    if user_id:
+        invalidate_user_cache(user_id)

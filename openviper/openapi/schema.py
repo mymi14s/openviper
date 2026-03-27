@@ -428,7 +428,43 @@ def _build_operation(route: Route, method: str) -> dict[str, Any]:
     if request_body:
         operation["requestBody"] = request_body
 
+    per_route_security = _build_per_route_security(handler)
+    if per_route_security is not None:
+        operation["security"] = per_route_security
+
     return operation
+
+
+def _build_per_route_security(handler: Any) -> list[dict[str, list[Any]]] | None:
+    """Return an explicit ``security`` list for *handler* when it restricts auth.
+
+    Returns ``None`` when no per-route ``authentication_classes`` are set, which
+    lets the global security requirement inherited from ``generate_openapi_schema``
+    remain in effect.  Returns a non-empty list when the handler or its
+    associated view class declares specific authentication classes.
+    """
+    view_cls = getattr(handler, "view_class", None)
+    if view_cls is not None:
+        auth_classes: list[Any] = getattr(view_cls, "authentication_classes", [])
+    else:
+        auth_classes = getattr(handler, "authentication_classes", [])
+
+    if not auth_classes:
+        return None
+
+    security: list[dict[str, list[Any]]] = []
+    scheme_map: dict[str, str] = {
+        "TokenAuthentication": "TokenAuth",
+        "JWTAuthentication": "BearerAuth",
+        "SessionAuthentication": "SessionAuth",
+    }
+    for cls in auth_classes:
+        name = getattr(cls, "__name__", "")
+        scheme = scheme_map.get(name)
+        if scheme:
+            security.append({scheme: []})
+
+    return security if security else None
 
 
 def generate_openapi_schema(
@@ -494,9 +530,18 @@ def generate_openapi_schema(
                     "in": "cookie",
                     "name": "sessionid",
                 },
+                "TokenAuth": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "Authorization",
+                    "description": (
+                        "Token authentication. "
+                        "Supply the header as: Authorization: Token <token>"
+                    ),
+                },
             }
         },
-        "security": [{"BearerAuth": []}, {"SessionAuth": []}],
+        "security": [{"BearerAuth": []}, {"SessionAuth": []}, {"TokenAuth": []}],
     }
 
     _SCHEMA_CACHE_STORE[0] = {"_cache_key": cache_key, "schema": schema}

@@ -1031,3 +1031,11 @@ Register any subclass the same way as the original view:
    Concatenation of ``jwt_routes + token_routes + session_routes`` plus a
    shared ``GET /me`` entry.  Use this list when you want to support all
    three authentication schemes simultaneously.
+
+----
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Auth Topics
+
+   social_login

@@ -177,6 +177,9 @@ class OpenViper:
         if getattr(settings, "OPENAPI_ENABLED", True):
             self._register_openapi_routes()
 
+        # Auto-discover and register project route_paths from <project>.routes
+        self._autodiscover_routes()
+
     # ── Route registration (delegate to router) ───────────────────────────
 
     def get(self, path: str, **kwargs: Any) -> Callable[..., Any]:
@@ -211,6 +214,45 @@ class OpenViper:
             self.router.include_router(include(router, prefix=prefix))
         else:
             self.router.include_router(router)
+
+    def _autodiscover_routes(self) -> None:
+        """Auto-discover and register route_paths from the project routes module.
+
+        Derives the routes module from the ``OPENVIPER_SETTINGS_MODULE`` env var
+        by replacing ``.settings`` (or using the parent package) and importing
+        ``route_paths`` from ``<project_package>.routes``.
+
+        ``asgi.py`` — this method handles it transparently at app init time.
+        """
+        settings_module = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
+        if not settings_module:
+            return
+
+        # Derive the routes module: swap the last component for "routes"
+        # e.g. "settings" -> skip (no package prefix to look up)
+        parts = settings_module.rsplit(".", 1)
+        if len(parts) < 2:
+            return
+        routes_module_path = f"{parts[0]}.routes"
+
+        try:
+            routes_module = importlib.import_module(routes_module_path)
+        except ImportError:
+            logger.debug(
+                "No routes module found at %s — skipping auto-discovery.",
+                routes_module_path,
+            )
+            return
+
+        route_paths: list[tuple[str, Router]] = getattr(routes_module, "route_paths", [])
+        for prefix, router in route_paths:
+            self.include_router(router, prefix=prefix)
+
+        logger.debug(
+            "Auto-registered %d router(s) from %s.",
+            len(route_paths),
+            routes_module_path,
+        )
 
     # ── Lifecycle hooks ───────────────────────────────────────────────────
 

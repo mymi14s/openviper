@@ -145,17 +145,10 @@ from openviper.app import OpenViper
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "{project_name}.settings")
 
-try:
-    from .routes import route_paths
-except ImportError:
-    route_paths = []
 
 # Create application
 app = OpenViper()
 
-# Include routers
-for prefix, router in route_paths:
-    app.include_router(router, prefix=prefix)
 '''
 
 _ROUTES_TEMPLATE = '''\

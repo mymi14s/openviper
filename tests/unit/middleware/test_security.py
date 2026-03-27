@@ -20,6 +20,16 @@ def _mw(**kwargs):
         ms.ALLOWED_HOSTS = ["*"]
         ms.SECURE_BROWSER_XSS_FILTER = False
         ms.SECURE_CONTENT_SECURITY_POLICY = None
+        ms.SECURE_SSL_REDIRECT = False
+        ms.SECURE_HSTS_SECONDS = 0
+        ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+        ms.SECURE_HSTS_PRELOAD = False
+        ms.X_FRAME_OPTIONS = "DENY"
+        ms.SECURE_SSL_REDIRECT = False
+        ms.SECURE_HSTS_SECONDS = 0
+        ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+        ms.SECURE_HSTS_PRELOAD = False
+        ms.X_FRAME_OPTIONS = "DENY"
         return SecurityMiddleware(lambda *a: None, **kwargs)
 
 
@@ -62,6 +72,16 @@ class TestSecurityHeaders:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = True
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         await mw(_make_scope(), None, send)
@@ -81,6 +101,16 @@ class TestSecurityHeaders:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         await mw({"type": "websocket"}, None, None)
@@ -101,6 +131,16 @@ class TestSecurityHeaders:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, xss_filter=True)
 
         await mw(_make_scope(), None, send)
@@ -122,6 +162,16 @@ class TestSecurityHeaders:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, content_type_nosniff=False)
 
         await mw(_make_scope(), None, send)
@@ -143,6 +193,16 @@ class TestSecurityHeaders:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, x_frame_options="DENY")
 
         await mw(_make_scope(), None, send)
@@ -164,6 +224,16 @@ class TestSecurityHeaders:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, x_frame_options="SAMEORIGIN")
 
         await mw(_make_scope(), None, send)
@@ -192,6 +262,16 @@ class TestHSTS:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(
                 app, hsts_seconds=31536000, hsts_include_subdomains=True, hsts_preload=True
             )
@@ -218,6 +298,16 @@ class TestHSTS:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, hsts_seconds=0)
 
         await mw(_make_scope(), None, send)
@@ -239,6 +329,16 @@ class TestHSTS:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, hsts_seconds=3600)
 
         await mw(_make_scope(), None, send)
@@ -269,6 +369,16 @@ class TestCSP:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, csp="default-src 'self'")
 
         await mw(_make_scope(), None, send)
@@ -290,6 +400,16 @@ class TestCSP:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, csp={"default-src": "'self'"})
 
         await mw(_make_scope(), None, send)
@@ -311,6 +431,16 @@ class TestCSP:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, csp=None)
 
         await mw(_make_scope(), None, send)
@@ -339,6 +469,16 @@ class TestHostAllowed:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         await mw(_make_scope(host="anything.com"), None, send)
@@ -359,6 +499,16 @@ class TestHostAllowed:
             ms.ALLOWED_HOSTS = ["example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         await mw(_make_scope(host="example.com"), None, send)
@@ -375,6 +525,16 @@ class TestHostAllowed:
             ms.ALLOWED_HOSTS = ["allowed.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None)
 
         await mw(_make_scope(host="evil.com"), None, send)
@@ -395,6 +555,16 @@ class TestHostAllowed:
             ms.ALLOWED_HOSTS = [".example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         await mw(_make_scope(host="sub.example.com"), None, send)
@@ -415,6 +585,16 @@ class TestHostAllowed:
             ms.ALLOWED_HOSTS = [".example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         await mw(_make_scope(host="example.com"), None, send)
@@ -435,6 +615,16 @@ class TestHostAllowed:
             ms.ALLOWED_HOSTS = ["example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         # Host header includes port number
@@ -466,6 +656,16 @@ class TestSSLRedirect:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None, ssl_redirect=True)
 
         await mw(_make_scope(scheme="http", host="example.com", path="/test"), None, send)
@@ -484,6 +684,16 @@ class TestSSLRedirect:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None, ssl_redirect=True)
 
         await mw(_make_scope(scheme="http", host="example.com", path="/my/page"), None, send)
@@ -501,6 +711,16 @@ class TestSSLRedirect:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None, ssl_redirect=True)
 
         scope = _make_scope(scheme="http", host="example.com", path="/test")
@@ -525,6 +745,16 @@ class TestSSLRedirect:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app, ssl_redirect=True)
 
         await mw(_make_scope(scheme="https", host="example.com"), None, send)
@@ -549,6 +779,16 @@ class TestCRLFRejection:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None, ssl_redirect=True)
 
         scope = {
@@ -572,6 +812,16 @@ class TestCRLFRejection:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None, ssl_redirect=True)
 
         scope = {
@@ -596,6 +846,16 @@ class TestCRLFRejection:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None, ssl_redirect=True)
 
         await mw(_make_scope(scheme="http", host="example.com"), None, send)
@@ -625,6 +885,16 @@ class TestHostFromServer:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(app)
 
         scope = {
@@ -650,6 +920,16 @@ class TestHostFromServer:
             ms.ALLOWED_HOSTS = ["allowed.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None)
 
         scope = {
@@ -675,6 +955,35 @@ class TestGetHostHelper:
             ms.ALLOWED_HOSTS = list(allowed_hosts)
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_BROWSER_XSS_FILTER = False
+            ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_BROWSER_XSS_FILTER = False
+            ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             return SecurityMiddleware(lambda *a: None)
 
     def test_get_host_from_header(self):
@@ -714,6 +1023,16 @@ class TestIsHostAllowedWildcardExact:
             ms.ALLOWED_HOSTS = [".example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None)
 
         # pattern = ".example.com"; pattern[1:] = "example.com" == host_lower
@@ -725,6 +1044,16 @@ class TestIsHostAllowedWildcardExact:
             ms.ALLOWED_HOSTS = [".example.com"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(lambda *a: None)
 
         assert mw._is_host_allowed("sub.example.com") is True

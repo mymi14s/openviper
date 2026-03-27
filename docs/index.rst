@@ -82,7 +82,7 @@ For a production-grade multi-app example with AI moderation see `examples/ai_mod
    middleware
    serializers
    db
-   auth
+   auth/index
    admin
    tasks
    email

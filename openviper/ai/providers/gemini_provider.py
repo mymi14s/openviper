@@ -9,10 +9,10 @@ Installation:
 Configuration:
     .. code-block:: python
 
-        from openviper.ai.registry import ai_registry
+        from openviper.ai.registry import provider_registry
         from openviper.ai.providers.gemini_provider import GeminiProvider
 
-        ai_registry.register("gemini", GeminiProvider, config={
+        provider_registry.register("gemini", GeminiProvider, config={
             "api_key": "YOUR_GEMINI_API_KEY",
             "model": "gemini-1.5-flash",
         })

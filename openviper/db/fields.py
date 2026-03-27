@@ -846,50 +846,59 @@ class ManyToManyManager:
         if not self.instance.pk:
             raise ValueError("Cannot add to ManyToMany before saving the instance")
 
+        target_pks = []
         for obj in objects:
-            target_pk = obj.pk if hasattr(obj, "pk") else obj
-            if not target_pk:
+            pk = obj.pk if hasattr(obj, "pk") else obj
+            if not pk:
                 raise ValueError("Cannot add unsaved object to ManyToMany")
+            target_pks.append(pk)
 
-            # Check if relationship already exists
-            filter_kwargs = {
-                self.source_field_name: self.instance.pk,
-                self.target_field_name: target_pk,
-            }
-            existing = await self.through_model.objects.filter(**filter_kwargs).first()
+        if not target_pks:
+            return
 
-            if not existing:
-                # Create new through object
-                create_kwargs = {
+        # Fetch all already-existing relationships in one query.
+        existing_pks = set(
+            await self.through_model.objects.filter(
+                **{
                     self.source_field_name: self.instance.pk,
-                    self.target_field_name: target_pk,
+                    f"{self.target_field_name}__in": target_pks,
                 }
-                await self.through_model.objects.create(**create_kwargs)
+            ).values_list(self.target_field_name, flat=True)
+        )
+
+        for target_pk in target_pks:
+            if target_pk not in existing_pks:
+                await self.through_model.objects.create(
+                    **{
+                        self.source_field_name: self.instance.pk,
+                        self.target_field_name: target_pk,
+                    }
+                )
 
     async def remove(self, *objects: Any) -> None:
         """Remove one or more objects from the relationship."""
         if not self.instance.pk:
             return
 
-        for obj in objects:
-            target_pk = obj.pk if hasattr(obj, "pk") else obj
-            filter_kwargs = {
+        target_pks = [obj.pk if hasattr(obj, "pk") else obj for obj in objects]
+        if not target_pks:
+            return
+
+        await self.through_model.objects.filter(
+            **{
                 self.source_field_name: self.instance.pk,
-                self.target_field_name: target_pk,
+                f"{self.target_field_name}__in": target_pks,
             }
-            through_obj = await self.through_model.objects.filter(**filter_kwargs).first()
-            if through_obj:
-                await through_obj.delete()
+        ).delete()
 
     async def clear(self) -> None:
         """Remove all objects from the relationship."""
         if not self.instance.pk:
             return
 
-        filter_kwargs = {self.source_field_name: self.instance.pk}
-        through_objects = await self.through_model.objects.filter(**filter_kwargs).all()
-        for through_obj in through_objects:
-            await through_obj.delete()
+        await self.through_model.objects.filter(
+            **{self.source_field_name: self.instance.pk}
+        ).delete()
 
     async def count(self) -> int:
         """Get the count of related objects."""

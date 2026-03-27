@@ -16,15 +16,7 @@ os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "ecommerce_clone.settings")
 openviper.setup()
 
 
-try:
-    from .routes import route_paths
-except ImportError:
-    route_paths = []
-
 app = OpenViper(title="Ecommerce Clone", version="1.0.0")
-
-for prefix, router in route_paths:
-    app.include_router(router, prefix=prefix)
 
 
 # @app.on_startup

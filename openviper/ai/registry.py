@@ -363,6 +363,8 @@ class ProviderRegistry:
 
     def _load_from_settings(self) -> None:
         """Instantiate providers from ``settings.AI_PROVIDERS`` and register them."""
+        if not getattr(settings, "ENABLE_AI_PROVIDERS", False):
+            return
         try:
             providers_cfg: dict[str, Any] = getattr(settings, "AI_PROVIDERS", {}) or {}
 

@@ -855,3 +855,101 @@ class TestRun:
         call_kwargs = mock_run.call_args[1]
         assert call_kwargs["host"] == "0.0.0.0"
         assert call_kwargs["port"] == 8000
+
+
+class TestAutodiscoverRoutes:
+    """Tests for _autodiscover_routes method."""
+
+    def test_registers_route_paths_from_routes_module(self, monkeypatch):
+        router = Router()
+
+        async def handler(request):
+            return {}
+
+        router.add("/items", handler, methods=["GET"])
+
+        fake_routes_module = MagicMock()
+        fake_routes_module.route_paths = [("/api", router)]
+
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        with patch("importlib.import_module", return_value=fake_routes_module):
+            app = OpenViper()
+
+        assert any(r.path == "/api/items" for r in app.router.routes)
+
+    def test_skips_when_no_settings_module_env_var(self, monkeypatch):
+        monkeypatch.delenv("OPENVIPER_SETTINGS_MODULE", raising=False)
+
+        with patch("importlib.import_module") as mock_import:
+            app = OpenViper()
+
+        mock_import.assert_not_called()
+        assert app is not None
+
+    def test_skips_when_settings_module_has_no_package(self, monkeypatch):
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "settings")
+
+        with patch("importlib.import_module") as mock_import:
+            OpenViper()
+
+        mock_import.assert_not_called()
+
+    def test_skips_gracefully_when_routes_module_missing(self, monkeypatch):
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        with patch("importlib.import_module", side_effect=ImportError("no module")):
+            app = OpenViper()
+
+        assert app is not None
+
+    def test_skips_gracefully_when_route_paths_not_defined(self, monkeypatch):
+        fake_routes_module = MagicMock(spec=[])  # no route_paths attribute
+
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        with patch("importlib.import_module", return_value=fake_routes_module):
+            app = OpenViper()
+
+        assert app is not None
+
+    def test_derives_routes_module_from_settings_module(self, monkeypatch):
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "ecommerce_clone.settings")
+
+        imported_modules: list[str] = []
+
+        def capture_import(name: str, *args, **kwargs):
+            imported_modules.append(name)
+            m = MagicMock()
+            m.route_paths = []
+            return m
+
+        with patch("importlib.import_module", side_effect=capture_import):
+            OpenViper()
+
+        assert "ecommerce_clone.routes" in imported_modules
+
+    def test_registers_multiple_routers(self, monkeypatch):
+        router_a = Router()
+        router_b = Router()
+
+        async def handler_a(request):
+            return {}
+
+        async def handler_b(request):
+            return {}
+
+        router_a.add("/a", handler_a, methods=["GET"])
+        router_b.add("/b", handler_b, methods=["GET"])
+
+        fake_routes_module = MagicMock()
+        fake_routes_module.route_paths = [("/v1", router_a), ("/v2", router_b)]
+
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        with patch("importlib.import_module", return_value=fake_routes_module):
+            app = OpenViper()
+
+        paths = [r.path for r in app.router.routes]
+        assert "/v1/a" in paths
+        assert "/v2/b" in paths

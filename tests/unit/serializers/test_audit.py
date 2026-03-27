@@ -297,9 +297,10 @@ class TestPersistFilesPathTraversal:
 
         with patch("openviper.serializers.base.default_storage") as mock_storage:
             mock_storage.save = fake_save
-            with patch(
-                "openviper.serializers.base._FILE_FIELDS_CACHE",
-                {FakeSerializer: {"avatar": fake_field}},
+            with patch.object(
+                FakeSerializer,
+                "_get_file_fields",
+                return_value={"avatar": fake_field},
             ):
                 await FakeSerializer._persist_files({"avatar": evil_file})
 
@@ -338,9 +339,10 @@ class TestPersistFilesPathTraversal:
 
         with patch("openviper.serializers.base.default_storage") as mock_storage:
             mock_storage.save = fake_save
-            with patch(
-                "openviper.serializers.base._FILE_FIELDS_CACHE",
-                {FakeSerializer: {"doc": fake_field}},
+            with patch.object(
+                FakeSerializer,
+                "_get_file_fields",
+                return_value={"doc": fake_field},
             ):
                 await FakeSerializer._persist_files({"doc": evil_file})
 
@@ -370,9 +372,10 @@ class TestPersistFilesUnsafeBytes:
         fake_field = MagicMock()
         fake_field.upload_to = "uploads/"
 
-        with patch(
-            "openviper.serializers.base._FILE_FIELDS_CACHE",
-            {FakeSerializer: {"avatar": fake_field}},
+        with patch.object(
+            FakeSerializer,
+            "_get_file_fields",
+            return_value={"avatar": fake_field},
         ):
             with pytest.raises(TypeError, match="Unsupported file value type"):
                 await FakeSerializer._persist_files({"avatar": 1_000_000})
@@ -401,9 +404,10 @@ class TestPersistFilesUnsafeBytes:
 
         with patch("openviper.serializers.base.default_storage") as mock_storage:
             mock_storage.save = fake_save
-            with patch(
-                "openviper.serializers.base._FILE_FIELDS_CACHE",
-                {FakeSerializer: {"avatar": fake_field}},
+            with patch.object(
+                FakeSerializer,
+                "_get_file_fields",
+                return_value={"avatar": fake_field},
             ):
                 data = {"avatar": bytearray(b"hello")}
                 await FakeSerializer._persist_files(data)

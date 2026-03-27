@@ -81,10 +81,7 @@ _SENSITIVE_FIELDS: Final[frozenset[str]] = frozenset(
     {
         "SECRET_KEY",
         "DATABASE_URL",
-        "AWS_SECRET_ACCESS_KEY",
-        "AWS_ACCESS_KEY_ID",
         "EMAIL",
-        "SENTRY_DSN",
     }
 )
 
@@ -155,7 +152,6 @@ class Settings:
     VERSION: str = _framework_version
     DEBUG: bool = True
     ALLOWED_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1")
-    ROOT_URLCONF: str = ""
     INSTALLED_APPS: tuple[str, ...] = ()
     USE_TZ: bool = True
     TIME_ZONE: str = "UTC"
@@ -345,6 +341,27 @@ class Settings:
     #     }
     MODEL_EVENTS: dict[str, Any] = dataclasses.field(default_factory=dict)
 
+    # ── OAuth2 Events ─────────────────────────────────────────────────────
+    # Lifecycle event hooks for the OAuth2 authentication flow.  Each key maps
+    # to a dotted Python path of an async or sync callable that accepts a single
+    # payload dict argument.
+    #
+    # Supported event names:
+    #   on_success  — called after a successful OAuth2 login
+    #   on_fail     — called when authentication fails (bad token, no account, …)
+    #   on_error    — called when an unexpected exception occurs during the flow
+    #   on_initial  — called the first time a user authenticates via OAuth2
+    #
+    # Example::
+    #
+    #     OAUTH2_EVENTS = {
+    #         "on_success": "myapp.events.oauth_success",
+    #         "on_fail":    "myapp.events.oauth_fail",
+    #         "on_error":   "myapp.events.oauth_error",
+    #         "on_initial": "myapp.events.oauth_initial",
+    #     }
+    OAUTH2_EVENTS: dict[str, str] = dataclasses.field(default_factory=dict)
+
     # ── AI Integration ───────────────────────────────────────────────────
     ENABLE_AI_PROVIDERS: bool = False
     AI_PROVIDERS: dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -357,21 +374,12 @@ class Settings:
     OPENAPI_SCHEMA_URL: str = "/open-api/openapi.json"
     OPENAPI_ENABLED: bool = True
 
-    # ── Monitoring ───────────────────────────────────────────────────────
-    ENABLE_MONITORING: bool = False
-    SENTRY_DSN: str = ""
-    SENTRY_ENVIRONMENT: str = "development"
-    SENTRY_SAMPLE_RATE: float = 0.1
-
     # ── File Uploads ──────────────────────────────────────────────────────
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB
 
     # ── S3 / Storage ─────────────────────────────────────────────────────
     STATIC_STORAGE: str = "local"  # "local" | "s3"
     MEDIA_STORAGE: str = "local"
-    AWS_ACCESS_KEY_ID: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-    AWS_STORAGE_BUCKET_NAME: str = ""
 
     def as_dict(self, *, mask_sensitive: bool = True) -> dict[str, Any]:
         """Return all settings as a plain dict (shallow copy).

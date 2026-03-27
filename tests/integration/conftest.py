@@ -13,6 +13,7 @@ from openviper.app import OpenViper
 from openviper.auth.models import Permission, Role, User
 from openviper.cache import get_cache
 from openviper.conf import settings
+from openviper.core.context import request_perms_cache
 from openviper.db.connection import get_metadata
 from openviper.db.events import _background_tasks
 from openviper.http.response import JSONResponse
@@ -76,8 +77,10 @@ async def test_cache():
     """Initialize and clear cache for tests."""
     cache = get_cache()
     await cache.clear()
+    request_perms_cache.set(None)
     yield cache
     await cache.clear()
+    request_perms_cache.set(None)
 
 
 @pytest.fixture
@@ -118,6 +121,7 @@ async def user_with_role(test_database, test_cache) -> tuple[User, Role]:
         name="Can view dashboard",
     )
     await permission.save()
+    await _drain_tasks()  # drain Permission.after_insert background tasks before add()
 
     role = Role(
         name="viewer",
@@ -126,6 +130,7 @@ async def user_with_role(test_database, test_cache) -> tuple[User, Role]:
     await role.save()
 
     await role.permissions.add(permission)
+    await _drain_tasks()  # drain RolePermission.after_insert background tasks
 
     user = User(
         username="roleuser",
@@ -138,6 +143,7 @@ async def user_with_role(test_database, test_cache) -> tuple[User, Role]:
     await user.save()
 
     await user.roles.add(role)
+    await _drain_tasks()
 
     return user, role
 

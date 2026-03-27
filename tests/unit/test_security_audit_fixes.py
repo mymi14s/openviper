@@ -211,6 +211,11 @@ class TestSecurityMiddlewareCSPSanitization:
             ms.ALLOWED_HOSTS = ["*"]
             ms.SECURE_BROWSER_XSS_FILTER = False
             ms.SECURE_CONTENT_SECURITY_POLICY = None
+            ms.SECURE_SSL_REDIRECT = False
+            ms.SECURE_HSTS_SECONDS = 0
+            ms.SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+            ms.SECURE_HSTS_PRELOAD = False
+            ms.X_FRAME_OPTIONS = "DENY"
             mw = SecurityMiddleware(
                 _ok_app,
                 csp={"default-src": "'self'; script-src 'unsafe-inline'"},

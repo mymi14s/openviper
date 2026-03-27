@@ -192,7 +192,7 @@ jobs:
       - name: Run unit tests
         if: steps.cmd.outputs.action == 'test' || steps.cmd.outputs.action == 'deploy'
         env:
-          SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-test-secret-key-do-not-use-in-production-must-be-long-enough' }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
         run: pytest tests/unit -v --no-cov
 
       - name: Setup Node (frontend test)

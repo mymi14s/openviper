@@ -91,7 +91,7 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run tests with coverage
         env:
-          SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-test-secret-key-do-not-use-in-production-must-be-long-enough' }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
         run: pytest tests/unit --cov=openviper --cov-report=term-missing --cov-fail-under=0 -v
 
   test_integration:
@@ -118,7 +118,7 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run tests
         env:
-          SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-test-secret-key-do-not-use-in-production-must-be-long-enough' }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
         run: pytest tests/integration -v
 
   # ── Security ──────────────────────────────────────────────────────────

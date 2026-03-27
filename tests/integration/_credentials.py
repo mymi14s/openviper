@@ -1,10 +1,12 @@
-"""Test-only credential constants for integration tests.
+"""Test-only credential helpers for integration tests.
 
-These values are intentionally non-production strings used solely
-to exercise password hashing and verification logic.
+Passwords are generated fresh at process start using the secrets module so no
+static credential strings appear in source code or revision history.
 """
 
-_ADMIN_PASSWORD = "t3st-adm1n-0nly"  # pragma: allowlist secret
-_USER_PASSWORD = "t3st-us3r-0nly"  # pragma: allowlist secret
-_EDITOR_PASSWORD = "t3st-3d1t0r-0nly"  # pragma: allowlist secret
-_WRONG_PASSWORD = "t3st-wr0ng-0nly"  # pragma: allowlist secret
+import secrets
+
+_ADMIN_PASSWORD: str = secrets.token_urlsafe(32)
+_USER_PASSWORD: str = secrets.token_urlsafe(32)
+_EDITOR_PASSWORD: str = secrets.token_urlsafe(32)
+_WRONG_PASSWORD: str = secrets.token_urlsafe(32)

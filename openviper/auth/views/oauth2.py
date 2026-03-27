@@ -364,7 +364,7 @@ class BaseOAuth2CallbackView(View):
                 "on_error",
                 {
                     "provider": self.provider,
-                    "access_token": "",
+                    "access_token": "",  # nosec B105
                     "user_info": {},
                     "email": "",
                     "name": "",
@@ -508,10 +508,10 @@ class GoogleOAuthCallbackView(BaseOAuth2CallbackView):
     """
 
     provider = "google"
-    token_url = "https://oauth2.googleapis.com/token"
+    token_url = "https://oauth2.googleapis.com/token"  # nosec B105
     userinfo_url = "https://www.googleapis.com/oauth2/v3/userinfo"
     client_id_setting = "GOOGLE_OAUTH_CLIENT_ID"
-    client_secret_setting = "GOOGLE_OAUTH_CLIENT_SECRET"
+    client_secret_setting = "GOOGLE_OAUTH_CLIENT_SECRET"  # nosec B105
     redirect_uri_setting = "GOOGLE_OAUTH_REDIRECT_URI"
 
     def validate_user_info(self, user_info: dict[str, Any]) -> str | None:

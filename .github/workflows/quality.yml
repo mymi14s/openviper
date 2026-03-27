@@ -83,7 +83,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libpq-dev unixodbc-dev
+          sudo apt-get install -y libpq-dev unixodbc-dev redis-server
       - name: Install OpenViper + dev requirements
         run: |
           python -m pip install --upgrade pip
@@ -110,7 +110,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libpq-dev unixodbc-dev
+          sudo apt-get install -y libpq-dev unixodbc-dev redis-server
       - name: Install OpenViper + dev requirements
         run: |
           python -m pip install --upgrade pip

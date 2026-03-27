@@ -1,11 +1,9 @@
 
 aiofiles==25.1.0
 aiosqlite==0.22.1
-
 alembic==1.18.4
 anyio==4.12.1
 argon2-cffi==25.1.0
-
 bcrypt==5.0.0
 brotli==1.2.0
 click==8.3.1
@@ -26,7 +24,6 @@ python-jose[cryptography]==3.5.0
 python-multipart==0.0.22
 regex==2026.2.28
 rich==14.3.3
-redis==6.4.0
 SQLAlchemy==2.0.47
 traitlets==5.14.3
 typing-extensions==4.15.0

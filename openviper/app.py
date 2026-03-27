@@ -43,7 +43,8 @@ from openviper.http.request import Request
 from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from openviper.middleware.base import ASGIApp, build_middleware_stack
 from openviper.middleware.cors import CORSMiddleware
-from openviper.openapi.schema import generate_openapi_schema
+from openviper.openapi.router import should_register_openapi
+from openviper.openapi.schema import filter_openapi_routes, generate_openapi_schema
 from openviper.openapi.ui import get_redoc_html, get_swagger_html
 from openviper.routing.router import Router, include
 
@@ -174,7 +175,7 @@ class OpenViper:
         self._handler_param_cache: dict[int, dict[str, Any]] = {}
 
         # Register internal routes (schema, docs)
-        if getattr(settings, "OPENAPI_ENABLED", True):
+        if should_register_openapi():
             self._register_openapi_routes()
 
         # Auto-discover and register project route_paths from <project>.routes
@@ -312,8 +313,9 @@ class OpenViper:
 
     def _get_openapi_schema(self) -> dict[str, Any]:
         if self._openapi_schema is None:
+            filtered = filter_openapi_routes(self.router.routes)
             self._openapi_schema = generate_openapi_schema(
-                routes=self.router.routes,
+                routes=filtered,
                 title=self.title,
                 version=self.version,
             )
@@ -632,13 +634,8 @@ class OpenViper:
                     await asyncio.to_thread(self._get_middleware_app)
 
                     # Pre-build OpenAPI schema so the first schema request is instant.
-                    if getattr(settings, "OPENAPI_ENABLED", True):
-                        self._openapi_schema = await asyncio.to_thread(
-                            generate_openapi_schema,
-                            routes=self.router.routes,
-                            title=self.title,
-                            version=self.version,
-                        )
+                    if should_register_openapi():
+                        await asyncio.to_thread(self._get_openapi_schema)
 
                     for handler in self._startup_handlers:
                         result = handler()

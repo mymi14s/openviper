@@ -136,3 +136,116 @@ Accessing the Raw Schema
         version="2.0.0",
     )
     print(json.dumps(schema, indent=2))
+
+.. _openapi-exclusion:
+
+OpenAPI Exclusion
+-----------------
+
+The ``OPENAPI_EXCLUDE`` setting lets you disable the OpenAPI router entirely
+or remove specific base routes from the generated schema without changing your
+routing registration.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Value
+     - Effect
+   * - ``[]`` (default)
+     - All routes appear in the schema; docs endpoints are active.
+   * - ``"__ALL__"``
+     - The OpenAPI router is **not registered**. ``/open-api/openapi.json``,
+       ``/open-api/docs``, and ``/open-api/redoc`` all return **404**.
+   * - ``["admin"]``
+     - Routes whose path starts with ``/admin`` are removed from the schema.
+       The docs endpoints remain accessible.
+   * - ``["admin", "blogs"]``
+     - Routes under ``/admin`` **and** ``/blogs`` are removed from the schema.
+
+Disable OpenAPI
+~~~~~~~~~~~~~~~
+
+Set ``OPENAPI_EXCLUDE = "__ALL__"`` to prevent the docs and schema endpoints
+from being registered. This is recommended for production deployments where
+you do not want to expose API documentation.
+
+.. code-block:: python
+
+    # settings.py
+
+    OPENAPI_EXCLUDE = "__ALL__"
+
+After applying this setting, any request to ``/open-api/openapi.json``,
+``/open-api/docs``, or ``/open-api/redoc`` will receive a **404** response.
+
+Exclude Routes by Prefix
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pass a list of route-path prefixes (without the leading ``/``) to remove
+matching paths from the generated schema. The docs endpoint itself remains
+accessible; only the schema content is filtered.
+
+.. code-block:: python
+
+    # Remove all /admin/* routes from the schema
+    OPENAPI_EXCLUDE = ["admin"]
+
+    # Remove /admin/* and /blogs/* routes
+    OPENAPI_EXCLUDE = ["admin", "blogs"]
+
+    # Remove /admin/*, /blogs/*, and /internal/* routes
+    OPENAPI_EXCLUDE = ["admin", "blogs", "internal"]
+
+Prefix Matching Rules
+~~~~~~~~~~~~~~~~~~~~~
+
+* Matching is **case-insensitive**: ``"Admin"`` and ``"admin"`` produce the
+  same result.
+* Leading slashes in a prefix are normalised: ``"/admin"`` is treated
+  identically to ``"admin"``.
+* Only **complete path segments** are matched.  A prefix of ``"blogs"`` will
+  exclude ``/blogs`` and ``/blogs/posts`` but **not** ``/blogsearch`` or
+  ``/blog``.
+
+Security Benefits
+~~~~~~~~~~~~~~~~~
+
+Using ``OPENAPI_EXCLUDE`` reduces the attack surface of your API:
+
+* Hide internal admin endpoints from the public schema.
+* Prevent automated scanners from discovering route structures.
+* Disable the schema entirely in production to avoid information leakage.
+
+.. seealso::
+
+   :ref:`openapi` — main OpenAPI reference page.
+
+API Reference — Exclusion Helpers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``openviper.openapi.schema``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. py:function:: filter_openapi_routes(routes: list[Route]) -> list[Route]
+
+   Filter a list of :class:`~openviper.routing.router.Route` objects
+   according to ``settings.OPENAPI_EXCLUDE``.
+
+   * ``"__ALL__"`` → returns ``[]``.
+   * A ``list[str]`` of prefixes → drops routes whose path starts with any
+     of the given prefixes (case-insensitive, leading ``/`` normalised).
+   * Empty list or missing setting → returns all routes unchanged.
+   * Any other value triggers a warning and returns all routes unchanged.
+
+``openviper.openapi.router``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. py:function:: should_register_openapi() -> bool
+
+   Return ``True`` when the OpenAPI router should be registered.
+
+   Returns ``False`` when ``OPENAPI_ENABLED`` is ``False`` **or** when
+   ``OPENAPI_EXCLUDE`` is ``"__ALL__"``.  The :class:`~openviper.app.OpenViper`
+   application calls this at start-up to decide whether to mount the docs
+   routes.

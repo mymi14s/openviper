@@ -87,6 +87,7 @@ For a production-grade multi-app example with AI moderation see `examples/ai_mod
    tasks
    email
    openapi
+   openapi/configuration
    template
    storage
    staticfiles

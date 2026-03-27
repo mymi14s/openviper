@@ -171,8 +171,18 @@ def get_admin_site() -> Router:
         async def silent_404(request: Request, **kwargs: Any) -> Response:
             return Response(status_code=404)
 
-        router.add("/extensions/{path:path}", silent_404, methods=["GET", "HEAD"])
-        router.add("/assets/{path:path}", silent_404, methods=["GET", "HEAD"])
+        router.add(
+            "/extensions/{path:path}",
+            silent_404,
+            methods=["GET", "HEAD"],
+            namespace="admin_silent_404_extensions",
+        )
+        router.add(
+            "/assets/{path:path}",
+            silent_404,
+            methods=["GET", "HEAD"],
+            namespace="admin_silent_404_assets",
+        )
 
     # SPA HTML routes — always mounted so the admin is reachable.
     # We mount these in a sub-router so they are evaluated AFTER everything else.

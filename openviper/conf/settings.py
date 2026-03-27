@@ -373,6 +373,11 @@ class Settings:
     OPENAPI_REDOC_URL: str = "/open-api/redoc"
     OPENAPI_SCHEMA_URL: str = "/open-api/openapi.json"
     OPENAPI_ENABLED: bool = True
+    # Controls OpenAPI access and route exclusion.
+    # "__ALL__" disables the OpenAPI router entirely.
+    # A list of route prefixes (e.g. ["admin", "blogs"]) removes those
+    # paths from the generated schema while keeping the docs endpoint active.
+    OPENAPI_EXCLUDE: list[str] | str = dataclasses.field(default_factory=list)
 
     # ── File Uploads ──────────────────────────────────────────────────────
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB

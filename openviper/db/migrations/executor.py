@@ -873,6 +873,123 @@ class RemoveIndex(Operation):
 
 
 @dataclass
+class AddConstraint(Operation):
+    """Add a CHECK or UNIQUE constraint to an existing table.
+
+    Args:
+        table_name: Target table.
+        constraint_name: Name for the constraint.
+        constraint_type: ``"CHECK"`` or ``"UNIQUE"``.
+        check: SQL expression for a CHECK constraint.
+        columns: Column list for a UNIQUE constraint.
+        condition: Optional partial-index WHERE clause (UNIQUE only, PostgreSQL/SQLite).
+
+    Example (CHECK)::
+
+        migrations.AddConstraint(
+            table_name="products",
+            constraint_name="price_positive",
+            constraint_type="CHECK",
+            check="price > 0",
+        )
+
+    Example (conditional UNIQUE)::
+
+        migrations.AddConstraint(
+            table_name="articles",
+            constraint_name="unique_published_slug",
+            constraint_type="UNIQUE",
+            columns=["slug"],
+            condition="published = 1",
+        )
+    """
+
+    table_name: str
+    constraint_name: str
+    constraint_type: str
+    check: str = ""
+    columns: list[str] = field(default_factory=list)
+    condition: str = ""
+
+    def forward_sql(self) -> list[str]:
+        dialect = _get_dialect()
+        quoted_table = _quote_identifier(self.table_name, dialect)
+        quoted_name = _quote_identifier(self.constraint_name, dialect)
+
+        if self.constraint_type.upper() == "CHECK":
+            if dialect in ("sqlite",):
+                return []
+            return [
+                f"ALTER TABLE {quoted_table} " f"ADD CONSTRAINT {quoted_name} CHECK ({self.check})"
+            ]
+
+        if self.constraint_type.upper() == "UNIQUE":
+            cols = ", ".join(_quote_identifier(c, dialect) for c in self.columns)
+            base = f"CREATE UNIQUE INDEX {quoted_name} " f"ON {quoted_table} ({cols})"
+            if self.condition and dialect in ("postgresql", "sqlite"):
+                base += f" WHERE {self.condition}"
+            return [base]
+
+        return []
+
+    def backward_sql(self) -> list[str]:
+        dialect = _get_dialect()
+        quoted_name = _quote_identifier(self.constraint_name, dialect)
+        quoted_table = _quote_identifier(self.table_name, dialect)
+
+        if self.constraint_type.upper() == "UNIQUE":
+            if dialect == "mssql":
+                return [f"DROP INDEX {quoted_name} ON {quoted_table}"]
+            return [f"DROP INDEX IF EXISTS {quoted_name}"]
+
+        if self.constraint_type.upper() == "CHECK":
+            if dialect in ("sqlite",):
+                return []
+            if dialect == "mysql":
+                return [f"ALTER TABLE {quoted_table} DROP CHECK {quoted_name}"]
+            return [f"ALTER TABLE {quoted_table} DROP CONSTRAINT {quoted_name}"]
+
+        return []
+
+
+@dataclass
+class RemoveConstraint(Operation):
+    """Remove a previously-added CHECK or UNIQUE constraint.
+
+    Args:
+        table_name: Target table.
+        constraint_name: Name of the constraint to remove.
+        constraint_type: ``"CHECK"`` or ``"UNIQUE"`` (needed to generate correct SQL).
+    """
+
+    table_name: str
+    constraint_name: str
+    constraint_type: str = "UNIQUE"
+
+    def forward_sql(self) -> list[str]:
+        dialect = _get_dialect()
+        quoted_name = _quote_identifier(self.constraint_name, dialect)
+        quoted_table = _quote_identifier(self.table_name, dialect)
+
+        if self.constraint_type.upper() == "UNIQUE":
+            if dialect == "mssql":
+                return [f"DROP INDEX {quoted_name} ON {quoted_table}"]
+            return [f"DROP INDEX IF EXISTS {quoted_name}"]
+
+        if self.constraint_type.upper() == "CHECK":
+            if dialect in ("sqlite",):
+                return []
+            if dialect == "mysql":
+                return [f"ALTER TABLE {quoted_table} DROP CHECK {quoted_name}"]
+            return [f"ALTER TABLE {quoted_table} DROP CONSTRAINT {quoted_name}"]
+
+        return []
+
+    def backward_sql(self) -> list[str]:
+        return []
+
+
+@dataclass
 class RunSQL(Operation):
     """Arbitrary forward/backward SQL."""
 

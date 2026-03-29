@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import functools
 import inspect
 import json
 import logging
@@ -63,6 +64,7 @@ from openviper.db.executor import (
     get_table,
 )
 from openviper.db.fields import (
+    Constraint,
     DateTimeField,
     Field,
     ForeignKey,
@@ -161,14 +163,19 @@ class ModelMeta(type):
         meta = namespace.get("Meta")
         table_name = ""
         is_abstract = False
+        is_proxy = False
+        is_managed = True
         meta_indexes: list[Index] = []
         meta_unique_together: list[list[str]] = []
+        meta_constraints: list[Constraint] = []
         verbose_name: str | None = None
         verbose_name_plural: str | None = None
         ordering: list[str] = []
 
         if meta:
             is_abstract = getattr(meta, "abstract", False)
+            is_proxy = getattr(meta, "proxy", False)
+            is_managed = getattr(meta, "managed", True)
             if hasattr(meta, "table_name") and meta.table_name:
                 table_name = meta.table_name
 
@@ -184,6 +191,10 @@ class ModelMeta(type):
                     else:
                         meta_unique_together = [list(ut)]
 
+            # Parse Meta.constraints (CheckConstraint, UniqueConstraint, etc.)
+            if hasattr(meta, "constraints"):
+                meta_constraints = list(meta.constraints)
+
             # Parse verbose names and ordering
             verbose_name = getattr(meta, "verbose_name", None)
             verbose_name_plural = getattr(meta, "verbose_name_plural", None)
@@ -193,6 +204,13 @@ class ModelMeta(type):
                     ordering = [ord_val]
                 elif isinstance(ord_val, (list, tuple)):
                     ordering = list(ord_val)
+
+        # Proxy models inherit the parent's table name.
+        if is_proxy and not table_name:
+            for base in bases:
+                if hasattr(base, "_table_name") and base._table_name:
+                    table_name = base._table_name
+                    break
 
         if not table_name:
             # Auto-generate: {app_name}_{model_name} in snake_case
@@ -226,11 +244,15 @@ class ModelMeta(type):
 
         namespace["_table_name"] = table_name
         namespace["_is_abstract"] = is_abstract
+        namespace["_is_proxy"] = is_proxy
+        namespace["_is_managed"] = is_managed
         namespace["_meta_indexes"] = meta_indexes
         namespace["_meta_unique_together"] = meta_unique_together
+        namespace["_meta_constraints"] = meta_constraints
         namespace["_verbose_name"] = verbose_name
         namespace["_verbose_name_plural"] = verbose_name_plural
         namespace["_ordering"] = ordering
+        namespace["_cache_ttl"] = getattr(meta, "cache_ttl", 0) if meta else 0
 
         cls = super().__new__(mcs, name, bases, namespace)
 
@@ -306,14 +328,20 @@ class Index:
                 ]
     """
 
-    __slots__ = ("fields", "name")
+    __slots__ = ("fields", "name", "condition")
 
-    def __init__(self, fields: list[str], name: str | None = None) -> None:
+    def __init__(
+        self,
+        fields: list[str],
+        name: str | None = None,
+        condition: str | None = None,
+    ) -> None:
         self.fields = fields
         self.name = name
+        self.condition = condition
 
     def __repr__(self) -> str:
-        return f"Index(fields={self.fields!r}, name={self.name!r})"
+        return f"Index(fields={self.fields!r}, name={self.name!r}, condition={self.condition!r})"
 
 
 # ── F expression ─────────────────────────────────────────────────────────────
@@ -784,6 +812,115 @@ class Manager:
         except Exception:
             pass
 
+    async def update_or_create(
+        self,
+        defaults: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> tuple[Model, bool]:
+        """Look up an object matching *kwargs*; update it with *defaults*, or create it.
+
+        Returns a ``(instance, created)`` tuple where *created* is ``True``
+        when the object did not previously exist.
+
+        Args:
+            defaults: Fields to update on the existing object, or merge into
+                the new object on create.
+            **kwargs: Lookup parameters used to find the existing object.
+
+        .. code-block:: python
+
+            post, created = await Post.objects.update_or_create(
+                slug="hello-world",
+                defaults={"title": "Hello World", "published": True},
+            )
+        """
+        try:
+            obj = await self.get(**kwargs)
+            for field_name, value in (defaults or {}).items():
+                setattr(obj, field_name, value)
+            await obj.save()
+            return obj, False
+        except DoesNotExist:
+            params = {**kwargs, **(defaults or {})}
+            try:
+                obj = await self.create(**params)
+                return obj, True
+            except IntegrityError:
+                obj = await self.get(**kwargs)
+                for field_name, value in (defaults or {}).items():
+                    setattr(obj, field_name, value)
+                await obj.save()
+                return obj, False
+
+    async def in_bulk(
+        self,
+        id_list: list[Any] | None = None,
+        *,
+        field_name: str = "id",
+    ) -> dict[Any, Model]:
+        """Return a dictionary mapping each ID in *id_list* to its model instance.
+
+        If *id_list* is ``None`` or omitted, returns a mapping of **all** rows
+        (subject to the configured ``MAX_QUERY_ROWS`` limit).
+
+        Args:
+            id_list: List of primary-key (or field) values to fetch.
+            field_name: Which field to use as the dict key. Defaults to ``"id"``.
+
+        Returns:
+            ``{value: instance}`` mapping.
+
+        .. code-block:: python
+
+            posts = await Post.objects.in_bulk([1, 2, 3])
+            # {1: <Post pk=1>, 2: <Post pk=2>, 3: <Post pk=3>}
+        """
+        qs: QuerySet = QuerySet(self.model)
+        if id_list is not None:
+            qs = qs.filter(**{f"{field_name}__in": id_list})
+        instances = await qs.all()
+        return {getattr(inst, field_name): inst for inst in instances}
+
+    @classmethod
+    def from_queryset(cls, queryset_class: type[QuerySet]) -> type[Manager]:
+        """Return a new Manager subclass that uses *queryset_class* for all queries.
+
+        This enables custom queryset methods to be called directly on the manager.
+
+        .. code-block:: python
+
+            class PublishedQuerySet(QuerySet):
+                def published(self) -> QuerySet:
+                    return self.filter(published=True)
+
+            PublishedManager = Manager.from_queryset(PublishedQuerySet)
+
+            class Post(Model):
+                objects = PublishedManager()
+                published_at = DateTimeField(null=True)
+                published = BooleanField(default=False)
+        """
+
+        class DynamicManager(cls):  # type: ignore[valid-type, misc]
+            def all(self) -> QuerySet:
+                return queryset_class(self.model)
+
+            def filter(self, *args: Any, **kwargs: Any) -> QuerySet:
+                ignore_permissions = kwargs.pop("ignore_permissions", False)
+                return queryset_class(self.model, ignore_permissions=ignore_permissions).filter(
+                    *args, **kwargs
+                )
+
+            def exclude(self, *args: Any, **kwargs: Any) -> QuerySet:
+                return queryset_class(self.model).exclude(*args, **kwargs)
+
+            def order_by(self, *fields: str) -> QuerySet:
+                return queryset_class(self.model).order_by(*fields)
+
+        DynamicManager.__name__ = f"{cls.__name__}From{queryset_class.__name__}"
+        DynamicManager.__qualname__ = DynamicManager.__name__
+        return DynamicManager
+
     def __repr__(self) -> str:
         return f"Manager(model={self.model.__name__})"
 
@@ -990,6 +1127,9 @@ class QuerySet:
         self._only_fields: list[str] = []
         self._defer_fields: list[str] = []
         self._annotations: dict[str, Any] = {}
+        self._for_update: bool = False
+        self._for_update_nowait: bool = False
+        self._for_update_skip_locked: bool = False
 
     def filter(self, *args: Any, **kwargs: Any) -> QuerySet:
         ignore_permissions = kwargs.pop("ignore_permissions", None)
@@ -1028,6 +1168,38 @@ class QuerySet:
     def distinct(self) -> QuerySet:
         clone = self._clone()
         clone._distinct = True
+        return clone
+
+    def select_for_update(
+        self,
+        nowait: bool = False,
+        skip_locked: bool = False,
+    ) -> QuerySet:
+        """Apply ``SELECT FOR UPDATE`` locking to the query.
+
+        Rows matched by the query will be locked until the current
+        transaction commits or rolls back.
+
+        Args:
+            nowait: If ``True``, raise an error immediately rather than
+                waiting when a conflicting lock is held.
+            skip_locked: If ``True``, skip rows that are currently locked
+                rather than waiting.  ``nowait`` and ``skip_locked``
+                are mutually exclusive.
+
+        .. code-block:: python
+
+            async with atomic():
+                post = await Post.objects.select_for_update().filter(id=1).get()
+                post.views += 1
+                await post.save()
+        """
+        if nowait and skip_locked:
+            raise ValueError("select_for_update() cannot use both nowait=True and skip_locked=True")
+        clone = self._clone()
+        clone._for_update = True
+        clone._for_update_nowait = nowait
+        clone._for_update_skip_locked = skip_locked
         return clone
 
     def select_related(self, *fields: str) -> QuerySet:
@@ -1631,7 +1803,7 @@ class QuerySet:
         return self.all().__await__()
 
     def _clone(self) -> QuerySet:
-        clone = QuerySet(self._model)
+        clone = self.__class__(self._model)
         clone._filters = list(self._filters)
         clone._excludes = list(self._excludes)
         clone._q_filters = list(self._q_filters)
@@ -1645,6 +1817,9 @@ class QuerySet:
         clone._only_fields = list(self._only_fields)
         clone._defer_fields = list(self._defer_fields)
         clone._annotations = dict(self._annotations)
+        clone._for_update = self._for_update
+        clone._for_update_nowait = self._for_update_nowait
+        clone._for_update_skip_locked = self._for_update_skip_locked
         return clone
 
     def __repr__(self) -> str:
@@ -1953,49 +2128,79 @@ class Model(metaclass=ModelMeta):
         return cls(**field_data)
 
     @classmethod
+    @functools.cache
+    def _field_mapping(cls) -> tuple[
+        tuple[tuple[str, str, str, bool], ...],
+        frozenset[str],
+        frozenset[str],
+    ]:
+        """Pre-compute per-model field mapping for fast hydration.
+
+        Returns:
+            (field_specs, field_names, col_names) where each field_spec is
+            (field_name, col_name, dict_key, has_callable_default).
+        """
+        specs: list[tuple[str, str, str, bool]] = []
+        field_names: set[str] = set()
+        col_names: set[str] = set()
+        for name, field in cls._fields.items():
+            col_name = field.column_name
+            dict_key = col_name if hasattr(field, "resolve_target") else name
+            has_callable = field.default is not None and callable(field.default)
+            specs.append((name, col_name, dict_key, has_callable))
+            field_names.add(name)
+            col_names.add(col_name)
+        return tuple(specs), frozenset(field_names), frozenset(col_names)
+
+    @classmethod
     def _from_row_fast(cls: type[T], row: dict[str, Any]) -> T:
         """Fast-path hydration that bypasses ``__init__`` and ``_snapshot()``.
 
-        Used for read-only query results where change-detection is not needed.
-        Sets ``__dict__`` directly, avoiding three full field iterations that
-        the normal ``__init__`` performs (defaults, extras, snapshot).
+        Uses a per-model cached field mapping to avoid per-row introspection.
+        Sets ``__dict__`` directly, skipping three full field iterations
+        that ``__init__`` performs (defaults, extras, snapshot).
         """
+        specs, known_fields, known_cols = cls._field_mapping()
+
         instance = cls.__new__(cls)
-        instance._relation_cache = None  # Lazy initialization
-        instance._previous_state = {}
+        inst_dict = instance.__dict__
+        prev_state: dict[str, Any] = {}
+        instance._relation_cache = None
+        instance._previous_state = prev_state
 
-        # Remap column names → field names directly into __dict__.
-        for name, field in cls._fields.items():
-            col_name = field.column_name
-            # ForeignKeys store their raw IDs under column_name (e.g., 'author_id')
-            # Regular fields store their values under name (e.g., 'title')
-            dict_key = col_name if hasattr(field, "resolve_target") else name
+        row_get = row.get
+        fields_map = cls._fields
 
-            if col_name in row:
-                value = row[col_name]
-                instance.__dict__[dict_key] = value
-                # Track all field values for change detection
-                instance._previous_state[name] = value
-            elif name in row:
-                value = row[name]
-                instance.__dict__[dict_key] = value
-                instance._previous_state[name] = value
+        for field_name, col_name, dict_key, has_callable_default in specs:
+            value = row_get(col_name)
+            if value is not None:
+                inst_dict[dict_key] = value
+                prev_state[field_name] = value
+            elif col_name in row:
+                inst_dict[dict_key] = None
+                prev_state[field_name] = None
             else:
-                # Apply default if present, else None.
-                if field.default is not None:
-                    value = field.default() if callable(field.default) else field.default
-                    instance.__dict__[dict_key] = value
-                    instance._previous_state[name] = value
+                value = row_get(field_name)
+                if value is not None:
+                    inst_dict[dict_key] = value
+                    prev_state[field_name] = value
+                elif field_name in row:
+                    inst_dict[dict_key] = None
+                    prev_state[field_name] = None
                 else:
-                    instance.__dict__[dict_key] = None
-                    instance._previous_state[name] = None
+                    field = fields_map[field_name]
+                    if field.default is not None:
+                        value = field.default() if has_callable_default else field.default
+                        inst_dict[dict_key] = value
+                        prev_state[field_name] = value
+                    else:
+                        inst_dict[dict_key] = None
+                        prev_state[field_name] = None
 
-        # Extra columns (e.g. annotations) not in _fields.
-        field_names = set(cls._fields)
-        col_names = {f.column_name for f in cls._fields.values()}
+        # Extra columns (annotations) not in _fields — skip known keys.
         for key, val in row.items():
-            if key not in field_names and key not in col_names:
-                instance.__dict__[key] = val
+            if key not in known_fields and key not in known_cols:
+                inst_dict[key] = val
 
         return instance
 
@@ -2149,6 +2354,58 @@ class Model(metaclass=ModelMeta):
         # Re-snapshot after refresh
         self._previous_state = self._snapshot()
 
+    async def full_clean(self) -> None:
+        """Run complete validation: field-level checks plus custom model validation.
+
+        Combines the built-in :meth:`validate` (which runs all field validators)
+        with a user-overridable :meth:`clean` hook for cross-field rules.
+
+        Override :meth:`clean` in subclasses for additional business-rule
+        validation.  Raise :class:`ValueError` to report a failure.
+
+        .. code-block:: python
+
+            class Event(Model):
+                start_at = DateTimeField()
+                end_at   = DateTimeField()
+
+                async def clean(self) -> None:
+                    if self.start_at and self.end_at and self.start_at >= self.end_at:
+                        raise ValueError("start_at must be before end_at")
+
+            event = Event(start_at=..., end_at=...)
+            await event.full_clean()   # raises if invalid
+        """
+        await _call_hook(self.before_validate)
+        await _call_hook(self.validate)
+        await _call_hook(self.clean)
+
+    async def clean(self) -> None:
+        """Cross-field validation hook called by :meth:`full_clean`.
+
+        Override in subclasses to add business-rule validation that spans
+        multiple fields.  Raise :class:`ValueError` to report failures.
+        The default implementation is a no-op.
+        """
+
+    def get_deferred_fields(self) -> list[str]:
+        """Return a list of field names not currently loaded on this instance.
+
+        Useful for introspecting which fields were excluded by a previous
+        :meth:`~QuerySet.defer` call.
+        """
+        loaded = set(self.__dict__)
+        deferred: list[str] = []
+        for name, field in self._fields.items():
+            col = field.column_name if hasattr(field, "column_name") else name
+            if name not in loaded and col not in loaded:
+                deferred.append(name)
+        return deferred
+
+    def __str__(self) -> str:
+        pk = getattr(self, "id", None)
+        return f"{self.__class__.__name__} object (pk={pk!r})"
+
     def __repr__(self) -> str:
         pk = getattr(self, "id", None)
         return f"<{self.__class__.__name__} pk={pk!r}>"
@@ -2158,8 +2415,39 @@ class Model(metaclass=ModelMeta):
             return False
         return self.pk is not None and self.pk == other.pk
 
+    def __hash__(self) -> int:
+        pk = self.pk
+        if pk is None:
+            return id(self)
+        return hash((self.__class__, pk))
 
-# ── Abstract Model ────────────────────────────────────────────────────────────
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        if self.pk is None or other.pk is None:
+            return NotImplemented
+        return self.pk < other.pk
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        if self.pk is None or other.pk is None:
+            return NotImplemented
+        return self.pk <= other.pk
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        if self.pk is None or other.pk is None:
+            return NotImplemented
+        return self.pk > other.pk
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        if self.pk is None or other.pk is None:
+            return NotImplemented
+        return self.pk >= other.pk
 
 
 class AbstractModel(Model):

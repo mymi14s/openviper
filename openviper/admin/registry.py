@@ -79,35 +79,13 @@ class AdminRegistry:
             logger.debug(f"Registered {model_class.__name__} with {admin_class.__name__}")
             return None
 
-        # If we got a class but no second argument, it could be a direct call or decorator
-        # But in Python, we can't easily tell if it's being used as @register(Model)
-        # or registry.register(Model).
-        # We'll assume if it's called with ONE argument, it should return a decorator
-        # UNLESS that argument is the only thing needed.
-        # Actually, let's check if the first arg is a Model class.
-
         def decorator(admin_cls: type[ModelAdmin]) -> type[ModelAdmin]:
             self._registry[model_class] = admin_cls(model_class)
             logger.debug(f"Registered {model_class.__name__} with {admin_cls.__name__}")
             return admin_cls
 
-        # If we didn't get an admin_class, but we want to allow registry.register(Model)
-        # We need a way to distinguish.
-        # Simple heuristic: if we are in a context where we WANT a decorator, return it.
-        # But for tests like registry.register(MockModel), we want it registered NOW.
-        # Let's check for a common pattern: if we return the decorator and it's never called,
-        # it's a direct call.
-        # If called with just model_class, and we are NOT using it as a decorator,
-        # it should probably just use DefaultModelAdmin.
-        # BUT @register(Model) is the standard decorator usage.
-        # Wait, the test calls `registry.register(MockModel)`.
-        # I'll just check if it's being used as a decorator by returning an object that
-        # registers on call, but also registers immediately with default if not called?
-        # No, that's too complex.
-        # I'll just use DefaultModelAdmin if called with one arg, and provide a separate
-        # decorator if needed? No, @register is too common.
-        # Let's just use the simplest logic: if it IS a model class, register it with default
-        # AND return the decorator just in case.
+        # Register with DefaultModelAdmin immediately and return the decorator
+        # so both registry.register(Model) and @register(Model) work.
         self._registry[model_class] = DefaultModelAdmin(model_class)
         return decorator
 

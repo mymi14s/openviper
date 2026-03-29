@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from openviper.auth.models import AbstractUser as BaseUser
+from openviper.contrib.countries import CountryField
 from openviper.db import fields
 
 
@@ -18,6 +19,7 @@ class User(BaseUser):
     _app_name = "users"
 
     name = fields.CharField(max_length=255, null=True, blank=True)
+    country = CountryField(null=True, blank=True)
     address = fields.TextField(null=True, blank=True)
 
     class Meta:

@@ -249,3 +249,103 @@ API Reference — Exclusion Helpers
    ``OPENAPI_EXCLUDE`` is ``"__ALL__"``.  The :class:`~openviper.app.OpenViper`
    application calls this at start-up to decide whether to mount the docs
    routes.
+
+----
+
+Configuration Reference
+-----------------------
+
+OPENAPI_EXCLUDE
+~~~~~~~~~~~~~~~
+
+**Type:** ``str | list[str]``
+**Default:** ``[]``
+
+Controls OpenAPI access and route exclusion.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Value
+     - Behaviour
+   * - ``[]`` (default)
+     - No routes excluded; docs endpoints active.
+   * - ``"__ALL__"``
+     - Docs router **not** registered; all docs URLs return 404.
+   * - ``list[str]``
+     - Routes whose path starts with any listed prefix are removed from the
+       generated schema. Docs endpoints remain accessible.
+
+Prefix matching rules:
+
+- Case-insensitive: ``"Admin"`` and ``"admin"`` are equivalent.
+- Leading slashes normalised: ``"/admin"`` and ``"admin"`` are identical.
+- Whole-segment matching: ``"blogs"`` excludes ``/blogs`` and ``/blogs/posts``
+  but **not** ``/blogsearch`` or ``/blog``.
+
+All OpenAPI Settings
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Setting
+     - Default
+     - Description
+   * - ``OPENAPI_ENABLED``
+     - ``True``
+     - Master switch. ``False`` prevents all docs routes from registering,
+       identical in effect to ``OPENAPI_EXCLUDE = "__ALL__"``.
+   * - ``OPENAPI_TITLE``
+     - ``"OpenViper API"``
+     - Title shown in Swagger UI and ReDoc.
+   * - ``OPENAPI_VERSION``
+     - ``"0.0.1"``
+     - API version string in the schema ``info`` block.
+   * - ``OPENAPI_SCHEMA_URL``
+     - ``"/open-api/openapi.json"``
+     - URL at which the raw JSON schema is served.
+   * - ``OPENAPI_DOCS_URL``
+     - ``"/open-api/docs"``
+     - URL for the Swagger UI page.
+   * - ``OPENAPI_REDOC_URL``
+     - ``"/open-api/redoc"``
+     - URL for the ReDoc page.
+   * - ``OPENAPI_EXCLUDE``
+     - ``[]``
+     - Route exclusion list (see above).
+
+Configuration Examples
+~~~~~~~~~~~~~~~~~~~~~~
+
+Disable OpenAPI entirely in production:
+
+.. code-block:: python
+
+    # settings.py
+    OPENAPI_EXCLUDE = "__ALL__"
+
+Remove admin routes from the public schema:
+
+.. code-block:: python
+
+    OPENAPI_EXCLUDE = ["admin"]
+
+Remove multiple path prefixes:
+
+.. code-block:: python
+
+    OPENAPI_EXCLUDE = ["admin", "blogs", "internal", "health"]
+
+Security Considerations
+~~~~~~~~~~~~~~~~~~~~~~~
+
+- Disable the schema entirely (``OPENAPI_EXCLUDE = "__ALL__"``) in production
+  to prevent automated scanners from discovering your API surface.
+- Use prefix exclusion to hide ``/admin`` and other sensitive sub-trees from
+  publicly served documentation.
+- Schema exposure is listed as a risk in OWASP API Security Top 10
+  (API7: Security Misconfiguration). ``OPENAPI_EXCLUDE`` directly mitigates
+  this risk.

@@ -7,10 +7,6 @@ import os
 
 from openviper.core.management.base import BaseCommand, CommandError
 
-# ---------------------------------------------------------------------------
-# Templates
-# ---------------------------------------------------------------------------
-
 _PROVIDER_TEMPLATE = '''\
 """{{ provider_title }} AI provider."""
 
@@ -100,9 +96,6 @@ from __future__ import annotations
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def provider():
@@ -116,9 +109,6 @@ def provider():
         },
     })
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 def test_provider_name(provider):
     assert provider.provider_name() == "{{ provider_name }}"
@@ -235,10 +225,6 @@ provider_registry.discover_entrypoints()
 
 will automatically register your provider.
 """
-
-# ---------------------------------------------------------------------------
-# Command
-# ---------------------------------------------------------------------------
 
 
 def _to_class_name(name: str) -> str:

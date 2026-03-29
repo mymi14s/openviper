@@ -56,9 +56,9 @@ function goToPage(page: number) {
 </script>
 
 <template>
-  <div class="flex items-center justify-between">
+  <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
     <!-- Info -->
-    <p class="text-sm text-gray-500 dark:text-gray-400">
+    <p class="text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left">
       Showing {{ startItem }} to {{ endItem }} of {{ totalItems }} results
     </p>
 

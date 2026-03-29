@@ -42,14 +42,16 @@ class BaseCache(ABC):
         """Remove all values from the cache."""
         raise NotImplementedError
 
-    @abstractmethod
     async def has_key(self, key: str) -> bool:
         """Check if a key exists in the cache.
+
+        Default implementation calls get() and checks for None.
+        Backends that can more efficiently check key existence should override.
 
         Args:
             key: The cache key.
         """
-        raise NotImplementedError
+        return await self.get(key) is not None
 
     async def keys(self, prefix: str = "") -> list[str]:
         """Return all cache keys, optionally filtered by prefix.

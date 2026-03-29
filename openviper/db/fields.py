@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import functools
+import ipaddress
 import json
 import math
 import os
@@ -1315,3 +1316,222 @@ class ImageField(FileField):
                 f"Field '{self.name}': file extension '.{ext}' is not allowed. "
                 f"Allowed extensions: {sorted(self.allowed_extensions)}."
             )
+
+
+class SmallIntegerField(IntegerField):
+    """16-bit integer column (-32 768 to 32 767).
+
+    Suitable for fields that never exceed the SmallIntegerField range
+    and where storage compactness matters.
+    """
+
+    _column_type = "SMALLINT"
+    _MIN_VALUE = -32768
+    _MAX_VALUE = 32767
+
+
+class BigAutoField(Field):
+    """Auto-incrementing 64-bit integer primary key."""
+
+    _column_type = "BIGINT"
+    _MIN_VALUE = -9223372036854775808
+    _MAX_VALUE = 9223372036854775807
+
+    def __init__(self) -> None:
+        super().__init__(primary_key=True, auto_increment=True)
+
+    def to_python(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        int_val = int(value)
+        if not (self._MIN_VALUE <= int_val <= self._MAX_VALUE):
+            raise ValueError(
+                f"Field '{self.name}': integer value {int_val} exceeds "
+                f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
+            )
+        return int_val
+
+
+class NullBooleanField(BooleanField):
+    """Boolean column that explicitly allows NULL values.
+
+    Equivalent to ``BooleanField(null=True)`` but more explicit about intent.
+    Three-state: ``True``, ``False``, or ``None``.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        kwargs["null"] = True
+        super().__init__(**kwargs)
+
+
+class DurationField(Field):
+    """Duration / timedelta column.
+
+    Stored as a ``BIGINT`` representing total microseconds for maximum
+    portability across databases.  Returned as :class:`datetime.timedelta`.
+    """
+
+    _column_type = "BIGINT"
+
+    def to_python(self, value: Any) -> datetime.timedelta | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime.timedelta):
+            return value
+        return datetime.timedelta(microseconds=int(value))
+
+    def to_db(self, value: Any) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, datetime.timedelta):
+            return int(value.total_seconds() * 1_000_000)
+        return int(value)
+
+
+class GenericIPAddressField(CharField):
+    """IPv4 or IPv6 address field with protocol validation.
+
+    Args:
+        protocol: ``"both"`` (default), ``"IPv4"``, or ``"IPv6"``.
+        unpack_ipv4: If ``True`` and *protocol* is ``"both"``, IPv4-mapped
+            IPv6 addresses (e.g. ``::ffff:192.0.2.1``) are unpacked to plain
+            IPv4 format before saving.
+    """
+
+    _PROTOCOLS: frozenset[str] = frozenset({"both", "IPv4", "IPv6"})
+
+    def __init__(
+        self,
+        protocol: str = "both",
+        unpack_ipv4: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        if protocol not in self._PROTOCOLS:
+            raise ValueError(
+                f"Invalid protocol {protocol!r}. Must be one of: "
+                + ", ".join(sorted(self._PROTOCOLS))
+            )
+        kwargs.setdefault("max_length", 39)
+        super().__init__(**kwargs)
+        self.protocol = protocol
+        self.unpack_ipv4 = unpack_ipv4
+
+    def _parse_ip(self, value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+        """Return a parsed IP object or None if *value* is invalid."""
+        try:
+            return ipaddress.ip_address(value)
+        except ValueError:
+            return None
+
+    def to_python(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        raw = str(value).strip()
+        ip = self._parse_ip(raw)
+        if ip is None:
+            return raw
+        if self.unpack_ipv4 and isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            return str(ip.ipv4_mapped)
+        return str(ip)
+
+    def validate(self, value: Any) -> None:
+        super().validate(value)
+        if value is None:
+            return
+        raw = str(value).strip()
+        ip = self._parse_ip(raw)
+        if ip is None:
+            raise ValueError(f"Field '{self.name}': {raw!r} is not a valid IP address.")
+        if self.protocol == "IPv4" and not isinstance(ip, ipaddress.IPv4Address):
+            raise ValueError(f"Field '{self.name}': {raw!r} is not a valid IPv4 address.")
+        if self.protocol == "IPv6" and not isinstance(ip, ipaddress.IPv6Address):
+            raise ValueError(f"Field '{self.name}': {raw!r} is not a valid IPv6 address.")
+
+
+# ── Constraint classes ────────────────────────────────────────────────────────
+
+
+class Constraint:
+    """Base class for database constraints declared in ``Meta.constraints``."""
+
+    __slots__ = ("name",)
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r})"
+
+
+class CheckConstraint(Constraint):
+    """Database CHECK constraint.
+
+    The *check* string is a raw SQL expression passed directly to the database.
+    Use this for simple value-range or cross-column invariants.
+
+    Example::
+
+        class Price(Model):
+            amount = DecimalField(max_digits=10, decimal_places=2)
+
+            class Meta:
+                constraints = [
+                    CheckConstraint(name="price_positive", check="amount > 0"),
+                ]
+    """
+
+    __slots__ = ("name", "check")
+
+    def __init__(self, *, name: str, check: str) -> None:
+        super().__init__(name)
+        self.check = check
+
+    def __repr__(self) -> str:
+        return f"CheckConstraint(name={self.name!r}, check={self.check!r})"
+
+
+class UniqueConstraint(Constraint):
+    """Unique constraint across one or more columns, with optional condition.
+
+    Provides more flexibility than ``Meta.unique_together`` by supporting
+    a ``condition`` (partial unique index) and explicit naming.
+
+    Args:
+        fields: Column names that must be collectively unique.
+        name: Constraint name in the database.
+        condition: Optional raw SQL ``WHERE`` clause for a partial unique index.
+
+    Example::
+
+        class Article(Model):
+            slug = SlugField()
+            published = BooleanField(default=False)
+
+            class Meta:
+                constraints = [
+                    UniqueConstraint(
+                        fields=["slug"],
+                        name="unique_published_slug",
+                        condition="published = 1",
+                    ),
+                ]
+    """
+
+    __slots__ = ("name", "fields", "condition")
+
+    def __init__(
+        self,
+        *,
+        fields: list[str],
+        name: str,
+        condition: str | None = None,
+    ) -> None:
+        super().__init__(name)
+        self.fields = fields
+        self.condition = condition
+
+    def __repr__(self) -> str:
+        return (
+            f"UniqueConstraint(fields={self.fields!r}, name={self.name!r}, "
+            f"condition={self.condition!r})"
+        )

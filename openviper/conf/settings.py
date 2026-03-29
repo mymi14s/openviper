@@ -59,10 +59,6 @@ try:
 except ImportError:
     _HAS_DOTENV = False
 
-# ---------------------------------------------------------------------------
-# caches (module-level)
-# ---------------------------------------------------------------------------
-
 # Track if .env has been loaded to avoid redundant I/O
 _DOTENV_LOADED: bool = False
 
@@ -93,10 +89,6 @@ _INSECURE_JWT_ALGORITHMS: Final[frozenset[str]] = frozenset(
         "NONE",
     }
 )
-
-# ---------------------------------------------------------------------------
-# Typed cast table for env-var overrides
-# ---------------------------------------------------------------------------
 
 
 def _cast_bool(v: str) -> bool:
@@ -131,11 +123,6 @@ def _cast_env_value(current: Any, raw: str) -> Any:
     except (ValueError, TypeError) as exc:
         logger.debug("Could not cast env var value %r: %s", raw, exc)
         return None
-
-
-# ---------------------------------------------------------------------------
-# Base Settings (frozen dataclass)
-# ---------------------------------------------------------------------------
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -183,6 +170,7 @@ class Settings:
     CACHE_BACKEND: str = "memory"  # "memory" | "redis"
     CACHE_URL: str = ""
     CACHE_TTL: int = 300
+    CACHES: dict[str, Any] = dataclasses.field(default_factory=dict)
 
     # ── Authentication & Session ──────────────────────────────────────────
     PASSWORD_HASHERS: tuple[str, ...] = ("argon2", "bcrypt")
@@ -192,7 +180,7 @@ class Settings:
     # Cookie security settings
     # IMPORTANT: SESSION_COOKIE_SECURE should be True in production (requires HTTPS)
     # Set to False only for local development without HTTPS
-    SESSION_COOKIE_SECURE: bool = False  # Changed to False for better dev experience
+    SESSION_COOKIE_SECURE: bool = False
     SESSION_COOKIE_HTTPONLY: bool = True  # Always True for XSS protection
     SESSION_COOKIE_SAMESITE: str = (
         "Lax"  # Lax=good default, Strict=max security, None=requires Secure
@@ -386,6 +374,28 @@ class Settings:
     STATIC_STORAGE: str = "local"  # "local" | "s3"
     MEDIA_STORAGE: str = "local"
 
+    # ── Country Field ─────────────────────────────────────────────────────
+    # Configuration for openviper.contrib.countries.CountryField.
+    # EXTRA_COUNTRIES: dict mapping custom alpha-2 codes to
+    #     {"name": ..., "dial_code": ...} for project-specific regions.
+    # ENABLE_CACHE: keep LRU caches warm (always True; exposed for tests).
+    # STRICT: reject codes that are not exactly two ASCII letters.
+    #
+    # Example::
+    #
+    #     COUNTRY_FIELD = {
+    #         "EXTRA_COUNTRIES": {"XA": {"name": "Atlantis", "dial_code": "+000"}},
+    #         "ENABLE_CACHE": True,
+    #         "STRICT": True,
+    #     }
+    COUNTRY_FIELD: dict[str, Any] = dataclasses.field(
+        default_factory=lambda: {
+            "EXTRA_COUNTRIES": {},
+            "ENABLE_CACHE": True,
+            "STRICT": True,
+        }
+    )
+
     def as_dict(self, *, mask_sensitive: bool = True) -> dict[str, Any]:
         """Return all settings as a plain dict (shallow copy).
 
@@ -404,11 +414,6 @@ class Settings:
 
     def __getitem__(self, item: str) -> Any:
         return getattr(self, item)
-
-
-# ---------------------------------------------------------------------------
-# Lazy global settings proxy
-# ---------------------------------------------------------------------------
 
 
 class _LazySettings:
@@ -587,11 +592,6 @@ class _LazySettings:
         return "<_LazySettings [not configured]>"
 
 
-# ---------------------------------------------------------------------------
-# Module-level helpers (pure functions — no side effects)
-# ---------------------------------------------------------------------------
-
-
 def _auto_include_project_app(instance: Settings, module_path: str) -> Settings:
     """Prepend the top-level project package to ``INSTALLED_APPS`` if absent."""
     project_app = module_path.split(".")[0]
@@ -637,15 +637,7 @@ def _apply_env_overrides(instance: Settings) -> Settings:
     return dataclasses.replace(instance, **overrides)
 
 
-# ---------------------------------------------------------------------------
-# Module-level singleton
-# ---------------------------------------------------------------------------
-
 settings = _LazySettings()
-
-# ---------------------------------------------------------------------------
-# Validation & utilities
-# ---------------------------------------------------------------------------
 
 
 def validate_settings(s: Settings, env: str) -> None:

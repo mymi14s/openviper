@@ -18,10 +18,6 @@ from typing import NoReturn, cast
 from openviper.conf import settings
 from openviper.core.management.base import BaseCommand, CommandError
 
-# ---------------------------------------------------------------------------
-# Built-in command registry
-# ---------------------------------------------------------------------------
-
 _BUILTIN_COMMANDS_PACKAGE = "openviper.core.management.commands"
 
 

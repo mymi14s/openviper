@@ -34,10 +34,6 @@ except ImportError:
     Environment = None  # type: ignore[misc, assignment]
     FileSystemLoader = None  # type: ignore[misc, assignment]
 
-# ---------------------------------------------------------------------------
-# JSON encoding helper
-# ---------------------------------------------------------------------------
-
 
 def _json_encode(content: Any, *, default: Any, indent: int | None) -> bytes:
     """Serialize *content* to JSON bytes using orjson (C extension)."""
@@ -48,11 +44,6 @@ def _json_encode(content: Any, *, default: Any, indent: int | None) -> bytes:
         # orjson only supports indent=2; fall back for other values
         return json.dumps(content, default=default, indent=indent).encode("utf-8")
     return _orjson.dumps(content, default=default, option=option)
-
-
-# ---------------------------------------------------------------------------
-# Jinja2 environment accessor
-# ---------------------------------------------------------------------------
 
 
 @lru_cache(maxsize=32)
@@ -93,16 +84,12 @@ def _get_jinja2_env(search_paths: tuple[str, ...]) -> Any:
 
 
 def _cache_clear() -> None:
-    """Clear the underlying LRU caches — mirrors ``lru_cache.cache_clear``."""
+    """Clear the underlying LRU caches — `lru_cache.cache_clear``."""
     get_jinja2_env.cache_clear()
     _compute_template_search_paths.cache_clear()
 
 
 _get_jinja2_env.cache_clear = _cache_clear  # type: ignore[attr-defined]
-
-# ---------------------------------------------------------------------------
-# Base Response
-# ---------------------------------------------------------------------------
 
 
 class Response:
@@ -221,11 +208,6 @@ class Response:
             }
         )
         await send({"type": "http.response.body", "body": body, "more_body": False})
-
-
-# ---------------------------------------------------------------------------
-# Concrete response types
-# ---------------------------------------------------------------------------
 
 
 class JSONResponse(Response):

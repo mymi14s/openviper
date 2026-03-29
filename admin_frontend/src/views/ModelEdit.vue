@@ -186,7 +186,7 @@ function goToHistory() {
 <template>
   <div ref="formTopRef">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
         <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
           <RouterLink :to="`/${appLabel}/${modelName}`" class="hover:text-gray-700 dark:hover:text-gray-200">
@@ -201,7 +201,7 @@ function goToHistory() {
           Edit {{ model?.verbose_name || modelName }}
         </h1>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center flex-wrap gap-2">
         <button
           v-if="isUserModel && canChange"
           class="btn btn-secondary text-sm"
@@ -285,7 +285,7 @@ function goToHistory() {
           <!-- Floating Actions Bar -->
           <div
             v-if="canChange"
-            class="sticky bottom-0 z-20 mt-6 -mx-6 px-6 py-3 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex items-center gap-4"
+            class="sticky bottom-0 z-20 mt-6 -mx-4 px-4 md:-mx-6 md:px-6 py-3 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex items-center gap-4"
           >
             <button
               type="submit"

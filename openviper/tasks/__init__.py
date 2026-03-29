@@ -39,21 +39,13 @@ from __future__ import annotations
 import logging
 import os
 
-from openviper.db.events import (
-    ModelEventDispatcher,
-    get_dispatcher,
-    reset_dispatcher,
-)
+from openviper.db.events import ModelEventDispatcher, get_dispatcher, reset_dispatcher
 from openviper.tasks.broker import get_broker, reset_broker, setup_broker
 from openviper.tasks.core import Scheduler
 from openviper.tasks.decorators import task
+from openviper.tasks.log import configure_worker_logging_from_settings
 from openviper.tasks.middleware import reset_tracking_buffer
-from openviper.tasks.registry import (
-    ScheduleEntry,
-    ScheduleRegistry,
-    get_registry,
-    reset_registry,
-)
+from openviper.tasks.registry import ScheduleEntry, ScheduleRegistry, get_registry, reset_registry
 from openviper.tasks.results import (
     get_task_result,
     get_task_result_sync,
@@ -74,8 +66,6 @@ from openviper.tasks.scheduler import periodic, reset_scheduler
 #      first ``@task`` decorator in a user module — if that module fails to
 #      import, no broker is ever created and the worker silently does nothing.
 if os.environ.get("OPENVIPER_WORKER"):
-    from openviper.tasks.log import configure_worker_logging_from_settings
-
     configure_worker_logging_from_settings()
 
     try:

@@ -155,7 +155,7 @@ function formatValue(value: any, fieldName?: string): string {
         :key="entry.id"
         class="card p-6"
       >
-        <div class="flex items-start justify-between mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div class="flex items-center gap-3">
             <span :class="['px-2 py-1 rounded text-xs font-medium', getActionClass(entry.action)]">
               {{ getActionLabel(entry.action) }}
@@ -174,12 +174,12 @@ function formatValue(value: any, fieldName?: string): string {
           <div
             v-for="(change, field) in entry.changed_fields"
             :key="field"
-            class="flex items-start gap-4 text-sm"
+            class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 text-sm"
           >
-            <span class="font-medium text-gray-700 dark:text-gray-300 w-32 flex-shrink-0">
+            <span class="font-medium text-gray-700 dark:text-gray-300 sm:w-32 sm:flex-shrink-0">
               {{ formatFieldName(field as string) }}
             </span>
-            <div class="flex items-center gap-2 flex-1">
+            <div class="flex items-center flex-wrap gap-2 flex-1">
               <span class="text-red-600 dark:text-red-400 line-through">
                 {{ formatValue(change.old, field) }}
               </span>

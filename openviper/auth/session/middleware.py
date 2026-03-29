@@ -34,7 +34,7 @@ class SessionMiddleware:
         self.store = store or get_session_store()
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
-        if scope["type"] not in ("http", "websocket"):
+        if scope["type"] not in ("http",):
             await self.app(scope, receive, send)
             return
 

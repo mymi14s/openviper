@@ -43,10 +43,6 @@ def cli() -> None:
     """OpenViper web framework CLI."""
 
 
-# ---------------------------------------------------------------------------
-# create-project
-# ---------------------------------------------------------------------------
-
 _VERPERCTL_PY_TEMPLATE = '''\
 #!/usr/bin/env python
 """OpenViper viperctl.py for {project_name}."""
@@ -306,11 +302,6 @@ def create_project(name: str, directory: str | None) -> None:
         click.echo("  python viperctl.py runserver")
 
 
-# ---------------------------------------------------------------------------
-# create-app
-# ---------------------------------------------------------------------------
-
-
 @cli.command("create-app")
 @click.argument("name")
 @click.option("--directory", "-d", default=None, help="Target directory (default: CWD)")
@@ -322,11 +313,6 @@ def create_app(name: str, directory: str | None) -> None:
     if directory:
         args += ["--directory", directory]
     subprocess.run(args, check=False)
-
-
-# ---------------------------------------------------------------------------
-# run
-# ---------------------------------------------------------------------------
 
 
 @cli.command("run")
@@ -391,21 +377,12 @@ def run_cmd(target: str, host: str, port: int, reload: bool, workers: int) -> No
     )
 
 
-# ---------------------------------------------------------------------------
-# version (standalone)
-# ---------------------------------------------------------------------------
-
-
 @cli.command("version")
 def version_cmd() -> None:
     """Print OpenViper version."""
 
     click.echo(f"OpenViper {openviper.__version__}")
 
-
-# ---------------------------------------------------------------------------
-# viperctl
-# ---------------------------------------------------------------------------
 
 cli.add_command(_viperctl_cmd)
 

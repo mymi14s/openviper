@@ -72,10 +72,6 @@ _SKIP_FILES: frozenset[str] = frozenset(
     }
 )
 
-# ---------------------------------------------------------------------------
-# Task discovery
-# ---------------------------------------------------------------------------
-
 
 def discover_tasks(extra_modules: list[str] | None = None) -> list[str]:
     """Import task modules from every app in ``INSTALLED_APPS``.
@@ -159,11 +155,6 @@ def discover_tasks(extra_modules: list[str] | None = None) -> list[str]:
         max_workers,
     )
     return imported
-
-
-# ---------------------------------------------------------------------------
-# Worker entry-point
-# ---------------------------------------------------------------------------
 
 
 def create_worker(

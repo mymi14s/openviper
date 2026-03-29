@@ -304,7 +304,7 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
 
 <template>
   <div class="mt-8 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-2 bg-gray-50 dark:bg-gray-900">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
         {{ config.label }}
       </h3>

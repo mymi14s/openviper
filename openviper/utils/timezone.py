@@ -7,6 +7,8 @@ import zoneinfo
 
 from openviper.conf import settings
 
+utc: datetime.timezone = datetime.UTC
+
 
 def get_current_timezone() -> zoneinfo.ZoneInfo:
     """Return a ZoneInfo instance for the configured TIME_ZONE."""

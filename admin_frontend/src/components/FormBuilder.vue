@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ModelConfig, ModelField } from '@/types/admin'
 import ForeignKeyField from '@/components/ForeignKeyField.vue'
 import FileUploadField from '@/components/FileUploadField.vue'
+import CountrySelectField from '@/components/CountrySelectField.vue'
 import { formatFieldName, isValidUrl } from '@/utils/formatters'
 
 const props = defineProps<{
@@ -130,6 +131,10 @@ function getFieldComponent(field: ModelField): string {
   if (field.type === 'FileField' || field.type === 'ImageField' ||
       field.component === 'file' || field.component === 'image') {
     return 'file'
+  }
+  // Country field
+  if (field.type === 'CountryField' || field.component === 'country') {
+    return 'country'
   }
   // Check for foreignkey field (has related_model)
   if (field.related_model) return 'foreignkey'
@@ -395,6 +400,16 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
                 @update:model-value="updateField(field.name, $event)"
               />
 
+              <!-- Country -->
+              <CountrySelectField
+                v-else-if="getFieldComponent(field) === 'country'"
+                :model-value="formData[field.name] ?? null"
+                :choices="field.choices ?? []"
+                :disabled="disabled || isReadonly(field)"
+                :required="field.required"
+                @update:model-value="updateField(field.name, $event)"
+              />
+
               <!-- File Upload -->
               <FileUploadField
                 v-else-if="getFieldComponent(field) === 'file'"
@@ -548,6 +563,16 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
           :disabled="disabled || isReadonly(field)"
           :required="field.required"
           :placeholder="field.help_text"
+          @update:model-value="updateField(field.name, $event)"
+        />
+
+        <!-- Country -->
+        <CountrySelectField
+          v-else-if="getFieldComponent(field) === 'country'"
+          :model-value="formData[field.name] ?? null"
+          :choices="field.choices ?? []"
+          :disabled="disabled || isReadonly(field)"
+          :required="field.required"
           @update:model-value="updateField(field.name, $event)"
         />
 

@@ -56,6 +56,8 @@ const canAdd = computed(() => model.value?.permissions?.add ?? true)
 const canChange = computed(() => model.value?.permissions?.change ?? true)
 const canDelete = computed(() => model.value?.permissions?.delete ?? true)
 const hasFilters = computed(() => filterOptions.value.length > 0)
+const showMobileFilters = ref(false)
+const activeFilterCount = computed(() => Object.values(activeFilters.value).filter(v => v !== '' && v !== null && v !== undefined).length)
 
 async function loadFilterOptions() {
   try {
@@ -157,11 +159,11 @@ async function handleExport(format: 'csv' | 'json') {
 </script>
 
 <template>
-  <div class="flex gap-6 items-start">
+  <div class="flex flex-col lg:flex-row gap-6 items-start">
 
     <!-- Main content -->
     <div class="flex-1 min-w-0">
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
             {{ model?.verbose_name_plural || modelName }}
@@ -173,7 +175,7 @@ async function handleExport(format: 'csv' | 'json') {
         <button
           v-if="canAdd"
           @click="handleAdd"
-          class="btn btn-primary flex items-center gap-2"
+          class="btn btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -187,23 +189,36 @@ async function handleExport(format: 'csv' | 'json') {
       </div>
 
       <div class="card mb-6">
-        <div class="p-4 flex items-center gap-4 flex-wrap">
-          <div class="flex-1 min-w-[200px]">
-            <div class="relative">
-              <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-              <input
-                v-model="search"
-                type="text"
-                :placeholder="`Search ${model?.verbose_name_plural || modelName}...`"
-                class="w-full pl-10 pr-4 py-2"
-                @keyup.enter="handleSearch"
-              />
+        <div class="p-4 flex flex-col gap-3">
+          <div class="flex items-center gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="relative">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  v-model="search"
+                  type="text"
+                  :placeholder="`Search ${model?.verbose_name_plural || modelName}...`"
+                  class="w-full pl-10 pr-4 py-2"
+                  @keyup.enter="handleSearch"
+                />
+              </div>
             </div>
+            <button
+              v-if="hasFilters"
+              class="btn btn-secondary text-sm flex items-center gap-1 flex-shrink-0 lg:hidden"
+              @click="showMobileFilters = !showMobileFilters"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+              </svg>
+              Filters
+              <span v-if="activeFilterCount > 0" class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary-600 rounded-full">{{ activeFilterCount }}</span>
+            </button>
           </div>
 
-          <div v-if="selectedIds.length > 0 && model?.actions?.length" class="flex items-center gap-2">
+          <div v-if="selectedIds.length > 0 && model?.actions?.length" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <select v-model="selectedAction" class="px-3 py-2">
               <option value="">Select action...</option>
               <option v-for="action in model.actions" :key="action" :value="action">{{ action }}</option>
@@ -254,7 +269,11 @@ async function handleExport(format: 'csv' | 'json') {
     </div>
 
     <!-- Right filter sidebar — only shown when list_filter is configured -->
-    <div v-if="hasFilters" class="w-56 flex-shrink-0 sticky top-6">
+    <div
+      v-if="hasFilters"
+      class="w-full lg:w-56 lg:flex-shrink-0 lg:sticky lg:top-6"
+      :class="{ 'hidden lg:block': !showMobileFilters }"
+    >
       <FilterSidebar
         :filter-options="filterOptions"
         :initial-filters="activeFilters"

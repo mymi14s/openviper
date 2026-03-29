@@ -2,6 +2,7 @@
 
 from openviper.db.migrations.executor import (
     AddColumn,
+    AddConstraint,
     AlterColumn,
     CreateIndex,
     CreateTable,
@@ -10,6 +11,7 @@ from openviper.db.migrations.executor import (
     MigrationRecord,
     Operation,
     RemoveColumn,
+    RemoveConstraint,
     RenameColumn,
     RestoreColumn,
     RunSQL,
@@ -41,6 +43,8 @@ __all__ = [
     "RenameColumn",
     "RestoreColumn",
     "CreateIndex",
+    "AddConstraint",
+    "RemoveConstraint",
     "RunSQL",
     "discover_migrations",
     "has_model_changes",

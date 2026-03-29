@@ -36,10 +36,6 @@ __all__ = [
     "get_registry",
 ]
 
-# ---------------------------------------------------------------------------
-# ScheduleEntry
-# ---------------------------------------------------------------------------
-
 
 @dataclass
 class ScheduleEntry:
@@ -66,11 +62,6 @@ class ScheduleEntry:
             return False
         _now = now if now is not None else datetime.now(UTC)
         return self.schedule.is_due(self.last_run_at, _now)
-
-
-# ---------------------------------------------------------------------------
-# ScheduleRegistry
-# ---------------------------------------------------------------------------
 
 
 class ScheduleRegistry:
@@ -171,10 +162,6 @@ class ScheduleRegistry:
     def __contains__(self, name: object) -> bool:
         return name in self._entries
 
-
-# ---------------------------------------------------------------------------
-# Process-level singleton
-# ---------------------------------------------------------------------------
 
 _registry: ScheduleRegistry | None = None
 _registry_lock = threading.Lock()

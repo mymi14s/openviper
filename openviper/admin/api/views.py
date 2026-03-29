@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy.exc
 
 from openviper.admin.actions import ActionResult, get_action
-from openviper.admin.fields import coerce_field_value, get_field_component_type
+from openviper.admin.fields import coerce_field_value, get_field_component_type, get_filter_choices
 from openviper.admin.history import (
     ChangeAction,
     compute_changes,
@@ -30,22 +30,12 @@ from openviper.admin.history import (
 )
 from openviper.admin.middleware import check_admin_access, check_model_permission
 from openviper.admin.registry import NotRegistered, admin
-from openviper.auth import (
-    authenticate,
-    create_access_token,
-    create_refresh_token,
-    get_user_model,
-)
+from openviper.auth import authenticate, create_access_token, create_refresh_token, get_user_model
 from openviper.auth.jwt import decode_refresh_token, decode_token_unverified
 from openviper.auth.token_blocklist import is_token_revoked, revoke_token
 from openviper.conf import settings
 from openviper.db.utils import cast_to_pk_type
-from openviper.exceptions import (
-    NotFound,
-    PermissionDenied,
-    Unauthorized,
-    ValidationError,
-)
+from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, ValidationError
 from openviper.http.response import JSONResponse, Response
 from openviper.middleware.ratelimit import rate_limit
 from openviper.routing.router import Router
@@ -1010,28 +1000,27 @@ def get_admin_router() -> Router:
                 "name": field_name,
                 "type": field_type,
                 "component": get_field_component_type(field),
-                "choices": [],
+                "choices": get_filter_choices(field),
             }
 
-            if hasattr(field, "choices") and field.choices:
-                filter_info["choices"] = [{"value": c[0], "label": c[1]} for c in field.choices]
-            elif field_type == "BooleanField":
-                filter_info["choices"] = [
-                    {"value": "true", "label": "Yes"},
-                    {"value": "false", "label": "No"},
-                ]
-            elif field_type in ("ForeignKey", "OneToOneField"):
-                related_model = field.resolve_target()
-                if related_model is not None:
-                    try:
-                        related_qs = await asyncio.to_thread(
-                            lambda rm=related_model: list(rm.objects.all()[:200])
-                        )
-                        filter_info["choices"] = [
-                            {"value": str(obj.id), "label": str(obj)} for obj in related_qs
-                        ]
-                    except Exception:
-                        pass
+            if not filter_info["choices"]:
+                if field_type == "BooleanField":
+                    filter_info["choices"] = [
+                        {"value": "true", "label": "Yes"},
+                        {"value": "false", "label": "No"},
+                    ]
+                elif field_type in ("ForeignKey", "OneToOneField"):
+                    related_model = field.resolve_target()
+                    if related_model is not None:
+                        try:
+                            related_qs = await asyncio.to_thread(
+                                lambda rm=related_model: list(rm.objects.all()[:200])
+                            )
+                            filter_info["choices"] = [
+                                {"value": str(obj.id), "label": str(obj)} for obj in related_qs
+                            ]
+                        except Exception:
+                            pass
 
             filters.append(filter_info)
 
@@ -1994,20 +1983,14 @@ def get_admin_router() -> Router:
                     "name": field_name,
                     "type": field.__class__.__name__,
                     "component": get_field_component_type(field),
+                    "choices": get_filter_choices(field),
                 }
 
-                # Get choices if available
-                if hasattr(field, "choices") and field.choices:
-                    filter_info["choices"] = [{"value": c[0], "label": c[1]} for c in field.choices]
-                elif field.__class__.__name__ == "BooleanField":
+                if not filter_info["choices"] and field.__class__.__name__ == "BooleanField":
                     filter_info["choices"] = [
                         {"value": True, "label": "Yes"},
                         {"value": False, "label": "No"},
                     ]
-                else:
-                    # Get distinct values from database
-                    # This is simplified - real implementation would need distinct query
-                    filter_info["choices"] = []
 
                 filters.append(filter_info)
 

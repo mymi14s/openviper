@@ -91,6 +91,19 @@ function getFieldLabel(fieldName: string): string {
   const field = props.model.fields.find((f) => f.name === fieldName)
   return field?.label || formatFieldName(fieldName)
 }
+
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return ''
+  const a = code.charCodeAt(0) - 65
+  const b = code.charCodeAt(1) - 65
+  if (a < 0 || a > 25 || b < 0 || b > 25) return ''
+  return String.fromCodePoint(0x1f1e6 + a) + String.fromCodePoint(0x1f1e6 + b)
+}
+
+function isCountryField(fieldName: string): boolean {
+  const field = props.model.fields.find((f) => f.name === fieldName)
+  return field?.type === 'CountryField' || field?.component === 'country'
+}
 </script>
 
 <template>
@@ -189,6 +202,12 @@ function getFieldLabel(fieldName: string): string {
               >
                 {{ formatValue(instance[column]) }}
               </a>
+            </template>
+            <template v-else-if="isCountryField(column) && instance[column]">
+              <span class="inline-flex items-center gap-1">
+                <span class="text-base leading-none">{{ countryFlag(String(instance[column])) }}</span>
+                <span class="font-mono text-xs text-gray-500 dark:text-gray-400 uppercase">{{ instance[column] }}</span>
+              </span>
             </template>
             <template v-else>
               {{ formatValue(instance[column]) }}

@@ -10,20 +10,11 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import Any
 
-# ---------------------------------------------------------------------------
-# Root
-# ---------------------------------------------------------------------------
-
 
 class OpenViperException(Exception):
     """Base exception for all OpenViper errors."""
 
     __slots__ = ()
-
-
-# ---------------------------------------------------------------------------
-# Configuration & Settings
-# ---------------------------------------------------------------------------
 
 
 class ImproperlyConfigured(OpenViperException):
@@ -40,11 +31,6 @@ class SettingsValidationError(OpenViperException):
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors
         super().__init__("\n".join(f"  - {e}" for e in errors))
-
-
-# ---------------------------------------------------------------------------
-# HTTP
-# ---------------------------------------------------------------------------
 
 
 class HTTPException(OpenViperException):
@@ -156,11 +142,6 @@ class ServiceUnavailable(HTTPException):
         super().__init__(503, detail)
 
 
-# ---------------------------------------------------------------------------
-# Authentication
-# ---------------------------------------------------------------------------
-
-
 class AuthenticationFailed(HTTPException):
     """Authentication attempt failed."""
 
@@ -177,11 +158,6 @@ class TokenExpired(AuthenticationFailed):
 
     def __init__(self) -> None:
         super().__init__("Token has expired.")
-
-
-# ---------------------------------------------------------------------------
-# ORM / Database
-# ---------------------------------------------------------------------------
 
 
 class ORMException(OpenViperException):
@@ -220,20 +196,10 @@ class FieldError(ORMException):
     __slots__ = ()
 
 
-# ---------------------------------------------------------------------------
-# Middleware
-# ---------------------------------------------------------------------------
-
-
 class MiddlewareException(OpenViperException):
     """Error raised within the middleware pipeline."""
 
     __slots__ = ()
-
-
-# ---------------------------------------------------------------------------
-# AI subsystem
-# ---------------------------------------------------------------------------
 
 
 class AIException(OpenViperException):

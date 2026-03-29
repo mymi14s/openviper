@@ -48,22 +48,12 @@ from openviper.tasks.schedule import CronSchedule, IntervalSchedule
 
 logger = logging.getLogger("openviper.tasks")
 
-# ---------------------------------------------------------------------------
-# Pending-registration accumulator
-# Entries are appended by @periodic at decoration time and consumed by
-# start_scheduler() when the worker starts.
-# ---------------------------------------------------------------------------
-
 _pending: list[dict[str, Any]] = []
 
 # Active scheduler and tick thread (set by start_scheduler).
 _scheduler: Scheduler | None = None
 _tick_thread: threading.Thread | None = None
 _stop_event = threading.Event()
-
-# ---------------------------------------------------------------------------
-# Decorator
-# ---------------------------------------------------------------------------
 
 
 def periodic(
@@ -128,11 +118,6 @@ def periodic(
         return actor
 
     return decorator
-
-
-# ---------------------------------------------------------------------------
-# Lifecycle (called from worker.py)
-# ---------------------------------------------------------------------------
 
 
 def start_scheduler() -> None:
@@ -201,11 +186,6 @@ def reset_scheduler() -> None:
     stop_scheduler()
     _pending.clear()
     _stop_event.clear()
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _tick_loop() -> None:

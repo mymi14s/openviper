@@ -89,5 +89,5 @@ def gettext_lazy(message: str) -> LazyString:
     return LazyString(message)
 
 
-# Alias for gettext_lazy to match Django convention
+# Alias for gettext_lazy
 _ = gettext_lazy

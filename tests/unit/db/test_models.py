@@ -657,6 +657,13 @@ class TestModelInitEdgeCases:
         assert p.bio == "empty"
 
 
+class SomeModel(Model):
+    """Minimal model used as FK target in TestModelInitColumnName."""
+
+    class Meta:
+        table_name = "db_some_models"
+
+
 class TestModelInitColumnName:
     class Author(Model):
         name = CharField()
@@ -889,19 +896,24 @@ class TestCallHook:
         assert result == 10
 
 
+class _TLAuthor(Model):
+    username = CharField()
+
+    class Meta:
+        table_name = "tl_authors"
+
+
+class _TLBlog(Model):
+    title = CharField()
+    author = ForeignKey(_TLAuthor, on_delete="CASCADE")
+
+    class Meta:
+        table_name = "tl_blogs"
+
+
 class TestTraversalLookup:
-    class Author(Model):
-        username = CharField()
-
-        class Meta:
-            table_name = "tl_authors"
-
-    class Blog(Model):
-        title = CharField()
-        author = ForeignKey("TestTraversalLookup.Author", on_delete="CASCADE")
-
-        class Meta:
-            table_name = "tl_blogs"
+    Author = _TLAuthor
+    Blog = _TLBlog
 
     def test_simple_field_lookup(self):
         lookup = TraversalLookup("title", self.Blog)
@@ -1294,19 +1306,24 @@ class TestQuerySetIterBatch:
 #    (L855-870, 880, 883, 886, 889) ─────────────────────────────────────────
 
 
+class _QSSRWriter(Model):
+    name = CharField()
+
+    class Meta:
+        table_name = "qs_sr_writers"
+
+
+class _QSSRBook(Model):
+    title = CharField()
+    writer = ForeignKey(_QSSRWriter, on_delete="CASCADE")
+
+    class Meta:
+        table_name = "qs_sr_books"
+
+
 class TestQuerySetSelectRelated:
-    class Writer(Model):
-        name = CharField()
-
-        class Meta:
-            table_name = "qs_sr_writers"
-
-    class Book(Model):
-        title = CharField()
-        writer = ForeignKey("TestQuerySetSelectRelated.Writer", on_delete="CASCADE")
-
-        class Meta:
-            table_name = "qs_sr_books"
+    Writer = _QSSRWriter
+    Book = _QSSRBook
 
     @pytest.mark.asyncio
     async def test_select_related_hydrates(self):
@@ -1336,19 +1353,24 @@ class TestQuerySetSelectRelated:
             assert results == []
 
 
+class _QSPRCategory(Model):
+    name = CharField()
+
+    class Meta:
+        table_name = "qs_pr_categories"
+
+
+class _QSPRProduct(Model):
+    name = CharField()
+    category = ForeignKey(_QSPRCategory, on_delete="CASCADE")
+
+    class Meta:
+        table_name = "qs_pr_products"
+
+
 class TestQuerySetPrefetchRelated:
-    class Category(Model):
-        name = CharField()
-
-        class Meta:
-            table_name = "qs_pr_categories"
-
-    class Product(Model):
-        name = CharField()
-        category = ForeignKey("TestQuerySetPrefetchRelated.Category", on_delete="CASCADE")
-
-        class Meta:
-            table_name = "qs_pr_products"
+    Category = _QSPRCategory
+    Product = _QSPRProduct
 
     @pytest.mark.asyncio
     async def test_prefetch_related_attaches_instances(self):
@@ -1596,19 +1618,24 @@ class TestQuerySetFilterExcludeAnnotate:
         assert "total" in qs._annotations
 
 
+class _CFKOwner(Model):
+    name = CharField()
+
+    class Meta:
+        table_name = "cf_owners"
+
+
+class _CFKPet(Model):
+    name = CharField()
+    owner = ForeignKey(_CFKOwner, on_delete="CASCADE")
+
+    class Meta:
+        table_name = "cf_pets"
+
+
 class TestModelChangedFieldsFK:
-    class Owner(Model):
-        name = CharField()
-
-        class Meta:
-            table_name = "cf_owners"
-
-    class Pet(Model):
-        name = CharField()
-        owner = ForeignKey("TestModelChangedFieldsFK.Owner", on_delete="CASCADE")
-
-        class Meta:
-            table_name = "cf_pets"
+    Owner = _CFKOwner
+    Pet = _CFKPet
 
     def test_changed_fields_detects_fk_change(self):
         """FK branch in _get_changed_fields."""

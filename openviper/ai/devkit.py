@@ -27,15 +27,7 @@ from collections.abc import AsyncIterator, Callable, Generator
 from typing import Any
 
 from openviper.ai.base import AIProvider
-from openviper.ai.exceptions import (
-    AIError,
-    ModelUnavailableError,
-    ProviderNotAvailableError,
-)
-
-# ---------------------------------------------------------------------------
-# SimpleProvider
-# ---------------------------------------------------------------------------
+from openviper.ai.exceptions import AIError, ModelUnavailableError, ProviderNotAvailableError
 
 
 class SimpleProvider(AIProvider):
@@ -85,11 +77,6 @@ class SimpleProvider(AIProvider):
         )
 
 
-# ---------------------------------------------------------------------------
-# Response normalisation
-# ---------------------------------------------------------------------------
-
-
 def normalize_response(text: str) -> str:
     """Strip leading/trailing whitespace and collapse internal blank lines.
 
@@ -110,11 +97,6 @@ def normalize_response(text: str) -> str:
     # Collapse runs of 3+ newlines → 2 newlines (one blank line).
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
-
-
-# ---------------------------------------------------------------------------
-# Streaming adapter
-# ---------------------------------------------------------------------------
 
 
 class StreamingAdapter:
@@ -165,11 +147,6 @@ class StreamingAdapter:
             if token is None:
                 break
             yield token
-
-
-# ---------------------------------------------------------------------------
-# HTTP error mapping
-# ---------------------------------------------------------------------------
 
 
 def map_http_error(

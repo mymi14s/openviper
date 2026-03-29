@@ -10,11 +10,15 @@ extended or replaced by application code.
 Overview
 --------
 
-Currently ``openviper.contrib`` contains one sub-package:
+Currently ``openviper.contrib`` contains two sub-packages:
 
 ``openviper.contrib.default``
     The default landing page and its ASGI middleware, shown in ``DEBUG`` mode
     when no custom route is registered for ``/``.
+
+``openviper.contrib.countries``
+    Lightweight ISO 3166-1 alpha-2 ``CountryField`` for ORM models.  See
+    :doc:`country_field` for full documentation.
 
 Key Classes & Functions
 -----------------------

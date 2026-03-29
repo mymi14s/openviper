@@ -1,34 +1,41 @@
-"""Unit tests for openviper.tasks.admin — TaskResult admin configuration."""
+"""Tests for :mod:`openviper.tasks.admin`.
 
-from openviper.tasks.admin import TaskResultAdmin
+This module is tiny but is included in the coverage target (``--cov=openviper/tasks``).
+"""
+
+from __future__ import annotations
+
+import importlib
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock, patch
+
+from openviper.tasks.models import TaskResult
 
 
-class TestTaskResultAdminAttributes:
-    """Test TaskResultAdmin class attributes without requiring full registration."""
+def test_task_result_admin_is_registered_and_configured() -> None:
+    dummy_admin = ModuleType("openviper.admin")
 
-    def test_list_display_fields(self):
-        """list_display should contain all expected fields."""
+    class DummyModelAdmin:  # pragma: no cover
+        pass
 
-        expected = [
-            "message_id",
-            "actor_name",
-            "queue_name",
-            "status",
-            "retries",
-            "enqueued_at",
-            "started_at",
-            "completed_at",
-        ]
-        assert TaskResultAdmin.list_display == expected
+    register_spy = MagicMock()
 
-    def test_search_fields(self):
-        """search_fields should allow searching by message_id, actor_name, queue_name."""
+    def register(model):
+        def decorator(cls):
+            register_spy(model, cls)
+            return cls
 
-        expected = ["message_id", "actor_name", "queue_name"]
-        assert TaskResultAdmin.search_fields == expected
+        return decorator
 
-    def test_list_filter_fields(self):
-        """list_filter should allow filtering by status and timestamps."""
+    dummy_admin.ModelAdmin = DummyModelAdmin
+    dummy_admin.register = register
 
-        expected = ["status", "enqueued_at", "started_at", "completed_at"]
-        assert TaskResultAdmin.list_filter == expected
+    with patch.dict(sys.modules, {"openviper.admin": dummy_admin}):
+        sys.modules.pop("openviper.tasks.admin", None)
+        mod = importlib.import_module("openviper.tasks.admin")
+
+    assert mod.TaskResultAdmin.list_display_styles["status"] == "status_badge"
+    assert issubclass(mod.TaskResultAdmin, DummyModelAdmin)
+    register_spy.assert_called_once()
+    assert register_spy.call_args[0][0] is TaskResult

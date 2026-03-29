@@ -30,9 +30,6 @@ _BLOCKLIST_TABLE: sa.Table | None = None
 _TABLE_ENSURED: bool = False
 _TABLE_ENSURE_LOCK: asyncio.Lock = asyncio.Lock()
 
-# ---------------------------------------------------------------------------
-# Dual cache: positive (revoked) and negative (not revoked)
-# ---------------------------------------------------------------------------
 
 # Positive cache: jti -> unix timestamp of token expiry (revoked tokens).
 _JTI_REVOKED_CACHE: dict[str, float] = {}

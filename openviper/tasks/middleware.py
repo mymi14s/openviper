@@ -28,6 +28,7 @@ from typing import Any
 
 from dramatiq.middleware import Middleware
 
+from openviper.conf import settings
 from openviper.tasks.results import batch_upsert_results
 from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
@@ -41,11 +42,6 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-# ---------------------------------------------------------------------------
-# Event value object
-# ---------------------------------------------------------------------------
-
-
 @dataclasses.dataclass(slots=True)
 class _TrackingEvent:
     """A single task state transition to be persisted."""
@@ -53,11 +49,6 @@ class _TrackingEvent:
     message_id: str
     fields: dict[str, Any]
     terminal: bool  # if True the buffer is flushed immediately
-
-
-# ---------------------------------------------------------------------------
-# Event buffer — collects events and flushes in batches
-# ---------------------------------------------------------------------------
 
 
 class _EventBuffer:
@@ -110,8 +101,6 @@ class _EventBuffer:
 def _get_flush_threshold() -> int:
     """Read the flush threshold from settings, with a default of 20."""
     try:
-        from openviper.conf import settings
-
         task_cfg: dict[str, Any] = getattr(settings, "TASKS", {}) or {}
         return int(task_cfg.get("tracking_flush_threshold", 20))
     except Exception:
@@ -132,11 +121,6 @@ def reset_tracking_buffer() -> None:
     _event_buffer.shutdown(wait=True)
     # Create a new buffer with a fresh executor
     _event_buffer = _EventBuffer()
-
-
-# ---------------------------------------------------------------------------
-# Middleware
-# ---------------------------------------------------------------------------
 
 
 class TaskTrackingMiddleware(Middleware):
@@ -267,11 +251,6 @@ class TaskTrackingMiddleware(Middleware):
             logger.debug("TaskTracking.after_nack: %s", exc)
 
 
-# ---------------------------------------------------------------------------
-# Scheduler middleware — starts/stops the periodic scheduler with the worker
-# ---------------------------------------------------------------------------
-
-
 class SchedulerMiddleware(Middleware):
     """Start the periodic scheduler when the worker boots; stop it on shutdown.
 
@@ -293,11 +272,6 @@ class SchedulerMiddleware(Middleware):
             stop_scheduler()
         except Exception as exc:
             logger.debug("SchedulerMiddleware: error stopping scheduler: %s", exc)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _serialise(value: Any) -> str | None:

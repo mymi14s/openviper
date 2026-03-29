@@ -45,24 +45,44 @@ from dramatiq.middleware.asyncio import AsyncIO
 
 from openviper.conf import settings
 
+try:
+    from dramatiq.brokers.redis import RedisBroker
+except ImportError:
+    RedisBroker = None  # type: ignore[misc, assignment]
+
+try:
+    from dramatiq.brokers.rabbitmq import RabbitmqBroker
+except ImportError:
+    RabbitmqBroker = None  # type: ignore[misc, assignment]
+
+try:
+    from dramatiq.brokers.stub import StubBroker
+except ImportError:
+    StubBroker = None  # type: ignore[misc, assignment]
+
 logger = logging.getLogger("openviper.tasks")
 
 # True when dramatiq[redis] results extras are importable.
 try:
-    from dramatiq.results import (  # noqa: F401  # pylint: disable=ungrouped-imports
-        Results as _Results,
-    )
-
-    _RESULTS_AVAILABLE = True
+    from dramatiq.results import Results
+    from dramatiq.results.backends.redis import RedisBackend
 except ImportError:
-    _RESULTS_AVAILABLE = False
+    Results = None  # type: ignore[assignment, misc]
+    RedisBackend = None  # type: ignore[assignment, misc]
+
+try:
+    from openviper.tasks.middleware import SchedulerMiddleware, TaskTrackingMiddleware
+except Exception:
+    TaskTrackingMiddleware = None  # type: ignore[assignment, misc]
+    SchedulerMiddleware = None  # type: ignore[assignment, misc]
+
+try:
+    from openviper.tasks.results import setup_cleanup_task
+except Exception:
+    setup_cleanup_task = None  # type: ignore[assignment]
 
 _broker: Any = None
 _broker_lock = threading.Lock()
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def get_broker() -> Any:
@@ -102,11 +122,6 @@ def reset_broker() -> None:
         _broker = None
 
 
-# ---------------------------------------------------------------------------
-# Internal factory
-# ---------------------------------------------------------------------------
-
-
 def _read_task_settings() -> dict[str, Any]:
     try:
         return dict(getattr(settings, "TASKS", {}) or {})
@@ -123,8 +138,11 @@ def _create_broker() -> Any:
     elif backend == "rabbitmq":
         broker = _make_rabbitmq_broker(cfg)
     elif backend == "stub":
-        from dramatiq.brokers.stub import StubBroker
-
+        if StubBroker is None:
+            raise ImportError(
+                "dramatiq.brokers.stub.StubBroker is not available. "
+                "Install dramatiq to use the stub backend."
+            )
         broker = StubBroker()
     else:
         raise ValueError(
@@ -138,50 +156,53 @@ def _create_broker() -> Any:
     # database so callers can poll for completion / inspect failures.
     # Enable with TASKS["tracking_enabled"] = 1 or True.
     if bool(cfg.get("tracking_enabled", False)):
-        try:
-            from openviper.tasks.middleware import TaskTrackingMiddleware
-
-            broker.add_middleware(TaskTrackingMiddleware())
-        except Exception as exc:
-            logger.warning("Could not attach TaskTrackingMiddleware: %s", exc)
+        if TaskTrackingMiddleware is not None:
+            try:
+                broker.add_middleware(TaskTrackingMiddleware())
+            except Exception as exc:
+                logger.warning("Could not attach TaskTrackingMiddleware: %s", exc)
+        else:
+            logger.warning("TaskTrackingMiddleware is unavailable; tracking disabled.")
     else:
-        logger.info("Task result tracking disabled (set TASKS['tracking_enabled'] = 1 to enable).")
+        logger.info("Task result tracking disabled (set TASKS['tracking_enabled'] = 1 to enable.)")
 
     # Scheduler middleware — starts @periodic tick thread after worker boot.
     # Enable with TASKS["scheduler_enabled"] = 1 or True.
     if bool(cfg.get("scheduler_enabled", False)):
-        try:
-            from openviper.tasks.middleware import SchedulerMiddleware
-
-            broker.add_middleware(SchedulerMiddleware())
-        except Exception as exc:
-            logger.warning("Could not attach SchedulerMiddleware: %s", exc)
+        if SchedulerMiddleware is not None:
+            try:
+                broker.add_middleware(SchedulerMiddleware())
+            except Exception as exc:
+                logger.warning("Could not attach SchedulerMiddleware: %s", exc)
+        else:
+            logger.warning("SchedulerMiddleware is unavailable; scheduler disabled.")
 
     # Automatic cleanup task — registers a daily cleanup job for old results.
     # Enable with TASKS["cleanup_enabled"] = 1 or True.
     if bool(cfg.get("cleanup_enabled", False)):
-        try:
-            from openviper.tasks.results import setup_cleanup_task
-
-            setup_cleanup_task()
-        except Exception as exc:
-            logger.warning("Could not set up automatic cleanup task: %s", exc)
+        if setup_cleanup_task is not None:
+            try:
+                setup_cleanup_task()
+            except Exception as exc:
+                logger.warning("Could not set up automatic cleanup task: %s", exc)
+        else:
+            logger.warning("setup_cleanup_task is unavailable; cleanup disabled.")
 
     # Dramatiq native result backend — enables message.get_result().
     # Requires TASKS["backend_url"] to be set (Redis URL).
     if cfg.get("backend_url"):
-        try:
-            from dramatiq.results import Results
-            from dramatiq.results.backends.redis import RedisBackend
-
-            result_backend = RedisBackend(url=cfg["backend_url"])  # type: ignore[no-untyped-call]
-            broker.add_middleware(Results(backend=result_backend))  # type: ignore[no-untyped-call]
-            logger.info(
-                "Dramatiq result backend: %s",
-                cfg["backend_url"].split("@")[-1],
-            )
-        except Exception as exc:
-            logger.warning("Could not attach result backend: %s", exc)
+        if Results is not None and RedisBackend is not None:
+            try:
+                result_backend = RedisBackend(url=cfg["backend_url"])  # type: ignore[no-untyped-call]
+                broker.add_middleware(Results(backend=result_backend))  # type: ignore[no-untyped-call]
+                logger.info(
+                    "Dramatiq result backend: %s",
+                    cfg["backend_url"].split("@")[-1],
+                )
+            except Exception as exc:
+                logger.warning("Could not attach result backend: %s", exc)
+        else:
+            logger.warning("Dramatiq Results or RedisBackend not available; backend_url ignored.")
 
     dramatiq.set_broker(broker)
     logger.info(
@@ -193,23 +214,22 @@ def _create_broker() -> Any:
 
 
 def _make_redis_broker(cfg: dict[str, Any]) -> Any:
-    from dramatiq.brokers.redis import RedisBroker
+    if RedisBroker is None:
+        raise ImportError(
+            "dramatiq.brokers.redis.RedisBroker is not available. "
+            "Install dramatiq[redis] to use the Redis backend."
+        )
 
     url = cfg.get("broker_url") or "redis://localhost:6379/0"
     logger.debug("Connecting to Redis broker: %s", url.split("@")[-1])
 
-    # Configure connection pool parameters for better performance
-    # Dramatiq's RedisBroker uses redis-py under the hood
     broker_kwargs: dict[str, Any] = {"url": url}
 
-    # Connection pool configuration
     if "redis_max_connections" in cfg:
         broker_kwargs["max_connections"] = int(cfg["redis_max_connections"])
     else:
-        # Default to a pool size that accommodates worker threads + overhead
         broker_kwargs["max_connections"] = 50
 
-    # Additional Redis connection parameters
     if "redis_socket_timeout" in cfg:
         broker_kwargs["socket_timeout"] = int(cfg["redis_socket_timeout"])
     if "redis_socket_connect_timeout" in cfg:
@@ -221,7 +241,11 @@ def _make_redis_broker(cfg: dict[str, Any]) -> Any:
 
 
 def _make_rabbitmq_broker(cfg: dict[str, Any]) -> Any:
-    from dramatiq.brokers.rabbitmq import RabbitmqBroker
+    if RabbitmqBroker is None:
+        raise ImportError(
+            "dramatiq.brokers.rabbitmq.RabbitmqBroker is not available. "
+            "Install dramatiq[rabbitmq] to use the RabbitMQ backend."
+        )
 
     url = cfg.get("broker_url") or "amqp://guest:guest@localhost:5672/"
     logger.debug("Connecting to RabbitMQ broker: %s", url)

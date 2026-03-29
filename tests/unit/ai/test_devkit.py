@@ -112,7 +112,7 @@ class TestStreamingAdapter:
     async def test_empty_generator(self):
         def gen():
             return
-            yield  # noqa: unreachable
+            yield  # noqa: RET101
 
         chunks = [c async for c in StreamingAdapter(gen())]
         assert chunks == []

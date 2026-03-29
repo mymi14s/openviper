@@ -109,9 +109,6 @@ _dispatcher_cache: Any = _UNSET
 _background_tasks: set[asyncio.Task[Any]] = set()
 _MAX_BACKGROUND_TASKS: int = 1024
 
-# ---------------------------------------------------------------------------
-# Decorator-based handler registry
-# ---------------------------------------------------------------------------
 # Populated by @model_event.trigger(...).  Keyed by model_path → event_name
 # → list of callables.  Intentionally separate from the settings-based
 # dispatcher so that decorator-registered handlers fire even when
@@ -119,8 +116,7 @@ _MAX_BACKGROUND_TASKS: int = 1024
 _decorator_registry: dict[str, dict[str, list[Any]]] = {}
 _dec_registry_lock = threading.Lock()
 
-# All nine Model lifecycle hook names that the dispatcher understands.
-# Mirrors the hooks fired by Model.save() and Model.delete().
+# All Model lifecycle hook names that the dispatcher understands.
 SUPPORTED_EVENTS: frozenset[str] = frozenset(
     {
         # save() — validation (create + update)
@@ -143,10 +139,6 @@ SUPPORTED_EVENTS: frozenset[str] = frozenset(
         "post_bulk_update",
     }
 )
-
-# ---------------------------------------------------------------------------
-# Dispatcher
-# ---------------------------------------------------------------------------
 
 
 class ModelEventDispatcher:
@@ -257,11 +249,6 @@ class ModelEventDispatcher:
         )
 
 
-# ---------------------------------------------------------------------------
-# Singleton access
-# ---------------------------------------------------------------------------
-
-
 def get_dispatcher() -> ModelEventDispatcher | None:
     """Return the active :class:`ModelEventDispatcher`, or ``None``.
 
@@ -296,11 +283,6 @@ def reset_dispatcher() -> None:
     """
     global _dispatcher_cache
     _dispatcher_cache = _UNSET
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _build_dispatcher() -> ModelEventDispatcher | None:
@@ -401,11 +383,6 @@ def _resolve_dotted(path: str | Callable[..., Any]) -> Any | None:
             exc,
         )
         return None
-
-
-# ---------------------------------------------------------------------------
-# Decorator registry helpers
-# ---------------------------------------------------------------------------
 
 
 def _call_handler(handler: Any, instance: Any, event_name: str, **kwargs: Any) -> None:

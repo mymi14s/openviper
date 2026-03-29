@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { formatFieldName } from '@/utils/formatters'
+import CountrySelectField from '@/components/CountrySelectField.vue'
 import type { FilterOption } from '@/types/admin'
 
 const props = defineProps<{
@@ -91,6 +92,15 @@ function clearAll() {
             :value="activeFilters[filter.name] ?? ''"
             @change="applyFilter(filter.name, ($event.target as HTMLInputElement).value)"
             class="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+        </div>
+
+        <!-- Country filter (searchable dropdown) -->
+        <div v-else-if="filter.component === 'country'">
+          <CountrySelectField
+            :modelValue="activeFilters[filter.name] ?? null"
+            :choices="filter.choices"
+            @update:modelValue="applyFilter(filter.name, $event ?? '')"
           />
         </div>
 

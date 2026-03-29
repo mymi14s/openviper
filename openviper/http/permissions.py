@@ -1,6 +1,6 @@
 """Permission classes for OpenViper HTTP views.
 
-Provides a pluggable permission system similar to Django Rest Framework.
+Provides a pluggable permission system for OpenViper HTTP views.
 """
 
 from __future__ import annotations

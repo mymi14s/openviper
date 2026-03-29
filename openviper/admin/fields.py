@@ -15,6 +15,11 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+try:
+    from openviper.contrib.countries.cache import get_country_choices as _get_country_choices
+except ImportError:
+    _get_country_choices = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:
     from openviper.db.fields import Field
 
@@ -46,6 +51,7 @@ FIELD_COMPONENT_MAP: dict[str, str] = {
     "ForeignKey": "foreignkey",
     "OneToOneField": "foreignkey",
     "ManyToManyField": "multiselect",
+    "CountryField": "country",
 }
 
 
@@ -64,6 +70,16 @@ def get_field_component_type(field: Field) -> str:
 
     field_class_name = field.__class__.__name__
     return FIELD_COMPONENT_MAP.get(field_class_name, "text")
+
+
+def get_filter_choices(field: Field) -> list[dict[str, str]]:
+    """Return filter choices for a field, including lazy-loaded CountryField data."""
+    if field.__class__.__name__ == "CountryField" and _get_country_choices is not None:
+        extra = getattr(field, "extra_countries", ())
+        return [{"value": code, "label": name} for code, name in _get_country_choices(extra)]
+    if hasattr(field, "choices") and field.choices:
+        return [{"value": c[0], "label": c[1]} for c in field.choices]
+    return []
 
 
 def get_field_widget_config(field: Field) -> dict[str, Any]:
@@ -144,6 +160,13 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
     if field_class_name in ("ForeignKey", "OneToOneField"):
         config["searchable"] = True
         config["filterable"] = True
+
+    if field_class_name == "CountryField" and _get_country_choices is not None:
+        extra = getattr(field, "extra_countries", ())
+        choices = _get_country_choices(extra)
+        config["choices"] = [{"value": code, "label": name} for code, name in choices]
+        config["searchable"] = True
+        config["country_field"] = True
 
     if getattr(field, "primary_key", False):
         config["filterable"] = True

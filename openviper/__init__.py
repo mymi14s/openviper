@@ -28,10 +28,6 @@ from openviper.http.response import (
 )
 from openviper.routing.router import Router, include
 
-# ---------------------------------------------------------------------------
-# PEP 562 lazy sub-package loader
-# ---------------------------------------------------------------------------
-
 _LAZY_SUBPACKAGES = {
     "ai": "openviper.ai",
     "admin": "openviper.admin",

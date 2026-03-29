@@ -85,7 +85,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime
-import json
 import os
 import typing
 import uuid
@@ -93,6 +92,7 @@ from decimal import Decimal
 from functools import lru_cache
 from typing import Any, ClassVar, TypeVar, Union
 
+import orjson
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -435,7 +435,7 @@ class Serializer(BaseModel):
                         for obj in batch
                     ]
                 )
-            return json.dumps(parts).encode()
+            return orjson.dumps(parts)
 
         dicts = [
             {
@@ -445,7 +445,7 @@ class Serializer(BaseModel):
             }
             for obj in objs
         ]
-        return json.dumps(dicts).encode()
+        return orjson.dumps(dicts)
 
     @classmethod
     async def paginate(

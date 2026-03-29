@@ -107,31 +107,28 @@ Key Classes & Functions
    A ``QuerySet`` is also directly awaitable: ``await qs`` is equivalent to
    ``await qs.all()``.
 
-   .. warning:: **Default row limit**
+   .. note:: **No default row limit**
 
-      ``filter()``, ``all()``, and other terminal methods that return a list
-      cap results at **1 000 rows** by default.  This is a safety guard
-      against accidentally loading entire large tables into memory.
-
-      Override this per-query with :meth:`limit`, project-wide via
-      ``MAX_QUERY_ROWS`` in your settings (hard ceiling: 100 000), or bypass
-      it entirely with :meth:`iterator` / :meth:`batch` which stream through
-      all matching rows using keyset pagination.
+      ``filter()``, ``all()``, and other terminal methods return **all
+      matching rows** by default.  Use :meth:`limit` per-query or set
+      ``MAX_QUERY_ROWS`` in your project settings to apply a project-wide
+      cap.  For large datasets prefer :meth:`iterator` / :meth:`batch`
+      which stream rows without loading the entire result into memory.
 
       .. code-block:: python
 
-         # ── default: max 1 000 rows ─────────────────────────────────
+         # ── no limit by default ──────────────────────────────────────
          async def example():
-             posts = await Post.objects.all()           # up to 1 000
+             posts = await Post.objects.all()           # all rows
 
              # ── explicit limit ────────────────────────────────────────
              posts = await Post.objects.limit(50).all() # exactly 50
 
-         # ── settings override ────────────────────────────────────────
+         # ── optional project-wide cap ────────────────────────────────
          # settings.py
-         MAX_QUERY_ROWS = 5000  # raise per-project cap (max 100 000)
+         MAX_QUERY_ROWS = 1000  # apply a default cap to all queries
 
-         # ── no limit: stream all rows ────────────────────────────────
+         # ── stream all rows without a limit ──────────────────────────
          async def example():
              async for post in Post.objects.filter(published=True).iterator():
                  await process(post)   # keyset-paginated, unbounded
@@ -509,6 +506,31 @@ All fields accept a common set of base arguments: ``primary_key``,
      - One-to-one relationship (unique FK).
    * - ``ManyToManyField(to, through=None, related_name=None)``
      - Many-to-many via a junction table (no direct column).
+   * - ``CountryField(max_length=2, extra_countries=None)``
+     - ISO 3166-1 alpha-2 country code stored as a 2-character ``VARCHAR``.
+       Values are validated against the built-in country registry.
+       Returns a :class:`~openviper.contrib.countries.Country` instance on
+       access, giving rich metadata properties: ``.name``, ``.dial_code``,
+       ``.alpha3``, ``.numeric``, ``.continent``, ``.region``, ``.capital``,
+       ``.currency_code``, ``.currency_name``, ``.currency_symbol``,
+       ``.languages``, ``.tld``, ``.flag``, ``.is_eu``, ``.is_eea``,
+       ``.timezone``.  Pass ``extra_countries`` to register non-standard
+       codes.  Available from ``openviper.contrib.countries``.
+
+       .. code-block:: python
+
+          from openviper.db import Model
+          from openviper.contrib.countries import CountryField
+
+          class UserProfile(Model):
+              country = CountryField(null=True, db_index=True)
+
+          # Property access on instances
+          profile.country.name          # 'United Kingdom'
+          profile.country.flag          # '🇬🇧'
+          profile.country.currency_symbol  # '£'
+          profile.country.is_eu         # False
+          profile.country == 'GB'       # True (str subclass)
 
 ``openviper.db.connection``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

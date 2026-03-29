@@ -29,4 +29,3 @@ traitlets==5.14.3
 typing-extensions==4.15.0
 uvicorn[standard]==0.41.0
 uvloop==0.22.1; sys_platform != 'win32'
-websockets==16.0

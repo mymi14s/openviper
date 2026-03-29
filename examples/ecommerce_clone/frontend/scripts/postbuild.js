@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Post-build script: copies React build artifacts to the Django-style
+ * Post-build script: copies React build artifacts to the
  * templates/ and static/ directories one level up from frontend/.
  *
  * Mapping:

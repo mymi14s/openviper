@@ -6,7 +6,10 @@ import asyncio
 import contextlib
 import functools
 import logging
+import re
+import time
 import uuid
+from collections import OrderedDict
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -18,6 +21,7 @@ from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
 from openviper.db.connection import _request_conn, get_engine, get_metadata
 from openviper.db.fields import (
+    AutoField,
     BigIntegerField,
     BinaryField,
     BooleanField,
@@ -39,26 +43,108 @@ from openviper.db.fields import (
 from openviper.db.migrations.executor import _get_soft_removed_table
 from openviper.exceptions import FieldError
 
+_SAFE_TABLE_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
+
+
+def _assert_safe_table_name(name: str) -> None:
+    """Raise ValueError if the table name contains unsafe characters."""
+    if not _SAFE_TABLE_NAME_RE.match(name):
+        raise ValueError(f"Unsafe table name: {name!r}")
+
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from openviper.db.models import Model, QuerySet
 
-# ---------------------------------------------------------------------------
-# Global row limit to prevent memory exhaustion
-# ---------------------------------------------------------------------------
+# Optional row cap applied to execute_select / execute_values when no
+# explicit .limit() is set on the QuerySet.
+# Set MAX_QUERY_ROWS in your project settings to enable a default cap.
+# When unset (the default) no automatic limit is applied.
+MAX_QUERY_ROWS: int | None = getattr(settings, "MAX_QUERY_ROWS", None)
 
-# Maximum rows returned by execute_select without explicit limit.
-# Prevents DoS attacks via unlimited queries on large tables.
-# Can be overridden in settings with MAX_QUERY_ROWS.
-# Default is 1,000 rows (conservative limit to prevent memory exhaustion).
-_MAX_QUERY_ROWS_SETTING = getattr(settings, "MAX_QUERY_ROWS", 1_000)
-_MAX_QUERY_ROWS_HARD_CAP = 100_000  # Absolute maximum regardless of settings
-MAX_QUERY_ROWS = min(_MAX_QUERY_ROWS_SETTING, _MAX_QUERY_ROWS_HARD_CAP)
 
-# ---------------------------------------------------------------------------
-# Permission bypass context variable
-# ---------------------------------------------------------------------------
+# Short-lived cache for repeated identical SELECT queries.  Inspired by
+# the read-through cache pattern used at Twitter/X and Google Search where
+# hot queries are served from memory instead of hitting the database.
+#
+# Enabled per-model via ``Meta.cache_ttl = <seconds>`` (default 0 = off).
+# The cache is invalidated on any write (INSERT / UPDATE / DELETE) touching
+# the same model.  Thread-safe for single-writer async contexts.
+#
+# Max entries configurable via QUERY_CACHE_MAX_SIZE setting (default 2048).
+
+_QUERY_CACHE_MAX_SIZE: int = int(getattr(settings, "QUERY_CACHE_MAX_SIZE", 2048))
+
+
+class _QueryCache:
+    """Bounded LRU cache with per-entry TTL for query results.
+
+    Keys are ``(model_table_name, compiled_sql_hash)`` tuples.
+    Values are ``(expire_time, rows)`` tuples.
+    """
+
+    __slots__ = ("_store", "_max_size")
+
+    def __init__(self, max_size: int) -> None:
+        self._store: OrderedDict[str, tuple[float, list[dict[str, Any]]]] = OrderedDict()
+        self._max_size = max_size
+
+    def get(self, key: str) -> list[dict[str, Any]] | None:
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        expire, rows = entry
+        if time.monotonic() > expire:
+            self._store.pop(key, None)
+            return None
+        # Move to end (most recently used)
+        self._store.move_to_end(key)
+        return rows
+
+    def put(self, key: str, rows: list[dict[str, Any]], ttl: float) -> None:
+        if ttl <= 0:
+            return
+        self._store[key] = (time.monotonic() + ttl, rows)
+        self._store.move_to_end(key)
+        # Evict oldest entries if over capacity
+        while len(self._store) > self._max_size:
+            self._store.popitem(last=False)
+
+    def invalidate_model(self, table_name: str) -> None:
+        """Remove all cached entries for a given table."""
+        to_remove = [k for k in self._store if k.startswith(table_name + ":")]
+        for k in to_remove:
+            self._store.pop(k, None)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+
+_query_cache = _QueryCache(_QUERY_CACHE_MAX_SIZE)
+
+
+def invalidate_query_cache(table_name: str | None = None) -> None:
+    """Invalidate query cache entries.
+
+    Args:
+        table_name: If given, only entries for this table are removed.
+                    If None, the entire cache is cleared.
+    """
+    if table_name:
+        _query_cache.invalidate_model(table_name)
+    else:
+        _query_cache.clear()
+
+
+def _cache_key_for_stmt(table_name: str, stmt: Any) -> str:
+    """Build a cache key from the compiled SQL string."""
+    compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+    return f"{table_name}:{hash((str(compiled), str(compiled.params)))}"
+
 
 # ContextVar that, when True, bypasses permission checks for the current task.
 # Use bypass_permissions() context manager to set this for a scoped block.
@@ -89,10 +175,6 @@ def bypass_permissions() -> Generator[None]:
         _bypass_permissions.reset(token)
 
 
-# ---------------------------------------------------------------------------
-# Soft-removed column cache (lock-free reads after write, frozenset values)
-# ---------------------------------------------------------------------------
-
 # Values are frozenset so callers can read them without holding the lock.
 _SOFT_REMOVED_CACHE: dict[str, frozenset[str]] = {}
 _SOFT_REMOVED_LOADED: bool = False
@@ -102,12 +184,20 @@ _soft_removed_lock: asyncio.Lock | None = None
 _REAL_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
 _real_columns_lock: asyncio.Lock | None = None
 
+# Per-event-loop lock caches to prevent "bound to a different event loop" errors
+_real_columns_lock_per_loop: dict[int, asyncio.Lock] = {}
+_soft_removed_lock_per_loop: dict[int, asyncio.Lock] = {}
+
 
 def _get_real_columns_lock() -> asyncio.Lock:
-    global _real_columns_lock
-    if _real_columns_lock is None:
-        _real_columns_lock = asyncio.Lock()
-    return _real_columns_lock
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.Lock()
+    loop_id = id(loop)
+    if loop_id not in _real_columns_lock_per_loop:
+        _real_columns_lock_per_loop[loop_id] = asyncio.Lock()
+    return _real_columns_lock_per_loop[loop_id]
 
 
 async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None:
@@ -127,8 +217,8 @@ async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None
 
         try:
             if "sqlite" in dialect:
+                _assert_safe_table_name(table_name)
                 result = await conn.execute(sa.text(f"PRAGMA table_info({table_name})"))
-                cols = {row[1] for row in result.fetchall()}
             elif "postgresql" in dialect:
                 result = await conn.execute(
                     sa.text(
@@ -139,6 +229,7 @@ async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None
                 )
                 cols = {row[0] for row in result.fetchall()}
             elif "mysql" in dialect:
+                _assert_safe_table_name(table_name)
                 result = await conn.execute(sa.text(f"SHOW COLUMNS FROM {table_name}"))
                 cols = {row[0] for row in result.fetchall()}
             else:
@@ -174,10 +265,6 @@ async def preload_table_schemas() -> None:
         table_names = [model_cls._table_name for model_cls in ModelMeta.registry.values()]
         await _get_real_columns_bulk(conn, table_names)
 
-
-# ---------------------------------------------------------------------------
-# TraversalLookup cache — parse each (key, model) pair at most once
-# ---------------------------------------------------------------------------
 
 # Sentinel stored in cache when a lookup failed, so we don't
 # re-raise FieldError (and re-construct TraversalLookup) on every query.
@@ -215,11 +302,6 @@ def _cached_traversal_lookup(key: str, model_cls: type) -> Any:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Connection helpers
-# ---------------------------------------------------------------------------
-
-
 @asynccontextmanager
 async def _connect() -> AsyncGenerator[Any]:
     """Yield a read connection, reusing a per-request connection if active."""
@@ -247,11 +329,15 @@ async def _begin() -> AsyncGenerator[Any]:
 
 
 def _get_soft_removed_lock() -> asyncio.Lock:
-    """Return the module-level soft-removed lock, creating it lazily."""
-    global _soft_removed_lock
-    if _soft_removed_lock is None:
-        _soft_removed_lock = asyncio.Lock()
-    return _soft_removed_lock
+    """Return the per-event-loop soft-removed lock, creating it lazily."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.Lock()
+    loop_id = id(loop)
+    if loop_id not in _soft_removed_lock_per_loop:
+        _soft_removed_lock_per_loop[loop_id] = asyncio.Lock()
+    return _soft_removed_lock_per_loop[loop_id]
 
 
 async def _load_soft_removed_columns() -> None:
@@ -312,11 +398,6 @@ def get_soft_removed_columns(table_name: str) -> frozenset[str]:
     Values are ``frozenset`` so callers can iterate without holding any lock.
     """
     return _SOFT_REMOVED_CACHE.get(table_name, frozenset())
-
-
-# ---------------------------------------------------------------------------
-# Table registration
-# ---------------------------------------------------------------------------
 
 
 @functools.lru_cache(maxsize=256)
@@ -464,6 +545,8 @@ def get_table(model_cls: type[Model]) -> sa.Table:
 
 
 def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
+    if isinstance(field, AutoField):
+        return sa.Integer()
     if isinstance(field, BinaryField):
         return sa.LargeBinary()
     if isinstance(field, (ForeignKey, OneToOneField)):
@@ -506,11 +589,6 @@ def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if isinstance(field, CharField):
         return sa.String(field.max_length)
     return sa.Text()
-
-
-# ---------------------------------------------------------------------------
-# Relationship Traversal & JOINs
-# ---------------------------------------------------------------------------
 
 
 def _build_traversal_joins(
@@ -556,11 +634,6 @@ def _build_traversal_joins(
 
     # Get final table (last target in the traversal)
     return from_clause, get_table(traversal.final_model)
-
-
-# ---------------------------------------------------------------------------
-# Filter compiler
-# ---------------------------------------------------------------------------
 
 
 def _compile_traversal_filter(
@@ -738,8 +811,13 @@ def _compile_filters(
     for filters in filter_dicts:
         for key, value in filters.items():
             clause = _compile_single_filter(table, key, value)
-            if clause is not None:
-                clauses.append(clause)
+            if clause is None:
+                col_name = key.split("__")[0]
+                raise FieldError(
+                    f"Invalid filter key '{key}': column '{col_name}' does not exist"
+                    f" in table '{table.name}'"
+                )
+            clauses.append(clause)
     return sa.and_(*clauses) if clauses else None
 
 
@@ -823,8 +901,12 @@ def _build_where_clause_with_traversals(
 
             # Normal field compilation fallback
             fallback_clause = _compile_single_filter(base_table, key, value)
-            if fallback_clause is not None:
-                parts.append(fallback_clause)
+            if fallback_clause is None:
+                raise FieldError(
+                    f"Invalid filter key '{key}': field '{key.split('__')[0]}'"
+                    f" does not exist on {model_cls.__name__}"
+                )
+            parts.append(fallback_clause)
 
     # Process excludes (can also use traversals)
     for excludes in exclude_dicts:
@@ -849,8 +931,12 @@ def _build_where_clause_with_traversals(
 
             # Normal exclude fallback
             fallback_exclude = _compile_single_filter(base_table, key, value)
-            if fallback_exclude is not None:
-                parts.append(sa.not_(fallback_exclude))
+            if fallback_exclude is None:
+                raise FieldError(
+                    f"Invalid exclude key '{key}': field '{key.split('__')[0]}'"
+                    f" does not exist on {model_cls.__name__}"
+                )
+            parts.append(sa.not_(fallback_exclude))
 
     # Q objects compile against base_table (TODO: could support traversal too)
     for q_obj in q_filters:
@@ -932,11 +1018,6 @@ def _ann_expr_as_sa(table: sa.Table, expr: Any) -> Any:
         return _f_expr_as_sa(table, expr)
 
     return None
-
-
-# ---------------------------------------------------------------------------
-# Execute helpers
-# ---------------------------------------------------------------------------
 
 
 async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
@@ -1071,13 +1152,37 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             stmt = stmt.distinct()
 
         # ── LIMIT / OFFSET ───────────────────────────────────────────────────
-        stmt = stmt.limit(qs._limit if qs._limit is not None else MAX_QUERY_ROWS)
+        _effective_limit = qs._limit if qs._limit is not None else MAX_QUERY_ROWS
+        if _effective_limit is not None:
+            stmt = stmt.limit(_effective_limit)
         if qs._offset is not None:
             stmt = stmt.offset(qs._offset)
 
+        # ── SELECT FOR UPDATE ─────────────────────────────────────────────────
+        if getattr(qs, "_for_update", False):
+            nowait: bool = getattr(qs, "_for_update_nowait", False)
+            skip_locked: bool = getattr(qs, "_for_update_skip_locked", False)
+            stmt = stmt.with_for_update(nowait=nowait, skip_locked=skip_locked)
+
+        # ── Query result cache ────────────────────────────────────────────────
+        # Only cache read-only queries (no FOR UPDATE) on models with cache_ttl.
+        cache_ttl: float = getattr(model_cls, "_cache_ttl", 0)
+        cache_key: str | None = None
+        if cache_ttl > 0 and not getattr(qs, "_for_update", False):
+            try:
+                cache_key = _cache_key_for_stmt(model_cls._table_name, stmt)
+                cached = _query_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception:
+                cache_key = None
+
         try:
             result = await conn.execute(stmt)
-            return [dict(row) for row in result.mappings()]
+            rows = [dict(row) for row in result.mappings()]
+            if cache_key is not None:
+                _query_cache.put(cache_key, rows, cache_ttl)
+            return rows
         except Exception as e:
             logger.error(
                 "SELECT query failed for model %s: %s",
@@ -1096,10 +1201,17 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
 async def execute_count(qs: QuerySet) -> int:
     model_cls = qs._model
     table = get_table(model_cls)
-    stmt = sa.select(sa.func.count()).select_from(table)
 
     q_filters = getattr(qs, "_q_filters", [])
-    where = _build_where_clause(table, qs._filters, qs._excludes, q_filters)
+    where, from_clause = _build_where_clause_with_traversals(
+        model_cls, table, qs._filters, qs._excludes, q_filters
+    )
+
+    stmt = (
+        sa.select(sa.func.count()).select_from(from_clause)
+        if from_clause is not table
+        else sa.select(sa.func.count()).select_from(table)
+    )
     if where is not None:
         stmt = stmt.where(where)
 
@@ -1139,6 +1251,7 @@ async def execute_delete(qs: QuerySet) -> int:
     try:
         async with _begin() as conn:
             result = await conn.execute(stmt)
+            _query_cache.invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
         logger.error(
@@ -1183,6 +1296,7 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
     try:
         async with _begin() as conn:
             result = await conn.execute(stmt)
+            _query_cache.invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
         logger.error(
@@ -1254,6 +1368,7 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
                 # Only update instance.id if it's not already set (for auto-increment)
                 if pk_val is None:
                     instance.id = cast("Any", result).inserted_primary_key[0]
+            _query_cache.invalidate_model(model_cls._table_name)
         except Exception as e:
             logger.error(
                 "INSERT failed for model %s: %s",
@@ -1268,10 +1383,9 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
             async with _begin() as conn:
                 result = await conn.execute(upd_stmt)
                 if result.rowcount == 0:
-                    # No row matched the UPDATE — the PK was user-assigned on a new instance.
-                    # Fall back to INSERT.
                     ins_stmt = sa.insert(table).values(**data)
                     await conn.execute(ins_stmt)
+            _query_cache.invalidate_model(model_cls._table_name)
         except Exception as e:
             logger.error(
                 "UPDATE failed for model %s (pk=%s): %s",
@@ -1296,6 +1410,7 @@ async def execute_delete_instance(instance: Model, ignore_permissions: bool = Fa
     try:
         async with _begin() as conn:
             await conn.execute(sa.delete(table).where(table.c.id == pk_val))
+        _query_cache.invalidate_model(model_cls._table_name)
     except Exception as e:
         logger.error(
             "DELETE failed for model %s (pk=%s): %s",
@@ -1357,7 +1472,9 @@ async def execute_values(
 
     if getattr(qs, "_distinct", False):
         stmt = stmt.distinct()
-    stmt = stmt.limit(qs._limit if qs._limit is not None else MAX_QUERY_ROWS)
+    _effective_limit = qs._limit if qs._limit is not None else MAX_QUERY_ROWS
+    if _effective_limit is not None:
+        stmt = stmt.limit(_effective_limit)
     if qs._offset is not None:
         stmt = stmt.offset(qs._offset)
 
@@ -1503,6 +1620,9 @@ async def execute_bulk_update(
         async with _begin() as conn:
             result = await conn.execute(upd_stmt, batch)
             total += result.rowcount
+
+    if total:
+        _query_cache.invalidate_model(table.name)
 
     return total
 

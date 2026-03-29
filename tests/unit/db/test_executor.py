@@ -45,12 +45,7 @@ from openviper.db.executor import (
     get_table,
     invalidate_soft_removed_cache,
 )
-from openviper.db.fields import (
-    CharField,
-    ForeignKey,
-    IntegerField,
-    LazyFK,
-)
+from openviper.db.fields import CharField, ForeignKey, IntegerField, LazyFK
 from openviper.db.models import Count, F, Model, Q, Sum
 from openviper.exceptions import FieldError
 
@@ -373,6 +368,14 @@ class TestCompileFilters:
         clause = _compile_filters(self.table, [])
         assert clause is None
 
+    def test_compile_filters_unknown_field_raises(self):
+        with pytest.raises(FieldError):
+            _compile_filters(self.table, [{"nonexistent": "x"}])
+
+    def test_compile_filters_unknown_field_with_lookup_raises(self):
+        with pytest.raises(FieldError):
+            _compile_filters(self.table, [{"ghost__icontains": "x"}])
+
     def test_compile_excludes_negate(self):
         clause = _compile_excludes(self.table, [{"name": "x"}])
         assert clause is not None
@@ -608,19 +611,36 @@ class TestBuildWhereClauseWithTraversals:
         assert where is None
         assert from_clause is self.table
 
+    def test_unknown_filter_field_raises(self):
+        with pytest.raises(FieldError):
+            _build_where_clause_with_traversals(
+                Post, self.table, [{"nonexistent_field": "x"}], [], []
+            )
+
+    def test_unknown_exclude_field_raises(self):
+        with pytest.raises(FieldError):
+            _build_where_clause_with_traversals(
+                Post, self.table, [], [{"nonexistent_field": "x"}], []
+            )
+
+    def test_unknown_filter_with_lookup_raises(self):
+        with pytest.raises(FieldError):
+            _build_where_clause_with_traversals(
+                Post, self.table, [{"ghost__icontains": "x"}], [], []
+            )
+
     def test_invalid_traversal_falls_back(self):
-        # Invalid traversal key — should fall back to compile_single_filter
-        where, from_clause = _build_where_clause_with_traversals(
-            Post, self.table, [{"__totally_bogus": "x"}], [], []
-        )
-        # No valid column, so where is None
-        assert where is None
+        # A key starting with __ has an empty col_name; not in table → FieldError
+        with pytest.raises(FieldError):
+            _build_where_clause_with_traversals(
+                Post, self.table, [{"__totally_bogus": "x"}], [], []
+            )
 
     def test_invalid_exclude_traversal_falls_back(self):
-        where, from_clause = _build_where_clause_with_traversals(
-            Post, self.table, [], [{"__totally_bogus": "x"}], []
-        )
-        assert where is None
+        with pytest.raises(FieldError):
+            _build_where_clause_with_traversals(
+                Post, self.table, [], [{"__totally_bogus": "x"}], []
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -813,6 +833,104 @@ class TestExecuteCount:
             mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
             result = await execute_count(qs)
             assert result == 7
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_icontains_filter_applies_where(self):
+        qs = _make_qs(filters=[{"title__icontains": "hello"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 3
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor._connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_count(qs)
+            assert result == 3
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+            assert "LIKE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_no_filter_has_no_where(self):
+        qs = _make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 100
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor._connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" not in sql
+
+    @pytest.mark.asyncio
+    async def test_count_startswith_filter_applies_where(self):
+        qs = _make_qs(filters=[{"title__startswith": "abc"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 5
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor._connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+            assert "LIKE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_gt_filter_applies_where(self):
+        qs = _make_qs(filters=[{"views__gt": 100}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 2
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor._connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_q_filter_applies_where(self):
+        q = Q(title__icontains="test")
+        qs = _make_qs(q_filters=[q])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor._connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
 
 
 class TestExecuteExists:
@@ -1366,4 +1484,4 @@ class TestLoadSoftRemovedColumns:
 
 class TestMaxQueryRows:
     def test_default_value(self):
-        assert MAX_QUERY_ROWS == 1_000
+        assert MAX_QUERY_ROWS is None

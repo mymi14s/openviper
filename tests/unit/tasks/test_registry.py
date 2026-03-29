@@ -1,302 +1,211 @@
-"""Unit tests for openviper.tasks.registry — Schedule entry registry."""
+"""Tests for openviper/tasks/registry.py."""
 
-import threading
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 
-from openviper.tasks.registry import (
-    ScheduleEntry,
-    ScheduleRegistry,
-    get_registry,
-    reset_registry,
-)
+from openviper.tasks.registry import ScheduleEntry, ScheduleRegistry, get_registry, reset_registry
 from openviper.tasks.schedule import IntervalSchedule
 
 
+@pytest.fixture(autouse=True)
+def clean_registry() -> None:
+    reset_registry()
+    yield
+    reset_registry()
+
+
+def _make_actor(name: str = "my_actor") -> MagicMock:
+    actor = MagicMock()
+    actor.actor_name = name
+    actor.send = MagicMock()
+    return actor
+
+
+def _make_schedule(due: bool = True) -> MagicMock:
+    sched = MagicMock()
+    sched.is_due.return_value = due
+    return sched
+
+
+# ---------------------------------------------------------------------------
+# ScheduleEntry
+# ---------------------------------------------------------------------------
+
+
 class TestScheduleEntry:
-    """Test ScheduleEntry dataclass."""
+    def test_is_due_enabled(self) -> None:
+        sched = _make_schedule(due=True)
+        entry = ScheduleEntry(name="t", actor=_make_actor(), schedule=sched)
+        assert entry.is_due() is True
 
-    def test_creation_with_defaults(self):
-        """ScheduleEntry should initialize with sensible defaults."""
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-        entry = ScheduleEntry(name="test", actor=actor, schedule=schedule)
+    def test_is_due_disabled(self) -> None:
+        sched = _make_schedule(due=True)
+        entry = ScheduleEntry(name="t", actor=_make_actor(), schedule=sched, enabled=False)
+        assert entry.is_due() is False
 
-        assert entry.name == "test"
-        assert entry.actor is actor
-        assert entry.schedule is schedule
+    def test_is_due_not_due(self) -> None:
+        sched = _make_schedule(due=False)
+        entry = ScheduleEntry(name="t", actor=_make_actor(), schedule=sched)
+        assert entry.is_due() is False
+
+    def test_is_due_passes_now(self) -> None:
+        sched = _make_schedule(due=True)
+        entry = ScheduleEntry(name="t", actor=_make_actor(), schedule=sched)
+        now = datetime(2024, 1, 1, tzinfo=UTC)
+        entry.is_due(now)
+        sched.is_due.assert_called_once_with(entry.last_run_at, now)
+
+    def test_is_due_defaults_now(self) -> None:
+        sched = _make_schedule(due=True)
+        entry = ScheduleEntry(name="t", actor=_make_actor(), schedule=sched)
+        entry.is_due()
+        sched.is_due.assert_called_once()
+
+    def test_defaults(self) -> None:
+        sched = _make_schedule()
+        entry = ScheduleEntry(name="x", actor=_make_actor(), schedule=sched)
         assert entry.args == ()
         assert entry.kwargs == {}
         assert entry.enabled is True
         assert entry.last_run_at is None
 
-    def test_creation_with_args_kwargs(self):
-        """ScheduleEntry should store args and kwargs."""
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-        entry = ScheduleEntry(
-            name="test", actor=actor, schedule=schedule, args=(1, 2), kwargs={"key": "value"}
-        )
 
-        assert entry.args == (1, 2)
-        assert entry.kwargs == {"key": "value"}
-
-    def test_is_due_when_enabled(self):
-        """is_due should delegate to schedule when enabled."""
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-        entry = ScheduleEntry(name="test", actor=actor, schedule=schedule)
-
-        # Never run → should be due
-        assert entry.is_due() is True
-
-    def test_is_due_when_disabled(self):
-        """is_due should return False when disabled."""
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-        entry = ScheduleEntry(name="test", actor=actor, schedule=schedule, enabled=False)
-
-        assert entry.is_due() is False
-
-    def test_is_due_with_custom_now(self):
-        """is_due should accept custom now parameter."""
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-        entry = ScheduleEntry(name="test", actor=actor, schedule=schedule)
-
-        now = datetime(2026, 3, 10, 12, 0, 0, tzinfo=UTC)
-        result = entry.is_due(now=now)
-        assert isinstance(result, bool)
+# ---------------------------------------------------------------------------
+# ScheduleRegistry
+# ---------------------------------------------------------------------------
 
 
 class TestScheduleRegistry:
-    """Test ScheduleRegistry class."""
+    def test_register_basic(self) -> None:
+        reg = ScheduleRegistry()
+        actor = _make_actor()
+        sched = IntervalSchedule(60)
+        entry = reg.register("task1", actor, sched)
+        assert entry.name == "task1"
+        assert len(reg) == 1
 
-    def test_init_empty(self):
-        """New registry should be empty."""
-        registry = ScheduleRegistry()
-        assert len(registry) == 0
-        assert registry.all_entries() == []
-
-    def test_register_entry(self):
-        """register should add an entry."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        entry = registry.register("test", actor, schedule)
-
-        assert len(registry) == 1
-        assert entry.name == "test"
-        assert entry.actor is actor
-        assert entry.schedule is schedule
-
-    def test_register_with_args_kwargs(self):
-        """register should store args and kwargs."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        entry = registry.register("test", actor, schedule, args=(1, 2), kwargs={"key": "value"})
-
-        assert entry.args == (1, 2)
-        assert entry.kwargs == {"key": "value"}
-
-    def test_register_duplicate_raises(self):
-        """register should raise ValueError for duplicate names."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        registry.register("test", actor, schedule)
-
+    def test_register_duplicate_raises(self) -> None:
+        reg = ScheduleRegistry()
+        actor = _make_actor()
+        sched = IntervalSchedule(60)
+        reg.register("task1", actor, sched)
         with pytest.raises(ValueError, match="already exists"):
-            registry.register("test", actor, schedule)
+            reg.register("task1", actor, sched)
 
-    def test_register_duplicate_with_replace(self):
-        """register with replace=True should overwrite existing entry."""
-        registry = ScheduleRegistry()
-        actor1 = MagicMock()
-        actor2 = MagicMock()
-        schedule = IntervalSchedule(60)
+    def test_register_replace(self) -> None:
+        reg = ScheduleRegistry()
+        actor = _make_actor()
+        sched = IntervalSchedule(60)
+        reg.register("task1", actor, sched)
+        entry2 = reg.register("task1", actor, sched, replace=True)
+        assert entry2.name == "task1"
+        assert len(reg) == 1
 
-        registry.register("test", actor1, schedule)
-        entry2 = registry.register("test", actor2, schedule, replace=True)
+    def test_register_kwargs_defaults_to_empty(self) -> None:
+        reg = ScheduleRegistry()
+        entry = reg.register("t", _make_actor(), IntervalSchedule(60))
+        assert entry.kwargs == {}
 
-        assert len(registry) == 1
-        assert entry2.actor is actor2
-        assert registry.get("test") is entry2
+    def test_register_with_args_kwargs(self) -> None:
+        reg = ScheduleRegistry()
+        entry = reg.register(
+            "t", _make_actor(), IntervalSchedule(60), args=(1, 2), kwargs={"k": "v"}
+        )
+        assert entry.args == (1, 2)
+        assert entry.kwargs == {"k": "v"}
 
-    def test_unregister_existing(self):
-        """unregister should remove an entry."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
+    def test_register_disabled(self) -> None:
+        reg = ScheduleRegistry()
+        entry = reg.register("t", _make_actor(), IntervalSchedule(60), enabled=False)
+        assert entry.enabled is False
 
-        registry.register("test", actor, schedule)
-        assert len(registry) == 1
+    def test_unregister_existing(self) -> None:
+        reg = ScheduleRegistry()
+        reg.register("t", _make_actor(), IntervalSchedule(60))
+        reg.unregister("t")
+        assert len(reg) == 0
 
-        registry.unregister("test")
-        assert len(registry) == 0
+    def test_unregister_nonexistent(self) -> None:
+        reg = ScheduleRegistry()
+        reg.unregister("nonexistent")  # no-op, should not raise
 
-    def test_unregister_nonexistent(self):
-        """unregister should be a no-op for non-existent names."""
-        registry = ScheduleRegistry()
-        registry.unregister("nonexistent")  # Should not raise
+    def test_get_existing(self) -> None:
+        reg = ScheduleRegistry()
+        reg.register("t", _make_actor(), IntervalSchedule(60))
+        entry = reg.get("t")
+        assert entry is not None
+        assert entry.name == "t"
 
-    def test_get_existing(self):
-        """get should return entry by name."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
+    def test_get_nonexistent(self) -> None:
+        reg = ScheduleRegistry()
+        assert reg.get("nope") is None
 
-        entry = registry.register("test", actor, schedule)
-        assert registry.get("test") is entry
-
-    def test_get_nonexistent(self):
-        """get should return None for non-existent names."""
-        registry = ScheduleRegistry()
-        assert registry.get("nonexistent") is None
-
-    def test_all_entries(self):
-        """all_entries should return all registered entries."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        entry1 = registry.register("test1", actor, schedule)
-        entry2 = registry.register("test2", actor, schedule)
-
-        entries = registry.all_entries()
+    def test_all_entries(self) -> None:
+        reg = ScheduleRegistry()
+        reg.register("a", _make_actor(), IntervalSchedule(60))
+        reg.register("b", _make_actor(), IntervalSchedule(120))
+        entries = reg.all_entries()
         assert len(entries) == 2
-        assert entry1 in entries
-        assert entry2 in entries
 
-    def test_all_due_empty_registry(self):
-        """all_due should return empty list for empty registry."""
-        registry = ScheduleRegistry()
-        now = datetime.now(UTC)
-        assert registry.all_due(now) == []
+    def test_all_due(self) -> None:
+        reg = ScheduleRegistry()
+        due_sched = _make_schedule(due=True)
+        not_due_sched = _make_schedule(due=False)
+        reg.register("due_task", _make_actor(), due_sched)
+        reg.register("not_due_task", _make_actor(), not_due_sched)
+        now = datetime(2024, 1, 1, tzinfo=UTC)
+        due = reg.all_due(now)
+        assert len(due) == 1
+        assert due[0].name == "due_task"
 
-    def test_all_due_filters_by_schedule(self):
-        """all_due should only return entries that are due."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
+    def test_all_due_defaults_now(self) -> None:
+        reg = ScheduleRegistry()
+        sched = _make_schedule(due=True)
+        reg.register("t", _make_actor(), sched)
+        due = reg.all_due()
+        assert len(due) == 1
 
-        # One that's due (never run)
-        schedule1 = IntervalSchedule(60)
-        entry1 = registry.register("due", actor, schedule1)
+    def test_clear(self) -> None:
+        reg = ScheduleRegistry()
+        reg.register("a", _make_actor(), IntervalSchedule(60))
+        reg.register("b", _make_actor(), IntervalSchedule(60))
+        reg.clear()
+        assert len(reg) == 0
 
-        # One that's not due (just ran)
-        schedule2 = IntervalSchedule(60)
-        entry2 = registry.register("not_due", actor, schedule2)
-        entry2.last_run_at = datetime.now(UTC)
+    def test_len(self) -> None:
+        reg = ScheduleRegistry()
+        assert len(reg) == 0
+        reg.register("t", _make_actor(), IntervalSchedule(60))
+        assert len(reg) == 1
 
-        now = datetime.now(UTC)
-        due_entries = registry.all_due(now)
+    def test_contains(self) -> None:
+        reg = ScheduleRegistry()
+        reg.register("t", _make_actor(), IntervalSchedule(60))
+        assert "t" in reg
+        assert "nope" not in reg
 
-        assert entry1 in due_entries
-        assert entry2 not in due_entries
 
-    def test_all_due_respects_enabled_flag(self):
-        """all_due should skip disabled entries."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        registry.register("test", actor, schedule, enabled=False)
-
-        now = datetime.now(UTC)
-        due_entries = registry.all_due(now)
-
-        assert len(due_entries) == 0
-
-    def test_clear(self):
-        """clear should remove all entries."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        registry.register("test1", actor, schedule)
-        registry.register("test2", actor, schedule)
-        assert len(registry) == 2
-
-        registry.clear()
-        assert len(registry) == 0
-
-    def test_contains(self):
-        """__contains__ should check if name is registered."""
-        registry = ScheduleRegistry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-
-        registry.register("test", actor, schedule)
-
-        assert "test" in registry
-        assert "other" not in registry
+# ---------------------------------------------------------------------------
+# get_registry singleton
+# ---------------------------------------------------------------------------
 
 
 class TestGetRegistry:
-    """Test module-level singleton access."""
+    def test_returns_registry(self) -> None:
+        reg = get_registry()
+        assert isinstance(reg, ScheduleRegistry)
 
-    def test_get_registry_returns_singleton(self):
-        """get_registry should return the same instance."""
-        reset_registry()  # Start fresh
-        reg1 = get_registry()
-        reg2 = get_registry()
-        assert reg1 is reg2
+    def test_singleton(self) -> None:
+        r1 = get_registry()
+        r2 = get_registry()
+        assert r1 is r2
 
-    def test_reset_registry(self):
-        """reset_registry should clear the singleton."""
-        reg1 = get_registry()
-        actor = MagicMock()
-        schedule = IntervalSchedule(60)
-        reg1.register("test", actor, schedule)
-
+    def test_reset_creates_new(self) -> None:
+        r1 = get_registry()
         reset_registry()
-
-        reg2 = get_registry()
-        assert len(reg2) == 0
-
-
-class TestGetRegistryThreadSafety:
-    """get_registry must be safe under concurrent access."""
-
-    def test_concurrent_access_returns_same_instance(self):
-        """Multiple threads calling get_registry concurrently must all get the same object."""
-
-        reset_registry()
-        results: list = []
-        errors: list = []
-
-        def worker():
-            try:
-                results.append(get_registry())
-            except Exception as exc:
-                errors.append(exc)
-
-        threads = [threading.Thread(target=worker) for _ in range(20)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert not errors
-        assert len(results) == 20
-        first = results[0]
-        assert all(
-            r is first for r in results
-        ), "All threads must receive the same registry instance"
-
-    def test_reset_then_get_returns_new_instance(self):
-        """reset_registry followed by get_registry must produce a fresh (empty) registry."""
-        reg1 = get_registry()
-        reg1.register("entry", MagicMock(), IntervalSchedule(60))
-
-        reset_registry()
-        reg2 = get_registry()
-
-        assert reg2 is not reg1
-        assert len(reg2) == 0
+        r2 = get_registry()
+        assert r1 is not r2

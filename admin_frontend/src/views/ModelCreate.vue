@@ -143,11 +143,11 @@ function handleCancel() {
           </div>
 
           <!-- Actions -->
-          <div class="mt-6 flex items-center gap-4">
+          <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <button
               type="submit"
               :disabled="saving || !isDirty"
-              class="btn btn-primary flex items-center gap-2"
+              class="btn btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
               :class="{ 'opacity-50 cursor-not-allowed': !isDirty && !saving }"
             >
               <svg v-if="saving" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
@@ -158,7 +158,7 @@ function handleCancel() {
             </button>
             <button
               type="button"
-              class="btn btn-secondary"
+              class="btn btn-secondary w-full sm:w-auto"
               @click="handleCancel"
             >
               Cancel

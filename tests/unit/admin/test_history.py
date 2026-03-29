@@ -374,13 +374,13 @@ class TestComputeChanges:
 
     def test_compute_changes_complex_values(self):
         """Test with complex values like lists and dicts."""
-        old_data = {"tags": ["python", "django"], "meta": {"views": 100}}
+        old_data = {"tags": ["python", "fastapi"], "meta": {"views": 100}}
         new_data = {"tags": ["python", "flask"], "meta": {"views": 150}}
 
         changes = compute_changes(old_data, new_data)
 
         assert "tags" in changes
-        assert changes["tags"]["old"] == ["python", "django"]
+        assert changes["tags"]["old"] == ["python", "fastapi"]
         assert changes["tags"]["new"] == ["python", "flask"]
         assert "meta" in changes
 

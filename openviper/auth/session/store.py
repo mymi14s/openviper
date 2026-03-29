@@ -293,10 +293,6 @@ class DatabaseSessionStore(BaseSessionStore):
         return await self.create(user_id, data)
 
 
-# ---------------------------------------------------------------------------
-# Store factory
-# ---------------------------------------------------------------------------
-
 _STORE_INSTANCE: BaseSessionStore | None = None
 
 

@@ -56,10 +56,6 @@ _UNSAFE_CALLABLE_NAMES: frozenset[str] = frozenset(
     {"eval", "exec", "compile", "__import__", "open", "input", "breakpoint"}
 )
 
-# ---------------------------------------------------------------------------
-# Singleton state — module-level so it survives across calls
-# ---------------------------------------------------------------------------
-
 
 class _State:
     loaded: bool = False
@@ -74,10 +70,6 @@ _THREAD_POOL = concurrent.futures.ThreadPoolExecutor(
     max_workers=1, thread_name_prefix="plugin-loader"
 )
 atexit.register(_THREAD_POOL.shutdown, False)
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def load(env: Any, *, wait: bool = True) -> None:
@@ -220,11 +212,6 @@ def reset() -> None:
     _STATE.filters.clear()
     _STATE.globals.clear()
     _STATE.future = None
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _scan_directory(directory: str) -> dict[str, Any]:

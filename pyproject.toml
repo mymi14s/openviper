@@ -130,6 +130,8 @@ ignore = [
 "tests/factories/**" = ["F403", "F405", "TC002"]
 # Migration files: dynamic imports, non-standard patterns
 "openviper/**/migrations/**" = ["E402", "F401", "N806"]
+# Country data file: inherently long lines for structured data records
+"openviper/contrib/countries/data.py" = ["E501"]
 
 # ── Black ───────────────────────────────────────────────────────────────────
 [tool.black]

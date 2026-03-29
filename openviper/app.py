@@ -27,7 +27,6 @@ import inspect
 import json
 import logging
 import os
-import traceback
 import typing
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -43,15 +42,13 @@ from openviper.http.request import Request
 from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from openviper.middleware.base import ASGIApp, build_middleware_stack
 from openviper.middleware.cors import CORSMiddleware
-from openviper.openapi.schema import generate_openapi_schema
+from openviper.middleware.error import ServerErrorMiddleware
+from openviper.openapi.router import should_register_openapi
+from openviper.openapi.schema import filter_openapi_routes, generate_openapi_schema
 from openviper.openapi.ui import get_redoc_html, get_swagger_html
 from openviper.routing.router import Router, include
 
 logger = logging.getLogger("openviper.app")
-
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
 
 
 @functools.lru_cache(maxsize=128)
@@ -174,7 +171,7 @@ class OpenViper:
         self._handler_param_cache: dict[int, dict[str, Any]] = {}
 
         # Register internal routes (schema, docs)
-        if getattr(settings, "OPENAPI_ENABLED", True):
+        if should_register_openapi():
             self._register_openapi_routes()
 
         # Auto-discover and register project route_paths from <project>.routes
@@ -237,11 +234,32 @@ class OpenViper:
 
         try:
             routes_module = importlib.import_module(routes_module_path)
-        except ImportError:
-            logger.debug(
-                "No routes module found at %s — skipping auto-discovery.",
+        except ModuleNotFoundError as exc:
+            if exc.name == routes_module_path:
+                # Genuinely no routes module — nothing to register.
+                logger.debug(
+                    "No routes module found at %s — skipping auto-discovery.",
+                    routes_module_path,
+                )
+                return
+            # A nested import inside the routes module failed — surface this
+            # clearly so developers do not see a silent 404 for every route.
+            logger.error(
+                "Import error while loading routes from %s: %s",
                 routes_module_path,
+                exc,
             )
+            if self.debug:
+                raise
+            return
+        except Exception as exc:
+            logger.error(
+                "Unexpected error while loading routes from %s: %s",
+                routes_module_path,
+                exc,
+            )
+            if self.debug:
+                raise
             return
 
         route_paths: list[tuple[str, Router]] = getattr(routes_module, "route_paths", [])
@@ -255,6 +273,63 @@ class OpenViper:
         )
 
     # ── Lifecycle hooks ───────────────────────────────────────────────────
+
+    async def _call_installed_app_ready_hooks(self) -> None:
+        """Call ``ready()`` on every installed app that exposes one.
+
+        For each entry in ``settings.INSTALLED_APPS`` OpenViper looks for a
+        ``ready`` callable in two places, in order:
+
+        1. ``<app>.ready`` — a top-level attribute on the app package
+           (i.e. defined in ``<app>/__init__.py``).
+        2. ``<app>.apps.ready`` — a ``ready`` attribute inside an ``apps``
+           sub-module (museful when
+           plugin authors prefer keeping startup logic separate).
+
+        The callable may be either a plain function **or** a coroutine
+        function — both are supported.
+
+        Example (plugin ``__init__.py``)::
+
+            async def ready() -> None:
+                await some_async_setup()
+
+        Example (plugin ``apps.py``)::
+
+            async def ready() -> None:
+                await register_signals()
+        """
+        for app_label in getattr(settings, "INSTALLED_APPS", ()):
+            hook: Any = None
+
+            try:
+                mod = importlib.import_module(app_label)
+                hook = getattr(mod, "ready", None)
+            except ImportError:
+                logger.warning(
+                    "INSTALLED_APPS: could not import %r — skipping ready() hook.", app_label
+                )
+                continue
+
+            if hook is None:
+                try:
+                    apps_mod = importlib.import_module(f"{app_label}.apps")
+                    hook = getattr(apps_mod, "ready", None)
+                except ImportError:
+                    pass
+
+            if hook is None or not callable(hook):
+                continue
+
+            try:
+                result = hook()
+                if inspect.isawaitable(result):
+                    await result
+                logger.debug("Called ready() for installed app %r.", app_label)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"ready() for installed app {app_label!r} raised an error: {exc}"
+                ) from exc
 
     def on_startup(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Register a startup handler."""
@@ -312,8 +387,9 @@ class OpenViper:
 
     def _get_openapi_schema(self) -> dict[str, Any]:
         if self._openapi_schema is None:
+            filtered = filter_openapi_routes(self.router.routes)
             self._openapi_schema = generate_openapi_schema(
-                routes=self.router.routes,
+                routes=filtered,
                 title=self.title,
                 version=self.version,
             )
@@ -396,6 +472,12 @@ class OpenViper:
             has_custom_root=has_custom_root,
         )
 
+        # Outermost layer: catches any exception that escapes all inner
+        # middleware and renders a debug traceback page (debug) or a plain
+        # 500 response (production).  This must be the final wrap so it
+        # covers the entire request lifecycle.
+        app = ServerErrorMiddleware(app, debug=self.debug)
+
         # Static and media file serving — DEBUG only.
         # openviper.staticfiles is never imported when DEBUG=False.
         # Additional safety check: never serve in production environment
@@ -448,8 +530,19 @@ class OpenViper:
             return
 
         if scope["type"] == "websocket":
-            await self._handle_websocket(scope, receive, send)
+            await self._handle_unrouted_websocket(receive, send)
             return
+
+    async def _handle_unrouted_websocket(self, receive: Any, send: Any) -> None:
+        """Close any WebSocket connection that reaches the core app unhandled.
+
+        Plugins that handle WebSocket must be added as middleware so they
+        intercept the scope before it reaches this point.  If none do, the
+        connection is closed cleanly rather than silently dropped.
+        """
+        event = await receive()
+        if event.get("type") == "websocket.connect":
+            await send({"type": "websocket.close", "code": 4404})
 
     async def _handle_http(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         request = Request(scope, receive)
@@ -574,15 +667,9 @@ class OpenViper:
 
         logger.exception("Unhandled exception: %s", exc)
         if self.debug:
-            return self._create_error_response(
-                request,
-                {
-                    "detail": str(exc),
-                    "type": type(exc).__name__,
-                    "traceback": traceback.format_exc().splitlines(),
-                },
-                status_code=500,
-            )
+            from openviper.debug.traceback_page import render_debug_page
+
+            return HTMLResponse(render_debug_page(exc, request), status_code=500)
         return self._create_error_response(
             request, {"detail": "Internal Server Error"}, status_code=500
         )
@@ -612,14 +699,6 @@ class OpenViper:
 
         return JSONResponse(content, status_code=status_code, headers=headers)
 
-    async def _handle_websocket(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
-        """Basic WebSocket handling — reject with 403 if not implemented.
-
-        This prevents resource exhaustion from accepting connections we immediately close.
-        """
-        # Send websocket.close without accepting to reject the connection
-        await send({"type": "websocket.close", "code": 1003, "reason": "Not Implemented"})
-
     async def _handle_lifespan(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         """ASGI lifespan events: startup and shutdown."""
         while True:
@@ -632,13 +711,11 @@ class OpenViper:
                     await asyncio.to_thread(self._get_middleware_app)
 
                     # Pre-build OpenAPI schema so the first schema request is instant.
-                    if getattr(settings, "OPENAPI_ENABLED", True):
-                        self._openapi_schema = await asyncio.to_thread(
-                            generate_openapi_schema,
-                            routes=self.router.routes,
-                            title=self.title,
-                            version=self.version,
-                        )
+                    if should_register_openapi():
+                        await asyncio.to_thread(self._get_openapi_schema)
+
+                    # Call ready() on every installed app before user handlers.
+                    await self._call_installed_app_ready_hooks()
 
                     for handler in self._startup_handlers:
                         result = handler()

@@ -20,9 +20,7 @@ Usage::
 
 from __future__ import annotations
 
-import importlib.util
 import logging
-import sys
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import cast
@@ -36,10 +34,6 @@ __all__ = [
     "CronSchedule",
     "IntervalSchedule",
 ]
-
-# ---------------------------------------------------------------------------
-# Abstract base
-# ---------------------------------------------------------------------------
 
 
 class Schedule(ABC):
@@ -59,11 +53,6 @@ class Schedule(ABC):
     @abstractmethod
     def __repr__(self) -> str:  # pragma: no cover
         ...
-
-
-# ---------------------------------------------------------------------------
-# IntervalSchedule
-# ---------------------------------------------------------------------------
 
 
 class IntervalSchedule(Schedule):
@@ -103,10 +92,6 @@ class IntervalSchedule(Schedule):
     def __repr__(self) -> str:
         return f"IntervalSchedule(seconds={self.seconds!r})"
 
-
-# ---------------------------------------------------------------------------
-# CronSchedule
-# ---------------------------------------------------------------------------
 
 # Field order: minute, hour, day-of-month, month, day-of-week
 _CRON_FIELD_NAMES = ("minute", "hour", "dom", "month", "dow")
@@ -177,7 +162,7 @@ class CronSchedule(Schedule):
 
     def __init__(self, expr: str, *, use_seconds: bool = False) -> None:
         self.expr = expr.strip()
-        self._use_croniter = _try_import_croniter()
+        self._use_croniter = _HAS_CRONITER
         self._fields: dict[str, set[int]] | None = None
         if not self._use_croniter:
             self._fields = self._parse(self.expr)
@@ -234,14 +219,13 @@ class CronSchedule(Schedule):
 
     def _croniter_is_due(self, last_run_at: datetime | None, now: datetime) -> bool:
         try:
-            from croniter import croniter  # type: ignore[import-untyped]
-
+            if croniter_lib is None:
+                raise ImportError("croniter is not installed")
             if last_run_at is None:
-                # Never run — treat as due immediately.
                 return True
             if last_run_at.tzinfo is None:
                 last_run_at = last_run_at.replace(tzinfo=UTC)
-            it = croniter(self.expr, last_run_at)
+            it = croniter_lib.croniter(self.expr, last_run_at)
             next_run = it.get_next(datetime)
             if next_run.tzinfo is None:
                 next_run = next_run.replace(tzinfo=UTC)
@@ -256,20 +240,14 @@ class CronSchedule(Schedule):
         return f"CronSchedule({self.expr!r})"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _try_import_croniter() -> bool:
-    """Return ``True`` if ``croniter`` is importable."""
-    # Check sys.modules first so test patches (sys.modules[name]=None) are respected.
-    _in_modules = sys.modules.get("croniter", _MISSING)
-    if _in_modules is None:
-        return False
-    if _in_modules is not _MISSING:
-        return True
-    try:
-        return importlib.util.find_spec("croniter") is not None
-    except ValueError, ModuleNotFoundError:
-        return False
+    """Return ``True`` if ``croniter`` is available."""
+    return _HAS_CRONITER
+
+
+try:
+    import croniter as croniter_lib  # type: ignore[import-untyped]
+except ImportError:
+    croniter_lib = None  # type: ignore[assignment]
+
+_HAS_CRONITER: bool = croniter_lib is not None

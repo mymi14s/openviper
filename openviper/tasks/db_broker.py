@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import importlib
 import logging
 import time
 from collections.abc import Iterable
@@ -20,6 +21,16 @@ logger = logging.getLogger("openviper.tasks")
 # Exponential back-off bounds for the consumer poll loop (defaults).
 _DEFAULT_POLL_MIN_SLEEP: float = 0.1  # 100 ms
 _DEFAULT_POLL_MAX_SLEEP: float = 2.0  # 2 000 ms
+
+
+def require_dependency(package: str) -> None:
+    """Raise ImportError if *package* is not importable."""
+    try:
+        importlib.import_module(package)
+    except ImportError as exc:
+        raise ImportError(
+            f"The '{package}' package is required. Install it with: pip install {package}"
+        ) from exc
 
 
 class DatabaseBroker(Broker):
@@ -57,6 +68,8 @@ class DatabaseBroker(Broker):
         for old, new in replacements.items():
             if sync_url.startswith(old):
                 sync_url = new + sync_url[len(old) :]
+                if "mysql" in old:
+                    require_dependency("pymysql")
                 break
 
         kwargs: dict[str, Any] = {}

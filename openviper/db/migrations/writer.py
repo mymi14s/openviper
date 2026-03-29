@@ -14,14 +14,16 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from openviper.db.migrations.executor import Operation
     from openviper.db.models import Model
-from openviper.db.fields import ForeignKey
+from openviper.db.fields import CheckConstraint, ForeignKey, UniqueConstraint
 from openviper.db.migrations.executor import (
     AddColumn,
+    AddConstraint,
     AlterColumn,
     CreateIndex,
     CreateTable,
     DropTable,
     RemoveColumn,
+    RemoveConstraint,
     RemoveIndex,
     RenameColumn,
     RestoreColumn,
@@ -232,6 +234,28 @@ operations = [
                 f"        unique=True,\n"
                 f"    ),"
             )
+        for constraint in getattr(model_cls, "_meta_constraints", []):
+            if isinstance(constraint, CheckConstraint):
+                extra_ops.append(
+                    f"    migrations.AddConstraint(\n"
+                    f"        table_name={table_name!r},\n"
+                    f"        constraint_name={constraint.name!r},\n"
+                    f"        constraint_type='CHECK',\n"
+                    f"        check={constraint.check!r},\n"
+                    f"    ),"
+                )
+            elif isinstance(constraint, UniqueConstraint):
+                cond_part = (
+                    f"\n        condition={constraint.condition!r}," if constraint.condition else ""
+                )
+                extra_ops.append(
+                    f"    migrations.AddConstraint(\n"
+                    f"        table_name={table_name!r},\n"
+                    f"        constraint_name={constraint.name!r},\n"
+                    f"        constraint_type='UNIQUE',\n"
+                    f"        columns={constraint.fields!r},{cond_part}\n"
+                    f"    ),"
+                )
 
     if extra_ops:
         tables_str += "\n" + "\n".join(extra_ops)
@@ -948,6 +972,28 @@ def _format_operation(op: Operation) -> str:
             parts.append(f"        column_type={op.column_type!r}")
         inner = ",\n".join(parts)
         return f"    migrations.RestoreColumn(\n{inner},\n    ),"
+    if isinstance(op, AddConstraint):
+        parts = [
+            f"        table_name={op.table_name!r}",
+            f"        constraint_name={op.constraint_name!r}",
+            f"        constraint_type={op.constraint_type!r}",
+        ]
+        if op.check:
+            parts.append(f"        check={op.check!r}")
+        if op.columns:
+            parts.append(f"        columns={op.columns!r}")
+        if op.condition:
+            parts.append(f"        condition={op.condition!r}")
+        inner = ",\n".join(parts)
+        return f"    migrations.AddConstraint(\n{inner},\n    ),"
+    if isinstance(op, RemoveConstraint):
+        return (
+            f"    migrations.RemoveConstraint(\n"
+            f"        table_name={op.table_name!r},\n"
+            f"        constraint_name={op.constraint_name!r},\n"
+            f"        constraint_type={op.constraint_type!r},\n"
+            f"    ),"
+        )
     # Fallback for other ops
     return f"    # Unsupported operation: {op!r}"
 

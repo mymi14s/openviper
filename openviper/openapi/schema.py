@@ -8,14 +8,20 @@ import functools
 import hashlib
 import inspect
 import json
+import logging
 import re
 import textwrap
 import typing
 import weakref
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, cast, get_type_hints
+
+from openviper.conf import settings
 
 if TYPE_CHECKING:
     from openviper.routing.router import Route
+
+logger = logging.getLogger(__name__)
 
 # Map Python types to JSON Schema types
 _PYTHON_TO_JSON_TYPE: dict[type, dict[str, str]] = {
@@ -48,6 +54,49 @@ def reset_openapi_cache() -> None:
     _SERIALIZER_CACHE.clear()
     _SERIALIZER_NONE_IDS.clear()
     _TYPE_HINTS_CACHE.clear()
+
+
+def filter_openapi_routes(routes: Sequence[Route]) -> list[Route]:
+    """Return *routes* with excluded prefixes removed.
+
+    Reads ``settings.OPENAPI_EXCLUDE``:
+
+    * ``"__ALL__"`` — returns an empty list (router is disabled; this is a
+      safety fallback in case filtering is called directly).
+    * ``list[str]`` — any route whose path starts with ``/<prefix>`` (case-
+      insensitive) for any prefix in the list is dropped.
+    * Anything else (empty list, missing setting) — all routes are returned.
+
+    Invalid / unexpected values are treated as an empty exclusion list and a
+    warning is logged.
+    """
+
+    exclude: Any = getattr(settings, "OPENAPI_EXCLUDE", [])
+
+    if exclude == "__ALL__":
+        return []
+
+    if not exclude:
+        return list(routes)
+
+    if not isinstance(exclude, list):
+        logger.warning(
+            "OPENAPI_EXCLUDE has an unexpected value %r — expected a list or "
+            "'__ALL__'. Falling back to no exclusion.",
+            exclude,
+        )
+        return list(routes)
+
+    lower_prefixes = [p.lower().strip("/") for p in exclude if isinstance(p, str)]
+
+    filtered: list[Route] = []
+    for route in routes:
+        path_lower = route.path.lower().lstrip("/")
+        if any(path_lower == p or path_lower.startswith(p + "/") for p in lower_prefixes):
+            continue
+        filtered.append(route)
+
+    return filtered
 
 
 @functools.lru_cache(maxsize=256)
@@ -248,16 +297,26 @@ def _extract_json_from_docstring(doc: str | None, header: str) -> dict[str, Any]
     if not doc:
         return None
 
-    # Find the header and the block following it
-    pattern = rf"{re.escape(header)}:\s*\n?\s*(\{{.*\}})"
-    m = re.search(pattern, doc, re.DOTALL)
-    if not m:
+    # Locate the header then use raw_decode to parse the JSON block that follows.
+    # raw_decode stops at the correct closing brace without any regex backtracking,
+    # making this safe against crafted/malformed docstrings.
+    header_marker = f"{header}:"
+    idx = doc.find(header_marker)
+    if idx == -1:
+        return None
+
+    brace_idx = doc.find("{", idx + len(header_marker))
+    if brace_idx == -1:
         return None
 
     try:
-        return cast("dict[str, Any]", json.loads(m.group(1).strip()))
+        obj, _ = json.JSONDecoder().raw_decode(doc, brace_idx)
     except json.JSONDecodeError, ValueError:
         return None
+
+    if not isinstance(obj, dict):
+        return None
+    return cast("dict[str, Any]", obj)
 
 
 def _resolve_request_schema(handler: Any) -> type | None:
@@ -468,7 +527,7 @@ def _build_per_route_security(handler: Any) -> list[dict[str, list[Any]]] | None
 
 
 def generate_openapi_schema(
-    routes: list[Route],
+    routes: Sequence[Route],
     title: str = "OpenViper API",
     version: str = "0.0.1",
     description: str = "",
@@ -484,8 +543,11 @@ def generate_openapi_schema(
     Returns:
         OpenAPI 3.1.0 document as a dict.
     """
-    # Use a hash-based cache key to avoid false hits from values containing the separator.
-    raw_key = f"{title}\x00{version}\x00{description}"
+    # Include a fingerprint of the route paths so that filtered and unfiltered
+    # route sets produce different cache keys, preventing stale schema hits after
+    # OPENAPI_EXCLUDE changes without a full process restart.
+    routes_fingerprint = ",".join(sorted(f"{r.path}:{','.join(sorted(r.methods))}" for r in routes))
+    raw_key = f"{title}\x00{version}\x00{description}\x00{routes_fingerprint}"
     cache_key = hashlib.sha256(raw_key.encode()).hexdigest()
 
     cached_entry: dict[str, Any] | None = _SCHEMA_CACHE_STORE[0]

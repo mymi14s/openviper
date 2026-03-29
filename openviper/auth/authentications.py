@@ -40,10 +40,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("openviper.auth")
 
-# ---------------------------------------------------------------------------
-# Module-level TTL user cache (moved from middleware for reuse)
-# ---------------------------------------------------------------------------
-
 _USER_CACHE_LOCK: Any = None
 _USER_CACHE_TTL: Final[float] = 30.0
 _USER_CACHE_MAXSIZE: Final[int] = 4096
@@ -88,11 +84,6 @@ async def get_user_cached(user_id: Any) -> Any:
     return user
 
 
-# ---------------------------------------------------------------------------
-# Base Class
-# ---------------------------------------------------------------------------
-
-
 class BaseAuthentication(ABC):
     """Base class for all authentication schemes."""
 
@@ -112,20 +103,18 @@ class BaseAuthentication(ABC):
         return None
 
 
-# ---------------------------------------------------------------------------
-# Implementations
-# ---------------------------------------------------------------------------
-
-
 class JWTAuthentication(BaseAuthentication):
     """Token based authentication using JSON Web Tokens."""
 
     async def authenticate(self, request: Request) -> tuple[Any, Any] | None:
         auth_header: str | None = request.headers.get("authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return None
+        if auth_header and auth_header.startswith("Bearer "):
+            token: str | None = auth_header[7:]
+        else:
+            token = request.query_params.get("token") or None
 
-        token = auth_header[7:]
+        if not token:
+            return None
         try:
             payload = decode_access_token(token)
             jti = payload.get("jti")
@@ -149,7 +138,7 @@ class JWTAuthentication(BaseAuthentication):
 
 
 class SessionAuthentication(BaseAuthentication):
-    """Use Django-style sessions for authentication."""
+    """Use session-based authentication."""
 
     async def authenticate(self, request: Request) -> tuple[Any, Any] | None:
         """Authenticate using the session attached by SessionMiddleware.
@@ -191,17 +180,9 @@ class SessionAuthentication(BaseAuthentication):
         return None
 
 
-# ---------------------------------------------------------------------------
-# Opaque-token SA table (lazily initialised once, shareable across coroutines)
-# ---------------------------------------------------------------------------
-
 _AUTH_TOKENS_TABLE: sa.Table | None = None
 _TABLE_ENSURED: bool = False
 _TABLE_ENSURE_LOCK: asyncio.Lock = asyncio.Lock()
-
-# ---------------------------------------------------------------------------
-# Opaque-token in-process TTL cache
-# ---------------------------------------------------------------------------
 
 # hash -> (user_id, cache_expiry_monotonic_seconds)
 _TOKEN_CACHE: dict[str, tuple[int, float]] = {}
@@ -241,11 +222,6 @@ def _evict_if_full(now: float) -> None:
         del _TOKEN_CACHE[k]
 
 
-# ---------------------------------------------------------------------------
-# SA helpers
-# ---------------------------------------------------------------------------
-
-
 def _get_table() -> sa.Table:
     """Return the ``auth_tokens`` SA ``Table``, creating it once if needed."""
     global _AUTH_TOKENS_TABLE
@@ -282,11 +258,6 @@ async def _ensure_table() -> None:
         async with engine.begin() as conn:
             await conn.run_sync(table.metadata.create_all, checkfirst=True)
         _TABLE_ENSURED = True
-
-
-# ---------------------------------------------------------------------------
-# Opaque-token public helpers
-# ---------------------------------------------------------------------------
 
 
 async def create_token(user_id: int, expires_at: Any | None = None) -> tuple[str, dict[str, Any]]:
@@ -374,11 +345,6 @@ async def revoke_token(raw: str) -> None:
 def clear_token_auth_cache() -> None:
     """Clear the in-process token cache.  Intended for tests and clean shutdown."""
     _TOKEN_CACHE.clear()
-
-
-# ---------------------------------------------------------------------------
-# TokenAuthentication
-# ---------------------------------------------------------------------------
 
 
 class TokenAuthentication(BaseAuthentication):
@@ -479,10 +445,6 @@ class TokenAuthentication(BaseAuthentication):
     def authenticate_header(self, request: Request) -> str:
         return "Token"
 
-
-# ---------------------------------------------------------------------------
-# OAuth2 event handling
-# ---------------------------------------------------------------------------
 
 # Allowlist of recognised event names — guards against arbitrary key injection.
 _OAUTH2_EVENT_NAMES: frozenset[str] = frozenset({"on_success", "on_fail", "on_error", "on_initial"})

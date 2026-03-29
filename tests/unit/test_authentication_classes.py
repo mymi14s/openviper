@@ -19,9 +19,11 @@ class FakeRequest:
         cookies: dict[str, str] | None = None,
         scope_user: object | None = None,
         session: Session | None = None,
+        query_params: dict[str, str] | None = None,
     ) -> None:
         self.headers = headers or {}
         self.cookies = cookies or {}
+        self.query_params = query_params or {}
         self.path = "/"
         self.method = "GET"
         self._scope: dict = {}

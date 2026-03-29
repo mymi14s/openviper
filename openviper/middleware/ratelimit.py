@@ -35,10 +35,6 @@ except ImportError:
 # can replace modulo in the hot path.
 _STRIPE_COUNT: Final[int] = 256
 
-# ---------------------------------------------------------------------------
-# Redis sliding-window counter
-# ---------------------------------------------------------------------------
-
 
 class _RedisWindowCounter:
     """Sliding-window rate counter backed by a Redis sorted set.
@@ -82,22 +78,12 @@ class _RedisWindowCounter:
         return True, self.max_requests - count
 
 
-# ---------------------------------------------------------------------------
-# Per-key bucket (slots for minimal overhead)
-# ---------------------------------------------------------------------------
-
-
 @dataclasses.dataclass(slots=True)
 class _Bucket:
     """Sliding-window state for a single rate-limit key."""
 
     timestamps: deque[float]
     last_access: float
-
-
-# ---------------------------------------------------------------------------
-# Striped sliding-window counter
-# ---------------------------------------------------------------------------
 
 
 class _SlidingWindowCounter:
@@ -165,11 +151,6 @@ class _SlidingWindowCounter:
 
             bucket.timestamps.append(now)
             return True, self.max_requests - len(bucket.timestamps)
-
-
-# ---------------------------------------------------------------------------
-# ASGI middleware
-# ---------------------------------------------------------------------------
 
 
 class RateLimitMiddleware(BaseMiddleware):
@@ -271,11 +252,6 @@ class RateLimitMiddleware(BaseMiddleware):
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
-
-
-# ---------------------------------------------------------------------------
-# View decorator
-# ---------------------------------------------------------------------------
 
 
 def rate_limit(max_requests: int = 60, window_seconds: float = 60.0) -> Callable[..., Any]:

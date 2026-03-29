@@ -628,17 +628,6 @@ class TestCall:
         assert True
 
     @pytest.mark.asyncio
-    async def test_handles_websocket(self):
-        app = OpenViper()
-        scope = {"type": "websocket"}
-        receive = AsyncMock()
-        send = AsyncMock()
-        await app(scope, receive, send)
-        send.assert_called_with(
-            {"type": "websocket.close", "code": 1003, "reason": "Not Implemented"}
-        )
-
-    @pytest.mark.asyncio
     async def test_coerce_response_pydantic(self):
         app = OpenViper()
 
@@ -898,8 +887,29 @@ class TestAutodiscoverRoutes:
     def test_skips_gracefully_when_routes_module_missing(self, monkeypatch):
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
 
-        with patch("importlib.import_module", side_effect=ImportError("no module")):
+        exc = ModuleNotFoundError("No module named 'myproject.routes'")
+        exc.name = "myproject.routes"
+        with patch("importlib.import_module", side_effect=exc):
             app = OpenViper()
+
+        assert app is not None
+
+    def test_raises_in_debug_when_routes_module_has_broken_imports(self, monkeypatch):
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        exc = ModuleNotFoundError("No module named 'nonexistent_dep'")
+        exc.name = "nonexistent_dep"
+        with patch("importlib.import_module", side_effect=exc):
+            with pytest.raises(ModuleNotFoundError):
+                OpenViper(debug=True)
+
+    def test_skips_silently_in_production_when_routes_module_has_broken_imports(self, monkeypatch):
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        exc = ModuleNotFoundError("No module named 'nonexistent_dep'")
+        exc.name = "nonexistent_dep"
+        with patch("importlib.import_module", side_effect=exc):
+            app = OpenViper(debug=False)
 
         assert app is not None
 
@@ -953,3 +963,186 @@ class TestAutodiscoverRoutes:
         paths = [r.path for r in app.router.routes]
         assert "/v1/a" in paths
         assert "/v2/b" in paths
+
+
+class TestInstalledAppReadyHooks:
+    """Tests for _call_installed_app_ready_hooks."""
+
+    @pytest.mark.asyncio
+    async def test_calls_async_ready_on_installed_app(self):
+        """Async ready() defined at app package level is awaited."""
+        called = []
+
+        async def ready():
+            called.append("async")
+
+        fake_mod = MagicMock()
+        fake_mod.ready = ready
+
+        app = OpenViper()
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["myplugin"]
+            with patch("importlib.import_module", return_value=fake_mod):
+                await app._call_installed_app_ready_hooks()
+
+        assert called == ["async"]
+
+    @pytest.mark.asyncio
+    async def test_calls_sync_ready_on_installed_app(self):
+        """Sync ready() defined at app package level is called."""
+        called = []
+
+        def ready():
+            called.append("sync")
+
+        fake_mod = MagicMock()
+        fake_mod.ready = ready
+
+        app = OpenViper()
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["myplugin"]
+            with patch("importlib.import_module", return_value=fake_mod):
+                await app._call_installed_app_ready_hooks()
+
+        assert called == ["sync"]
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_apps_module_ready(self):
+        """ready() in apps.py sub-module is used when not in __init__."""
+        called = []
+
+        async def ready():
+            called.append("apps_ready")
+
+        fake_init = MagicMock(spec=[])  # no ready attribute
+        fake_apps = MagicMock()
+        fake_apps.ready = ready
+
+        app = OpenViper()
+
+        def import_side_effect(name):
+            if name == "myplugin":
+                return fake_init
+            if name == "myplugin.apps":
+                return fake_apps
+            return MagicMock()
+
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["myplugin"]
+            with patch("importlib.import_module", side_effect=import_side_effect):
+                await app._call_installed_app_ready_hooks()
+
+        assert called == ["apps_ready"]
+
+    @pytest.mark.asyncio
+    async def test_skips_app_with_no_ready(self):
+        """Apps without a ready() are silently skipped."""
+        fake_mod = MagicMock(spec=[])  # no ready attribute
+
+        app = OpenViper()
+
+        def import_side_effect(name):
+            if name == "myplugin":
+                return fake_mod
+            raise ImportError(name)
+
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["myplugin"]
+            with patch("importlib.import_module", side_effect=import_side_effect):
+                await app._call_installed_app_ready_hooks()
+
+    @pytest.mark.asyncio
+    async def test_skips_unimportable_app_with_warning(self):
+        """An ImportError on the app itself logs a warning and continues."""
+        app = OpenViper()
+        # Patch logger first (before import_module is mocked) to avoid resolver clash.
+        with patch("openviper.app.logger") as mock_logger:
+            with patch("openviper.app.settings") as ms:
+                ms.INSTALLED_APPS = ["nonexistent_plugin"]
+                with patch("importlib.import_module", side_effect=ImportError("no module")):
+                    await app._call_installed_app_ready_hooks()
+            mock_logger.warning.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_raises_when_ready_raises(self):
+        """An exception inside ready() is wrapped and re-raised."""
+
+        async def ready():
+            raise ValueError("plugin broke")
+
+        fake_mod = MagicMock()
+        fake_mod.ready = ready
+
+        app = OpenViper()
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["myplugin"]
+            with patch("importlib.import_module", return_value=fake_mod):
+                with pytest.raises(RuntimeError, match="myplugin"):
+                    await app._call_installed_app_ready_hooks()
+
+    @pytest.mark.asyncio
+    async def test_calls_ready_on_multiple_apps_in_order(self):
+        """ready() is called for each installed app in declaration order."""
+        order = []
+
+        def make_mod(name):
+            m = MagicMock()
+            captured = name
+
+            async def ready():
+                order.append(captured)
+
+            m.ready = ready
+            return m
+
+        mod_a = make_mod("alpha")
+        mod_b = make_mod("beta")
+
+        def import_side_effect(name):
+            if name == "alpha":
+                return mod_a
+            if name == "beta":
+                return mod_b
+            return MagicMock()
+
+        app = OpenViper()
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["alpha", "beta"]
+            with patch("importlib.import_module", side_effect=import_side_effect):
+                await app._call_installed_app_ready_hooks()
+
+        assert order == ["alpha", "beta"]
+
+    @pytest.mark.asyncio
+    async def test_ready_hooks_called_during_lifespan_startup(self):
+        """ready() hooks are invoked during the ASGI lifespan startup event."""
+        called = []
+
+        async def ready():
+            called.append(True)
+
+        fake_mod = MagicMock()
+        fake_mod.ready = ready
+
+        app = OpenViper()
+
+        scope = {"type": "lifespan"}
+        receive = AsyncMock(
+            side_effect=[
+                {"type": "lifespan.startup"},
+                {"type": "lifespan.shutdown"},
+            ]
+        )
+        send = AsyncMock()
+
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["myplugin"]
+            ms.MIDDLEWARE = []
+            ms.RATE_LIMIT_REQUESTS = 0
+            with patch("importlib.import_module", return_value=fake_mod):
+                # OpenViper uses __slots__, so patch at the class level.
+                with patch.object(OpenViper, "_get_middleware_app", return_value=MagicMock()):
+                    with patch("openviper.app.should_register_openapi", return_value=False):
+                        await app._handle_lifespan(scope, receive, send)
+
+        assert called

@@ -57,11 +57,9 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy import create_engine
 
-logger = logging.getLogger("openviper.tasks")
+from openviper.conf import settings
 
-# ---------------------------------------------------------------------------
-# Schema
-# ---------------------------------------------------------------------------
+logger = logging.getLogger("openviper.tasks")
 
 _metadata = sa.MetaData()
 
@@ -89,10 +87,6 @@ _table = sa.Table(
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
     sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
 )
-
-# ---------------------------------------------------------------------------
-# Engine singleton
-# ---------------------------------------------------------------------------
 
 _engine: Any = None
 _upsert_fn: Any = None  # set when engine is first created; dialect-specific
@@ -184,10 +178,7 @@ def _get_engine() -> Any:
 def _resolve_db_url() -> str:
     """Return the DB URL to use for task results."""
     try:
-        from openviper.conf import settings
-
         task_cfg: dict[str, Any] = getattr(settings, "TASKS", {}) or {}
-        # Allow a dedicated result DB; fall back to the main DB.
         return (
             task_cfg.get("results_db_url")
             or task_cfg.get("RESULTS_DB_URL")
@@ -214,11 +205,6 @@ def reset_engine() -> None:
 def shutdown_async_executor(wait: bool = True) -> None:
     """Shut down the async executor. Call in application teardown."""
     _async_executor.shutdown(wait=wait)
-
-
-# ---------------------------------------------------------------------------
-# Write (synchronous — called from middleware / management commands)
-# ---------------------------------------------------------------------------
 
 
 def _build_upsert_fn(dialect_name: str) -> Any:
@@ -303,15 +289,14 @@ def _build_upsert_fn(dialect_name: str) -> Any:
             sa.select(_table.c.id).where(_table.c.message_id == message_id)
         ).fetchone()
         if row is None:
-            conn.execute(
-                _table.insert().values(
-                    actor_name="unknown",
-                    queue_name="unknown",
-                    status="pending",
-                    **fields,
-                    message_id=message_id,
-                )
-            )
+            insert_data = {
+                "actor_name": "unknown",
+                "queue_name": "unknown",
+                "status": "pending",
+                **fields,
+                "message_id": message_id,
+            }
+            conn.execute(_table.insert().values(**insert_data))
         else:
             update_data = {k: v for k, v in fields.items() if k != "message_id"}
             if update_data:
@@ -391,11 +376,6 @@ def batch_upsert_results(events: list[tuple[str, dict[str, Any]]]) -> None:
         logger.warning("batch_upsert_results failed (%d events): %s", len(events), exc)
 
 
-# ---------------------------------------------------------------------------
-# Read — synchronous
-# ---------------------------------------------------------------------------
-
-
 def get_task_result_sync(message_id: str) -> dict[str, Any] | None:
     """Return a single task result row as a dict, or ``None`` if not found."""
     try:
@@ -439,11 +419,6 @@ def list_task_results_sync(
     return [_row_to_dict(r) for r in rows]
 
 
-# ---------------------------------------------------------------------------
-# Read — async wrappers (for use inside ASGI handlers / coroutines)
-# ---------------------------------------------------------------------------
-
-
 async def get_task_result(message_id: str) -> dict[str, Any] | None:
     """Async wrapper around :func:`get_task_result_sync`.
 
@@ -480,11 +455,6 @@ async def list_task_results(
     )
 
 
-# ---------------------------------------------------------------------------
-# Management — synchronous
-# ---------------------------------------------------------------------------
-
-
 def delete_task_result(message_id: str) -> bool:
     """Delete a task result record. Returns True if a record was deleted."""
     try:
@@ -515,11 +485,6 @@ def clean_old_results(days: int = 7) -> int:
     with engine.begin() as conn:
         res = conn.execute(sa.delete(_table).where(_table.c.completed_at < cutoff))
         return int(res.rowcount or 0)
-
-
-# ---------------------------------------------------------------------------
-# Management — async wrappers
-# ---------------------------------------------------------------------------
 
 
 async def get_task_stats() -> dict[str, int]:
@@ -553,11 +518,6 @@ async def get_task_stats() -> dict[str, int]:
     return stats
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _row_to_dict(row: Any) -> dict[str, Any]:
     d = dict(row._mapping)
     # Deserialise JSON columns back to Python objects for convenience.
@@ -575,11 +535,6 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     return d
 
 
-# ---------------------------------------------------------------------------
-# Automatic cleanup task (optional, enable via TASKS["cleanup_enabled"])
-# ---------------------------------------------------------------------------
-
-
 def setup_cleanup_task() -> None:
     """Register a periodic cleanup task for old task results.
 
@@ -590,7 +545,6 @@ def setup_cleanup_task() -> None:
     TASKS["cleanup_days"] (default: 7 days).
     """
     try:
-        from openviper.conf import settings
         from openviper.tasks.scheduler import periodic
 
         task_cfg: dict[str, Any] = getattr(settings, "TASKS", {}) or {}

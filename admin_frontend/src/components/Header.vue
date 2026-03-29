@@ -144,7 +144,7 @@ function onPasswordChanged() {
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
         </svg>
-        Visit Site
+        <span class="hidden sm:inline">Visit Site</span>
       </a>
 
       <!-- Theme toggle -->
@@ -172,7 +172,7 @@ function onPasswordChanged() {
           <div class="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium">
             {{ user?.username?.charAt(0).toUpperCase() || 'U' }}
           </div>
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span class="hidden sm:inline text-sm font-medium text-gray-700 dark:text-gray-300">
             {{ user?.username || 'User' }}
           </span>
           <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

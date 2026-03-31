@@ -34,6 +34,7 @@ from typing import Any, cast
 import httpx
 import uvicorn
 
+from openviper._version import __version__
 from openviper.conf import settings
 from openviper.contrib.default.middleware import DefaultLandingMiddleware
 from openviper.core.context import current_request
@@ -468,7 +469,7 @@ class OpenViper:
         app = DefaultLandingMiddleware(
             app,
             debug=self.debug,
-            version=self.version,
+            version=__version__,
             has_custom_root=has_custom_root,
         )
 

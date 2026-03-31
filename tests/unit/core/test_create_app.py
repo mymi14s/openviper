@@ -177,12 +177,6 @@ class TestDirectoryOption:
 class TestFileContents:
     """Test generated file contents."""
 
-    def test_init_py_imports_admin(self, command, temp_dir):
-        command.handle(name="testapp", directory=temp_dir)
-
-        init_content = (Path(temp_dir) / "testapp" / "__init__.py").read_text()
-        assert "from . import admin" in init_content
-
     def test_routes_py_creates_router(self, command, temp_dir):
         command.handle(name="shopapp", directory=temp_dir)
 

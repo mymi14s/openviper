@@ -189,7 +189,6 @@ class Serializer(BaseModel):
     readonly_fields: ClassVar[tuple[str, ...]] = ()
     # Fields to exclude from serialization output by default (both spellings accepted)
     writeonly_fields: ClassVar[tuple[str, ...]] = ()
-    writeonly_fields: ClassVar[tuple[str, ...]] = ()
     # Number of objects per batch when streaming a QuerySet through serialize_many
     PAGE_SIZE: ClassVar[int] = 25
     MAX_PAGE_SIZE: ClassVar[int] = 1000

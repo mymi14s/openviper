@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import os
 import sys
 
@@ -11,6 +12,7 @@ from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
 from openviper.db.migrations.executor import MigrationExecutor
+from openviper.db.models import check_primary_keys
 
 
 class Command(BaseCommand):
@@ -73,6 +75,15 @@ class Command(BaseCommand):
         # Resolve all apps
         resolved = resolver.resolve_all_apps(installed_apps)
         resolved_apps = resolved.get("found", {})
+
+        # Import model classes so the registry is populated for PK validation.
+        for _app_name in resolved_apps:
+            try:
+                importlib.import_module(f"{_app_name}.models")
+            except ImportError, ModuleNotFoundError:
+                continue
+
+        check_primary_keys()
 
         if use_verbose and resolved_apps:
             # Show app locations in verbose mode

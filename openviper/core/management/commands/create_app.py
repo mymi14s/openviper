@@ -8,10 +8,7 @@ import os
 from openviper.core.management.base import BaseCommand, CommandError
 
 _APP_TEMPLATE = {
-    "__init__.py": (
-        '"""{{ app_label }} app."""\n\n'
-        "from . import admin  # noqa: F401 - Register admin configuration\n"
-    ),
+    "__init__.py": ('"""{{ app_label }} app."""\n\nfrom . import admin\n'),
     "admin.py": '''"""{{ app_label }} admin configuration."""
 
 from openviper.admin import admin, ModelAdmin, register

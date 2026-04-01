@@ -10,6 +10,7 @@ import json
 import math
 import os
 import re
+import urllib.parse
 import uuid
 import zoneinfo
 from decimal import Decimal
@@ -1084,13 +1085,35 @@ class IPAddressField(CharField):
         kwargs.setdefault("max_length", 45)
         super().__init__(**kwargs)
 
+    def validate(self, value: Any) -> None:
+        super().validate(value)
+        if value is not None:
+            try:
+                ipaddress.ip_address(str(value))
+            except ValueError:
+                raise ValueError(
+                    f"Field '{self.name}': {value!r} is not a valid IP address."
+                ) from None
+
 
 class URLField(CharField):
     """URL field."""
 
+    _ALLOWED_SCHEMES: frozenset[str] = frozenset({"http", "https", "ftp", "ftps"})
+
     def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("max_length", 2048)
         super().__init__(**kwargs)
+
+    def validate(self, value: Any) -> None:
+        super().validate(value)
+        if value is not None:
+            parsed = urllib.parse.urlparse(str(value))
+            if parsed.scheme not in self._ALLOWED_SCHEMES or not parsed.netloc:
+                raise ValueError(
+                    f"Field '{self.name}': {value!r} is not a valid URL. "
+                    f"Allowed schemes: {sorted(self._ALLOWED_SCHEMES)}."
+                )
 
 
 class PositiveIntegerField(IntegerField):

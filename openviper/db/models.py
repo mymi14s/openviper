@@ -561,6 +561,35 @@ class Q:
         )
 
 
+def check_primary_keys() -> None:
+    """Validate that no registered model defines primary_key=True on a non-id field.
+
+    The ORM auto-injects an 'id' AutoField as the primary key for every
+    concrete model. Defining primary_key=True on a differently-named field
+    results in two PRIMARY KEY columns at the database level.
+
+    Call this from makemigrations and migrate before running any SQL.
+    """
+    errors: list[str] = []
+    for model_cls in ModelMeta.registry.values():
+        if getattr(model_cls, "_is_abstract", False):
+            continue
+        non_id_pks = [
+            fname
+            for fname, fobj in model_cls._fields.items()
+            if getattr(fobj, "primary_key", False) and fname != "id"
+        ]
+        if non_id_pks:
+            errors.append(
+                f"  Model '{model_cls.__name__}' defines primary_key=True on "
+                f"field(s) {non_id_pks!r}. The primary key field must be named "
+                f"'id'. The ORM auto-creates an 'id' primary key — remove "
+                f"primary_key=True from those fields or rename them to 'id'."
+            )
+    if errors:
+        raise ValueError("Invalid primary key configuration:\n" + "\n".join(errors))
+
+
 def _cursor_encode(values: dict[str, Any]) -> str:
     """Encode a dict of field→value pairs into an opaque cursor string."""
     raw = json.dumps(values, default=str, separators=(",", ":"))

@@ -10,7 +10,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from openviper._version import __version__
+from openviper import __version__
 from openviper.contrib.default.landing import LANDING_HTML
 from openviper.http.response import HTMLResponse
 

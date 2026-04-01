@@ -35,7 +35,7 @@ from openviper.db.migrations.writer import (
     write_initial_migration,
     write_migration,
 )
-from openviper.db.models import Model
+from openviper.db.models import Model, check_primary_keys
 
 # Maximum length for the auto-generated descriptive part of a migration name
 _MAX_NAME_LENGTH = 40
@@ -251,6 +251,9 @@ class Command(BaseCommand):
         if len(sorted_labels) < len(app_data):
             remaining = sorted([_l for _l in app_data if _l not in sorted_labels])
             sorted_labels.extend(remaining)
+
+        # Validate primary key configuration before writing any migration files.
+        check_primary_keys()
 
         created = []
         pending_changes = []

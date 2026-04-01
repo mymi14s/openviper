@@ -187,8 +187,9 @@ class Serializer(BaseModel):
 
     # Subclasses may list field names that should be read-only (never set on create/update)
     readonly_fields: ClassVar[tuple[str, ...]] = ()
-    # Fields to exclude from serialization output by default
-    write_only_fields: ClassVar[tuple[str, ...]] = ()
+    # Fields to exclude from serialization output by default (both spellings accepted)
+    writeonly_fields: ClassVar[tuple[str, ...]] = ()
+    writeonly_fields: ClassVar[tuple[str, ...]] = ()
     # Number of objects per batch when streaming a QuerySet through serialize_many
     PAGE_SIZE: ClassVar[int] = 25
     MAX_PAGE_SIZE: ClassVar[int] = 1000
@@ -231,9 +232,9 @@ class Serializer(BaseModel):
 
         Optimized to avoid repeated set construction and allocation.
         """
-        if not cls.write_only_fields and not exclude:
+        if not cls.writeonly_fields and not cls.writeonly_fields and not exclude:
             return frozenset()
-        result = set(cls.write_only_fields) if cls.write_only_fields else set()
+        result = set(cls.writeonly_fields) | set(cls.writeonly_fields)
         if exclude:
             result |= exclude
         return frozenset(result)
@@ -344,12 +345,12 @@ class Serializer(BaseModel):
         return [cls.from_orm(obj) for obj in objs]
 
     def _compute_excluded(self, exclude: set[str] | None) -> set[str] | None:
-        """Merge instance write_only_fields with caller-supplied *exclude* set.
+        """Merge instance writeonly_fields with caller-supplied *exclude* set.
 
         Returns ``None`` when no fields need excluding (avoids passing an empty
         set to Pydantic which would still allocate a filtering pass).
         """
-        excluded: set[str] = set(self.write_only_fields)
+        excluded: set[str] = set(self.writeonly_fields) | set(self.writeonly_fields)
         if exclude:
             excluded |= exclude
         return excluded or None
@@ -694,7 +695,7 @@ class _ModelSerializerMeta(type(BaseModel)):
         fields_opt: str | list[str] = getattr(meta, "fields", "__all__")
         exclude_opt: list[str] | tuple[str, ...] = getattr(meta, "exclude", ())
         read_only: tuple[str, ...] = getattr(meta, "readonly_fields", ())
-        write_only: tuple[str, ...] = getattr(meta, "write_only_fields", ())
+        write_only: tuple[str, ...] = getattr(meta, "writeonly_fields", ())
         extra_kwargs: dict[str, dict[str, Any]] = getattr(meta, "extra_kwargs", {})
 
         model_fields: dict[str, Any] = getattr(model, "_fields", {})
@@ -734,11 +735,11 @@ class _ModelSerializerMeta(type(BaseModel)):
 
         namespace["__annotations__"] = annotations
 
-        # Wire up readonly_fields & write_only_fields as ClassVars from Meta
+        # Wire up readonly_fields & writeonly_fields as ClassVars from Meta
         if read_only and "readonly_fields" not in namespace:
             namespace["readonly_fields"] = read_only
-        if write_only and "write_only_fields" not in namespace:
-            namespace["write_only_fields"] = write_only
+        if write_only and "writeonly_fields" not in namespace:
+            namespace["writeonly_fields"] = write_only
 
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
 

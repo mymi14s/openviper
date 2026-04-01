@@ -65,7 +65,7 @@ class SimpleS(Serializer):
 class WriteOnlyS(Serializer):
     username: str
     password: str
-    write_only_fields = ("password",)
+    writeonly_fields = ("password",)
 
 
 # ---------------------------------------------------------------------------

@@ -62,7 +62,7 @@ Key Classes & Functions
       Fields included in serialized output but stripped before
       ``create()`` / ``update()`` writes.  Defaults to ``()``.
 
-   .. py:attribute:: write_only_fields
+   .. py:attribute:: writeonly_fields
       :type: tuple[str, ...]
 
       Fields accepted on input but excluded from ``serialize()`` output
@@ -104,7 +104,7 @@ Key Classes & Functions
 
    .. py:method:: serialize(*, exclude=None) -> dict[str, Any]
 
-      Return a JSON-safe ``dict``.  ``write_only_fields`` are automatically
+      Return a JSON-safe ``dict``.  ``writeonly_fields`` are automatically
       excluded.  Pass an additional ``exclude`` set to drop more fields.
 
    .. py:method:: serialize_json(*, exclude=None) -> bytes
@@ -207,7 +207,7 @@ Key Classes & Functions
    - ``fields`` — ``"__all__"`` or a list of field names to include.
    - ``exclude`` — list of field names to exclude (alternative to ``fields``).
    - ``readonly_fields`` — tuple of field names that are output-only.
-   - ``write_only_fields`` — tuple of field names that are input-only.
+   - ``writeonly_fields`` — tuple of field names that are input-only.
    - ``extra_kwargs`` — dict of ``{field_name: {"required": False, ...}}``
      overrides applied after field auto-generation.
 
@@ -364,7 +364,7 @@ write_only and read_only Fields
             model = User
             fields = "__all__"
             readonly_fields = ("id", "created_at")
-            write_only_fields = ("password",)  # never appears in serialize()
+            writeonly_fields = ("password",)  # never appears in serialize()
 
     user = UserSerializer.validate({"username": "alice", "password": "s3cr3t"})
     out = user.serialize()

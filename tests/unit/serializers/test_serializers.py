@@ -45,7 +45,7 @@ class ValidatedSerializer(Serializer):
 class WriteOnlySerializer(Serializer):
     username: str
     password: str
-    write_only_fields = ("password",)
+    writeonly_fields = ("password",)
 
 
 def make_user_data(**overrides) -> dict[str, Any]:

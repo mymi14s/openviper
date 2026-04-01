@@ -762,6 +762,11 @@ def _compile_single_filter(
     col_name = parts[0]
     lookup = parts[1] if len(parts) > 1 else "exact"
 
+    # Resolve 'pk' to the actual primary key column name
+    if col_name == "pk":
+        pk_cols = list(table.primary_key.columns)
+        col_name = pk_cols[0].name if pk_cols else "id"
+
     # Support FK _id column aliases (e.g. filter(author=5) -> author_id column)
     if col_name not in table.c and f"{col_name}_id" in table.c:
         col_name = f"{col_name}_id"
@@ -813,6 +818,8 @@ def _compile_filters(
             clause = _compile_single_filter(table, key, value)
             if clause is None:
                 col_name = key.split("__")[0]
+                if col_name == "pk":
+                    col_name = "pk (primary key)"
                 raise FieldError(
                     f"Invalid filter key '{key}': column '{col_name}' does not exist"
                     f" in table '{table.name}'"

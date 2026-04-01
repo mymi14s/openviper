@@ -114,7 +114,7 @@ Key Classes & Functions
         - ``bool``
         - ``True``
       * - ``SECURE_CONTENT_SECURITY_POLICY``
-        - ``dict | None``
+        - ``dict[str, Any] | None``
         - ``None`` — CSP header directives dict
 
    **Database**
@@ -141,6 +141,12 @@ Key Classes & Functions
       * - ``DATABASE_POOL_RECYCLE``
         - ``int``
         - ``3600`` — seconds before a connection is recycled
+      * - ``DATABASE_POOL_TIMEOUT``
+        - ``int``
+        - ``10`` — seconds to wait for a connection from the pool
+      * - ``DATABASE_PREPARED_STMT_CACHE``
+        - ``int``
+        - ``256`` — asyncpg prepared-statement cache size (0 to disable)
 
    **Cache**
 
@@ -160,6 +166,9 @@ Key Classes & Functions
       * - ``CACHE_TTL``
         - ``int``
         - ``300`` — default TTL in seconds
+      * - ``CACHES``
+        - ``dict[str, Any]``
+        - ``{}`` — alias-keyed cache backend config (see :ref:`cache`)
 
    **Authentication & Session**
 
@@ -338,7 +347,7 @@ Key Classes & Functions
         - ``bool``
         - ``True``
       * - ``JINJA_PLUGINS``
-        - ``dict``
+        - ``dict[str, Any]``
         - ``{}`` — set ``{"enable": 1, "path": "jinja_plugins"}`` to activate auto-discovery
 
    **Logging**
@@ -367,7 +376,7 @@ Key Classes & Functions
         - Type
         - Default / Notes
       * - ``EMAIL``
-        - ``dict``
+        - ``dict[str, Any]``
         - Backend config dict; keys: ``backend``, ``host``, ``port``, ``use_tls``,
           ``use_ssl``, ``timeout``, ``username``, ``password``, ``from``,
           ``default_sender``, ``fail_silently``, ``use_background_worker``
@@ -404,7 +413,7 @@ Key Classes & Functions
         - Type
         - Default / Notes
       * - ``TASKS``
-        - ``dict``
+        - ``dict[str, Any]``
         - ``{}`` — Dramatiq broker/worker configuration
 
    **Model Events**
@@ -417,7 +426,7 @@ Key Classes & Functions
         - Type
         - Default / Notes
       * - ``MODEL_EVENTS``
-        - ``dict``
+        - ``dict[str, Any]``
         - ``{}`` — per-model lifecycle hooks; keys are ``"module.ClassName"``
           paths, values map event names to lists of dotted callable paths.
           Supported events: ``before_validate``, ``validate``,
@@ -451,7 +460,7 @@ Key Classes & Functions
         - ``bool``
         - ``False``
       * - ``AI_PROVIDERS``
-        - ``dict``
+        - ``dict[str, Any]``
         - ``{}`` — provider-keyed configuration dicts
 
    **OpenAPI / Swagger**
@@ -496,11 +505,11 @@ Key Classes & Functions
         - Type
         - Default / Notes
       * - ``COUNTRY_FIELD``
-        - ``dict``
+        - ``dict[str, Any]``
         - ``{"EXTRA_COUNTRIES": {}, "ENABLE_CACHE": True, "STRICT": True}``
           — configuration for :class:`~openviper.contrib.countries.CountryField`
 
-   .. py:method:: as_dict(mask_sensitive=True) -> dict
+   .. py:method:: as_dict(mask_sensitive=True) -> dict[str, Any]
 
       Return settings as a plain dict.  Sensitive fields (e.g. ``SECRET_KEY``,
       ``DATABASE_URL``) are masked by default.

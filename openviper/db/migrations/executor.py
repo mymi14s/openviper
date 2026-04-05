@@ -397,9 +397,12 @@ class CreateTable(Operation):
                         f"Invalid ON DELETE action {on_delete!r}. "
                         f"Must be one of: {', '.join(sorted(_VALID_ON_DELETE_ACTIONS))}"
                     )
-                definition += (
-                    f" REFERENCES {_quote_identifier(target, dialect)}(id) ON DELETE {on_delete}"
-                )
+                if dialect == "sqlite":
+                    # SQLite doesn't support ALTER TABLE ADD CONSTRAINT FOREIGN KEY,
+                    definition += (
+                        f" REFERENCES {_quote_identifier(target, dialect)}(id)"
+                        f" ON DELETE {on_delete}"
+                    )
                 # Track FK column for automatic index creation (performance optimization)
                 fk_columns.append(col["name"])
 
@@ -442,6 +445,82 @@ class CreateTable(Operation):
         dialect = _get_dialect()
         quoted_table = _quote_identifier(self.table_name, dialect)
         return [f"DROP TABLE IF EXISTS {quoted_table}"]
+
+    def deferred_fk_stmts(self) -> list[str]:
+        """Return ALTER TABLE ADD CONSTRAINT FOREIGN KEY statements for deferred execution.
+
+        These are collected by :meth:`MigrationExecutor.migrate` and applied in a
+        second phase after *all* tables across all pending migrations have been
+        created.  Deferring FK constraints avoids ``UndefinedTableError`` failures
+        caused by circular FK dependencies between apps (e.g. ``users_user``
+        references ``auth_role_profiles`` while ``auth`` in turn references
+        ``users_user``).
+
+        SQLite cannot do ``ALTER TABLE … ADD CONSTRAINT FOREIGN KEY`` so it keeps
+        inline ``REFERENCES`` in :meth:`forward_sql` and this method returns an
+        empty list for that dialect.
+        """
+        dialect = _get_dialect()
+        if dialect == "sqlite":
+            return []  # handled inline in forward_sql()
+
+        quoted_table = _quote_identifier(self.table_name, dialect)
+        stmts: list[str] = []
+
+        for col in self.columns:
+            if not col.get("target_table"):
+                continue
+            target = col["target_table"]
+            on_delete = col.get("on_delete", "CASCADE").upper()
+            if on_delete not in _VALID_ON_DELETE_ACTIONS:
+                raise ValueError(
+                    f"Invalid ON DELETE action {on_delete!r}. "
+                    f"Must be one of: {', '.join(sorted(_VALID_ON_DELETE_ACTIONS))}"
+                )
+            col_name = col["name"]
+            constraint_name = f"fk_{self.table_name}_{col_name}"
+            quoted_col = _quote_identifier(col_name, dialect)
+            quoted_target = _quote_identifier(target, dialect)
+            quoted_constraint = _quote_identifier(constraint_name, dialect)
+
+            if dialect == "mssql":
+                constraint_escaped = constraint_name.replace("'", "''")
+                stmts.append(
+                    f"IF NOT EXISTS ("
+                    f"SELECT 1 FROM sys.foreign_keys WHERE name = N'{constraint_escaped}'"
+                    f")\n"
+                    f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} "
+                    f"FOREIGN KEY ({quoted_col}) REFERENCES {quoted_target}(id)"
+                    f" ON DELETE {on_delete}"
+                )
+            else:
+                # PostgreSQL / MySQL — use a PL/pgSQL DO block so the statement is
+                # idempotent (safe to re-run if migrate is called again after a
+                # partial failure).  PostgreSQL ADD CONSTRAINT IF NOT EXISTS was only
+                # added in PG 16, so we use the pg_constraint catalogue for older
+                # versions too.
+                if dialect == "postgresql":
+                    stmts.append(
+                        f"DO $$ BEGIN\n"
+                        f"  IF NOT EXISTS (\n"
+                        f"    SELECT 1 FROM pg_constraint WHERE conname = '{constraint_name}'\n"
+                        f"  ) THEN\n"
+                        f"    ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint}\n"
+                        f"    FOREIGN KEY ({quoted_col})"
+                        f" REFERENCES {quoted_target}(id) ON DELETE {on_delete};\n"
+                        f"  END IF;\n"
+                        f"END $$;"
+                    )
+                else:
+                    # MySQL / MariaDB — no portable IF NOT EXISTS for constraints;
+                    # caller catches duplicate-constraint errors.
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} "
+                        f"FOREIGN KEY ({quoted_col}) REFERENCES {quoted_target}(id)"
+                        f" ON DELETE {on_delete}"
+                    )
+
+        return stmts
 
 
 @dataclass
@@ -643,10 +722,6 @@ class AlterColumn(Operation):
             elif dialect == "mssql":
                 stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {raw_type}")
             elif dialect == "sqlite":
-                # SQLite doesn't support ALTER COLUMN TYPE.
-                # Since SQLite is manifest typed, we can often skip the type change
-                # if it's just a length or minor type distinction (e.g. VARCHAR -> TEXT).
-                # For major changes, a full table rebuild (shadow table) would be needed.
                 logger.warning(
                     "SQLite does not support native ALTER COLUMN TYPE for %s.%s to %s. "
                     "Skipping SQL execution; schema may be out of sync if storage "
@@ -1200,11 +1275,6 @@ async def _should_skip_forward(conn: Any, op: Operation) -> bool:
     if isinstance(op, CreateTable) and op.table_name == _AUTH_USERS_TABLE:
         user_model = getattr(settings, "USER_MODEL", _AUTH_USER_MODEL)
         if user_model != _AUTH_USER_MODEL:
-            logger.info(
-                "  Skipping CreateTable %s: custom USER_MODEL '%s' is configured.",
-                _AUTH_USERS_TABLE,
-                user_model,
-            )
             return True
     if isinstance(op, AddColumn):
         if await _column_exists(conn, op.table_name, op.column_name):
@@ -1444,6 +1514,11 @@ class MigrationExecutor:
 
         newly_applied: list[str] = []
         migration_log: list[tuple[str, str, MigrationStatus]] = []
+        # Collect FK constraint statements from every successfully-applied
+        # CreateTable operation.  They are executed in a second phase after all
+        # tables have been created so that circular FK dependencies between apps
+        # (e.g. users_user ↔ auth_role_profiles) don't cause failures.
+        deferred_fk_stmts: list[str] = []
 
         if verbose:
             print(f"\n{_MigrationLogger._colorize('Starting migrations...', 'BLUE')}\n")
@@ -1478,6 +1553,9 @@ class MigrationExecutor:
                         for sql_stmt in op.forward_sql():
                             stmt = sa.text(sql_stmt) if isinstance(sql_stmt, str) else sql_stmt
                             await conn.execute(stmt)
+                        # Collect deferred FK constraints from CreateTable ops
+                        if isinstance(op, CreateTable):
+                            deferred_fk_stmts.extend(op.deferred_fk_stmts())
                     await conn.execute(
                         sa.insert(table).values(
                             app=record.app,
@@ -1505,6 +1583,18 @@ class MigrationExecutor:
                     raise
                 continue
 
+        # ── Phase 2: apply deferred FK constraints ────────────────────────────
+        for fk_stmt in deferred_fk_stmts:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(sa.text(fk_stmt))
+            except Exception as fk_err:
+                err_str = str(fk_err).lower()
+                if "already exists" in err_str or "duplicate" in err_str:
+                    logger.debug("Deferred FK constraint already exists, skipping: %s", fk_err)
+                else:
+                    logger.warning("Could not apply deferred FK constraint: %s", fk_err)
+
         if verbose and migration_log:
             _MigrationLogger.log_summary(migration_log)
 
@@ -1518,9 +1608,10 @@ class MigrationExecutor:
         try:
             installed_apps = getattr(settings, "INSTALLED_APPS", [])
             if "openviper.auth" in installed_apps or "auth" in installed_apps:
-                from openviper.auth.utils import sync_content_types
-
-                await sync_content_types()
+                _auth_utils = sys.modules.get("openviper.auth.utils")
+                _sync_fn = getattr(_auth_utils, "sync_content_types", None) if _auth_utils else None
+                if _sync_fn is not None:
+                    await _sync_fn()
         except Exception as e:
             logger.warning("Failed to sync content types after migrations: %s", e)
 

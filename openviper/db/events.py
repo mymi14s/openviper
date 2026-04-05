@@ -291,11 +291,6 @@ def _build_dispatcher() -> ModelEventDispatcher | None:
         model_events: dict[str, Any] = dict(getattr(settings, "MODEL_EVENTS", {}) or {})
         dispatcher = ModelEventDispatcher(model_events)
 
-        if dispatcher:
-            logger.info(
-                "MODEL_EVENTS dispatcher ready — %d model(s) registered.",
-                len(dispatcher._handlers),
-            )
         return dispatcher
 
     except Exception as exc:

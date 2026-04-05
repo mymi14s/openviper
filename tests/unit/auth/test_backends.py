@@ -95,8 +95,8 @@ class TestAuthenticate:
                 with patch("openviper.auth.backends.logger") as mock_logger:
                     await authenticate("testuser", "password123", request=mock_request)
 
-                    # Verify logging occurred
-                    mock_logger.info.assert_called()
+                    # Successful auth is silent; only failures are logged
+                    mock_logger.info.assert_not_called()
 
 
 class TestLogin:

@@ -1932,6 +1932,10 @@ class Model(metaclass=ModelMeta):
         # Initialize relation cache as None for lazy creation (saves memory for
         # models without select_related/prefetch_related usage)
         self._relation_cache: dict[str, Any] | None = None
+        # False for brand-new in-memory instances; True once loaded from DB or
+        # successfully saved.  Used to distinguish INSERT from UPDATE reliably
+        # for models with non-auto PKs (UUID, string, etc.).
+        self._persisted: bool = False
 
         # Set defaults from field definitions
         for name, field in self._fields.items():
@@ -2010,6 +2014,10 @@ class Model(metaclass=ModelMeta):
         snap: dict[str, Any] = {}
         obj_dict = self.__dict__
         for name, field in self._fields.items():
+            # ManyToManyFields have no DB column; getattr triggers a descriptor
+            # that allocates a ManyToManyManager — skip them entirely.
+            if isinstance(field, ManyToManyField):
+                continue
             if isinstance(field, ForeignKey):
                 snap[name] = obj_dict.get(field.column_name)
             else:
@@ -2021,6 +2029,9 @@ class Model(metaclass=ModelMeta):
         """Return a dict of ``{field_name: previous_value}`` for changed fields."""
         changed: dict[str, Any] = {}
         for name, field in self._fields.items():
+            # ManyToManyFields have no DB column; skip to avoid descriptor overhead.
+            if isinstance(field, ManyToManyField):
+                continue
             prev = self._previous_state.get(name)
             if isinstance(field, ForeignKey):
                 curr = self.__dict__.get(field.column_name)
@@ -2067,6 +2078,9 @@ class Model(metaclass=ModelMeta):
                 continue
             # Skip soft-removed columns
             if field.column_name in soft_removed:
+                continue
+            # ManyToManyFields have no DB column; skip validation
+            if isinstance(field, ManyToManyField):
                 continue
 
             value = getattr(self, name, None)
@@ -2134,6 +2148,8 @@ class Model(metaclass=ModelMeta):
     def _to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for name, field in self._fields.items():
+            if isinstance(field, ManyToManyField):
+                continue
             if isinstance(field, ForeignKey):
                 result[name] = self.__dict__.get(field.column_name)
             else:
@@ -2154,7 +2170,9 @@ class Model(metaclass=ModelMeta):
         for key, val in row.items():
             if key not in field_data:
                 field_data[key] = val
-        return cls(**field_data)
+        instance = cls(**field_data)
+        instance._persisted = True
+        return instance
 
     @classmethod
     @functools.cache
@@ -2195,6 +2213,7 @@ class Model(metaclass=ModelMeta):
         inst_dict = instance.__dict__
         prev_state: dict[str, Any] = {}
         instance._relation_cache = None
+        instance._persisted = True
         instance._previous_state = prev_state
 
         row_get = row.get
@@ -2270,8 +2289,24 @@ class Model(metaclass=ModelMeta):
         except Exception:
             pass  # never let event dispatch break model persistence
 
-    async def save(self, ignore_permissions: bool = False) -> None:
+    async def save(
+        self,
+        ignore_permissions: bool = False,
+        update_fields: list[str] | None = None,
+    ) -> None:
         """Persist this instance to the database (INSERT or UPDATE).
+
+        Args:
+            ignore_permissions: Skip permission checks when ``True``.
+            update_fields: Optional list of field names to restrict on UPDATE.
+                When supplied only those columns are written; all other fields
+                are left unchanged in the database.  Ignored on INSERT.
+                Raises :exc:`ValueError` for unknown field names.
+
+                Example::
+
+                    user.last_login = timezone.now()
+                    await user.save(update_fields=["last_login"])
 
         Executes the full lifecycle hook chain:
 
@@ -2284,7 +2319,10 @@ class Model(metaclass=ModelMeta):
           → on_change`` (only when data actually changed)
         """
 
-        is_create = self.pk is None
+        # _persisted is False for brand-new instances (set in __init__) and
+        # True for instances loaded from the DB (_from_row/_from_row_fast).
+        # This correctly handles UUID, string, and auto-increment PKs alike.
+        is_create = not getattr(self, "_persisted", False)
 
         # Capture pre-save state for on_change detection
         pre_save_state = self._get_changed_fields() if not is_create else {}
@@ -2309,7 +2347,11 @@ class Model(metaclass=ModelMeta):
                 token = ignore_permissions_ctx.set(True)
 
             try:
-                await execute_save(self, ignore_permissions=ignore_permissions)
+                await execute_save(
+                    self,
+                    ignore_permissions=ignore_permissions,
+                    update_fields=update_fields,
+                )
 
                 # ── Post-persistence hooks ────────────────────────────────────
                 if is_create:

@@ -41,7 +41,6 @@ import httpx
 
 from openviper.auth.authentications import OAuth2Authentication
 from openviper.auth.backends import login
-from openviper.auth.models import User
 from openviper.conf import settings
 from openviper.http.permissions import AllowAny
 from openviper.http.response import HTMLResponse, RedirectResponse
@@ -50,11 +49,18 @@ from openviper.http.views import View
 if TYPE_CHECKING:
     from openviper.http.request import Request
 
+from openviper.auth import get_user_model
+
 logger = logging.getLogger("openviper.auth.oauth2")
 
 _STATE_COOKIE = "oauth2_state"
 _STATE_MAX_AGE = 600  # seconds
 _HTTPX_TIMEOUT = 10.0  # seconds
+
+if TYPE_CHECKING:
+    from openviper.auth.models import User
+else:
+    User = get_user_model()
 
 
 class BaseOAuth2InitView(View):
@@ -135,7 +141,6 @@ class BaseOAuth2InitView(View):
             )
 
         state = secrets.token_urlsafe(32)
-        logger.info("OAuth init [%s]: generated state=%s...", self.provider, state[:8])
 
         params = self.build_auth_params(client_id, redirect_uri, state)
         query_string = urllib.parse.urlencode(params)
@@ -283,7 +288,6 @@ class BaseOAuth2CallbackView(View):
             last_name=" ".join(parts[1:]) if len(parts) > 1 else "",
             is_active=True,
         )
-        logger.info("Created new user via %s OAuth: %s", self.provider, email)
         return cast("User", user), True
 
     async def get(self, request: Request, **kwargs: Any) -> RedirectResponse:
@@ -308,13 +312,6 @@ class BaseOAuth2CallbackView(View):
         code = request.query_params.get("code") or ""
         state = request.query_params.get("state") or ""
         stored_state = request.cookies.get(_STATE_COOKIE, "")
-
-        logger.info(
-            "OAuth callback [%s]: received state=%s... stored=%s...",
-            self.provider,
-            state[:8] if state else "None",
-            stored_state[:8] if stored_state else "None",
-        )
 
         state_valid = bool(state and stored_state and hmac.compare_digest(state, stored_state))
         if not code or not state_valid:

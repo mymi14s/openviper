@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
 import sys
 from datetime import timedelta
@@ -17,7 +18,10 @@ from openviper.conf.settings import (
     _cast_env_value,
     _cast_timedelta,
     _cast_tuple,
+    _JsonFormatter,
     _LazySettings,
+    _OVDefaultHandler,
+    configure_logging,
     generate_secret_key,
     validate_settings,
 )
@@ -321,8 +325,8 @@ class CachedSettings(Settings):
         lazy2._setup()
         assert lazy2._instance.PROJECT_NAME == "Cached"
 
-    def test_setup_import_error_falls_back_to_defaults(self, monkeypatch, caplog):
-        """_setup handles ImportError and falls back to defaults."""
+    def test_setup_import_error_raises(self, monkeypatch):
+        """_setup raises RuntimeError when the settings module cannot be imported."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "nonexistent_module")
 
         # Clear caches
@@ -330,15 +334,12 @@ class CachedSettings(Settings):
         settings_mod._MODULE_CACHE.clear()
         settings_mod._SETTINGS_CLASS_CACHE.clear()
 
-        with caplog.at_level(logging.WARNING, logger="openviper.conf"):
-            lazy = _LazySettings()
+        lazy = _LazySettings()
+        with pytest.raises(RuntimeError, match="Could not import"):
             lazy._setup()
 
-        assert "Could not import" in caplog.text
-        assert isinstance(lazy._instance, Settings)
-
-    def test_setup_no_settings_subclass_falls_back(self, monkeypatch, tmp_path, caplog):
-        """_setup warns when module has no Settings subclass."""
+    def test_setup_no_settings_subclass_raises(self, monkeypatch, tmp_path):
+        """_setup raises RuntimeError when module has no Settings subclass."""
         settings_file = tmp_path / "no_subclass.py"
         settings_file.write_text("""
 # No Settings subclass here
@@ -353,12 +354,9 @@ DEBUG = True
         settings_mod._MODULE_CACHE.clear()
         settings_mod._SETTINGS_CLASS_CACHE.clear()
 
-        with caplog.at_level(logging.WARNING, logger="openviper.conf"):
-            lazy = _LazySettings()
+        lazy = _LazySettings()
+        with pytest.raises(RuntimeError, match="contains no Settings subclass"):
             lazy._setup()
-
-        assert "has no Settings subclass" in caplog.text
-        assert isinstance(lazy._instance, Settings)
 
     def test_setup_auto_generates_secret_key_for_development(self, monkeypatch):
         """_setup auto-generates SECRET_KEY for development/test."""
@@ -427,3 +425,100 @@ class MyProjectSettings(Settings):
 """)
 
         monkeypatch.syspath_prepend(str(tmp_path))
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
+
+        settings_mod = sys.modules["openviper.conf.settings"]
+        settings_mod._MODULE_CACHE.clear()
+        settings_mod._SETTINGS_CLASS_CACHE.clear()
+
+        lazy = _LazySettings()
+        lazy._setup()
+
+        assert "myproject" in lazy._instance.INSTALLED_APPS
+
+
+# ---------------------------------------------------------------------------
+# configure_logging
+# ---------------------------------------------------------------------------
+
+
+class TestConfigureLogging:
+    """Tests for configure_logging and _JsonFormatter."""
+
+    def setup_method(self) -> None:
+        ov = logging.getLogger("openviper")
+        ov.handlers = [h for h in ov.handlers if not isinstance(h, _OVDefaultHandler)]
+        ov.setLevel(logging.NOTSET)
+        ov.propagate = True
+
+    def teardown_method(self) -> None:
+        ov = logging.getLogger("openviper")
+        ov.handlers = [h for h in ov.handlers if not isinstance(h, _OVDefaultHandler)]
+        ov.propagate = True
+
+    def test_text_format_installs_handler_on_openviper_logger(self) -> None:
+        s = Settings(LOG_LEVEL="DEBUG", LOG_FORMAT="text")
+        configure_logging(s)
+        ov = logging.getLogger("openviper")
+        assert any(isinstance(h, _OVDefaultHandler) for h in ov.handlers)
+
+    def test_log_level_applied_to_openviper_logger(self) -> None:
+        s = Settings(LOG_LEVEL="WARNING", LOG_FORMAT="text")
+        configure_logging(s)
+        assert logging.getLogger("openviper").level == logging.WARNING
+
+    def test_json_format_uses_json_formatter(self) -> None:
+        s = Settings(LOG_LEVEL="INFO", LOG_FORMAT="json")
+        configure_logging(s)
+        ov = logging.getLogger("openviper")
+        assert any(
+            isinstance(h, _OVDefaultHandler) and isinstance(h.formatter, _JsonFormatter)
+            for h in ov.handlers
+        )
+
+    def test_propagate_remains_true(self) -> None:
+        s = Settings(LOG_LEVEL="INFO", LOG_FORMAT="text")
+        configure_logging(s)
+        assert logging.getLogger("openviper").propagate is True
+
+    def test_repeated_calls_do_not_duplicate_handlers(self) -> None:
+        s = Settings(LOG_LEVEL="INFO", LOG_FORMAT="text")
+        configure_logging(s)
+        configure_logging(s)
+        ov_default = [
+            h for h in logging.getLogger("openviper").handlers if isinstance(h, _OVDefaultHandler)
+        ]
+        assert len(ov_default) == 1
+
+    def test_logging_dict_calls_dictconfig(self) -> None:
+        config: dict = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "handlers": {
+                "null": {"class": "logging.NullHandler"},
+            },
+            "loggers": {
+                "openviper": {"handlers": ["null"], "level": "CRITICAL", "propagate": False},
+            },
+        }
+        s = Settings(LOGGING=config)
+        configure_logging(s)
+        assert logging.getLogger("openviper").level == logging.CRITICAL
+
+    def test_json_formatter_produces_valid_json(self) -> None:
+        formatter = _JsonFormatter()
+        record = logging.LogRecord(
+            name="openviper.test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="hello world",
+            args=(),
+            exc_info=None,
+        )
+        output = formatter.format(record)
+        parsed = json.loads(output)
+        assert parsed["level"] == "INFO"
+        assert parsed["logger"] == "openviper.test"
+        assert parsed["message"] == "hello world"
+        assert "time" in parsed

@@ -425,10 +425,12 @@ class UUIDField(Field):
             return value
         return uuid.UUID(str(value))
 
-    def to_db(self, value: Any) -> str | None:
+    def to_db(self, value: Any) -> uuid.UUID | None:
         if value is None:
             return None
-        return str(value)
+        if isinstance(value, uuid.UUID):
+            return value
+        return uuid.UUID(str(value))
 
 
 class JSONField(Field):

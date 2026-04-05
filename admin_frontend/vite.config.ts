@@ -1,10 +1,22 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import { readFileSync, writeFileSync } from 'fs'
+
+function rewriteAdminPaths(): import('vite').Plugin {
+  return {
+    name: 'rewrite-admin-paths',
+    closeBundle() {
+      const indexPath = resolve(__dirname, '../openviper/admin/static/admin/index.html')
+      const content = readFileSync(indexPath, 'utf-8')
+      writeFileSync(indexPath, content.replaceAll('/admin/', '/static/admin/'))
+    },
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), rewriteAdminPaths()],
   base: '/admin/',
   resolve: {
     alias: {

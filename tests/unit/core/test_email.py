@@ -172,9 +172,9 @@ class TestSendEmail:
         email_settings.TASKS = {"enabled": True, "broker": "stub"}
 
         with (
-            patch("openviper.core.email.queue.worker_available", return_value=True),
+            patch("openviper.core.email.sender.worker_available", return_value=True),
             patch(
-                "openviper.core.email.queue.enqueue_email_job", new_callable=AsyncMock
+                "openviper.core.email.sender.enqueue_email_job", new_callable=AsyncMock
             ) as mock_enqueue,
             patch("openviper.core.email.sender._send_now", new_callable=AsyncMock) as mock_send,
         ):
@@ -194,9 +194,9 @@ class TestSendEmail:
         email_settings.TASKS = {"enabled": False, "broker": "stub"}
 
         with (
-            patch("openviper.core.email.queue.worker_available", return_value=False),
+            patch("openviper.core.email.sender.worker_available", return_value=False),
             patch(
-                "openviper.core.email.queue.enqueue_email_job", new_callable=AsyncMock
+                "openviper.core.email.sender.enqueue_email_job", new_callable=AsyncMock
             ) as mock_enqueue,
             patch("openviper.core.email.sender._send_now", new_callable=AsyncMock) as mock_send,
         ):
@@ -216,9 +216,9 @@ class TestSendEmail:
         del email_settings.EMAIL["use_background_worker"]
 
         with (
-            patch("openviper.core.email.queue.worker_available", return_value=True),
+            patch("openviper.core.email.sender.worker_available", return_value=True),
             patch(
-                "openviper.core.email.queue.enqueue_email_job", new_callable=AsyncMock
+                "openviper.core.email.sender.enqueue_email_job", new_callable=AsyncMock
             ) as mock_enqueue,
             patch("openviper.core.email.sender._send_now", new_callable=AsyncMock) as mock_send,
         ):
@@ -250,7 +250,7 @@ class TestSendEmail:
             )
 
         assert result is False
-        mock_exception.assert_not_called()
+        mock_exception.assert_called_once()
 
 
 class TestBackends:
@@ -294,3 +294,50 @@ class TestBackends:
         smtp_client.send_message.assert_called_once()
         sent_recipients = smtp_client.send_message.call_args.kwargs["to_addrs"]
         assert sent_recipients == ["to@example.com", "cc@example.com", "bcc@example.com"]
+
+    @pytest.mark.asyncio
+    async def test_smtp_backend_resolves_sender_from_settings_when_empty(self, email_settings):
+        """SMTPBackend fills in default_sender from settings when message has no sender."""
+        email_settings.EMAIL["default_sender"] = "worker-configured@domain.com"
+        smtp_client = MagicMock()
+        smtp_factory = MagicMock()
+        smtp_factory.return_value.__enter__.return_value = smtp_client
+
+        with patch("openviper.core.email.backends.smtplib.SMTP", smtp_factory):
+            backend = SMTPBackend()
+            await backend.send(
+                EmailMessageData(
+                    recipients=["to@example.com"],
+                    subject="No sender",
+                    text="Body",
+                    sender="",
+                )
+            )
+
+        sent_message = smtp_client.send_message.call_args.args[0]
+        assert sent_message["From"] == "worker-configured@domain.com"
+
+    @pytest.mark.asyncio
+    async def test_send_email_background_leaves_sender_empty_for_worker(self, email_settings):
+        """send_email does not bake the default_sender into the payload for background jobs.
+
+        The worker resolves the sender from its own settings at execution time.
+        """
+        email_settings.EMAIL["use_background_worker"] = True
+
+        captured_data = {}
+
+        async def capture_enqueue(data):
+            captured_data["message"] = data
+
+        with (
+            patch("openviper.core.email.sender.worker_available", return_value=True),
+            patch("openviper.core.email.sender.enqueue_email_job", side_effect=capture_enqueue),
+        ):
+            await send_email(
+                recipients=["to@example.com"],
+                subject="Background",
+                text="Body",
+            )
+
+        assert captured_data["message"].sender == ""

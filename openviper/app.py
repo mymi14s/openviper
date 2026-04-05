@@ -69,11 +69,10 @@ def _get_handler_signature(
     return sig, hints
 
 
-def _resolve_middleware_entry(mw: Any, critical: bool = False) -> Any | None:
+def _resolve_middleware_entry(mw: Any) -> Any:
     """Import and return a middleware class from a dotted string, or pass through as-is.
 
-    Returns ``None`` and logs a warning if the import fails.
-    Raises ImportError if critical=True and import fails.
+    Raises ``ImportError`` if *mw* is a string that cannot be imported.
     """
     if not isinstance(mw, str):
         return mw
@@ -82,11 +81,7 @@ def _resolve_middleware_entry(mw: Any, critical: bool = False) -> Any | None:
         mod = importlib.import_module(module_path)
         return getattr(mod, class_name)
     except (ImportError, AttributeError) as exc:
-        if critical:
-            logger.error("Failed to load critical middleware %s: %s", mw, exc)
-            raise ImportError(f"Critical middleware {mw} could not be loaded: {exc}") from exc
-        logger.warning("Could not load middleware %s: %s", mw, exc)
-        return None
+        raise ImportError(f"Could not load middleware {mw!r}: {exc}") from exc
 
 
 class OpenViper:
@@ -226,42 +221,29 @@ class OpenViper:
         if not settings_module:
             return
 
-        # Derive the routes module: swap the last component for "routes"
-        # e.g. "settings" -> skip (no package prefix to look up)
-        parts = settings_module.rsplit(".", 1)
-        if len(parts) < 2:
+        # Derive the routes module from the top-level package.
+        # e.g. "project.settings"       -> "project.routes"
+        #      "project.settings.prod"   -> "project.routes"
+        #      "settings"               -> skip (no package prefix)
+        top_package = settings_module.split(".")[0]
+        if top_package == settings_module:
+            # Bare module name with no package — cannot derive routes path.
             return
-        routes_module_path = f"{parts[0]}.routes"
+        routes_module_path = f"{top_package}.routes"
 
         try:
             routes_module = importlib.import_module(routes_module_path)
         except ModuleNotFoundError as exc:
             if exc.name == routes_module_path:
-                # Genuinely no routes module — nothing to register.
+                # The routes module itself simply does not exist — nothing to register.
                 logger.debug(
                     "No routes module found at %s — skipping auto-discovery.",
                     routes_module_path,
                 )
                 return
-            # A nested import inside the routes module failed — surface this
-            # clearly so developers do not see a silent 404 for every route.
-            logger.error(
-                "Import error while loading routes from %s: %s",
-                routes_module_path,
-                exc,
-            )
-            if self.debug:
-                raise
-            return
-        except Exception as exc:
-            logger.error(
-                "Unexpected error while loading routes from %s: %s",
-                routes_module_path,
-                exc,
-            )
-            if self.debug:
-                raise
-            return
+            # A nested import inside the routes module failed — always re-raise so
+            # developers see a clear error instead of silent 404s for every route.
+            raise
 
         route_paths: list[tuple[str, Router]] = getattr(routes_module, "route_paths", [])
         for prefix, router in route_paths:
@@ -306,11 +288,11 @@ class OpenViper:
             try:
                 mod = importlib.import_module(app_label)
                 hook = getattr(mod, "ready", None)
-            except ImportError:
-                logger.warning(
-                    "INSTALLED_APPS: could not import %r — skipping ready() hook.", app_label
-                )
-                continue
+            except ImportError as exc:
+                raise RuntimeError(
+                    f"INSTALLED_APPS: could not import {app_label!r}. "
+                    f"Ensure the package is installed and the name is correct."
+                ) from exc
 
             if hook is None:
                 try:
@@ -417,50 +399,38 @@ class OpenViper:
     def _build_middleware_stack(self) -> ASGIApp:
         raw_middleware: list[Any] = []
 
-        # Define critical middleware that must load successfully
-        critical_middleware = getattr(settings, "CRITICAL_MIDDLEWARE", [])
-
         # Load from settings — resolve strings immediately.
         for mw_path in getattr(settings, "MIDDLEWARE", []):
-            is_critical = mw_path in critical_middleware
-            cls = _resolve_middleware_entry(mw_path, critical=is_critical)
-            if cls is not None:
-                raw_middleware.append(cls)
+            raw_middleware.append(_resolve_middleware_entry(mw_path))
 
         # Prepend extra middleware passed at construction (already classes or strings).
         resolved_middleware: list[Any] = []
         for mw in list(self._extra_middleware) + raw_middleware:
-            cls = _resolve_middleware_entry(mw, critical=False)
-            if cls is not None:
-                if cls is CORSMiddleware:
-                    # Wire CORS settings from settings.py into the middleware instance.
-                    cors_kwargs: dict[str, Any] = {
-                        "allowed_origins": list(
-                            getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]
-                        ),
-                        "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
-                        "allowed_methods": list(
-                            getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]
-                        ),
-                        "allowed_headers": list(
-                            getattr(settings, "CORS_ALLOWED_HEADERS", None) or ["*"]
-                        ),
-                        "expose_headers": list(
-                            getattr(settings, "CORS_EXPOSE_HEADERS", None) or []
-                        ),
-                        "max_age": getattr(settings, "CORS_MAX_AGE", 600),
-                    }
-                    resolved_middleware.append((cls, cors_kwargs))
-                else:
-                    resolved_middleware.append(cls)
+            cls = _resolve_middleware_entry(mw)
+            if cls is CORSMiddleware:
+                # Wire CORS settings from settings.py into the middleware instance.
+                cors_kwargs: dict[str, Any] = {
+                    "allowed_origins": list(
+                        getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]
+                    ),
+                    "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
+                    "allowed_methods": list(
+                        getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]
+                    ),
+                    "allowed_headers": list(
+                        getattr(settings, "CORS_ALLOWED_HEADERS", None) or ["*"]
+                    ),
+                    "expose_headers": list(getattr(settings, "CORS_EXPOSE_HEADERS", None) or []),
+                    "max_age": getattr(settings, "CORS_MAX_AGE", 600),
+                }
+                resolved_middleware.append((cls, cors_kwargs))
+            else:
+                resolved_middleware.append(cls)
 
         # Add Rate Limit middleware if configured.
         if getattr(settings, "RATE_LIMIT_REQUESTS", 0) > 0:
-            cls = _resolve_middleware_entry(
-                "openviper.middleware.ratelimit.RateLimitMiddleware", critical=True
-            )
-            if cls is not None:
-                resolved_middleware.insert(0, cls)
+            cls = _resolve_middleware_entry("openviper.middleware.ratelimit.RateLimitMiddleware")
+            resolved_middleware.insert(0, cls)
 
         app = build_middleware_stack(self._core_app, resolved_middleware)
 
@@ -512,7 +482,7 @@ class OpenViper:
         """Check if the user has defined a GET / route (not just OpenAPI routes)."""
         openapi_names = {"openapi_schema", "swagger_ui", "redoc_ui"}
         for route in self.router.routes:
-            if getattr(route, "path", "") == "/" and "GET" in getattr(route, "methods", []):
+            if getattr(route, "path", "") in ("/", "") and "GET" in getattr(route, "methods", []):
                 name = getattr(route, "name", "")
                 if name not in openapi_names:
                     return True

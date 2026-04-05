@@ -6,6 +6,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 from openviper.tasks.worker import (
+    _FRAMEWORK_TASK_MODULES,
     create_worker,
     discover_tasks,
     run_worker,
@@ -181,6 +182,8 @@ class TestDiscoverTasks:
         mock_future1.result.return_value = ("myapp.task1", None)
         mock_future2 = MagicMock()
         mock_future2.result.return_value = ("myapp.task2", None)
+        mock_future3 = MagicMock()
+        mock_future3.result.return_value = ("openviper.core.email.queue", None)
 
         with patch("openviper.tasks.worker.os.walk") as mock_walk:
             mock_walk.return_value = [
@@ -195,10 +198,11 @@ class TestDiscoverTasks:
                 mock_executor_cls.return_value = mock_instance
                 mock_instance.__enter__ = MagicMock(return_value=mock_instance)
                 mock_instance.__exit__ = MagicMock(return_value=False)
-                mock_instance.submit.side_effect = [mock_future1, mock_future2]
+                mock_instance.submit.side_effect = [mock_future1, mock_future2, mock_future3]
 
                 with patch(
-                    "openviper.tasks.worker.as_completed", return_value=[mock_future1, mock_future2]
+                    "openviper.tasks.worker.as_completed",
+                    return_value=[mock_future1, mock_future2, mock_future3],
                 ):
                     with patch("openviper.tasks.worker.importlib.import_module"):
                         discover_tasks()
@@ -451,7 +455,9 @@ class TestDiscoverTasksUnresolvableApp:
 
         result = discover_tasks()
 
-        assert result == []
+        # The framework-internal modules (e.g. email queue) are always imported
+        # regardless of INSTALLED_APPS resolution failures.
+        assert set(result) == set(_FRAMEWORK_TASK_MODULES)
         mock_resolver.resolve_app.assert_called_once_with("my_app")
 
 

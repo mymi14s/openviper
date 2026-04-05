@@ -33,7 +33,6 @@ def discover_admin_modules() -> list[str]:
         if import_admin_module(app):
             discovered.append(app)
 
-    logger.info(f"Admin discovery complete: {len(discovered)} apps with admin.py")
     return discovered
 
 
@@ -113,7 +112,6 @@ def discover_extensions() -> list[dict]:
         except Exception as e:
             logger.debug(f"Error scanning extensions for {app_name}: {e}")
 
-    logger.info(f"Extension discovery: {len(extensions)} extension(s) found")
     return extensions
 
 

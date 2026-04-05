@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import smtplib
 from dataclasses import dataclass
 from typing import Protocol
@@ -58,6 +59,8 @@ class ConsoleBackend:
     """Development backend that prints rendered email content to stdout."""
 
     async def send(self, data: EmailMessageData) -> None:
+        if not data.sender:
+            data = dataclasses.replace(data, sender="(no sender configured)")
         message = build_message(data)
         print("=" * 72)
         print(message.as_string())
@@ -71,6 +74,11 @@ class SMTPBackend:
         self.email_settings = email_settings or EmailSettings.from_settings()
 
     async def send(self, data: EmailMessageData) -> None:
+        # Resolve sender at send time using the settings of the current process
+        # (web or worker).  Never leave it empty — an empty From causes most
+        # SMTP servers to reject the message or substitute an unwanted address.
+        if not data.sender:
+            data = dataclasses.replace(data, sender=self.email_settings.default_sender)
         message = build_message(data)
         recipients = data.delivery_recipients()
         await asyncio.to_thread(_send_smtp_message, message, recipients, self.email_settings)

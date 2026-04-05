@@ -554,7 +554,7 @@ def setup_cleanup_task() -> None:
         def cleanup_old_task_results() -> int:
             """Remove task results older than configured days."""
             deleted = clean_old_results(days=cleanup_days)
-            logger.info(
+            logger.debug(
                 "Cleaned up %d old task results (older than %d days)", deleted, cleanup_days
             )
             return deleted

@@ -193,7 +193,7 @@ class TaskTrackingMiddleware(Middleware):
                         terminal=True,
                     )
                 )
-                logger.info(
+                logger.debug(
                     "[%s] Succeeded actor=%s",
                     message.message_id[:8],
                     message.actor_name,

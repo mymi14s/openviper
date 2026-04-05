@@ -50,6 +50,30 @@ function handleTextFilter(fieldName: string, value: string) {
   debounceTimers[fieldName] = setTimeout(() => applyFilter(fieldName, value), 300)
 }
 
+function handlePointRadiusFilter(fieldName: string, lon: string, lat: string, radius: string) {
+  if (!lon || !lat) {
+    applyFilter(fieldName, '')
+    return
+  }
+  const center = `${lon},${lat}`
+  const km = radius ? parseFloat(radius) : 50
+  applyFilter(fieldName, `${center},${km}km`)
+}
+
+const pointState = ref<Record<string, { lon: string; lat: string; radius: string }>>({})
+
+function getPointState(name: string) {
+  if (!pointState.value[name]) {
+    pointState.value[name] = { lon: '', lat: '', radius: '' }
+  }
+  return pointState.value[name]
+}
+
+function onPointChange(fieldName: string) {
+  const s = getPointState(fieldName)
+  handlePointRadiusFilter(fieldName, s.lon, s.lat, s.radius)
+}
+
 function clearAll() {
   activeFilters.value = {}
   emit('change', {} as Record<string, any>)
@@ -93,6 +117,51 @@ function clearAll() {
             @change="applyFilter(filter.name, ($event.target as HTMLInputElement).value)"
             class="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
           />
+        </div>
+
+        <!-- Point / radius filter -->
+        <div v-else-if="filter.component === 'point'" class="flex flex-col gap-2">
+          <div class="grid grid-cols-2 gap-1">
+            <div>
+              <label class="block text-xs text-gray-400 dark:text-gray-500 mb-0.5">Longitude</label>
+              <input
+                type="number"
+                step="any"
+                min="-180"
+                max="180"
+                v-model="getPointState(filter.name).lon"
+                placeholder="e.g. −0.1276"
+                class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                @change="onPointChange(filter.name)"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 dark:text-gray-500 mb-0.5">Latitude</label>
+              <input
+                type="number"
+                step="any"
+                min="-90"
+                max="90"
+                v-model="getPointState(filter.name).lat"
+                placeholder="e.g. 51.5074"
+                class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                @change="onPointChange(filter.name)"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 dark:text-gray-500 mb-0.5">Radius (km)</label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              v-model="getPointState(filter.name).radius"
+              placeholder="50"
+              class="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              @change="onPointChange(filter.name)"
+            />
+          </div>
+          <p class="text-xs text-gray-400 dark:text-gray-500">Filter records within radius of centre point.</p>
         </div>
 
         <!-- Country filter (searchable dropdown) -->

@@ -58,13 +58,7 @@ def check_model_permission(
     if getattr(user, "is_staff", False):
         return True
 
-    # Build permission codename (for future use)
-    # app_name = getattr(model_class, "_app_name", "")
-    # model_name = model_class.__name__.lower()
-    # Permission codename would be: f"{app_name}.{action}_{model_name}"
-
     # Check user permissions (if has_perm is available)
-    # This would need to be async for OpenViper
     # Simplified synchronous check for now
     return hasattr(user, "has_perm")
 

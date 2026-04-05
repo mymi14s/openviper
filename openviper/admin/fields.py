@@ -52,6 +52,7 @@ FIELD_COMPONENT_MAP: dict[str, str] = {
     "OneToOneField": "foreignkey",
     "ManyToManyField": "multiselect",
     "CountryField": "country",
+    "PointField": "point",
 }
 
 
@@ -114,6 +115,9 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
                 choice["label"] = str(choice["label"])
 
     # Field-specific config
+    if field_class_name == "PointField":
+        config["srid"] = getattr(field, "srid", 4326)
+
     if field_class_name == "CharField":
         config["max_length"] = getattr(field, "max_length", 255)
 

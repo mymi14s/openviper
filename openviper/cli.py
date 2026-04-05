@@ -47,15 +47,10 @@ _VERPERCTL_PY_TEMPLATE = '''\
 #!/usr/bin/env python
 """OpenViper viperctl.py for {project_name}."""
 
-import os
 import sys
-import openviper
 from openviper.core.management import execute_from_command_line
 
 def main() -> None:
-    os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "{project_name}.settings")
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    openviper.setup(force=True)
     execute_from_command_line(sys.argv)
 
 if __name__ == "__main__":
@@ -174,31 +169,31 @@ from openviper.routing import Router
 
 async def home(request):
     """Home page view."""
-    context = {{{{
+    context = {{
         "title": "Welcome to {project_name}",
         "project_name": "{project_name}",
         "message": "Your OpenViper project is running successfully."
-    }}}}
+    }}
     return HTMLResponse(template="home.html", context=context)
 
 async def api_index(request):
     """API endpoint view that handles both GET and POST."""
     if request.method == "GET":
-        return JSONResponse({{{{
+        return JSONResponse({{
             "message": "Welcome to {project_name} API!",
             "status": "success"
-        }}}})
+        }})
     elif request.method == "POST":
-        return JSONResponse({{{{
+        return JSONResponse({{
             "message": "Data received",
             "status": "success",
             "method": "POST"
-        }}}})
+        }})
     else:
-        return JSONResponse({{{{
+        return JSONResponse({{
             "error": "Method not allowed",
             "status": "error"
-        }}}}, status_code=405)
+        }}, status_code=405)
 
 # Routes for apps should be in each app's routes.py file
 router = Router()

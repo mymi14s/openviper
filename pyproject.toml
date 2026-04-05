@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openviper"
-version = "0.0.6"
+version = "0.0.7"
 description = "A production-ready, high-performance, async-first Python web framework."
 readme = "README.md"
 license = { text = "MIT" }
@@ -63,12 +63,14 @@ ai = [
     "anthropic==0.85.0",
     "google-genai==1.68.0",
 ]
+tasks = ["dramatiq==2.0.1"]
 redis = ["redis>=7.4.0"]
 postgres = ["asyncpg==0.31.0", "psycopg2-binary==2.9.11"]
 mssql = ["aioodbc==0.5.0"]
 oracle = ["oracledb==3.4.2"]
 mariadb = ["aiomysql==0.2.0"]
-all = ["openviper[ai,redis,postgres,mssql,oracle,mariadb]"]
+geolocation = ["shapely>=2.0", "psycopg2-binary>=2.9"]
+all = ["openviper[ai,redis,postgres,mssql,oracle,mariadb,geolocation,tasks]"]
 
 [project.scripts]
 openviper = "openviper.cli:cli"

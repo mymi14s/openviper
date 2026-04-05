@@ -199,7 +199,6 @@ class AdminRegistry:
             self.discover_from_app(app)
 
         self._discovered = True
-        logger.info(f"Admin auto-discovery complete. {len(self._registry)} models registered.")
 
     def get_models_grouped_by_app(
         self,

@@ -143,6 +143,8 @@ class Route:
     name: str | None = None
     #: Per-route middleware stack.
     middlewares: list[Middleware] = field(default_factory=list)
+    #: OpenAPI tags used to group this route in the schema.
+    tags: list[str] = field(default_factory=list)
 
     # Compiled
     _regex: re.Pattern[str] = field(init=False, repr=False)
@@ -153,8 +155,6 @@ class Route:
     _is_literal: bool = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        # Validate parameter names before compiling — invalid names (e.g. {123:int},
-        # {a-b}) register silently but never match, which is confusing.
         _valid_param = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
         for m in _ANY_PARAM_RE.finditer(self.path):
             raw = m.group(1)
@@ -205,9 +205,15 @@ class Router:
         ... async def list_users(request): ...
     """
 
-    def __init__(self, prefix: str = "", middlewares: list[Middleware] | None = None) -> None:
-        self.prefix = prefix.rstrip("/")
+    def __init__(
+        self,
+        prefix: str = "",
+        middlewares: list[Middleware] | None = None,
+        tags: list[str] | None = None,
+    ) -> None:
+        self.prefix = prefix.rstrip("/") if len(prefix) > 1 else prefix
         self.middlewares: list[Middleware] = middlewares or []
+        self.tags: list[str] = tags or []
         self._routes: list[Route] = []
         self._sub_routers: list[tuple[str, Router]] = []
         self._parents: set[Router] = set()
@@ -291,6 +297,7 @@ class Router:
                     handler=func,
                     name=name or func.__name__,
                     middlewares=middlewares or [],
+                    tags=list(self.tags),
                 )
             )
             self._invalidate()
@@ -350,6 +357,7 @@ class Router:
                 handler=handler,
                 name=name,
                 middlewares=middlewares or [],
+                tags=list(self.tags),
             )
         )
         self._invalidate()
@@ -431,6 +439,7 @@ class Router:
                             handler=r.handler,
                             name=r.name,
                             middlewares=r.middlewares + router.middlewares,
+                            tags=r.tags,
                         )
                     )
 
@@ -467,9 +476,8 @@ class Router:
                         methods=r.methods,
                         handler=r.handler,
                         name=r.name,
-                        # FIX (Bug 3): use the sub-router's own middlewares,
-                        # not self.middlewares (the parent's stack).
                         middlewares=r.middlewares + sub.middlewares,
+                        tags=r.tags,
                     )
                 )
         return res

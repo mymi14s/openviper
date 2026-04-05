@@ -62,9 +62,7 @@ from openviper.tasks.scheduler import periodic, reset_scheduler
 #      lands in ``logs/worker.log``.
 #   2. Eagerly initialise the broker so middleware (SchedulerMiddleware,
 #      TaskTrackingMiddleware) is attached *before* user modules are imported
-#      by the dramatiq CLI.  Without this, broker creation is deferred to the
-#      first ``@task`` decorator in a user module — if that module fails to
-#      import, no broker is ever created and the worker silently does nothing.
+#      by the dramatiq CLI.
 if os.environ.get("OPENVIPER_WORKER"):
     configure_worker_logging_from_settings()
 

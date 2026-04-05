@@ -74,19 +74,14 @@ class DatabaseBroker(Broker):
 
         kwargs: dict[str, Any] = {}
         if ":memory:" not in sync_url:
-            # Pool configuration from TASKS settings (with safe defaults).
-            # Defaults increased to accommodate typical worker thread counts (8+).
             task_cfg: dict[str, Any] = getattr(settings, "TASKS", {}) or {}
             kwargs["pool_pre_ping"] = True
             kwargs["pool_size"] = int(task_cfg.get("db_pool_size", 20))
             kwargs["max_overflow"] = int(task_cfg.get("db_max_overflow", 30))
             kwargs["pool_recycle"] = int(task_cfg.get("db_pool_recycle", 1800))
-            # Add query timeout to prevent indefinite blocking
             kwargs["pool_timeout"] = int(task_cfg.get("db_pool_timeout", 30))
-            # Add execution timeout for queries (in seconds)
             db_query_timeout = int(task_cfg.get("db_query_timeout", 30))
             kwargs["connect_args"] = kwargs.get("connect_args", {})
-            # Set statement timeout based on dialect
             if sync_url.startswith("postgresql"):
                 kwargs["connect_args"][
                     "options"
@@ -94,8 +89,21 @@ class DatabaseBroker(Broker):
             elif sync_url.startswith("mysql"):
                 kwargs["connect_args"]["read_timeout"] = db_query_timeout
                 kwargs["connect_args"]["write_timeout"] = db_query_timeout
+            elif sync_url.startswith("sqlite"):
+                kwargs["connect_args"]["timeout"] = int(task_cfg.get("db_sqlite_busy_timeout", 30))
 
-        return sa.create_engine(sync_url, **kwargs)
+        engine = sa.create_engine(sync_url, **kwargs)
+
+        if sync_url.startswith("sqlite") and ":memory:" not in sync_url:
+
+            @sa.event.listens_for(engine, "connect")
+            def _set_sqlite_wal(dbapi_conn: Any, _connection_record: Any) -> None:
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.close()
+
+        return engine
 
     def declare_queue(self, queue_name: str) -> None:
         """Declare a queue by adding it to the set of known queues."""
@@ -206,7 +214,7 @@ class _DatabaseConsumer(Consumer):
                     )
                     message = Message.decode(message_data)
                     message = message.copy(options={"db_task_id": task_id})
-                    logger.info(
+                    logger.debug(
                         "Found task %d for queue %s. Status -> processing.",
                         task_id,
                         self.queue_name,

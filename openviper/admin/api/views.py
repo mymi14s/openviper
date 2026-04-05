@@ -34,6 +34,7 @@ from openviper.auth import authenticate, create_access_token, create_refresh_tok
 from openviper.auth.jwt import decode_refresh_token, decode_token_unverified
 from openviper.auth.token_blocklist import is_token_revoked, revoke_token
 from openviper.conf import settings
+from openviper.db.fields import ManyToManyField
 from openviper.db.utils import cast_to_pk_type
 from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, ValidationError
 from openviper.http.response import JSONResponse, Response
@@ -185,7 +186,6 @@ async def _serialize_instance_with_children(
             value = str(value)
         response_data[field_name] = value
 
-    # Use preloaded children if available, otherwise fetch individually (fallback)
     if preloaded_children is not None:
         response_data.update(preloaded_children)
     else:
@@ -812,12 +812,6 @@ def get_admin_router() -> Router:
         else:
             data = await request.json()
 
-        logger.info(
-            "Creating %s.%s",
-            app_label,
-            model_name,
-        )
-
         # Coerce field values
         fields = getattr(model_class, "_fields", {})
         coerced_data = {}
@@ -853,6 +847,9 @@ def get_admin_router() -> Router:
             field = fields[field_name]
             # Skip auto-generated PKs on create — let save() produce the value
             if getattr(field, "primary_key", False) and getattr(field, "auto", False):
+                continue
+            # ManyToManyFields don't map to a DB column and cannot be set via constructor
+            if isinstance(field, ManyToManyField):
                 continue
             try:
                 coerced_data[field_name] = coerce_field_value(field, value)
@@ -1099,13 +1096,6 @@ def get_admin_router() -> Router:
         else:
             data = await request.json()
 
-        logger.info(
-            "Updating %s.%s (pk=%s)",
-            app_label,
-            model_name,
-            obj_id,
-        )
-
         # Get old data for change tracking
         fields = getattr(model_class, "_fields", {})
         old_data = {}
@@ -1142,6 +1132,9 @@ def get_admin_router() -> Router:
                 continue
             # Block writes to excluded or sensitive fields
             if field_name in excluded_fields or field_name in sensitive_fields:
+                continue
+            # ManyToManyFields don't map to a DB column and cannot be set directly
+            if isinstance(fields[field_name], ManyToManyField):
                 continue
             try:
                 coerced_value = coerce_field_value(fields[field_name], value)
@@ -1565,7 +1558,6 @@ def get_admin_router() -> Router:
             search_fields = model_admin.get_search_fields(request)
             if search_fields:
                 # Build OR conditions for search
-                # This is simplified - real implementation would use proper filtering
                 for field in search_fields:
                     if hasattr(qs, "filter"):
                         qs = qs.filter(**{f"{field}__contains": search_query})
@@ -1670,7 +1662,7 @@ def get_admin_router() -> Router:
             except ValueError as exc:
                 logger.error("Coercion exception for %s: %s", field_name, exc)
                 field_errors[field_name] = str(exc)
-
+        print(coerced_data)
         if field_errors:
             return JSONResponse({"errors": field_errors}, status_code=422)
 
@@ -2178,7 +2170,6 @@ def get_admin_router() -> Router:
         if not check_admin_access(request):
             raise PermissionDenied("Admin access required.")
 
-        # Placeholder - plugins would be discovered from frontend
         return JSONResponse({"plugins": []})
 
     # ── Global Search endpoint ───────────────────────────────────────────

@@ -481,7 +481,11 @@ class TestUUIDField:
 
     def test_to_db(self):
         u = uuid.uuid4()
-        assert UUIDField().to_db(u) == str(u)
+        assert UUIDField().to_db(u) == u
+
+    def test_to_db_from_string(self):
+        u = uuid.uuid4()
+        assert UUIDField().to_db(str(u)) == u
 
     def test_to_db_none(self):
         assert UUIDField().to_db(None) is None

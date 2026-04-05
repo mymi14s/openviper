@@ -142,6 +142,21 @@ class ServiceUnavailable(HTTPException):
         super().__init__(503, detail)
 
 
+class TableNotFound(ServiceUnavailable):
+    """503 raised when a model's database table does not exist.
+
+    This typically means migrations have not been run yet.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, model_name: str, table_name: str) -> None:
+        super().__init__(
+            f"Table '{table_name}' for model '{model_name}' does not exist. "
+            "Run migrations to create it."
+        )
+
+
 class AuthenticationFailed(HTTPException):
     """Authentication attempt failed."""
 
@@ -190,10 +205,27 @@ class MigrationError(OpenViperException):
     __slots__ = ()
 
 
-class FieldError(ORMException):
-    """Field lookup or traversal error."""
+class QueryError(HTTPException):
+    """400 Bad Request — ORM query is invalid.
+
+    Raised when a query cannot be executed due to a structural problem such as
+    referencing a non-existent field, an invalid operator, or a malformed
+    filter expression.
+    """
 
     __slots__ = ()
+
+    def __init__(self, detail: str = "Invalid query.") -> None:
+        super().__init__(400, detail)
+
+
+class FieldError(QueryError, ORMException):
+    """400 Bad Request — referenced field does not exist on the model."""
+
+    __slots__ = ()
+
+    def __init__(self, detail: str = "Field does not exist.") -> None:
+        QueryError.__init__(self, detail)
 
 
 class MiddlewareException(OpenViperException):

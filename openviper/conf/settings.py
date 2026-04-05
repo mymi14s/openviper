@@ -39,7 +39,9 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import json
 import logging
+import logging.config
 import os
 import secrets
 import threading
@@ -264,7 +266,8 @@ class Settings:
     # ── Logging ───────────────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"  # "text" | "json"
-
+    # When non-empty this takes priority over LOG_LEVEL and LOG_FORMAT.
+    LOGGING: dict[str, Any] = dataclasses.field(default_factory=dict)
     # ── Email ─────────────────────────────────────────────────────────────
     EMAIL: dict[str, Any] = dataclasses.field(
         default_factory=lambda: {
@@ -523,18 +526,15 @@ class _LazySettings:
                                 )
                                 break
                         if instance is None:
-                            logger.warning(
-                                "OPENVIPER_SETTINGS_MODULE=%r has no Settings subclass; "
-                                "falling back to defaults.",
-                                module_path,
+                            raise RuntimeError(
+                                f"OPENVIPER_SETTINGS_MODULE={module_path!r} was imported "
+                                "but contains no Settings subclass. Define a frozen dataclass "
+                                "that subclasses openviper.conf.settings.Settings."
                             )
                     except ImportError as exc:
-                        logger.warning(
-                            "Could not import OPENVIPER_SETTINGS_MODULE=%r: %s; "
-                            "falling back to defaults.",
-                            module_path,
-                            exc,
-                        )
+                        raise RuntimeError(
+                            f"Could not import OPENVIPER_SETTINGS_MODULE={module_path!r}: {exc}"
+                        ) from exc
 
             if instance is None:
                 instance = Settings()
@@ -555,6 +555,8 @@ class _LazySettings:
 
             object.__setattr__(self, "_instance", instance)
             object.__setattr__(self, "_configured", True)
+
+            configure_logging(instance)
 
     # ------------------------------------------------------------------
     # Attribute access
@@ -638,6 +640,70 @@ def _apply_env_overrides(instance: Settings) -> Settings:
 
 
 settings = _LazySettings()
+
+
+class _JsonFormatter(logging.Formatter):
+    """Minimal JSON log formatter — no third-party dependencies."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "time": self.formatTime(record, "%Y-%m-%d %H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        if record.stack_info:
+            payload["stack_info"] = self.formatStack(record.stack_info)
+        return json.dumps(payload)
+
+
+class _OVDefaultHandler(logging.StreamHandler):
+    """Sentinel StreamHandler installed by :func:`configure_logging`.
+
+    Using a distinct subclass lets :func:`configure_logging` remove its own
+    handler on a subsequent call without touching handlers added by the
+    application or third-party libraries.
+    """
+
+
+def configure_logging(instance: Settings) -> None:
+    """Apply logging configuration derived from *instance*.
+
+    If ``LOGGING`` is non-empty it is passed verbatim to
+    ``logging.config.dictConfig`` and wins over all other settings.
+
+    Otherwise a console handler is installed directly on the ``openviper``
+    logger using ``LOG_LEVEL`` and ``LOG_FORMAT``.  ``propagate`` is left at
+    its default (``True``) so that pytest's ``caplog`` fixture can capture
+    ``openviper.*`` log records in tests, and so that external tools such as
+    uvicorn can manage the root logger independently.
+    """
+    if instance.LOGGING:
+        logging.config.dictConfig(instance.LOGGING)
+        return
+
+    level = getattr(logging, instance.LOG_LEVEL.upper(), logging.INFO)
+
+    if instance.LOG_FORMAT == "json":
+        formatter: logging.Formatter = _JsonFormatter()
+    else:
+        formatter = logging.Formatter(
+            fmt="%(asctime)s %(levelname)-8s %(name)-30s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+    handler = _OVDefaultHandler()
+    handler.setLevel(level)
+    handler.setFormatter(formatter)
+
+    ov_logger = logging.getLogger("openviper")
+    ov_logger.setLevel(level)
+    # Replace any previously installed default handler; leave other handlers
+    # (e.g. those added by tests or external frameworks) untouched.
+    ov_logger.handlers = [h for h in ov_logger.handlers if not isinstance(h, _OVDefaultHandler)]
+    ov_logger.addHandler(handler)
 
 
 def validate_settings(s: Settings, env: str) -> None:

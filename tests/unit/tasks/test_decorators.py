@@ -8,7 +8,7 @@ from openviper.tasks.decorators import task
 class TestTaskDecorator:
     """Test @task decorator functionality."""
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_creates_actor(self, mock_dramatiq_actor, mock_get_broker):
         """@task should create a Dramatiq actor."""
@@ -31,7 +31,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert args[0] is original_fn
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_defaults(self, mock_dramatiq_actor, mock_get_broker):
         """@task() should use default parameters."""
@@ -52,7 +52,7 @@ class TestTaskDecorator:
         assert kwargs["max_backoff"] == 300_000
         assert "time_limit" not in kwargs  # Only set when explicitly provided
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_custom_queue(self, mock_dramatiq_actor, mock_get_broker):
         """@task should accept custom queue_name."""
@@ -68,7 +68,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert kwargs["queue_name"] == "emails"
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_custom_retries(self, mock_dramatiq_actor, mock_get_broker):
         """@task should accept custom max_retries."""
@@ -84,7 +84,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert kwargs["max_retries"] == 10
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_priority(self, mock_dramatiq_actor, mock_get_broker):
         """@task should accept custom priority."""
@@ -100,7 +100,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert kwargs["priority"] == 10
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_backoff(self, mock_dramatiq_actor, mock_get_broker):
         """@task should accept custom backoff values."""
@@ -117,7 +117,7 @@ class TestTaskDecorator:
         assert kwargs["min_backoff"] == 1000
         assert kwargs["max_backoff"] == 60_000
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_time_limit(self, mock_dramatiq_actor, mock_get_broker):
         """@task should accept time_limit."""
@@ -133,7 +133,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert kwargs["time_limit"] == 30_000
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_custom_actor_name(self, mock_dramatiq_actor, mock_get_broker):
         """@task should accept custom actor_name."""
@@ -149,7 +149,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert kwargs["actor_name"] == "custom.name"
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_uses_function_name_as_default_actor_name(
         self, mock_dramatiq_actor, mock_get_broker
@@ -167,7 +167,7 @@ class TestTaskDecorator:
         args, kwargs = mock_dramatiq_actor.call_args
         assert kwargs["actor_name"] == "my_custom_function"
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_adds_delay_alias(self, mock_dramatiq_actor, mock_get_broker):
         """@task should add .delay() as an alias for .send()."""
@@ -184,7 +184,7 @@ class TestTaskDecorator:
         # .delay should be the same as .send
         assert my_task.delay is my_task.send
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     @patch("openviper.tasks.decorators.logger")
     def test_decorator_logs_registration(self, mock_logger, mock_dramatiq_actor, mock_get_broker):
@@ -203,7 +203,7 @@ class TestTaskDecorator:
         call_args = mock_logger.debug.call_args[0]
         assert "Registered task" in call_args[0]
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_with_async_function(self, mock_dramatiq_actor, mock_get_broker):
         """@task should work with async functions."""
@@ -219,7 +219,7 @@ class TestTaskDecorator:
         # Should still create an actor
         mock_dramatiq_actor.assert_called_once()
 
-    @patch("openviper.tasks.decorators.get_broker")
+    @patch("openviper.tasks.broker.get_broker")
     @patch("openviper.tasks.decorators.dramatiq.actor")
     def test_decorator_zero_retries(self, mock_dramatiq_actor, mock_get_broker):
         """@task should allow max_retries=0 to disable retries."""

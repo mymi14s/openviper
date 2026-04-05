@@ -16,6 +16,8 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, cast
 
 import sqlalchemy as sa
+from sqlalchemy.exc import DBAPIError as SADBAPIError
+from sqlalchemy.exc import OperationalError as SAOperationalError
 
 from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
@@ -41,7 +43,7 @@ from openviper.db.fields import (
     UUIDField,
 )
 from openviper.db.migrations.executor import _get_soft_removed_table
-from openviper.exceptions import FieldError
+from openviper.exceptions import FieldError, TableNotFound
 
 _SAFE_TABLE_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 
@@ -50,6 +52,57 @@ def _assert_safe_table_name(name: str) -> None:
     """Raise ValueError if the table name contains unsafe characters."""
     if not _SAFE_TABLE_NAME_RE.match(name):
         raise ValueError(f"Unsafe table name: {name!r}")
+
+
+# Patterns reported by different DB backends when a table is missing.
+_TABLE_MISSING_RE: re.Pattern[str] = re.compile(
+    r"no such table|doesn't exist|does not exist|undefined table",
+    re.IGNORECASE,
+)
+
+
+def _check_table_missing(exc: Exception, model_cls: type) -> None:
+    """Re-raise *exc* as :class:`TableNotFound` when the DB reports a missing table.
+
+    Clears the full SQLAlchemy traceback so only a clean 503 propagates.
+    """
+    if isinstance(exc, SAOperationalError) and _TABLE_MISSING_RE.search(str(exc)):
+        table_name: str = getattr(model_cls, "_table_name", model_cls.__name__)
+        raise TableNotFound(model_cls.__name__, table_name) from None
+
+
+def _is_data_error(exc: SADBAPIError) -> bool:
+    """Return True when *exc* represents invalid query parameter data.
+
+    Drivers raise this for values that cannot be cast to the target column
+    type (e.g. an empty string supplied for a UUID column).  Such queries
+    can never match any row, so callers may safely treat the result as empty.
+    """
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        orig_type = type(orig).__name__
+        if "DataError" in orig_type or "InvalidTextRepresentation" in orig_type:
+            return True
+    return "DataError" in type(exc).__name__ or "invalid input" in str(exc).lower()
+
+
+# Patterns reported by different DB backends when a column/field is missing.
+_FIELD_MISSING_RE: re.Pattern[str] = re.compile(
+    r"column[^\n]*does not exist|no such column|undefined column",
+    re.IGNORECASE,
+)
+
+
+def _check_field_missing(exc: Exception, model_cls: type) -> None:
+    """Raise :class:`FieldError` when the DB reports a missing column.
+
+    Converts low-level database "column does not exist" errors into a clean
+    400 response so callers receive a descriptive message rather than a 500.
+    """
+    if isinstance(exc, SADBAPIError) and _FIELD_MISSING_RE.search(str(exc)):
+        raise FieldError(
+            f"Query referenced a field that does not exist on {model_cls.__name__}."
+        ) from None
 
 
 logger = logging.getLogger(__name__)
@@ -545,6 +598,8 @@ def get_table(model_cls: type[Model]) -> sa.Table:
 
 
 def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
+    if hasattr(field, "get_sa_type"):
+        return field.get_sa_type()
     if isinstance(field, AutoField):
         return sa.Integer()
     if isinstance(field, BinaryField):
@@ -557,7 +612,7 @@ def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
             for _fname, tfield in target_fields.items():
                 if getattr(tfield, "primary_key", False):
                     if isinstance(tfield, UUIDField):
-                        return sa.String(36)
+                        return sa.UUID(as_uuid=True)
                     if isinstance(tfield, CharField):
                         return sa.String(tfield.max_length)
                     if isinstance(tfield, BigIntegerField):
@@ -581,7 +636,7 @@ def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if isinstance(field, TimeField):
         return sa.Time()
     if isinstance(field, UUIDField):
-        return sa.String(36)
+        return sa.UUID(as_uuid=True)
     if isinstance(field, JSONField):
         return sa.JSON()
     if isinstance(field, FileField):
@@ -1190,7 +1245,34 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             if cache_key is not None:
                 _query_cache.put(cache_key, rows, cache_ttl)
             return rows
+        except SADBAPIError as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            # Invalid parameter values (e.g. malformed UUID, wrong type) mean no
+            # matching row can exist — treat as an empty result set rather than
+            # propagating a 500 error.
+            if _is_data_error(e):
+                logger.debug(
+                    "SELECT query returned no results due to invalid parameter for model %s: %s",
+                    model_cls.__name__,
+                    str(e),
+                )
+                return []
+            logger.error(
+                "SELECT query failed for model %s: %s",
+                model_cls.__name__,
+                str(e),
+                exc_info=True,
+                extra={
+                    "model": model_cls.__name__,
+                    "filters": qs._filters,
+                    "excludes": qs._excludes,
+                },
+            )
+            raise
         except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
             logger.error(
                 "SELECT query failed for model %s: %s",
                 model_cls.__name__,
@@ -1223,7 +1305,12 @@ async def execute_count(qs: QuerySet) -> int:
         stmt = stmt.where(where)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         return int(result.scalar_one())
 
 
@@ -1241,7 +1328,12 @@ async def execute_exists(qs: QuerySet) -> bool:
     stmt = stmt.limit(1)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         return result.first() is not None
 
 
@@ -1261,6 +1353,8 @@ async def execute_delete(qs: QuerySet) -> int:
             _query_cache.invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
+        _check_table_missing(e, model_cls)
+        _check_field_missing(e, model_cls)
         logger.error(
             "Bulk DELETE failed for model %s: %s",
             model_cls.__name__,
@@ -1306,6 +1400,8 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
             _query_cache.invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
+        _check_table_missing(e, model_cls)
+        _check_field_missing(e, model_cls)
         logger.error(
             "Bulk UPDATE failed for model %s: %s",
             model_cls.__name__,
@@ -1316,8 +1412,20 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
         raise
 
 
-async def execute_save(instance: Model, ignore_permissions: bool = False) -> None:
-    """INSERT or UPDATE a single model instance."""
+async def execute_save(
+    instance: Model,
+    ignore_permissions: bool = False,
+    update_fields: list[str] | None = None,
+) -> None:
+    """INSERT or UPDATE a single model instance.
+
+    Args:
+        instance: The model instance to persist.
+        ignore_permissions: Skip permission checks when ``True``.
+        update_fields: When provided on an UPDATE, only these field names are
+            written to the database.  Ignored on INSERT.  Raises
+            :exc:`ValueError` if a name is not a known field on the model.
+    """
     model_cls = type(instance)
     action = "update" if getattr(instance, "pk", None) else "create"
     # Honour both the ContextVar (preferred) and the legacy flag
@@ -1334,6 +1442,18 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
     # Fast path: if no soft-removed columns, avoid membership checks in loop
     has_soft_removed = bool(soft_removed)
 
+    # Validate update_fields names before touching the DB.
+    if update_fields is not None:
+        unknown = [f for f in update_fields if f not in model_cls._fields]
+        if unknown:
+            raise ValueError(
+                f"update_fields contains unknown field(s) for " f"{model_cls.__name__}: {unknown!r}"
+            )
+        # Normalise to a frozenset for O(1) membership checks below.
+        _update_fields: frozenset[str] | None = frozenset(update_fields)
+    else:
+        _update_fields = None
+
     data = {}
     for name, field in model_cls._fields.items():
         # Skip ManyToMany fields - they don't have database columns
@@ -1349,23 +1469,16 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
             continue
         if has_soft_removed and field.column_name in soft_removed:
             continue
+        # When update_fields is set on an UPDATE, skip fields not in the list.
+        # Always include all fields for INSERT.
+        if _update_fields is not None and name not in _update_fields:
+            continue
         data[field.column_name] = field.to_db(val)
 
     pk_val = getattr(instance, "id", None)
-    is_new = pk_val is None
-
-    if not is_new and hasattr(instance, "_previous_state") and instance._previous_state:
-        # Check if this is a user-created instance vs DB-loaded instance.
-        # DB-loaded instances have ID in _previous_state matching current ID.
-        # User-created instances with auto-UUID have None in _previous_state but current ID set.
-        prev_id = instance._previous_state.get("id")
-        if prev_id is None:
-            # ID in _previous_state was None - this is a user-created instance
-            is_new = True
-        elif prev_id != pk_val:
-            # ID changed - treat as new (unusual case, client-side assigned)
-            is_new = True
-        # else: prev_id == pk_val, so it came from DB, keep is_new = False
+    # _persisted is authoritative: False means the instance has never been saved,
+    # regardless of whether a PK is already set (UUID, string, user-assigned int).
+    is_new = not getattr(instance, "_persisted", False)
 
     if is_new:
         stmt = sa.insert(table).values(**data)
@@ -1375,8 +1488,11 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
                 # Only update instance.id if it's not already set (for auto-increment)
                 if pk_val is None:
                     instance.id = cast("Any", result).inserted_primary_key[0]
+            instance._persisted = True
             _query_cache.invalidate_model(model_cls._table_name)
         except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
             logger.error(
                 "INSERT failed for model %s: %s",
                 model_cls.__name__,
@@ -1385,15 +1501,24 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
             )
             raise
     else:
-        upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**data)
+        # Primary key columns must never appear in the SET clause — they belong
+        # only in the WHERE predicate.  Remove them regardless of how they ended
+        # up in `data` (e.g. UUID PKs are not auto-increment so the loop above
+        # does not skip them).
+        pk_columns = {f.column_name for f in model_cls._fields.values() if f.primary_key}
+        update_data = {k: v for k, v in data.items() if k not in pk_columns}
+        upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**update_data)
         try:
             async with _begin() as conn:
                 result = await conn.execute(upd_stmt)
-                if result.rowcount == 0:
+                if result.rowcount == 0 and _update_fields is None:
                     ins_stmt = sa.insert(table).values(**data)
                     await conn.execute(ins_stmt)
+            instance._persisted = True
             _query_cache.invalidate_model(model_cls._table_name)
         except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
             logger.error(
                 "UPDATE failed for model %s (pk=%s): %s",
                 model_cls.__name__,
@@ -1419,6 +1544,8 @@ async def execute_delete_instance(instance: Model, ignore_permissions: bool = Fa
             await conn.execute(sa.delete(table).where(table.c.id == pk_val))
         _query_cache.invalidate_model(model_cls._table_name)
     except Exception as e:
+        _check_table_missing(e, model_cls)
+        _check_field_missing(e, model_cls)
         logger.error(
             "DELETE failed for model %s (pk=%s): %s",
             model_cls.__name__,
@@ -1486,7 +1613,12 @@ async def execute_values(
         stmt = stmt.offset(qs._offset)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         return [dict(row) for row in result.mappings()]
 
 
@@ -1515,7 +1647,12 @@ async def execute_aggregate(qs: QuerySet, agg_kwargs: dict[str, Any]) -> dict[st
         stmt = stmt.where(where)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         row = result.mappings().first()
         return dict(row) if row else {}
 

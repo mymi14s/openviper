@@ -141,7 +141,6 @@ class Command(BaseCommand):
             if not resolved_apps:
                 return
         elif not_found_apps:
-            # Auto-detected apps that weren't found — just skip silently
             pass
 
         # Show app locations if we found any

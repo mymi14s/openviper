@@ -15,6 +15,7 @@ class MockModel(Model):
 async def test_on_change_receives_change_dict_on_update():
     instance = MockModel(id=1, name="Original")
     instance._previous_state = {"id": 1, "name": "Original"}
+    instance._persisted = True
     instance.name = "Changed"
 
     # Mock dispatcher

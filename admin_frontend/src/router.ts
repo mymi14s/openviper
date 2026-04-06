@@ -12,15 +12,20 @@ const ModelHistory = () => import('@/views/ModelHistory.vue')
 const NotFound = () => import('@/views/NotFound.vue')
 
 const routes: RouteRecordRaw[] = [
+
+  {
+    path: '',
+    redirect: '/dashboard',
+  },
+  {
+    path: '/',
+    redirect: '/dashboard',
+  },
   {
     path: '/login',
     name: 'login',
     component: Login,
     meta: { requiresAuth: false, title: 'Login' },
-  },
-  {
-    path: '/',
-    redirect: '/dashboard',
   },
   {
     path: '/dashboard',
@@ -65,7 +70,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/admin/'),
+  history: createWebHistory('/admin'),
   routes,
   scrollBehavior(_to, _from, savedPosition) {
     return savedPosition ?? { top: 0 }

@@ -30,6 +30,7 @@ class _DummyField:
         primary_key: bool = False,
         auto_increment: bool = False,
         unique: bool = False,
+        db_index: bool = False,
         default=None,
     ) -> None:
         self.column_name = column_name
@@ -38,6 +39,7 @@ class _DummyField:
         self.primary_key = primary_key
         self.auto_increment = auto_increment
         self.unique = unique
+        self.db_index = db_index
         self.default = default
 
 
@@ -107,6 +109,68 @@ def test_write_initial_migration_includes_unique_together_indexes(tmp_path: Path
     assert "CreateIndex" in content
     assert "unique=True" in content
     assert "uniq_things_a_b" in content
+
+
+def test_write_initial_migration_indexes_resolve_fk_column_names(tmp_path: Path) -> None:
+    class _FKField(_DummyField):
+        def __init__(self, *, column_name: str) -> None:
+            super().__init__(column_name=column_name, column_type="INTEGER")
+            self._is_fk = True
+
+    class _IdxDef:
+        def __init__(self, fields: list[str], name: str | None = None) -> None:
+            self.fields = fields
+            self.name = name
+
+    class ModelWithFKIndex:
+        __name__ = "ModelWithFKIndex"
+        _table_name = "fk_things"
+        _meta_unique_together: list = []
+        _meta_indexes = [_IdxDef(["owner"])]
+        _fields = {
+            "id": _DummyField(
+                column_name="id", column_type="INTEGER", primary_key=True, auto_increment=True
+            ),
+            "owner": _FKField(column_name="owner_id"),
+        }
+
+        class Meta:
+            abstract = False
+
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+
+    path = write_initial_migration("test_app", [ModelWithFKIndex], str(mig_dir))
+    content = Path(path).read_text()
+
+    assert "owner_id" in content
+    assert "idx_fk_things_owner_id" in content
+
+
+def test_write_initial_migration_emits_db_index_field(tmp_path: Path) -> None:
+    class ModelWithDbIndex:
+        __name__ = "ModelWithDbIndex"
+        _table_name = "indexed_things"
+        _meta_indexes: list = []
+        _meta_unique_together: list = []
+        _fields = {
+            "id": _DummyField(
+                column_name="id", column_type="INTEGER", primary_key=True, auto_increment=True
+            ),
+            "email": _DummyField(column_name="email", column_type="VARCHAR(254)", db_index=True),
+        }
+
+        class Meta:
+            abstract = False
+
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+
+    path = write_initial_migration("test_app", [ModelWithDbIndex], str(mig_dir))
+    content = Path(path).read_text()
+
+    assert "idx_indexed_things_email" in content
+    assert "'email'" in content
 
 
 def test_next_migration_number_ignores_non_numeric_prefixes(tmp_path: Path) -> None:

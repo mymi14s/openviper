@@ -25,7 +25,7 @@ class TestCountryFieldInheritance:
 
     def test_column_type_is_char(self) -> None:
         field = CountryField()
-        assert field._column_type == "CHAR"
+        assert field._column_type == "CHAR(2)"
 
     def test_field_name_assigned(self) -> None:
         field = CountryField()

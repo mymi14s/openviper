@@ -6,33 +6,13 @@ or ``.env`` files through python-dotenv.
 
 Environment detection uses ``OPENVIPER_ENV`` (default: ``development``).
 
-Quick start
------------
-**Option A — module auto-discovery:**
+Configuration sources (highest to lowest priority):
+  1. Environment variables matching uppercase field names.
+  2. Settings class resolved from ``OPENVIPER_SETTINGS_MODULE``.
+  3. Default field values on :class:`Settings`.
 
-.. code-block:: python
-
-    # myproject/settings.py
-    import dataclasses
-    from openviper.conf import Settings
-
-    @dataclasses.dataclass(frozen=True)
-    class MySettings(Settings):
-        PROJECT_NAME: str = "MyBlog"
-        DATABASE_URL: str = "sqlite:///db.sqlite3"
-
-Then set ``OPENVIPER_SETTINGS_MODULE=myproject.settings`` in the environment.
-
-**Option B — programmatic configuration:**
-
-.. code-block:: python
-
-    from openviper.conf import Settings
-    from openviper.conf.settings import settings
-
-    settings.configure(Settings(DATABASE_URL="sqlite:///db.sqlite3"))
-
-``configure()`` must be called before any attribute is first accessed.
+``configure()`` must be called before any attribute is first accessed
+when using programmatic setup.
 """
 
 from __future__ import annotations
@@ -129,11 +109,10 @@ def _cast_env_value(current: Any, raw: str) -> Any:
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class Settings:
-    """Base configuration dataclass.  Subclass and ``@dataclass(frozen=True)``
-    to customise for your project.
+    """Base configuration dataclass for OpenViper.
 
-    All fields are immutable after construction.  ``list`` defaults from the
-    old class-based system are represented as ``tuple`` here.
+    All fields are immutable after construction.  Sequence defaults use
+    ``tuple`` rather than ``list`` to enforce immutability.
     """
 
     # ── Project ───────────────────────────────────────────────────────────
@@ -430,7 +409,6 @@ class _LazySettings:
     """
 
     def __init__(self) -> None:
-        # Use object.__setattr__ to bypass our own __setattr__ guard.
         object.__setattr__(self, "_instance", None)
         object.__setattr__(self, "_configured", False)
         object.__setattr__(self, "_lock", threading.RLock())
@@ -501,7 +479,6 @@ class _LazySettings:
                     )
                 else:
                     try:
-                        # Use cached module if available
                         if module_path in _MODULE_CACHE:
                             mod = _MODULE_CACHE[module_path]
                         else:
@@ -563,8 +540,6 @@ class _LazySettings:
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> Any:
-        # Called only when normal attribute lookup fails (i.e. for settings
-        # attributes not defined directly on _LazySettings itself).
         if not self._configured:
             self._setup()
         instance = object.__getattribute__(self, "_instance")
@@ -610,7 +585,8 @@ def _auto_include_project_app(instance: Settings, module_path: str) -> Settings:
 def _apply_env_overrides(instance: Settings) -> Settings:
     """Return a new :class:`Settings` with env-var overrides applied.
 
-    FIX #3: Cache field metadata to avoid repeated dataclasses.fields() calls.
+    Field metadata is cached per Settings subclass to avoid recomputing
+    dataclasses.fields() on every request.
     """
     cls = type(instance)
 
@@ -757,7 +733,6 @@ def validate_settings(s: Settings, env: str) -> None:
                 "SECRET_KEY not set. Auto-generating a random key for development. "
                 "Set SECRET_KEY in environment for production!"
             )
-            # Generate and monkey-patch the SECRET_KEY (frozen dataclass workaround)
             object.__setattr__(s, "SECRET_KEY", generate_secret_key())
 
     if not s.DATABASE_URL:

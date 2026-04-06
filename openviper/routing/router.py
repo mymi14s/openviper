@@ -33,14 +33,8 @@ Middleware = Callable[[Any, Any], Awaitable[Any]]
 
 CONVERTERS: dict[str, tuple[str, Callable[[str], Any]]] = {
     "str": (r"[^/]+", str),
-    # Capped at 18 digits to prevent arbitrary-precision int allocation via URLs.
     "int": (r"[0-9]{1,18}", int),
-    # Integer part capped at 18 digits; decimal part capped at 18 digits.
     "float": (r"[0-9]{1,18}(?:\.[0-9]{1,18})?", float),
-    # .++ is a possessive quantifier (regex C extension): greedily consumes all
-    # characters without releasing any back to the engine, preventing catastrophic
-    # backtracking (ReDoS) when this converter appears before a fixed suffix.
-    # NOTE: the `path` converter must always be the LAST segment in a route path.
     "path": (r".++", str),
     "uuid": (r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str),
     "slug": (r"[-a-zA-Z0-9_]+", str),
@@ -55,6 +49,9 @@ _PARAM_PLACEHOLDER_RE: re.Pattern[str] = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)
 
 # Matches any {…} segment (including invalid ones) for validation in route paths.
 _ANY_PARAM_RE: re.Pattern[str] = re.compile(r"\{([^}]*)\}")
+
+# Valid Python identifier pattern used to validate path parameter names.
+_VALID_PARAM_RE: re.Pattern[str] = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 def _normalize_path(path: str) -> str:
@@ -155,11 +152,10 @@ class Route:
     _is_literal: bool = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        _valid_param = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
         for m in _ANY_PARAM_RE.finditer(self.path):
             raw = m.group(1)
             name = raw.split(":")[0]
-            if not _valid_param.match(name):
+            if not _VALID_PARAM_RE.match(name):
                 raise ValueError(
                     f"Invalid path parameter name {name!r} in route {self.path!r}. "
                     "Parameter names must be valid Python identifiers "
@@ -210,10 +206,12 @@ class Router:
         prefix: str = "",
         middlewares: list[Middleware] | None = None,
         tags: list[str] | None = None,
+        namespace: str | None = None,
     ) -> None:
         self.prefix = prefix.rstrip("/") if len(prefix) > 1 else prefix
         self.middlewares: list[Middleware] = middlewares or []
         self.tags: list[str] = tags or []
+        self.namespace: str | None = namespace
         self._routes: list[Route] = []
         self._sub_routers: list[tuple[str, Router]] = []
         self._parents: set[Router] = set()
@@ -224,8 +222,9 @@ class Router:
         self._index: dict[str, list[Route]] | None = None
         # Name index: route name -> route (for O(1) url_for lookups)
         self._name_index: dict[str, Route] | None = None
-        # Exact match index: literal path -> route (fast path for parameterless routes)
-        self._exact_index: dict[str, Route] | None = None
+        # Exact match index: literal path -> candidate routes (fast path for literal routes).
+        # Stores all routes sharing the same literal path to support multi-method fast-path.
+        self._exact_index: dict[str, list[Route]] | None = None
 
     # ── Cache management ───────────────────────────────────────────────────
 
@@ -243,12 +242,14 @@ class Router:
             parent._invalidate()
 
     def _build_index(self, routes: list[Route]) -> dict[str, list[Route]]:
-        """Build dispatch index by first path segment."""
+        """Build dispatch index by first path segment, pre-sorted by specificity."""
         index: dict[str, list[Route]] = {}
         for route in routes:
             seg = route._first_segment
             key = seg if seg is not None else _DYNAMIC
             index.setdefault(key, []).append(route)
+        for bucket in index.values():
+            bucket.sort(key=lambda r: _route_specificity(r.path), reverse=True)
         return index
 
     def _build_name_index(self, routes: list[Route]) -> dict[str, Route]:
@@ -268,13 +269,17 @@ class Router:
                 name_index[route.name] = route
         return name_index
 
-    def _build_exact_index(self, routes: list[Route]) -> dict[str, Route]:
-        """Build exact match index for literal paths (fast path)."""
-        exact_index: dict[str, Route] = {}
+    def _build_exact_index(self, routes: list[Route]) -> dict[str, list[Route]]:
+        """Build exact match index grouping all routes by literal path.
+
+        Groups all routes that share the same literal path so every registered
+        method is reachable via the O(1) fast path.
+        """
+        exact_index: dict[str, list[Route]] = {}
         for route in routes:
-            # Note: routes passed here are already absolute (from self.routes)
+            # Routes passed here are already absolute (from self.routes).
             if route._is_literal:
-                exact_index[route.path] = route
+                exact_index.setdefault(route.path, []).append(route)
         return exact_index
 
     # ── Route registration ─────────────────────────────────────────────────
@@ -380,7 +385,6 @@ class Router:
             # - Collection action (detail=False): prefix/custom_path
             # - Member action (detail=True): prefix/{id}/custom_path
             if action_info["detail"]:
-                # Avoid doubling up placeholders if the base path already includes one
                 if "{id}" in base_path or "{pk}" in base_path:
                     action_path = f"{base_path}/{action_info['url_path']}"
                 else:
@@ -404,12 +408,23 @@ class Router:
 
     # ── Sub-routers ────────────────────────────────────────────────────────
 
-    def include_router(self, router: Router, prefix: str = "") -> None:
+    def include_router(
+        self, router: Router, prefix: str = "", namespace: str | None = None
+    ) -> None:
         """Mount a sub-router as a live reference.
 
         Any routes added to the sub-router later will automatically be visible
         through this router's prefix.
+
+        Args:
+            router: Sub-router to mount.
+            prefix: Additional URL prefix to apply at the mount point.
+            namespace: Override the sub-router's namespace.  When given,
+                all route names from the sub-router become
+                ``"namespace:route_name"`` in this router's name index.
         """
+        if namespace is not None:
+            router.namespace = namespace
         # Track parent for invalidation propagation
         router._parents.add(self)
 
@@ -424,20 +439,27 @@ class Router:
         """All routes including sub-router routes, flattened and absolute (cached)."""
         if self._cached_routes is None:
 
-            def _get_absolute(router: Router, current_abs: str) -> list[Route]:
-                # Combine this router's specific absolute prefix with its own prefix
-                # to get the total base for local routes and children.
+            def _get_absolute(router: Router, current_abs: str, ns_prefix: str = "") -> list[Route]:
                 base = _normalize_path(current_abs.rstrip("/") + router.prefix)
+
+                # Accumulate the namespace chain: parent_ns + this_router_ns
+                if router.namespace:
+                    ns_sep = f"{ns_prefix}{router.namespace}:"
+                    branch_ns = ns_sep if ns_prefix else f"{router.namespace}:"
+                else:
+                    branch_ns = ns_prefix
+
                 res = []
 
                 # Accumulate local routes
                 for r in router._routes:
+                    ns_name = f"{branch_ns}{r.name}" if r.name and branch_ns else r.name
                     res.append(
                         Route(
                             path=_normalize_path(base + r.path),
                             methods=r.methods,
                             handler=r.handler,
-                            name=r.name,
+                            name=ns_name,
                             middlewares=r.middlewares + router.middlewares,
                             tags=r.tags,
                         )
@@ -445,8 +467,7 @@ class Router:
 
                 # Accumulate sub-router routes recursively
                 for extra_prefix, sub in router._sub_routers:
-                    # 'extra_prefix' is the mount point relative to this router's root
-                    res.extend(_get_absolute(sub, base + (extra_prefix or "")))
+                    res.extend(_get_absolute(sub, base + (extra_prefix or ""), branch_ns))
 
                 return res
 
@@ -508,21 +529,13 @@ class Router:
             NotFound: No route matched the path.
             MethodNotAllowed: Path matched but method not allowed.
         """
-        # ASGI spec already uppercases method, but just in case
         method = method.upper()
-        # Collapse consecutive slashes before any index or regex lookup
         path = _normalize_path(path)
 
         # Trigger lazy build of indices if needed
         if self._exact_index is None:
             _ = self.routes
 
-        # Build candidate paths: always try the original path first, then
-        # a slash-normalised alternative so that routes registered with a
-        # trailing slash are reachable without one and vice-versa.
-        #   /home/  → also try /home
-        #   /admin  → also try /admin/
-        #   /       → no alternative (root must stay as-is)
         candidates: list[str] = [path]
         if path not in ("", "/"):
             if path.endswith("/"):
@@ -535,21 +548,14 @@ class Router:
         params: dict[str, Any] = {}
 
         for candidate in candidates:
-            exact_route = self._exact_index.get(candidate)  # type: ignore[union-attr]
-            if exact_route:
-                allowed_methods.update(exact_route.methods)
-                if method in exact_route.methods:
-                    return exact_route, {}
+            exact_routes = self._exact_index.get(candidate)  # type: ignore[union-attr]
+            if exact_routes:
+                for exact_route in exact_routes:
+                    allowed_methods.update(exact_route.methods)
+                    if method in exact_route.methods:
+                        return exact_route, {}
 
-            # Fall back to regex matching.
-            # Sort candidate routes by specificity: more specific (more literal
-            # segments) first. This ensures /path/literal matches before /path/{param}.
-            sorted_routes = sorted(
-                self._candidate_routes(candidate),
-                key=lambda r: _route_specificity(r.path),
-                reverse=True,
-            )
-            for route in sorted_routes:
+            for route in self._candidate_routes(candidate):
                 p = route.match(candidate)
                 if p is not None:
                     allowed_methods.update(route.methods)
@@ -575,13 +581,15 @@ class Router:
 
         Args:
             name: Route name as registered.
-            **path_params: Values to fill in path parameters.
+            **path_params: Values to fill in path parameters.  Any placeholder
+                whose key is absent from *path_params* is left as-is in the
+                returned URL (e.g. ``{y:int}``).
 
         Returns:
             URL string.
 
         Raises:
-            KeyError: Route name not found, or a required path parameter is missing.
+            KeyError: Route name not found.
         """
         if self._name_index is None:
             _ = self.routes
@@ -606,21 +614,27 @@ class Router:
 # ── Convenience helpers ───────────────────────────────────────────────────────
 
 
-def include(router: Router, prefix: str = "") -> Router:
-    """Helper to include a sub-router with an optional additional prefix.
+def include(router: Router, prefix: str = "", namespace: str | None = None) -> Router:
+    """Helper to include a sub-router with an optional additional prefix and namespace.
 
     Creates a new router whose route paths are all prefixed with the given
-    ``prefix``.  The original router is left unchanged.
+    ``prefix``.  The original router is left unchanged.  When *namespace* is
+    supplied, all route names from the sub-router become
+    ``"namespace:route_name"`` in any parent router's name index.
 
     Example:
         >>> from myapp.routes import router as user_router
-        >>> app.include_router(include(user_router, prefix="/api/v1"))
+        >>> app.include_router(include(user_router, prefix="/api/v1", namespace="users"))
     """
+    if namespace is not None:
+        router.namespace = namespace
     if prefix:
         wrapper = Router(prefix=_normalize_path(prefix + router.prefix))
         wrapper._routes = list(router._routes)
         wrapper._sub_routers = list(router._sub_routers)
         wrapper.middlewares = router.middlewares
+        wrapper.tags = list(router.tags)
+        wrapper.namespace = router.namespace
         router._parents.add(wrapper)
         return wrapper
     return router

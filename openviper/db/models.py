@@ -25,11 +25,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import datetime
+import decimal
 import functools
 import inspect
 import json
 import logging
 import re
+import uuid
 from collections.abc import AsyncGenerator
 from contextvars import ContextVar
 from enum import Enum
@@ -46,6 +49,7 @@ from openviper.auth.permission_core import (
     check_permission_for_model,
 )
 from openviper.core.context import ignore_permissions_ctx
+from openviper.db.events import _dispatch_decorator_handlers, get_dispatcher
 from openviper.db.executor import (
     _begin,
     _load_soft_removed_columns,
@@ -70,8 +74,11 @@ from openviper.db.fields import (
     ForeignKey,
     IntegerField,
     LazyFK,
+    ManyToManyDescriptor,
     ManyToManyField,
+    ManyToManyManager,
     OneToOneField,
+    ReverseRelationDescriptor,
 )
 from openviper.db.utils import ClassProperty
 from openviper.exceptions import DoesNotExist, FieldError, MultipleObjectsReturned
@@ -129,6 +136,8 @@ class ModelMeta(type):
     # Secondary index: simple model name → list of registered classes.
     # Enables O(1) lookup in ForeignKey.resolve_target() instead of O(n) scan.
     _name_index: ClassVar[dict[str, list[type]]] = {}
+    # Pending FK reverse-relation wirings where the target wasn't yet registered.
+    _pending_reverse_wirings: ClassVar[list[tuple[type, str, ForeignKey]]] = []
 
     def __new__(
         mcs,
@@ -270,6 +279,37 @@ class ModelMeta(type):
             mcs.registry[registry_key] = cast("Any", cls)
             # Maintain simple-name index for O(1) resolve_target() lookups.
             mcs._name_index.setdefault(name, []).append(cast("Any", cls))
+
+            # Wire reverse accessors for FK fields with related_name on this model.
+            for field_name, field_obj in fields.items():
+                if not isinstance(field_obj, ForeignKey) or not field_obj.related_name:
+                    continue
+                target_cls = field_obj.resolve_target()
+                if target_cls is not None:
+                    setattr(
+                        target_cls,
+                        field_obj.related_name,
+                        ReverseRelationDescriptor(cast("Any", cls), field_name),
+                    )
+                else:
+                    mcs._pending_reverse_wirings.append(
+                        (cast("Any", cls), field_name, cast("Any", field_obj))
+                    )
+
+            # Attempt to resolve any previously-pending wirings now that this
+            # model is in the registry (it may be the target of an earlier FK).
+            still_pending: list[tuple[type, str, ForeignKey]] = []
+            for src_model, fk_fname, fk_field in mcs._pending_reverse_wirings:
+                resolved = fk_field.resolve_target()
+                if resolved is not None and fk_field.related_name is not None:
+                    setattr(
+                        resolved,
+                        fk_field.related_name,
+                        ReverseRelationDescriptor(src_model, fk_fname),
+                    )
+                else:
+                    still_pending.append((src_model, fk_fname, fk_field))
+            mcs._pending_reverse_wirings = still_pending
 
         return cls
 
@@ -831,8 +871,6 @@ class Manager:
     def _trigger_bulk_event(model_path: str, event_name: str, objs: list[Any]) -> None:
         """Fire a bulk lifecycle event (best-effort, exceptions suppressed)."""
         try:
-            from openviper.db.events import _dispatch_decorator_handlers, get_dispatcher
-
             dispatcher = get_dispatcher()
             if dispatcher is not None:
                 dispatcher.trigger(model_path, event_name, objs)
@@ -1733,14 +1771,77 @@ class QuerySet:
                 instance._set_related(field_name, None)
 
     async def _do_prefetch_related(self, instances: list[Model]) -> None:
-        """Batch-load prefetch_related FK fields and attach them to *instances*.
+        """Batch-load prefetch_related FK and M2M fields and attach them to *instances*.
 
         Collects all FK values from the main instances, groups by target model
         to deduplicate queries (e.g. multiple FKs to User become one query),
         issues queries in parallel via asyncio.gather, and sets the related
         objects as attributes on each instance.
+
+        ManyToManyField entries are handled separately: each M2M field issues
+        one query against the through table and stores a list of related objects
+        on each instance's relation cache so that ``instance.field.all()``
+        returns the cached list without a further database round-trip.
         """
-        # Phase 1: Collect metadata per field and group FK IDs by target model.
+        # ── Phase 1a: Batch-load M2M fields ──────────────────────────────────
+        for field_name in self._prefetch_related:
+            field = self._model._fields.get(field_name)
+            if not isinstance(field, ManyToManyField):
+                continue
+
+            descriptor = getattr(self._model, field_name, None)
+            if not isinstance(descriptor, ManyToManyDescriptor):
+                continue
+
+            source_pks = [inst.pk for inst in instances if inst.pk is not None]
+            if not source_pks:
+                for inst in instances:
+                    inst._set_related(field_name, [])
+                continue
+
+            try:
+                sample_mgr = descriptor.__get__(instances[0], type(instances[0]))
+            except Exception:
+                continue
+
+            if not isinstance(sample_mgr, ManyToManyManager):
+                continue
+
+            through_model = cast("Any", sample_mgr.through_model)
+            target_model = cast("Any", sample_mgr.target_model)
+            src_field = sample_mgr.source_field_name
+            tgt_field = sample_mgr.target_field_name
+
+            through_objs = await through_model.objects.filter(
+                **{f"{src_field}__in": source_pks}
+            ).all()
+
+            src_to_tgt_pks: dict[Any, list[Any]] = {pk: [] for pk in source_pks}
+            all_tgt_pks: list[Any] = []
+            for tobj in through_objs:
+                src_val = tobj.__dict__.get(f"{src_field}_id") or tobj.__dict__.get(src_field)
+                tgt_val = tobj.__dict__.get(f"{tgt_field}_id") or tobj.__dict__.get(tgt_field)
+                if isinstance(src_val, LazyFK):
+                    src_val = src_val.fk_id
+                if isinstance(tgt_val, LazyFK):
+                    tgt_val = tgt_val.fk_id
+                if src_val in src_to_tgt_pks and tgt_val is not None:
+                    src_to_tgt_pks[src_val].append(tgt_val)
+                    all_tgt_pks.append(tgt_val)
+
+            target_map: dict[Any, Any] = {}
+            if all_tgt_pks:
+                for tgt_obj in await target_model.objects.filter(id__in=all_tgt_pks).all():
+                    target_map[tgt_obj.pk] = tgt_obj
+
+            for inst in instances:
+                tgt_pks = src_to_tgt_pks.get(inst.pk, [])
+                inst._set_related(
+                    field_name,
+                    [target_map[pk] for pk in tgt_pks if pk in target_map],
+                )
+
+        # ── Phase 1b: Collect FK/O2O field metadata ─────────────────────────
         field_meta: list[tuple[str, Any, type, str]] = (
             []
         )  # (field_name, field, related_cls, fk_col)
@@ -2104,6 +2205,31 @@ class Model(metaclass=ModelMeta):
                 f"Validation failed for {self.__class__.__name__}: " + "; ".join(errors)
             )
 
+        # Check unique_together constraints before writing to the database
+        is_create = not getattr(self, "_persisted", False)
+        for ut_fields in getattr(self.__class__, "_meta_unique_together", []):
+            filter_kwargs: dict[str, Any] = {}
+            skip = False
+            for f_name in ut_fields:
+                field_def = self._fields.get(f_name)
+                col = field_def.column_name if field_def else f_name
+                raw = self.__dict__.get(col) if field_def else getattr(self, f_name, None)
+                if raw is None:
+                    skip = True
+                    break
+                filter_kwargs[col] = raw
+            if skip or not filter_kwargs:
+                continue
+            qs = self.__class__.objects.filter(**filter_kwargs)
+            if not is_create:
+                qs = qs.exclude(id=self.id)
+            if await qs.exists():
+                raise ValueError(
+                    f"Duplicate entry: a {self.__class__.__name__} with "
+                    + ", ".join(f"{k}={v!r}" for k, v in filter_kwargs.items())
+                    + " already exists."
+                )
+
     async def before_insert(self) -> None:
         """Called only on create, after validation but before the INSERT."""
 
@@ -2155,6 +2281,74 @@ class Model(metaclass=ModelMeta):
             else:
                 result[name] = getattr(self, name, None)
         return result
+
+    def as_dict(self, *, include_relations: bool = False) -> dict[str, Any]:
+        """Return a plain ``dict`` representation of this model instance.
+
+        All column fields are included.  ``ManyToManyField`` columns are
+        skipped (they have no DB column); set *include_relations* to
+        ``True`` to include any already-loaded related objects from the
+        relation cache as nested dicts.
+
+        Example::
+
+            user = await User.objects.get(id=1)
+            data = user.as_dict()
+            # {"id": 1, "username": "admin", "email": "admin@example.com", ...}
+        """
+        result: dict[str, Any] = {}
+        for name, field in self._fields.items():
+            if isinstance(field, ManyToManyField):
+                continue
+            if isinstance(field, ForeignKey):
+                raw = self.__dict__.get(field.column_name)
+                result[name] = raw.fk_id if isinstance(raw, LazyFK) else raw
+            else:
+                result[name] = getattr(self, name, None)
+
+        if include_relations and self._relation_cache:
+            for rel_name, rel_obj in self._relation_cache.items():
+                if rel_name in result:
+                    continue
+                if isinstance(rel_obj, Model):
+                    result[rel_name] = rel_obj.as_dict()
+                elif isinstance(rel_obj, list):
+                    result[rel_name] = [
+                        item.as_dict() if isinstance(item, Model) else item for item in rel_obj
+                    ]
+                else:
+                    result[rel_name] = rel_obj
+
+        return result
+
+    def as_json(self, *, include_relations: bool = False, indent: int | None = None) -> str:
+        """Return a JSON string representation of this model instance.
+
+        Non-serialisable types (``datetime``, ``date``, ``UUID``, ``Decimal``)
+        are automatically coerced to strings.  Pass *indent* for pretty-printing.
+
+        Example::
+
+            user = await User.objects.get(id=1)
+            print(user.as_json(indent=2))
+        """
+
+        def _default(obj: Any) -> Any:
+            if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+                return obj.isoformat()
+            if isinstance(obj, uuid.UUID):
+                return str(obj)
+            if isinstance(obj, decimal.Decimal):
+                return str(obj)
+            if isinstance(obj, LazyFK):
+                return obj.fk_id
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serialisable")
+
+        return json.dumps(
+            self.as_dict(include_relations=include_relations),
+            default=_default,
+            indent=indent,
+        )
 
     @classmethod
     def _from_row(cls: type[T], row: dict[str, Any]) -> T:
@@ -2272,11 +2466,6 @@ class Model(metaclass=ModelMeta):
             **kwargs:   Extra context forwarded verbatim to every handler.
         """
         try:
-            from openviper.db.events import (  # deferred; avoids circular import
-                _dispatch_decorator_handlers,
-                get_dispatcher,
-            )
-
             model_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
             dispatcher = get_dispatcher()
             if dispatcher is not None:

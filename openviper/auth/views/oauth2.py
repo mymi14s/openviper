@@ -12,20 +12,8 @@ Provides two extensible base classes:
   :class:`~openviper.auth.authentications.OAuth2Authentication` lifecycle
   events, and logs the user in.
 
-Both classes are designed to be subclassed.  Concrete provider implementations
-(e.g. :class:`GoogleOAuthInitView`) set provider-specific class attributes and
-override hook methods as needed.
-
-Example — minimal Google integration::
-
-    from openviper.auth.views.oauth2 import GoogleOAuthInitView, GoogleOAuthCallbackView
-
-    class MyGoogleInit(GoogleOAuthInitView):
-        login_redirect = "/dashboard"
-
-    class MyGoogleCallback(GoogleOAuthCallbackView):
-        login_redirect = "/dashboard"
-        error_redirect = "/accounts/login"
+Both classes are designed to be subclassed. Concrete provider implementations
+set provider-specific class attributes and override hook methods as needed.
 """
 
 from __future__ import annotations
@@ -66,19 +54,8 @@ else:
 class BaseOAuth2InitView(View):
     """Redirect the browser to an OAuth2 provider's authorisation endpoint.
 
-    Subclass and set the following class attributes:
-
-    .. code-block:: python
-
-        class MyProviderInitView(BaseOAuth2InitView):
-            provider          = "myprovider"
-            auth_url          = "https://provider.example/oauth2/auth"
-            scope             = "openid email profile"
-            client_id_setting    = "MYPROVIDER_OAUTH_CLIENT_ID"
-            redirect_uri_setting = "MYPROVIDER_OAUTH_REDIRECT_URI"
-            # Optional — path shown on misconfiguration error:
-            error_template    = "auth/login.html"
-            login_redirect    = "/"
+    Subclass and set ``provider``, ``auth_url``, ``scope``, ``client_id_setting``,
+    and ``redirect_uri_setting`` for the target provider.
     """
 
     permission_classes = [AllowAny]
@@ -159,30 +136,10 @@ class BaseOAuth2InitView(View):
 class BaseOAuth2CallbackView(View):
     """Handle the OAuth2 callback from a provider.
 
-    Subclass and set the following class attributes, then override
-    :meth:`extract_user_info` to map the provider's userinfo payload to the
-    ``(email, name, provider_user_id)`` triple used by the base class.
-
-    .. code-block:: python
-
-        class MyProviderCallbackView(BaseOAuth2CallbackView):
-            provider               = "myprovider"
-            token_url              = "https://provider.example/oauth2/token"
-            userinfo_url           = "https://provider.example/oauth2/userinfo"
-            client_id_setting      = "MYPROVIDER_OAUTH_CLIENT_ID"
-            client_secret_setting  = "MYPROVIDER_OAUTH_CLIENT_SECRET"
-            redirect_uri_setting   = "MYPROVIDER_OAUTH_REDIRECT_URI"
-            login_redirect         = "/dashboard"
-            error_redirect         = "/accounts/login"
-
-            def extract_user_info(
-                self, user_info: dict[str, Any]
-            ) -> tuple[str, str, str]:
-                return (
-                    user_info.get("email", ""),
-                    user_info.get("display_name", ""),
-                    user_info.get("id", ""),
-                )
+    Subclass and set ``provider``, ``token_url``, ``userinfo_url``,
+    ``client_id_setting``, ``client_secret_setting``, and
+    ``redirect_uri_setting``. Override :meth:`extract_user_info` to map
+    the provider's userinfo payload to ``(email, name, provider_user_id)``.
     """
 
     permission_classes = [AllowAny]
@@ -434,20 +391,14 @@ class BaseOAuth2CallbackView(View):
     ) -> RedirectResponse:
         """Finalise authentication after the user has been verified.
 
-        The default implementation establishes a **session** cookie via
-        :func:`~openviper.auth.backends.login`.
-
-        Override this method to use a different authentication scheme:
-
-        * **JWT** — issue access / refresh tokens and embed them in the response.
-        * **Opaque token** — issue a long-lived bearer token.
+        Establishes a session cookie via :func:`~openviper.auth.backends.login`.
+        Override to use a different authentication scheme.
 
         Args:
             request: The current HTTP request.
-            user: The authenticated (or newly created) user instance.
-            response: A :class:`~openviper.http.response.RedirectResponse`
-                pre-pointed at :attr:`login_redirect` with the state cookie
-                already cleared.  Modify it in-place and return it.
+            user: The authenticated or newly created user instance.
+            response: Redirect response pre-pointed at :attr:`login_redirect`
+                with the state cookie cleared. Modify in-place and return.
 
         Returns:
             The (optionally modified) redirect response.
@@ -461,15 +412,6 @@ class GoogleOAuthInitView(BaseOAuth2InitView):
 
     Reads ``GOOGLE_OAUTH_CLIENT_ID`` and ``GOOGLE_OAUTH_REDIRECT_URI`` from
     project settings.
-
-    Override :attr:`login_redirect` or :attr:`error_template` to customise
-    post-auth behaviour:
-
-    .. code-block:: python
-
-        class MyGoogleInit(GoogleOAuthInitView):
-            login_redirect = "/dashboard"
-            error_template = "accounts/login.html"
     """
 
     provider = "google"
@@ -487,21 +429,6 @@ class GoogleOAuthCallbackView(BaseOAuth2CallbackView):
 
     Reads ``GOOGLE_OAUTH_CLIENT_ID``, ``GOOGLE_OAUTH_CLIENT_SECRET``, and
     ``GOOGLE_OAUTH_REDIRECT_URI`` from project settings.
-
-    Override :attr:`login_redirect` / :attr:`error_redirect` or
-    :meth:`get_or_create_user` for custom post-auth behaviour:
-
-    .. code-block:: python
-
-        class MyGoogleCallback(GoogleOAuthCallbackView):
-            login_redirect = "/dashboard"
-            error_redirect = "/accounts/login"
-
-            async def get_or_create_user(self, email, name, provider_user_id):
-                user, created = await super().get_or_create_user(email, name, provider_user_id)
-                if created:
-                    await assign_default_role(user)
-                return user, created
     """
 
     provider = "google"
@@ -529,15 +456,7 @@ google_oauth_routes: list[tuple[str, object, list[str]]] = [
     ("/auth/google", GoogleOAuthInitView.as_view(), ["GET"]),
     ("/auth/google/callback", GoogleOAuthCallbackView.as_view(), ["GET"]),
 ]
-"""Pre-built route tuples for Google OAuth2 login.
-
-Mount these on your application router::
-
-    from openviper.auth.views.oauth2 import google_oauth_routes
-
-    for path, handler, methods in google_oauth_routes:
-        router.add(path, handler, methods=methods)
-"""
+"""Pre-built route tuples for Google OAuth2 login."""
 
 __all__ = [
     "BaseOAuth2InitView",

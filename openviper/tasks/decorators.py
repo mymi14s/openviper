@@ -32,8 +32,6 @@ from typing import Any
 
 import dramatiq
 
-# Use module-level import rather than `from ... import get_broker` to avoid
-# a circular import: broker -> middleware -> scheduler -> decorators -> broker.
 import openviper.tasks.broker as _broker_module
 
 logger = logging.getLogger("openviper.tasks")
@@ -72,8 +70,6 @@ def task(
     """
 
     def decorator(fn: Callable[..., Any]) -> Any:
-        # Ensure the broker (and its middleware) are initialised before the
-        # actor is registered — safe to call multiple times.
         _broker_module.get_broker()
 
         resolved_name = actor_name if actor_name is not None else fn.__name__

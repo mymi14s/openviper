@@ -94,17 +94,14 @@ def get_broker() -> Any:
     lock release and the ``return`` statement.
     """
     global _broker
-    # Fast path: take a local snapshot (CPython GIL makes the ref-read atomic).
     broker = _broker
     if broker is not None:
         return broker
     with _broker_lock:
-        # Re-read inside the lock; another thread may have won the race.
         broker = _broker
         if broker is None:
             broker = _create_broker()
             _broker = broker  # write inside the lock
-    # Return the local variable — never re-read the global after lock release.
     return broker
 
 
@@ -149,12 +146,8 @@ def _create_broker() -> Any:
             f"Unknown TASKS broker {backend!r}. Valid choices: 'redis', 'rabbitmq', 'stub'."
         )
 
-    # AsyncIO middleware — enables `async def` actor functions.
     broker.add_middleware(AsyncIO())
 
-    # Result-tracking middleware — records every task lifecycle event to the
-    # database so callers can poll for completion / inspect failures.
-    # Enable with TASKS["tracking_enabled"] = 1 or True.
     if bool(cfg.get("tracking_enabled", False)):
         if TaskTrackingMiddleware is not None:
             try:

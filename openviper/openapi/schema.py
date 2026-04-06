@@ -563,6 +563,7 @@ def generate_openapi_schema(
         routes: All registered Route objects.
         title: API title.
         description: API description.
+        version: API version string included in the ``info`` block.
 
     Returns:
         OpenAPI 3.1.0 document as a dict.

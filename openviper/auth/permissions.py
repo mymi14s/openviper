@@ -27,7 +27,7 @@ _checker_registered = False
 
 
 async def check_permission_for_model(
-    model_cls, action: str, ignore_permissions: bool = False
+    model_cls: type, action: str, ignore_permissions: bool = False
 ) -> None:
     """Check if the current request user is authorized to perform an action.
 

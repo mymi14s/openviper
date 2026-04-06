@@ -17,6 +17,11 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+try:
+    import openviper.conf as _conf_module
+except Exception:
+    _conf_module = None  # type: ignore[assignment]
+
 _LOGGING_CONFIGURED = False
 _LOGGING_LOCK = threading.Lock()
 
@@ -162,16 +167,15 @@ def configure_worker_logging_from_settings() -> Path:
     log_to_file: bool = False
 
     try:
-        from openviper.conf import settings
-
-        task_settings: dict[str, Any] = getattr(settings, "TASKS", {}) or {}
+        _settings = getattr(_conf_module, "settings", None)
+        task_settings: dict[str, Any] = getattr(_settings, "TASKS", {}) or {}
         log_level = task_settings.get(
             "log_level",
-            task_settings.get("LOG_LEVEL", getattr(settings, "LOG_LEVEL", "INFO")),
+            task_settings.get("LOG_LEVEL", getattr(_settings, "LOG_LEVEL", "INFO")),
         )
         log_format = task_settings.get(
             "log_format",
-            task_settings.get("LOG_FORMAT", getattr(settings, "LOG_FORMAT", "text")),
+            task_settings.get("LOG_FORMAT", getattr(_settings, "LOG_FORMAT", "text")),
         )
         log_dir = task_settings.get("log_dir") or task_settings.get("LOG_DIR")
         log_to_file = bool(task_settings.get("log_to_file", False))

@@ -135,22 +135,9 @@ def _create_engine(url: str, echo: bool = False) -> AsyncEngine:
     is_memory = ":memory:" in async_url
 
     if is_memory:
-        # In-memory SQLite: static pool so the same connection is reused across
-        # coroutines (no cross-thread sharing needed for aiosqlite).
         kwargs["connect_args"] = {"check_same_thread": False}
         kwargs["poolclass"] = StaticPool
     else:
-        # ── High-throughput pool configuration ──
-        # Pattern used by Twitter/X and Google-scale services:
-        # 1. Keep a warm pool of persistent connections (pool_size).
-        # 2. Allow controlled burst to max_overflow during traffic spikes.
-        # 3. Aggressively recycle stale connections to avoid server-side
-        #    timeouts (DATABASE_POOL_RECYCLE).
-        # 4. Use pool_pre_ping to detect dead connections early — avoids
-        #    retry storms after network blips.
-        # 5. Use LIFO queue strategy so recently-used connections are
-        #    reissued first, keeping the hot set small under low load
-        #    while allowing burst capacity under high load.
         kwargs["pool_pre_ping"] = True
         kwargs["pool_use_lifo"] = True
         kwargs["pool_size"] = _validate_pool_config(
@@ -182,10 +169,6 @@ def _create_engine(url: str, echo: bool = False) -> AsyncEngine:
             default=10,
         )
 
-        # ── PostgreSQL / asyncpg specific tuning ──
-        # asyncpg maintains its own prepared-statement cache; disable SA's
-        # implicit caching (which duplicates the effort) and let asyncpg
-        # handle it at the protocol level for ~15-30% throughput gain.
         if "asyncpg" in async_url:
             kwargs.setdefault("connect_args", {})
             kwargs["connect_args"]["prepared_statement_cache_size"] = _validate_pool_config(
@@ -202,7 +185,6 @@ def _create_engine(url: str, echo: bool = False) -> AsyncEngine:
         **kwargs,
     )
 
-    # Enable foreign-key enforcement for SQLite (off by default in SQLite).
     if "sqlite" in async_url:
 
         @sa.event.listens_for(engine.sync_engine, "connect")

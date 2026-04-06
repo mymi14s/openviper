@@ -1,17 +1,8 @@
 """OpenViper static files serving.
 
-Usage in routes.py::
-
-    from openviper.staticfiles import static
-
-    route_paths = [
-        ("/", router),
-        ("/admin", get_admin_site()),
-    ] + static()
-
-When ``static()`` is called, the framework automatically wraps the ASGI app
-in ``StaticFilesMiddleware`` for ``DEBUG=True`` (development).  In production
-(``DEBUG=False``) no static serving is configured here — use nginx or a CDN.
+Exposes ``static()`` and ``media()`` registration helpers that signal the
+framework to attach ``StaticFilesMiddleware`` when ``DEBUG=True``.
+In production (``DEBUG=False``), no static or media serving is configured here.
 """
 
 from typing import Any
@@ -24,20 +15,10 @@ _media_serving_enabled: bool = False
 
 
 def static() -> list[Any]:
-    """Enable framework static file serving in DEBUG mode.
+    """Signal the framework to enable static file serving in DEBUG mode.
 
-    Call this in your ``route_paths`` (or anywhere at import time) to signal
-    the framework that it should serve ``/static/**`` automatically when
-    ``settings.DEBUG`` is ``True``.
-
-    Returns an empty list so it can safely be appended to ``route_paths``::
-
-        route_paths = [
-            ("/", router),
-        ] + static()
-
-    In production (``DEBUG=False``) this is a no-op — static files should be
-    served by an external reverse proxy such as nginx.
+    Sets ``_static_serving_enabled``.  Returns an empty list so it can be
+    concatenated to ``route_paths`` without error.  No-op when ``DEBUG=False``.
     """
     global _static_serving_enabled
     _static_serving_enabled = True
@@ -50,17 +31,10 @@ def is_static_enabled() -> bool:
 
 
 def media() -> list[Any]:
-    """Enable framework media file serving in DEBUG mode.
+    """Signal the framework to enable media file serving in DEBUG mode.
 
-    Call this in your ``route_paths`` to serve user-uploaded files at
-    ``MEDIA_URL`` from ``MEDIA_ROOT`` when ``settings.DEBUG`` is ``True``::
-
-        route_paths = [
-            ("/", router),
-        ] + static() + media()
-
-    In production (``DEBUG=False``) this is a no-op — media files should be
-    served by nginx directly from the media volume.
+    Sets ``_media_serving_enabled``.  Returns an empty list so it can be
+    concatenated to ``route_paths`` without error.  No-op when ``DEBUG=False``.
     """
     global _media_serving_enabled
     _media_serving_enabled = True

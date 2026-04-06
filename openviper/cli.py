@@ -145,9 +145,7 @@ app = OpenViper()
 _ROUTES_TEMPLATE = '''\
 """Top-level routes for {project_name}."""
 
-from openviper.conf import settings
 from openviper.admin import get_admin_site
-from openviper.staticfiles import media, static
 
 from {project_name}.views import router as root_router
 
@@ -155,10 +153,6 @@ route_paths = [
     ("/admin", get_admin_site()),
     ("/root", root_router)
 ]
-
-# to force static files serving in production, not recommended
-if not settings.DEBUG:
-    route_paths += static() + media()
 '''
 
 _VIEWS_TEMPLATE = '''

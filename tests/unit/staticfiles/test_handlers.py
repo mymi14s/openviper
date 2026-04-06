@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import email.utils
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,6 +13,7 @@ from openviper.staticfiles.handlers import (
     NotModifiedResponse,
     StaticFilesMiddleware,
     _discover_app_static_dirs,
+    _parse_range,
     collect_static,
 )
 
@@ -605,3 +607,180 @@ class TestCollectStaticCopyTreeSkipsDirs:
         # Only the file was copied, not the directory
         assert (dest / "script.js").exists()
         assert not (dest / "subdir").is_file()
+
+
+# ---------------------------------------------------------------------------
+# _parse_range — unit tests
+# ---------------------------------------------------------------------------
+
+
+class TestParseRange:
+    def test_explicit_range_returns_offsets(self) -> None:
+        assert _parse_range(b"bytes=0-499", 1000) == (0, 499)
+
+    def test_explicit_range_clamps_end_to_file_size(self) -> None:
+        assert _parse_range(b"bytes=0-9999", 100) == (0, 99)
+
+    def test_open_ended_range(self) -> None:
+        assert _parse_range(b"bytes=500-", 1000) == (500, 999)
+
+    def test_suffix_range(self) -> None:
+        assert _parse_range(b"bytes=-200", 1000) == (800, 999)
+
+    def test_suffix_larger_than_file_returns_full(self) -> None:
+        assert _parse_range(b"bytes=-9999", 100) == (0, 99)
+
+    def test_multi_range_returns_ignore(self) -> None:
+        assert _parse_range(b"bytes=0-99,200-299", 1000) == "ignore"
+
+    def test_non_bytes_unit_returns_ignore(self) -> None:
+        assert _parse_range(b"items=0-99", 1000) == "ignore"
+
+    def test_start_beyond_eof_is_unsatisfiable(self) -> None:
+        assert _parse_range(b"bytes=1000-1999", 1000) == "unsatisfiable"
+
+    def test_start_greater_than_end_is_unsatisfiable(self) -> None:
+        assert _parse_range(b"bytes=500-100", 1000) == "unsatisfiable"
+
+    def test_empty_file_suffix_range_is_unsatisfiable(self) -> None:
+        assert _parse_range(b"bytes=-100", 0) == "unsatisfiable"
+
+    def test_open_ended_at_eof_is_unsatisfiable(self) -> None:
+        assert _parse_range(b"bytes=1000-", 1000) == "unsatisfiable"
+
+    def test_garbage_value_returns_ignore(self) -> None:
+        assert _parse_range(b"not-a-range", 1000) == "ignore"
+
+    def test_invalid_ascii_returns_ignore(self) -> None:
+        assert _parse_range(b"\xff\xfe", 1000) == "ignore"
+
+    def test_zero_suffix_returns_ignore(self) -> None:
+        assert _parse_range(b"bytes=-0", 1000) == "ignore"
+
+
+# ---------------------------------------------------------------------------
+# Range requests — integration with StaticFilesMiddleware
+# ---------------------------------------------------------------------------
+
+
+class TestRangeRequests:
+    @pytest.mark.asyncio
+    async def test_range_returns_206(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=0-4"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        assert send.call_args_list[0][0][0]["status"] == 206
+
+    @pytest.mark.asyncio
+    async def test_range_body_contains_correct_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=2-4"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        body = b"".join(c[0][0]["body"] for c in send.call_args_list[1:] if "body" in c[0][0])
+        assert body == b"234"
+
+    @pytest.mark.asyncio
+    async def test_range_unsatisfiable_returns_416(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=9999-"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        assert send.call_args_list[0][0][0]["status"] == 416
+
+    @pytest.mark.asyncio
+    async def test_range_content_range_header(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=0-4"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        hdrs = _start_headers(send)
+        assert hdrs[b"content-range"] == b"bytes 0-4/10"
+
+    @pytest.mark.asyncio
+    async def test_range_content_length_is_partial(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=0-4"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        assert _start_headers(send)[b"content-length"] == b"5"
+
+    @pytest.mark.asyncio
+    async def test_if_range_mismatch_serves_full_200(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=0-4"], [b"if-range", b'"stale-etag"']]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        assert send.call_args_list[0][0][0]["status"] == 200
+
+    @pytest.mark.asyncio
+    async def test_multi_range_falls_back_to_200(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=0-1,3-4"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        assert send.call_args_list[0][0][0]["status"] == 200
+
+    @pytest.mark.asyncio
+    async def test_416_includes_content_range_wildcard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "data.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=9999-"]]
+            await mw(_make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
+        hdrs = _start_headers(send)
+        assert hdrs[b"content-range"] == b"bytes */10"
+
+
+# ---------------------------------------------------------------------------
+# Last-Modified header
+# ---------------------------------------------------------------------------
+
+
+class TestLastModifiedHeader:
+    @pytest.mark.asyncio
+    async def test_last_modified_present_in_200_response(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "f.js").write_bytes(b"x")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            await mw(_make_scope(path="/static/f.js"), AsyncMock(), send)
+        assert b"last-modified" in _start_headers(send)
+
+    @pytest.mark.asyncio
+    async def test_last_modified_present_in_206_response(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "f.bin").write_bytes(b"0123456789")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            headers = [[b"range", b"bytes=0-4"]]
+            await mw(_make_scope(path="/static/f.bin", headers=headers), AsyncMock(), send)
+        assert b"last-modified" in _start_headers(send)
+
+    @pytest.mark.asyncio
+    async def test_last_modified_format_is_rfc_1123(self) -> None:
+        """Last-Modified value must be a valid RFC 1123 / HTTP-date string."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "f.js").write_bytes(b"x")
+            mw = StaticFilesMiddleware(AsyncMock(), directories=[tmpdir])
+            send = AsyncMock()
+            await mw(_make_scope(path="/static/f.js"), AsyncMock(), send)
+        raw = _start_headers(send)[b"last-modified"].decode()
+        parsed = email.utils.parsedate(raw)
+        assert parsed is not None

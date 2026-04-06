@@ -324,8 +324,8 @@ class TestFormatColumnsExtended:
             class Meta:
                 table_name = "fk_model"
 
-        res = _format_columns(FKModel)
-        assert "'on_delete'" in res
+        with pytest.raises(MigrationError, match="Cannot serialize ForeignKey"):
+            _format_columns(FKModel)
 
 
 class TestFormatOperationExtended:

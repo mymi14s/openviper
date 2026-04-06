@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
+import { useAlertsStore } from '@/stores/alerts'
 import { valuesEqual } from '@/utils/compare'
 import FormBuilder from '@/components/FormBuilder.vue'
 import ChildTable from '@/components/ChildTable.vue'
@@ -14,6 +15,7 @@ const props = defineProps<{
 
 const router = useRouter()
 const adminStore = useAdminStore()
+const alertsStore = useAlertsStore()
 
 const formData = ref<Record<string, any>>({})
 const originalData = ref<Record<string, any>>({})
@@ -39,13 +41,11 @@ onMounted(async () => {
 watch(model, (newModel) => {
   if (!newModel) return
   const initial: Record<string, any> = {}
-  // Initialize default values for fields
   for (const field of newModel.fields) {
     if (field.default !== undefined) {
       initial[field.name] = field.default
     }
   }
-  // Initialize child table arrays
   for (const ct of newModel.child_tables ?? []) {
     initial[ct.name] = []
   }
@@ -67,15 +67,30 @@ async function handleSubmit() {
     if (instance) {
       router.push(`/${props.appLabel}/${props.modelName}/${instance.id}`)
     } else if (adminStore.error) {
-      // Parse field errors if available
-      errors.value = { __all__: adminStore.error }
+      alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
     }
   } catch (err: any) {
-    const responseErrors = err.response?.data?.errors
-    if (responseErrors) {
-      errors.value = responseErrors
+    if (err.response?.status === 409 && err.response?.data?.existing_id != null) {
+      const data = err.response.data
+      const appLabel = data.app_label ?? props.appLabel
+      const modelName = data.model_name ?? props.modelName
+      alertsStore.show({
+        type: 'warning',
+        title: 'Record Already Exists',
+        message: `A ${modelName} record with that data already exists (ID: ${data.existing_id}).`,
+        action: {
+          label: `View ${modelName} #${data.existing_id}`,
+          to: `/${appLabel}/${modelName}/${data.existing_id}`,
+        },
+      })
     } else {
-      errors.value = { __all__: 'An error occurred while saving.' }
+      const responseErrors = err.response?.data?.errors
+      if (responseErrors && Object.keys(responseErrors).some((k) => k !== '__all__')) {
+        errors.value = responseErrors
+      } else {
+        const msg = responseErrors?.__all__ || err.response?.data?.detail || 'An error occurred while saving.'
+        alertsStore.show({ type: 'error', title: 'Save Failed', message: msg })
+      }
     }
   } finally {
     saving.value = false
@@ -117,11 +132,6 @@ function handleCancel() {
     <div v-else-if="model" class="max-w-5xl mx-auto">
       <div class="w-full lg:w-[70%] mx-auto space-y-6">
         <form @submit.prevent="handleSubmit" novalidate>
-          <!-- Global error -->
-          <div v-if="errors.__all__" class="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-            <p class="text-sm text-red-600 dark:text-red-400">{{ errors.__all__ }}</p>
-          </div>
-
           <div class="card p-6">
             <FormBuilder
               :model="model"

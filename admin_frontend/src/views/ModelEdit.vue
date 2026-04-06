@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
+import { useAlertsStore } from '@/stores/alerts'
 import { valuesEqual } from '@/utils/compare'
 import FormBuilder from '@/components/FormBuilder.vue'
 import UserPasswordModal from '@/components/UserPasswordModal.vue'
@@ -20,6 +21,7 @@ const props = defineProps<{
 
 const router = useRouter()
 const adminStore = useAdminStore()
+const alertsStore = useAlertsStore()
 
 const formData = ref<Record<string, any>>({})
 const originalData = ref<Record<string, any>>({})
@@ -60,6 +62,7 @@ const loading = ref(false)
 
 const canChange = computed(() => model.value?.permissions?.change ?? true)
 const canDelete = computed(() => model.value?.permissions?.delete ?? true)
+const canAdd = computed(() => model.value?.permissions?.add ?? true)
 
 // Check if this is a User model
 const isUserModel = computed(() => {
@@ -145,17 +148,17 @@ async function handleSubmit() {
       sidebarRef.value?.fetchHistory()
       scrollToFormTop()
     } else if (adminStore.error) {
-      errors.value = { __all__: adminStore.error }
-      scrollToFirstError(errors.value)
+      alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
     }
   } catch (err: any) {
     const responseErrors = err.response?.data?.errors
-    if (responseErrors) {
+    if (responseErrors && Object.keys(responseErrors).some((k) => k !== '__all__')) {
       errors.value = responseErrors
+      scrollToFirstError(errors.value)
     } else {
-      errors.value = { __all__: 'An error occurred while saving.' }
+      const msg = responseErrors?.__all__ || err.response?.data?.detail || 'An error occurred while saving.'
+      alertsStore.show({ type: 'error', title: 'Save Failed', message: msg })
     }
-    scrollToFirstError(errors.value)
   } finally {
     saving.value = false
   }
@@ -170,6 +173,8 @@ async function handleDelete() {
 
   if (success) {
     router.push(`/${props.appLabel}/${props.modelName}`)
+  } else if (adminStore.error) {
+    alertsStore.show({ type: 'error', title: 'Delete Failed', message: adminStore.error })
   }
   showDeleteConfirm.value = false
 }
@@ -180,6 +185,10 @@ function handleCancel() {
 
 function goToHistory() {
   router.push(`/${props.appLabel}/${props.modelName}/${props.id}/history`)
+}
+
+function handleAdd() {
+  router.push(`/${props.appLabel}/${props.modelName}/add`)
 }
 </script>
 
@@ -202,6 +211,17 @@ function goToHistory() {
         </h1>
       </div>
       <div class="flex items-center flex-wrap gap-2">
+        <button
+          v-if="canAdd"
+          class="btn btn-secondary text-sm flex items-center gap-1"
+          title="Add new record"
+          @click="handleAdd"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Add
+        </button>
         <button
           v-if="isUserModel && canChange"
           class="btn btn-secondary text-sm"

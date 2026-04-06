@@ -483,3 +483,165 @@ def test_candidate_routes_triggers_lazy_index_build():
     list(router._candidate_routes("/resource/99"))
     # After the call, index was built
     assert router._index is not None
+
+
+# ── Exact index: multi-method fast-path ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_exact_index_resolves_all_methods_on_same_literal_path():
+    """GET and POST registered on the same literal path must both resolve via the fast path."""
+    router = Router()
+
+    @router.get("/items")
+    async def list_items(request):
+        pass
+
+    @router.post("/items")
+    async def create_item(request):
+        pass
+
+    get_route, _ = router.resolve("GET", "/items")
+    post_route, _ = router.resolve("POST", "/items")
+
+    assert get_route.handler == list_items
+    assert post_route.handler == create_item
+
+
+@pytest.mark.asyncio
+async def test_exact_index_method_not_allowed_on_literal_path():
+    """MethodNotAllowed on a multi-method literal path lists all registered methods."""
+    router = Router()
+
+    @router.get("/things")
+    async def list_things(request):
+        pass
+
+    @router.post("/things")
+    async def create_thing(request):
+        pass
+
+    with pytest.raises(MethodNotAllowed) as exc:
+        router.resolve("DELETE", "/things")
+
+    allowed = exc.value.headers["Allow"]
+    assert "GET" in allowed
+    assert "POST" in allowed
+
+
+# ── include() tag propagation ─────────────────────────────────────────────────
+
+
+def test_include_propagates_tags():
+    """include() must copy the source router's tags onto the wrapper router."""
+    child = Router(prefix="/v1", tags=["v1"])
+
+    @child.get("/ping")
+    async def ping(request):
+        pass
+
+    wrapped = include(child, prefix="/api")
+    assert wrapped.tags == ["v1"]
+
+
+def test_include_no_prefix_returns_original_router():
+    """include() with no prefix must return the original router unchanged."""
+    child = Router(prefix="/child", tags=["original"])
+    result = include(child)
+    assert result is child
+    assert result.tags == ["original"]
+
+
+# ── Namespace support ─────────────────────────────────────────────────────────
+
+
+def test_router_namespace_prefixes_route_names():
+    """Routes in a namespaced sub-router are accessible via \"namespace:name\"."""
+    root = Router(prefix="/api")
+    users = Router(prefix="/users", namespace="users")
+
+    @users.get("/me", name="me")
+    async def me(request):
+        pass
+
+    root.include_router(users)
+
+    assert root.url_for("users:me") == "/api/users/me"
+
+
+def test_router_namespace_via_include_router_kwarg():
+    """namespace kwarg on include_router() sets the sub-router's namespace."""
+    root = Router()
+    sub = Router(prefix="/items")
+
+    @sub.get("/{id:int}", name="detail")
+    async def detail(request, id):
+        pass
+
+    root.include_router(sub, namespace="shop")
+
+    assert root.url_for("shop:detail") == "/items/{id:int}"
+
+
+def test_router_namespace_via_include_helper():
+    """namespace kwarg on include() helper is propagated."""
+    child = Router(prefix="/orders")
+
+    @child.get("/", name="list")
+    async def list_orders(request):
+        pass
+
+    root = Router()
+    root.include_router(include(child, namespace="orders"))
+
+    assert root.url_for("orders:list") == "/orders/"
+
+
+def test_namespaced_url_for_with_path_params():
+    """url_for on a namespaced route fills path parameter placeholders."""
+    root = Router()
+    posts = Router(prefix="/posts", namespace="blog")
+
+    @posts.get("/{slug:slug}", name="detail")
+    async def detail(request, slug):
+        pass
+
+    root.include_router(posts)
+
+    assert root.url_for("blog:detail", slug="hello") == "/posts/hello"
+
+
+def test_nested_namespace_chains():
+    """Nested namespaced routers produce \"outer:inner:name\" route names."""
+    root = Router()
+    v1 = Router(prefix="/v1", namespace="v1")
+    articles = Router(prefix="/articles", namespace="articles")
+
+    @articles.get("/", name="list")
+    async def list_articles(request):
+        pass
+
+    v1.include_router(articles)
+    root.include_router(v1)
+
+    assert root.url_for("v1:articles:list") == "/v1/articles/"
+
+
+def test_non_namespaced_routes_unaffected():
+    """Routes registered without a namespace remain accessible by bare name."""
+    root = Router()
+
+    @root.get("/health", name="health")
+    async def health(request):
+        pass
+
+    namespaced = Router(prefix="/users", namespace="users")
+
+    @namespaced.get("/", name="list")
+    async def list_users(request):
+        pass
+
+    root.include_router(namespaced)
+
+    assert root.url_for("health") == "/health"
+    assert root.url_for("users:list") == "/users/"

@@ -50,8 +50,6 @@ class CountryField(CharField):
             country = CountryField(null=True, db_index=True)
     """
 
-    _column_type = "CHAR"
-
     def __init__(
         self,
         extra_countries: _EXTRA_COUNTRIES_TYPE = (),
@@ -60,6 +58,7 @@ class CountryField(CharField):
     ) -> None:
         kwargs.setdefault("max_length", 2)
         super().__init__(**kwargs)
+        self._column_type = f"CHAR({self.max_length})"
         self.extra_countries: _EXTRA_COUNTRIES_TYPE = extra_countries
         self.strict: bool = strict
         self._valid_codes: frozenset[str] = self._build_valid_codes()

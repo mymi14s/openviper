@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from openviper.admin.decorators import register
 from openviper.admin.options import ChildTable, ModelAdmin
 from openviper.auth.models import (
@@ -11,6 +15,10 @@ from openviper.auth.models import (
     User,
     UserRole,
 )
+
+if TYPE_CHECKING:
+    from openviper.db.models import Model
+    from openviper.http.request import Request
 
 
 class UserRoleInline(ChildTable):
@@ -43,7 +51,9 @@ class UserAdmin(ModelAdmin):
     list_filter = ["is_active", "is_staff", "is_superuser"]
     child_tables = [UserRoleInline]
 
-    def get_sensitive_fields(self, request=None, obj=None):
+    def get_sensitive_fields(
+        self, request: Request | None = None, obj: Model | None = None
+    ) -> list[str]:
         return super().get_sensitive_fields(request, obj) + ["password"]
 
 
@@ -66,11 +76,11 @@ class ContentTypeAdmin(ModelAdmin):
     search_fields = ["app_label", "model"]
     child_tables = [ContentTypePermissionInline]
 
-    def has_add_permission(self, request=None):
-        return
+    def has_add_permission(self, request: object = None) -> bool:
+        return False
 
-    def has_delete_permission(self, request=None, obj=None):
-        return
+    def has_delete_permission(self, request: object = None, obj: object = None) -> bool:
+        return False
 
 
 @register(Permission)

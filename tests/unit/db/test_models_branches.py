@@ -168,8 +168,8 @@ async def test_bulk_update_ignore_permissions_executes():
 def test_trigger_bulk_event_with_dispatcher():
     mock_dispatcher = MagicMock()
     with (
-        patch("openviper.db.events.get_dispatcher", return_value=mock_dispatcher),
-        patch("openviper.db.events._dispatch_decorator_handlers"),
+        patch("openviper.db.models.get_dispatcher", return_value=mock_dispatcher),
+        patch("openviper.db.models._dispatch_decorator_handlers"),
     ):
         BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
     mock_dispatcher.trigger.assert_called_once()
@@ -177,15 +177,15 @@ def test_trigger_bulk_event_with_dispatcher():
 
 def test_trigger_bulk_event_without_dispatcher():
     with (
-        patch("openviper.db.events.get_dispatcher", return_value=None),
-        patch("openviper.db.events._dispatch_decorator_handlers") as mock_dec,
+        patch("openviper.db.models.get_dispatcher", return_value=None),
+        patch("openviper.db.models._dispatch_decorator_handlers") as mock_dec,
     ):
         BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
     mock_dec.assert_called_once()
 
 
 def test_trigger_bulk_event_exception_suppressed():
-    with patch("openviper.db.events.get_dispatcher", side_effect=RuntimeError("boom")):
+    with patch("openviper.db.models.get_dispatcher", side_effect=RuntimeError("boom")):
         BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
 
 

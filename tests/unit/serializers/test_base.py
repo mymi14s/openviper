@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from openviper.db import fields
+from openviper.db.fields import ForeignKey
 from openviper.db.models import Model
 from openviper.exceptions import ValidationError
 from openviper.serializers.base import (
@@ -43,6 +44,26 @@ class FakePostSerializer(ModelSerializer):
     class Meta:
         model = FakePost
         fields = "__all__"
+
+
+class FakeAuthor(Model):
+    class Meta:
+        table_name = "fake_authors"
+
+    username = fields.CharField(max_length=100)
+
+
+class FakeComment(Model):
+    class Meta:
+        table_name = "fake_comments"
+
+    author = ForeignKey(FakeAuthor)
+    body = fields.TextField()
+
+
+class FakeCommentSerializer(Serializer):
+    author: int
+    body: str
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
@@ -98,6 +119,33 @@ class TestSerializerFromOrm:
         s = FakePostSerializer.from_orm(post)
         assert s.title == "Hello"  # type: ignore
         assert s.body == "World"  # type: ignore
+
+
+class TestSerializerFromOrmForeignKey:
+    def test_fk_field_resolves_to_raw_id(self) -> None:
+        comment = FakeComment(body="Nice post")
+        comment.__dict__["author_id"] = 7
+        s = FakeCommentSerializer.from_orm(comment)
+        assert s.author == 7
+
+    def test_fk_field_with_model_instance_resolves_to_id(self) -> None:
+        author = FakeAuthor(username="alice")
+        author.__dict__["id"] = 3
+        comment = FakeComment(body="Hello")
+        comment.author = author
+        s = FakeCommentSerializer.from_orm(comment)
+        assert s.author == 3
+
+    def test_fk_field_null_resolves_to_none(self) -> None:
+        comment = FakeComment(body="Orphan")
+        comment.__dict__["author_id"] = None
+
+        class NullableFKSerializer(Serializer):
+            author: int | None
+            body: str
+
+        s = NullableFKSerializer.from_orm(comment)
+        assert s.author is None
 
 
 class TestSerializerFromOrmMany:

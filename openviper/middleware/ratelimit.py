@@ -168,6 +168,9 @@ class RateLimitMiddleware(BaseMiddleware):
 
     __slots__ = ("max_requests", "window_seconds", "counter", "_key_func")
 
+    _BY_USER = "user"
+    _BY_PATH = "path"
+
     def __init__(
         self,
         app: Any,
@@ -192,7 +195,16 @@ class RateLimitMiddleware(BaseMiddleware):
         backend = getattr(settings, "RATE_LIMIT_BACKEND", "memory")
         if backend == "redis":
             self.counter = _RedisWindowCounter(self.max_requests, self.window_seconds)
-        self._key_func = key_func or self._default_key
+        if key_func is not None:
+            self._key_func = key_func
+        else:
+            by = getattr(settings, "RATE_LIMIT_BY", "ip")
+            if by == "user":
+                self._key_func = RateLimitMiddleware._user_key
+            elif by == "path":
+                self._key_func = RateLimitMiddleware._path_key
+            else:
+                self._key_func = RateLimitMiddleware._default_key
 
     @staticmethod
     def _default_key(scope: dict[str, Any]) -> str:
@@ -206,15 +218,28 @@ class RateLimitMiddleware(BaseMiddleware):
         client = scope.get("client")
         if client:
             return cast("str", client[0])
-        # Fallback: X-Forwarded-For (only when no direct client info).
-        # WARNING: This header is trivially spoofable. Only trust it if
-        # the ASGI server is behind a known reverse proxy.
         for name, value in scope.get("headers", []):
             if name == b"x-forwarded-for":
                 forwarded_for = value.decode("latin-1")
                 if forwarded_for:
                     return str(forwarded_for.split(",")[0].strip())
         return "unknown"
+
+    @staticmethod
+    def _user_key(scope: dict[str, Any]) -> str:
+        """Key = authenticated user PK, falling back to IP for anonymous requests."""
+        user = scope.get("user")
+        if user is not None and not getattr(user, "is_anonymous", True):
+            uid = getattr(user, "pk", None) or getattr(user, "id", None) or str(user)
+            return f"user:{uid}"
+        return RateLimitMiddleware._default_key(scope)
+
+    @staticmethod
+    def _path_key(scope: dict[str, Any]) -> str:
+        """Key = (client IP, request path) — rate limits each endpoint independently."""
+        ip = RateLimitMiddleware._default_key(scope)
+        path = scope.get("path", "/")
+        return f"path:{ip}:{path}"
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http":
@@ -225,6 +250,7 @@ class RateLimitMiddleware(BaseMiddleware):
         allowed, remaining = await self.counter.is_allowed(key)
 
         if not allowed:
+            reset_epoch = int(time.time() + self.window_seconds)
             response = JSONResponse(
                 {
                     "detail": "Too many requests",
@@ -234,6 +260,7 @@ class RateLimitMiddleware(BaseMiddleware):
                 headers={
                     "X-RateLimit-Limit": str(self.max_requests),
                     "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": str(reset_epoch),
                     "Retry-After": str(int(self.window_seconds)),
                 },
             )
@@ -242,12 +269,14 @@ class RateLimitMiddleware(BaseMiddleware):
 
         limit_b = str(self.max_requests).encode()
         remaining_b = str(remaining).encode()
+        reset_b = str(int(time.time() + self.window_seconds)).encode()
 
         async def send_with_headers(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers.append((b"x-ratelimit-limit", limit_b))
                 headers.append((b"x-ratelimit-remaining", remaining_b))
+                headers.append((b"x-ratelimit-reset", reset_b))
                 message = {**message, "headers": headers}
             await send(message)
 

@@ -37,8 +37,8 @@ import uvicorn
 from openviper._version import __version__
 from openviper.conf import settings
 from openviper.contrib.default.middleware import DefaultLandingMiddleware
-from openviper.core.context import current_request
-from openviper.exceptions import HTTPException
+from openviper.core.context import current_request, current_router
+from openviper.exceptions import FieldError, HTTPException, QueryError, TableNotFound
 from openviper.http.request import Request
 from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from openviper.middleware.base import ASGIApp, build_middleware_stack
@@ -137,7 +137,6 @@ class OpenViper:
     ) -> None:
         self.debug = debug if debug is not None else getattr(settings, "DEBUG", True)
 
-        # Warn if debug mode is enabled in production-like environments
         if self.debug and os.environ.get("ENVIRONMENT") in ("production", "prod"):
             logger.warning(
                 "DEBUG mode is enabled in a production environment. "
@@ -399,11 +398,9 @@ class OpenViper:
     def _build_middleware_stack(self) -> ASGIApp:
         raw_middleware: list[Any] = []
 
-        # Load from settings — resolve strings immediately.
         for mw_path in getattr(settings, "MIDDLEWARE", []):
             raw_middleware.append(_resolve_middleware_entry(mw_path))
 
-        # Prepend extra middleware passed at construction (already classes or strings).
         resolved_middleware: list[Any] = []
         for mw in list(self._extra_middleware) + raw_middleware:
             cls = _resolve_middleware_entry(mw)
@@ -522,11 +519,11 @@ class OpenViper:
         request.auth = scope.get("auth")
 
         token = current_request.set(request)
+        router_token = current_router.set(self.router)
         try:
             route, path_params = self.router.resolve(request.method, request.path)
             request.path_params = path_params
 
-            # Build handler middleware chain (per-route middlewares)
             handler = route.handler
             for mw in reversed(route.middlewares):
                 handler = mw(handler)  # type: ignore[assignment,call-arg]
@@ -536,6 +533,7 @@ class OpenViper:
             response = await self._handle_exception(request, exc)
         finally:
             current_request.reset(token)
+            current_router.reset(router_token)
 
         await response(scope, receive, send)
 
@@ -543,7 +541,6 @@ class OpenViper:
         """Call a view handler, performing automatic response coercion."""
         handler_id = id(handler)
 
-        # Check if we've pre-computed parameter mapping for this handler
         if handler_id not in self._handler_param_cache:
             sig, hints = _get_handler_signature(handler)
             params = sig.parameters
@@ -580,7 +577,6 @@ class OpenViper:
             elif name in request.path_params:
                 kwargs[name] = request.path_params[name]
             elif info["is_var_keyword"]:
-                # Populate **kwargs with any path params not already consumed
                 for p_name, p_value in request.path_params.items():
                     if p_name not in kwargs:
                         kwargs[p_name] = p_value
@@ -611,7 +607,6 @@ class OpenViper:
         except ImportError:
             # Pydantic not available, fall through
             pass
-        # Fallback: check for model_dump method (duck typing)
         if hasattr(result, "model_dump") and callable(result.model_dump):
             with contextlib.suppress(Exception):
                 return JSONResponse(result.model_dump())
@@ -634,6 +629,20 @@ class OpenViper:
                 {"detail": exc.detail},
                 status_code=exc.status_code,
                 headers=exc.headers,
+            )
+
+        if isinstance(exc, TableNotFound):
+            return self._create_error_response(
+                request,
+                {"error": "TableNotFound", "detail": str(exc)},
+                status_code=503,
+            )
+
+        if isinstance(exc, (FieldError, QueryError)):
+            return self._create_error_response(
+                request,
+                {"error": type(exc).__name__, "detail": str(exc)},
+                status_code=400,
             )
 
         logger.exception("Unhandled exception: %s", exc)
@@ -676,16 +685,11 @@ class OpenViper:
             message = await receive()
             if message["type"] == "lifespan.startup":
                 try:
-                    # Pre-build the middleware stack during startup so the first
-                    # HTTP request is not penalised by the synchronous I/O involved
-                    # (app static-dir discovery, settings reads, etc.).
                     await asyncio.to_thread(self._get_middleware_app)
 
-                    # Pre-build OpenAPI schema so the first schema request is instant.
                     if should_register_openapi():
                         await asyncio.to_thread(self._get_openapi_schema)
 
-                    # Call ready() on every installed app before user handlers.
                     await self._call_installed_app_ready_hooks()
 
                     for handler in self._startup_handlers:

@@ -558,7 +558,7 @@ class ForeignKey(Field):
             except ImportError, AttributeError:
                 pass
 
-        # Model registry lookup
+        # Model registry lookup (deferred: fields.py ↔ models.py circular dependency)
         from openviper.db.models import ModelMeta
 
         # Try original string as key (usually 'app.Model')
@@ -566,6 +566,7 @@ class ForeignKey(Field):
             return ModelMeta.registry[target]
 
         # Compute app_label once if this FK belongs to a model
+        # Deferred import: fields.py ↔ models.py circular dependency
         from openviper.db.models import Model
 
         app_label = None
@@ -649,7 +650,7 @@ class ForeignKey(Field):
         if isinstance(value, LazyFK):
             value = value.fk_id
 
-        # Check if value is a Model instance
+        # Check if value is a Model instance (deferred: fields.py ↔ models.py circular dependency)
         from openviper.db.models import Model
 
         if isinstance(value, Model):
@@ -678,7 +679,8 @@ class ForeignKey(Field):
             value = value.fk_id
             if value is None:
                 return None
-        # Handle Model instances (e.g., from _relation_cache)
+        # Handle Model instances — deferred import avoids fields.py ↔ models.py
+        # circular dependency at module load time.
         from openviper.db.models import Model
 
         if isinstance(value, Model):
@@ -817,6 +819,11 @@ class ManyToManyManager:
 
     async def all(self) -> list[Any]:
         """Get all related objects."""
+        # Return prefetch_related cache when available to avoid a DB round-trip.
+        cached = self.instance._get_related(self.field.name)
+        if cached is not None:
+            return cached  # type: ignore[return-value]
+
         if not self.instance.pk:
             return []
 
@@ -912,6 +919,77 @@ class ManyToManyManager:
         filter_kwargs = {self.source_field_name: self.instance.pk}
         return await self.through_model.objects.filter(**filter_kwargs).count()
 
+    async def set(self, objects: list[Any]) -> None:
+        """Replace the full set of related objects with *objects*.
+
+        Performs a minimal diff: removes only the entries no longer wanted and
+        adds only entries that do not already exist, avoiding redundant deletes
+        and inserts.
+        """
+        if not self.instance.pk:
+            raise ValueError("Cannot set ManyToMany before saving the instance")
+
+        target_pks = []
+        for obj in objects:
+            pk = obj.pk if hasattr(obj, "pk") else obj
+            if not pk:
+                raise ValueError("Cannot set unsaved object in ManyToMany")
+            target_pks.append(pk)
+
+        current_pks = set(
+            await self.through_model.objects.filter(
+                **{self.source_field_name: self.instance.pk}
+            ).values_list(self.target_field_name, flat=True)
+        )
+        wanted_pks = set(target_pks)
+        to_remove = current_pks - wanted_pks
+        to_add = wanted_pks - current_pks
+
+        if to_remove:
+            await self.through_model.objects.filter(
+                **{
+                    self.source_field_name: self.instance.pk,
+                    f"{self.target_field_name}__in": list(to_remove),
+                }
+            ).delete()
+
+        for pk in to_add:
+            await self.through_model.objects.create(
+                **{
+                    self.source_field_name: self.instance.pk,
+                    self.target_field_name: pk,
+                }
+            )
+
+
+class ReverseRelationDescriptor:
+    """Descriptor for reverse FK access via ``related_name``.
+
+    Set on the *target* model by ``ModelMeta`` when a ``ForeignKey`` with a
+    ``related_name`` is encountered.  Accessing the attribute on a model
+    instance returns a pre-filtered ``QuerySet`` over the source model.
+
+    Example::
+
+        class SampleModel(Model):
+            user = ForeignKey(User, on_delete="CASCADE", related_name="otps")
+
+        u = await User.objects.get(id=1)
+        active_otps = await u.otps.filter(is_active=True).all()
+    """
+
+    def __init__(self, source_model: type, fk_field_name: str) -> None:
+        self._source_model = source_model
+        self._fk_field_name = fk_field_name
+
+    def __get__(self, obj: Any, objtype: Any = None) -> Any:
+        if obj is None:
+            return self
+        # Deferred import: fields.py ↔ models.py circular dependency
+        from openviper.db.models import QuerySet
+
+        return QuerySet(self._source_model).filter(**{self._fk_field_name: obj.pk})
+
 
 class ManyToManyDescriptor:
     """Descriptor that returns a ManyToManyManager when accessed from an instance."""
@@ -926,7 +1004,8 @@ class ManyToManyDescriptor:
             return self
 
         # Return a manager instance
-        # Resolve through model and target model
+        # Resolve through model and target model — deferred import avoids
+        # fields.py ↔ models.py circular dependency at module load time.
         from openviper.db.models import ModelMeta
 
         # Resolve target model
@@ -946,37 +1025,45 @@ class ManyToManyDescriptor:
             else:
                 through_model = self.field.through
         else:
-            # Auto-generate through model name (not implemented, raise error)
             raise ValueError(
-                f"ManyToManyField '{self.field.name}' must specify 'through' parameter"
+                f"ManyToManyField '{self.field.name}': through model could not be resolved."
             )
 
-        # Determine field names in through model
-        # Convention: source_field_name is usually the lowercase model name
-        source_model_name = instance.__class__.__name__.lower()
-        target_model_name = target_model.__name__.lower()
+        # Fast path: auto-created through models store their field names explicitly.
+        if hasattr(self.field, "_auto_source_field") and hasattr(self.field, "_auto_target_field"):
+            source_field_name: str | None = self.field._auto_source_field
+            target_field_name: str | None = self.field._auto_target_field
+        else:
+            # Heuristic for explicit through models: inspect FK targets.
+            source_model_name = instance.__class__.__name__.lower()
+            target_model_name = target_model.__name__.lower()
+            through_fields = through_model._fields
+            source_field_name = None
+            target_field_name = None
 
-        # Check through model fields to find the correct names
-        through_fields = through_model._fields
-        source_field_name = None
-        target_field_name = None
-
-        for fname, fobj in through_fields.items():
-            if isinstance(fobj, ForeignKey):
-                # Check if it points to source or target
-                fk_to = fobj.to
-                if isinstance(fk_to, str):
-                    # Compare string names
-                    if source_model_name in fk_to.lower() or instance.__class__.__name__ in fk_to:
-                        source_field_name = fname
-                    elif target_model_name in fk_to.lower() or target_model.__name__ in fk_to:
-                        target_field_name = fname
-                else:
-                    # Compare types
-                    if fk_to == instance.__class__ or fk_to.__name__ == instance.__class__.__name__:
-                        source_field_name = fname
-                    elif fk_to == target_model or fk_to.__name__ == target_model.__name__:
-                        target_field_name = fname
+            for fname, fobj in through_fields.items():
+                if isinstance(fobj, ForeignKey):
+                    fk_to = fobj.to
+                    if isinstance(fk_to, str):
+                        fk_model_name = fk_to.rsplit(".", 1)[-1]
+                        if (
+                            source_model_name == fk_model_name.lower()
+                            or instance.__class__.__name__ == fk_model_name
+                        ):
+                            source_field_name = fname
+                        elif (
+                            target_model_name == fk_model_name.lower()
+                            or target_model.__name__ == fk_model_name
+                        ):
+                            target_field_name = fname
+                    else:
+                        if (
+                            fk_to is instance.__class__
+                            or fk_to.__name__ == instance.__class__.__name__
+                        ):
+                            source_field_name = fname
+                        elif fk_to is target_model or fk_to.__name__ == target_model.__name__:
+                            target_field_name = fname
 
         if not source_field_name or not target_field_name:
             raise ValueError(
@@ -1040,7 +1127,50 @@ class ManyToManyField(Field):
     def contribute_to_class(self, model_class: type, name: str) -> None:
         """Called by metaclass to set up the descriptor."""
         self.name = name
+        if self.through is None:
+            self.through = self._create_auto_through_model(model_class, name)
         setattr(model_class, name, ManyToManyDescriptor(self))
+
+    def _create_auto_through_model(self, source_model: type, field_name: str) -> type:
+        """Auto-generate a junction Model when 'through' is not specified."""
+        from openviper.db.models import Model, ModelMeta  # deferred to avoid load-time circular
+
+        source_name = source_model.__name__
+        target = self.to
+        if isinstance(target, type):
+            target_name = target.__name__
+        else:
+            target_name = str(target).rsplit(".", 1)[-1]
+
+        auto_model_name = f"{source_name}{target_name}"
+        source_fk_name = source_name.lower()
+        target_fk_name = target_name.lower()
+
+        app_name = getattr(source_model, "_app_name", "default")
+        registry_key = f"{app_name}.{auto_model_name}"
+        if registry_key in ModelMeta.registry:
+            existing = ModelMeta.registry[registry_key]
+            self._auto_source_field = source_fk_name
+            self._auto_target_field = target_fk_name
+            return existing
+
+        source_table = getattr(source_model, "_table_name", source_name.lower())
+        auto_meta = type("Meta", (), {"table_name": f"{source_table}_{field_name}"})
+
+        through_cls = ModelMeta(
+            auto_model_name,
+            (Model,),
+            {
+                source_fk_name: ForeignKey(source_model, on_delete="CASCADE"),
+                target_fk_name: ForeignKey(target, on_delete="CASCADE"),
+                "__module__": source_model.__module__,
+                "Meta": auto_meta,
+            },
+        )
+        through_cls._is_auto_created = True  # type: ignore[attr-defined]
+        self._auto_source_field = source_fk_name
+        self._auto_target_field = target_fk_name
+        return through_cls
 
 
 class EmailField(CharField):

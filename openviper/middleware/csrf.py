@@ -214,6 +214,10 @@ class CSRFMiddleware(BaseMiddleware):
                 if samesite:
                     cookie_value += f"; SameSite={samesite}"
 
+                max_age = getattr(settings, "CSRF_COOKIE_AGE", None)
+                if max_age is not None:
+                    cookie_value += f"; Max-Age={int(max_age)}"
+
                 headers.append((b"set-cookie", cookie_value.encode("latin-1")))
                 message["headers"] = headers
 

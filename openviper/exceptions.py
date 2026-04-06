@@ -142,21 +142,6 @@ class ServiceUnavailable(HTTPException):
         super().__init__(503, detail)
 
 
-class TableNotFound(ServiceUnavailable):
-    """503 raised when a model's database table does not exist.
-
-    This typically means migrations have not been run yet.
-    """
-
-    __slots__ = ()
-
-    def __init__(self, model_name: str, table_name: str) -> None:
-        super().__init__(
-            f"Table '{table_name}' for model '{model_name}' does not exist. "
-            "Run migrations to create it."
-        )
-
-
 class AuthenticationFailed(HTTPException):
     """Authentication attempt failed."""
 
@@ -205,8 +190,25 @@ class MigrationError(OpenViperException):
     __slots__ = ()
 
 
-class QueryError(HTTPException):
-    """400 Bad Request — ORM query is invalid.
+class TableNotFound(ORMException):
+    """Raised when a model's database table does not exist.
+
+    This typically means migrations have not been run yet.
+    """
+
+    __slots__ = ("model_name", "table_name")
+
+    def __init__(self, model_name: str, table_name: str) -> None:
+        self.model_name = model_name
+        self.table_name = table_name
+        super().__init__(
+            f"[TableNotFound] Table '{table_name}' for model '{model_name}' does not exist. "
+            "Run 'manage.py migrate' to create it."
+        )
+
+
+class QueryError(ORMException):
+    """ORM query is invalid.
 
     Raised when a query cannot be executed due to a structural problem such as
     referencing a non-existent field, an invalid operator, or a malformed
@@ -216,16 +218,16 @@ class QueryError(HTTPException):
     __slots__ = ()
 
     def __init__(self, detail: str = "Invalid query.") -> None:
-        super().__init__(400, detail)
+        super().__init__(detail)
 
 
-class FieldError(QueryError, ORMException):
-    """400 Bad Request — referenced field does not exist on the model."""
+class FieldError(ORMException):
+    """Referenced field does not exist on the model."""
 
     __slots__ = ()
 
     def __init__(self, detail: str = "Field does not exist.") -> None:
-        QueryError.__init__(self, detail)
+        super().__init__(detail)
 
 
 class MiddlewareException(OpenViperException):

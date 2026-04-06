@@ -9,6 +9,7 @@ import gzip
 import importlib
 import json
 import mimetypes
+import re
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Iterator
@@ -22,11 +23,15 @@ import aiofiles.os
 import orjson as _orjson
 
 from openviper.conf import settings
-from openviper.core.context import current_request
+from openviper.core.context import current_request, current_router
 from openviper.template.environment import get_jinja2_env
 from openviper.utils.datastructures import MutableHeaders
 
 _MISSING = object()  # sentinel for getattr default
+
+# Matches "namespace:route_name" — identifiers only, no slashes or scheme chars.
+# This distinguishes "user:me" (namespaced route) from "/user/me" or "https://..."
+_NAMESPACED_ROUTE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*:[A-Za-z_][A-Za-z0-9_]*$")
 
 try:
     from jinja2 import Environment, FileSystemLoader
@@ -307,7 +312,13 @@ class RedirectResponse(Response):
         url: str,
         status_code: int = 307,
         headers: dict[str, str] | None = None,
+        **path_params: Any,
     ) -> None:
+        # Resolve "namespace:route_name" to an absolute path via the active router.
+        if _NAMESPACED_ROUTE_RE.match(url):
+            router = current_router.get()
+            if router is not None:
+                url = router.url_for(url, **path_params)
         if "\r" in url or "\n" in url:
             raise ValueError(f"Redirect URL must not contain CR or LF: {url!r}")
         # Block protocol-relative URLs that could redirect to external sites
@@ -415,11 +426,13 @@ class FileResponse(Response):
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:  # noqa: ARG002
         # Async file stat to avoid blocking event loop
         fstat = await aiofiles.os.stat(self.file_path)
-        etag = f'"{int(fstat.st_mtime)}-{fstat.st_size}"'
+        file_size = fstat.st_size
+        etag = f'"{int(fstat.st_mtime)}-{file_size}"'
         last_modified = email.utils.formatdate(fstat.st_mtime, usegmt=True)
 
         self._headers.set("etag", etag)
         self._headers.set("last-modified", last_modified)
+        self._headers.set("accept-ranges", "bytes")
 
         if self._filename:
             # Sanitize filename to prevent content-disposition header injection.
@@ -427,8 +440,9 @@ class FileResponse(Response):
             safe_name = safe_name.replace("\r", "").replace("\n", "")
             self._headers.set("content-disposition", f'attachment; filename="{safe_name}"')
 
-        # Conditional request: If-None-Match
         req_headers: dict[bytes, bytes] = dict(scope.get("headers", []))
+
+        # Conditional request: If-None-Match
         if_none_match = req_headers.get(b"if-none-match", b"").decode("latin-1").strip()
         if if_none_match and if_none_match in (etag, "*"):
             await send({"type": "http.response.start", "status": 304, "headers": self._headers.raw})
@@ -449,21 +463,68 @@ class FileResponse(Response):
             except TypeError, ValueError:
                 pass  # Malformed date — serve the full response
 
-        self._headers.set("content-length", str(fstat.st_size))
+        # Range request: partial content (RFC 7233)
+        range_header = req_headers.get(b"range", b"").decode("latin-1").strip()
+        range_start: int = 0
+        range_end: int = file_size - 1
+        is_partial = False
+
+        if range_header and range_header.startswith("bytes="):
+            range_spec = range_header[6:]
+            try:
+                raw_start, raw_end = range_spec.split("-", 1)
+                if raw_start == "":
+                    # Suffix range: bytes=-N means last N bytes
+                    suffix = int(raw_end)
+                    range_start = max(0, file_size - suffix)
+                    range_end = file_size - 1
+                else:
+                    range_start = int(raw_start)
+                    range_end = int(raw_end) if raw_end else file_size - 1
+                if range_start > range_end or range_start >= file_size:
+                    # Range Not Satisfiable
+                    self._headers.set("content-range", f"bytes */{file_size}")
+                    await send(
+                        {"type": "http.response.start", "status": 416, "headers": self._headers.raw}
+                    )
+                    await send({"type": "http.response.body", "body": b"", "more_body": False})
+                    return
+                range_end = min(range_end, file_size - 1)
+                is_partial = True
+            except ValueError, IndexError:
+                pass  # Malformed range — fall back to full response
+
+        content_length = range_end - range_start + 1
+        self._headers.set("content-length", str(content_length))
+
+        if is_partial:
+            self._headers.set("content-range", f"bytes {range_start}-{range_end}/{file_size}")
+            status = 206
+        else:
+            status = self.status_code
+
         await send(
             {
                 "type": "http.response.start",
-                "status": self.status_code,
+                "status": status,
                 "headers": self._headers.raw,
             }
         )
         async with aiofiles.open(self.file_path, "rb") as f:
-            while True:
-                chunk = await f.read(self.chunk_size)
+            if range_start:
+                await f.seek(range_start)
+            remaining = content_length
+            while remaining > 0:
+                chunk = await f.read(min(self.chunk_size, remaining))
                 if not chunk:
                     break
-                await send({"type": "http.response.body", "body": chunk, "more_body": True})
-        await send({"type": "http.response.body", "body": b"", "more_body": False})
+                remaining -= len(chunk)
+                more = remaining > 0
+                await send({"type": "http.response.body", "body": chunk, "more_body": more})
+            if remaining > 0:
+                # File ended before content_length bytes were read; send the
+                # final empty frame to close the response stream cleanly.
+                await send({"type": "http.response.body", "body": b"", "more_body": False})
 
 
 class GZipResponse(Response):
@@ -481,16 +542,27 @@ class GZipResponse(Response):
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         inner = self._inner
         body = inner.body
-        if not body:
-            # StreamingResponse / FileResponse — body is b""; delegate as-is.
-            await inner(scope, receive, send)
-            return
+
+        if isinstance(inner, (StreamingResponse, FileResponse)):
+            # Collect the full streamed body by intercepting ASGI events.
+            collected_parts: list[bytes] = []
+
+            async def _collecting_send(event: dict[str, Any]) -> None:
+                if event["type"] == "http.response.body":
+                    part = event.get("body", b"")
+                    if part:
+                        collected_parts.append(part)
+
+            await inner(scope, receive, _collecting_send)
+            body = b"".join(collected_parts)
+
         if len(body) >= self._minimum_size:
             # Offload CPU-intensive compression to thread pool to avoid blocking event loop.
             body = await asyncio.to_thread(gzip.compress, body, self._compresslevel)
             inner._headers.set("content-encoding", "gzip")
-            inner._headers.set("content-length", str(len(body)))
             inner._headers.set("vary", "Accept-Encoding")
+
+        inner._headers.set("content-length", str(len(body)))
         await send(
             {
                 "type": "http.response.start",

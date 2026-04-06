@@ -32,6 +32,12 @@ request_perms_cache: contextvars.ContextVar[dict[Any, set[str]] | None] = contex
     "request_perms_cache", default=None
 )
 
+# Tracks the active Router instance for the current request so that
+# response helpers (e.g. RedirectResponse) can resolve named routes.
+current_router: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
+    "current_router", default=None
+)
+
 
 def get_current_user() -> Any | None:
     """Get the currently authenticated user from the context.

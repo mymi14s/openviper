@@ -119,10 +119,11 @@ def _format_columns(model_cls: type[Model]) -> str:
                 _validate_identifier(target_table, f"target table name '{target_table}'")
                 col["target_table"] = target_table
             elif isinstance(field.to, str):
-                # Fallback to string name if not yet resolvable
-                # But we need the table name. If it's 'auth.User', we might not know the table.
-                # In OpenViper, we usually resolve it.
-                pass
+                raise MigrationError(
+                    f"Cannot serialize ForeignKey to '{field.to}': the target model could not be "
+                    f"resolved. Ensure the target app is installed and the model is importable "
+                    f"before generating migrations."
+                )
             col["on_delete"] = field.on_delete
 
         lines.append(f"        {col!r},")
@@ -236,21 +237,40 @@ def write_initial_migration(
 
         table_name = model_cls._table_name
         for idx in getattr(model_cls, "_meta_indexes", []):
-            index_name = idx.name or f"idx_{table_name}_{'_'.join(idx.fields)}"
+            col_names = [
+                model_cls._fields[f].column_name if f in model_cls._fields else f
+                for f in idx.fields
+            ]
+            index_name = idx.name or f"idx_{table_name}_{'_'.join(col_names)}"
             extra_ops.append(
                 f"    migrations.CreateIndex(\n"
                 f"        table_name={table_name!r},\n"
                 f"        index_name={index_name!r},\n"
-                f"        columns={idx.fields!r},\n"
+                f"        columns={col_names!r},\n"
+                f"    ),"
+            )
+        for _fname, field in model_cls._fields.items():
+            if not field.db_index or field.unique or field.primary_key:
+                continue
+            col_name = field.column_name
+            index_name = f"idx_{table_name}_{col_name}"
+            extra_ops.append(
+                f"    migrations.CreateIndex(\n"
+                f"        table_name={table_name!r},\n"
+                f"        index_name={index_name!r},\n"
+                f"        columns=[{col_name!r}],\n"
                 f"    ),"
             )
         for ut_fields in getattr(model_cls, "_meta_unique_together", []):
-            index_name = f"uniq_{table_name}_{'_'.join(ut_fields)}"
+            col_names = [
+                model_cls._fields[f].column_name if f in model_cls._fields else f for f in ut_fields
+            ]
+            index_name = f"uniq_{table_name}_{'_'.join(col_names)}"
             extra_ops.append(
                 f"    migrations.CreateIndex(\n"
                 f"        table_name={table_name!r},\n"
                 f"        index_name={index_name!r},\n"
-                f"        columns={ut_fields!r},\n"
+                f"        columns={col_names!r},\n"
                 f"        unique=True,\n"
                 f"    ),"
             )
@@ -355,10 +375,24 @@ def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str
 
         indexes = []
         for idx in getattr(model_cls, "_meta_indexes", []):
-            indexes.append({"name": idx.name, "fields": idx.fields})
+            col_names = [
+                model_cls._fields[f].column_name if f in model_cls._fields else f
+                for f in idx.fields
+            ]
+            index_name = idx.name or f"idx_{model_cls._table_name}_{'_'.join(col_names)}"
+            indexes.append({"name": index_name, "fields": col_names})
+        for _fname, field in model_cls._fields.items():
+            if not field.db_index or field.unique or field.primary_key:
+                continue
+            col_name = field.column_name
+            idx_name = f"idx_{model_cls._table_name}_{col_name}"
+            indexes.append({"name": idx_name, "fields": [col_name]})
         indexes.sort(key=lambda x: x.get("name") or str(x.get("fields")))
 
-        unique_together = [list(ut) for ut in getattr(model_cls, "_meta_unique_together", [])]
+        unique_together = [
+            [model_cls._fields[f].column_name if f in model_cls._fields else f for f in ut]
+            for ut in getattr(model_cls, "_meta_unique_together", [])
+        ]
         unique_together.sort()
 
         state[model_cls._table_name] = {

@@ -324,3 +324,68 @@ async def test_manager_first_last():
             # Test last() without ordering
             obj = await ManagerModel.objects.last()
             assert obj.id == 99
+
+
+@pytest.mark.asyncio
+async def test_unique_together_validate_blocks_duplicate() -> None:
+    with patch("openviper.db.executor.get_table"):
+
+        class Contact(Model):
+            class Meta:
+                table_name = "test_contact_utv"
+                unique_together = ("username", "phone")
+
+            username = fields.CharField(max_length=100)
+            phone = fields.CharField(max_length=50)
+
+    contact = Contact(username="alice", phone="123")
+
+    mock_qs = MagicMock()
+    mock_qs.exists = AsyncMock(return_value=True)
+
+    with patch.object(Contact.objects, "filter", return_value=mock_qs):
+        with pytest.raises(ValueError, match="Duplicate entry"):
+            await contact.validate()
+
+
+@pytest.mark.asyncio
+async def test_unique_together_validate_allows_non_duplicate() -> None:
+    with patch("openviper.db.executor.get_table"):
+
+        class Contact2(Model):
+            class Meta:
+                table_name = "test_contact_utv2"
+                unique_together = ("username", "phone")
+
+            username = fields.CharField(max_length=100)
+            phone = fields.CharField(max_length=50)
+
+    contact = Contact2(username="bob", phone="456")
+
+    mock_qs = MagicMock()
+    mock_qs.exists = AsyncMock(return_value=False)
+
+    with patch.object(Contact2.objects, "filter", return_value=mock_qs):
+        await contact.validate()
+
+
+@pytest.mark.asyncio
+async def test_unique_together_validate_skips_null_fields() -> None:
+    with patch("openviper.db.executor.get_table"):
+
+        class Contact3(Model):
+            class Meta:
+                table_name = "test_contact_utv3"
+                unique_together = ("username", "phone")
+
+            username = fields.CharField(max_length=100)
+            phone = fields.CharField(max_length=50, null=True)
+
+    contact = Contact3(username="carol", phone=None)
+
+    mock_qs = MagicMock()
+    mock_qs.exists = AsyncMock(return_value=True)
+
+    with patch.object(Contact3.objects, "filter", return_value=mock_qs):
+        await contact.validate()
+        mock_qs.exists.assert_not_called()

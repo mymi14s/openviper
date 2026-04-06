@@ -33,7 +33,6 @@ def cast_to_pk_type(model_class: type[Model], value: Any) -> Any:
         try:
             return pk_field.to_python(value)
         except ValueError, TypeError:
-            # Fallback to original value if casting fails
             return value
 
     return value

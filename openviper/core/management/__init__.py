@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import functools
 import importlib
+import importlib.metadata
 import os
 import pkgutil
 import sys
@@ -114,6 +115,18 @@ def _find_command(name: str) -> BaseCommand:
         except ModuleNotFoundError:
             continue
 
+    # 3. Entry-points registered under the ``openviper.cli`` group.
+    #    Third-party plugins register their commands here so
+    #    they auto-register without requiring INSTALLED_APPS entries.
+    try:
+        eps = importlib.metadata.entry_points(group="openviper.cli")
+        for ep in eps:
+            if ep.name == name:
+                cmd_cls = ep.load()
+                return cast("BaseCommand", cmd_cls())
+    except Exception:
+        pass
+
     raise CommandError(
         f"Unknown command: '{name}'.  Run 'viperctl.py help' for a list of commands.",
         returncode=1,
@@ -173,15 +186,26 @@ def execute_from_command_line(argv: list[str] | None = None) -> NoReturn:
         os.environ["OPENVIPER_SETTINGS_MODULE"] = settings_flag
 
     # ── 2. Auto-discover default settings when nothing is configured ──────────
+    discovered: str | None = None
     if not os.environ.get("OPENVIPER_SETTINGS_MODULE") and not settings_flag:
         discovered = _auto_discover_settings(argv[0])
         if discovered:
             os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", discovered)
 
-    # ── 3. Trigger settings setup (force-reload if --settings was supplied) ───
+    # ── 3. Trigger settings setup ─────────────────────────────────────────────
+    # Always force a reload whenever any settings module is known.  Framework
+    # modules such as openviper.auth.jwt access the settings proxy at import
+    # time (before execute_from_command_line runs), which pre-configures the
+    # lazy proxy with the base Settings() class.  If OPENVIPER_SETTINGS_MODULE
+    # is already in the environment that premature load may still produce the
+    # correct result, but silently falls back to Settings() on any import
+    # error or missing subclass.  By forcing a reload here — the authoritative
+    # entry point — we guarantee the correct project settings are always used.
     import openviper
 
-    openviper.setup(force=bool(settings_flag))
+    openviper.setup(
+        force=bool(settings_flag or discovered or os.environ.get("OPENVIPER_SETTINGS_MODULE"))
+    )
 
     if len(argv) < 2 or argv[1] in ("help", "--help", "-h"):
         prog = os.path.basename(argv[0])

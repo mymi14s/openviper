@@ -32,6 +32,7 @@ from openviper.db.fields import (
     ManyToManyField,
     OneToOneField,
     PositiveIntegerField,
+    ReverseRelationDescriptor,
     SlugField,
     TextField,
     TimeField,
@@ -1442,3 +1443,70 @@ class TestFileFieldMaxSizeFallback:
         f.name = "doc"
         inst = MagicMock()
         await f.pre_save(inst, 12345)  # int, not file-like
+
+
+class TestReverseRelationDescriptor:
+    def test_class_access_returns_descriptor(self) -> None:
+        desc = ReverseRelationDescriptor(DummyModel, "owner")
+        assert desc.__get__(None, DummyModel) is desc
+
+    def test_instance_access_returns_filtered_queryset(self) -> None:
+        class _Owner(Model):
+            name = CharField()
+
+            class Meta:
+                table_name = "rrd_owners"
+
+        class _Item(Model):
+            name = CharField()
+            owner = ForeignKey(_Owner, on_delete="CASCADE", related_name="items")
+
+            class Meta:
+                table_name = "rrd_items"
+
+        from openviper.db.models import QuerySet
+
+        owner = _Owner()
+        owner.__dict__["id"] = 7
+        result = owner.items
+        assert isinstance(result, QuerySet)
+        assert result._model is _Item
+        assert any("owner" in str(f) for f in result._filters)
+
+    def test_reverse_accessor_wired_on_related_model(self) -> None:
+        class _AuthorRRD(Model):
+            name = CharField()
+
+            class Meta:
+                table_name = "rrd_authors"
+
+        class _PostRRD(Model):
+            title = CharField()
+            author = ForeignKey(_AuthorRRD, on_delete="CASCADE", related_name="posts")
+
+            class Meta:
+                table_name = "rrd_posts"
+
+        assert hasattr(_AuthorRRD, "posts")
+        assert isinstance(_AuthorRRD.__dict__["posts"], ReverseRelationDescriptor)
+
+    def test_reverse_accessor_filter_uses_pk(self) -> None:
+        class _GroupRRD(Model):
+            name = CharField()
+
+            class Meta:
+                table_name = "rrd_groups"
+
+        class _MemberRRD(Model):
+            group = ForeignKey(_GroupRRD, on_delete="CASCADE", related_name="members")
+
+            class Meta:
+                table_name = "rrd_members"
+
+        from openviper.db.models import QuerySet
+
+        g = _GroupRRD()
+        g.__dict__["id"] = 42
+        qs = g.members
+        assert isinstance(qs, QuerySet)
+        assert qs._filters == [{"group": 42}]

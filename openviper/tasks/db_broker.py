@@ -200,7 +200,6 @@ class _DatabaseConsumer(Consumer):
                     .limit(1)
                 )
 
-                # SKIP LOCKED prevents multiple workers from picking the same row.
                 if self.broker._supports_skip_locked:
                     base_stmt = base_stmt.with_for_update(skip_locked=True)
 
@@ -221,7 +220,6 @@ class _DatabaseConsumer(Consumer):
                     )
                     return MessageProxy(message)
 
-            # Check timeout.
             elapsed_ms = (time.monotonic() - start_time) * 1000
             if elapsed_ms >= self.timeout:
                 return None

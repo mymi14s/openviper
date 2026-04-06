@@ -10,6 +10,7 @@ AI assistants (Copilot, Cursor, LLM agents, etc.) must follow them at all times.
 * All code **must target Python 3.14 or newer**.
 * Use modern Python features where appropriate.
 * Avoid deprecated or legacy syntax.
+* **Python 3 syntax only is allowed**.
 
 ---
 
@@ -130,6 +131,33 @@ The following are **not allowed in tests**:
 
 ---
 
+## Documentation Rules
+
+* **Only technical documentation is allowed.**
+* Documentation must be **concise and necessary**.
+* Avoid unnecessary explanations, verbose comments, or redundant documentation.
+* Documentation must focus on:
+  * API behavior
+  * Parameters and return values
+  * Constraints and assumptions
+
+**Not allowed**:
+
+* Redundant comments
+* Narrative explanations
+* Over-documentation
+* Tutorial-style documentation
+* Comments that restate obvious code behavior
+
+**Correct example**:
+
+```python
+def hash_password(password: str) -> str:
+    """Return a secure SHA-256 hash of the given password."""
+```
+
+---
+
 # General AI Instructions
 
 When generating Python code:
@@ -141,6 +169,19 @@ When generating Python code:
 5. Prefer **clean, production-grade Python code**.
 6. Follow **Python best practices and PEP 8** at all times.
 7. Write code that is **clear, typed, and maintainable**.
+
+---
+### Requirements
+
+1. **Efficient Data Structures:** Use the most appropriate data structures for the task (e.g., `dict` for fast lookups, `set` for uniqueness checks, `deque` for queue operations).
+2. **Minimize Loops and Computations:** Avoid redundant loops, repeated calculations, or unnecessary iterations.
+3 **Memory Efficiency:** Avoid excessive memory allocations; reuse objects where possible.
+4. **Lazy Evaluation:** Use lazy loading or generators to handle large datasets efficiently.
+5. **Standard Library Optimization:** Prefer optimized, built-in Python functions and libraries over manual implementations.
+6. **Avoid Blocking Operations:** Use asynchronous operations when applicable to prevent bottlenecks.
+7. **Scalability:** Write code that scales efficiently with larger inputs.
+8. **Avoid Premature Optimization:** Optimize critical paths but maintain readability; do not sacrifice clarity for micro-optimizations.
+9. **Security-Conscious Coding:** Always validate and sanitize inputs, handle exceptions properly, avoid exposing sensitive data, and follow best practices to prevent common vulnerabilities such as injection attacks, buffer overflows, or insecure data handling.
 
 ---
 

@@ -14,6 +14,7 @@ import importlib
 import io
 import json
 import logging
+import re
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -153,6 +154,49 @@ async def _batch_load_children(
     return children_by_instance
 
 
+def _parse_unique_violation_fields(exc: sqlalchemy.exc.IntegrityError) -> dict[str, str | None]:
+    """Parse a unique-violation IntegrityError and return the conflicting column→value map."""
+    orig_str = str(exc.orig) if hasattr(exc, "orig") and exc.orig else str(exc)
+    # PostgreSQL: Key (col1, col2)=(val1, val2) already exists.
+    pg_match = re.search(r"Key \(([^)]+)\)=\(([^)]*)\) already exists", orig_str)
+    if pg_match:
+        col_names = [c.strip() for c in pg_match.group(1).split(",")]
+        col_values = [v.strip() for v in pg_match.group(2).split(",")]
+        return dict(zip(col_names, col_values, strict=False))
+    # SQLite: UNIQUE constraint failed: table.column
+    sqlite_match = re.search(r"UNIQUE constraint failed: \w+\.(\w+)", orig_str)
+    if sqlite_match:
+        return {sqlite_match.group(1): None}
+    return {}
+
+
+async def _find_existing_on_unique_violation(
+    model_class: type[Any],
+    exc: sqlalchemy.exc.IntegrityError,
+    coerced_data: dict[str, Any],
+) -> int | str | None:
+    """Return the PK of the conflicting record, or None if it cannot be determined."""
+    parsed = _parse_unique_violation_fields(exc)
+    if not parsed:
+        return None
+    model_fields = getattr(model_class, "_fields", {})
+    filter_kwargs: dict[str, Any] = {}
+    for col_name, col_value in parsed.items():
+        if col_name not in model_fields:
+            continue
+        if col_name in coerced_data:
+            filter_kwargs[col_name] = coerced_data[col_name]
+        elif col_value is not None:
+            filter_kwargs[col_name] = col_value
+    if not filter_kwargs:
+        return None
+    with contextlib.suppress(Exception):
+        existing = await model_class.objects.filter(**filter_kwargs).first()
+        if existing:
+            return existing.id
+    return None
+
+
 async def _serialize_instance_with_children(
     request: Request,
     model_admin: ModelAdmin,
@@ -176,8 +220,10 @@ async def _serialize_instance_with_children(
     fields = getattr(model_class, "_fields", {})
 
     response_data = {"id": instance.id}
-    for field_name in fields:
+    for field_name, field_obj in fields.items():
         if field_name in sensitive_fields:
+            continue
+        if isinstance(field_obj, ManyToManyField):
             continue
         value = getattr(instance, field_name, None)
         if hasattr(value, "isoformat"):
@@ -946,6 +992,17 @@ def get_admin_router() -> Router:
                 model_name,
                 msg,
             )
+            existing_id = await _find_existing_on_unique_violation(model_class, exc, coerced_data)
+            if existing_id is not None:
+                return JSONResponse(
+                    {
+                        "errors": {"__all__": "A record with that data already exists."},
+                        "existing_id": existing_id,
+                        "app_label": app_label,
+                        "model_name": model_name,
+                    },
+                    status_code=409,
+                )
             user_msg = (
                 msg
                 if getattr(settings, "DEBUG", False)
@@ -1099,7 +1156,9 @@ def get_admin_router() -> Router:
         # Get old data for change tracking
         fields = getattr(model_class, "_fields", {})
         old_data = {}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             old_data[field_name] = getattr(instance, field_name, None)
 
         # Coerce and apply field values
@@ -1348,7 +1407,8 @@ def get_admin_router() -> Router:
         except NotRegistered as exc:
             raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
 
-        instance = await model_class.objects.get_or_none(id=obj_id)
+        obj_id_casted = cast_to_pk_type(model_class, obj_id)
+        instance = await model_class.objects.get_or_none(id=obj_id_casted)
         if not instance:
             raise NotFound(f"{model_name} with id {obj_id} not found.")
 
@@ -1682,7 +1742,9 @@ def get_admin_router() -> Router:
 
         # Serialize response
         response_data = {"id": instance.id}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             value = getattr(instance, field_name, None)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
@@ -1713,7 +1775,9 @@ def get_admin_router() -> Router:
         # Serialize instance
         fields = getattr(model_class, "_fields", {})
         response_data = {"id": instance.id}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             value = getattr(instance, field_name, None)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
@@ -1758,7 +1822,9 @@ def get_admin_router() -> Router:
         # Get old data for change tracking
         fields = getattr(model_class, "_fields", {})
         old_data = {}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             old_data[field_name] = getattr(instance, field_name, None)
 
         # Coerce and apply field values
@@ -1801,7 +1867,9 @@ def get_admin_router() -> Router:
 
         # Serialize response
         response_data = {"id": instance.id}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             value = getattr(instance, field_name, None)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
@@ -2061,7 +2129,8 @@ def get_admin_router() -> Router:
             raise NotFound(f"Model '{model_name}' not found.") from exc
 
         # Verify instance exists
-        instance = await model_class.objects.get_or_none(id=obj_id)
+        obj_id_casted = cast_to_pk_type(model_class, obj_id)
+        instance = await model_class.objects.get_or_none(id=obj_id_casted)
         if not instance:
             raise NotFound(f"{model_name} with id {obj_id} not found.")
 

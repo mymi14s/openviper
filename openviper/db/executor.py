@@ -16,6 +16,7 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, cast
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql as _pg_dialect
 from sqlalchemy.exc import DBAPIError as SADBAPIError
 from sqlalchemy.exc import OperationalError as SAOperationalError
 
@@ -100,8 +101,10 @@ def _check_field_missing(exc: Exception, model_cls: type) -> None:
     400 response so callers receive a descriptive message rather than a 500.
     """
     if isinstance(exc, SADBAPIError) and _FIELD_MISSING_RE.search(str(exc)):
+        available = ", ".join(sorted(model_cls._fields))
         raise FieldError(
             f"Query referenced a field that does not exist on {model_cls.__name__}."
+            f" Available fields: {available}"
         ) from None
 
 
@@ -116,16 +119,6 @@ if TYPE_CHECKING:
 # When unset (the default) no automatic limit is applied.
 MAX_QUERY_ROWS: int | None = getattr(settings, "MAX_QUERY_ROWS", None)
 
-
-# Short-lived cache for repeated identical SELECT queries.  Inspired by
-# the read-through cache pattern used at Twitter/X and Google Search where
-# hot queries are served from memory instead of hitting the database.
-#
-# Enabled per-model via ``Meta.cache_ttl = <seconds>`` (default 0 = off).
-# The cache is invalidated on any write (INSERT / UPDATE / DELETE) touching
-# the same model.  Thread-safe for single-writer async contexts.
-#
-# Max entries configurable via QUERY_CACHE_MAX_SIZE setting (default 2048).
 
 _QUERY_CACHE_MAX_SIZE: int = int(getattr(settings, "QUERY_CACHE_MAX_SIZE", 2048))
 
@@ -311,6 +304,7 @@ async def preload_table_schemas() -> None:
     Call this during application initialization to avoid schema
     introspection overhead on first requests (~20-50% faster queries).
     """
+    # Deferred import: executor.py ↔ models.py circular dependency
     from openviper.db.models import ModelMeta
 
     engine = await get_engine()
@@ -330,6 +324,7 @@ def _parse_traversal_cached(key: str, model_cls: type) -> Any:
 
     LRU cache with maxsize=1024 prevents unbounded memory growth.
     """
+    # Deferred import: executor.py ↔ models.py circular dependency
     from openviper.db.models import TraversalLookup
 
     try:
@@ -350,8 +345,10 @@ def _cached_traversal_lookup(key: str, model_cls: type) -> Any:
     """
     result = _parse_traversal_cached(key, model_cls)
     if result is _TRAVERSAL_FAILURE:
-
-        raise FieldError(key)
+        available = ", ".join(sorted(model_cls._fields))
+        raise FieldError(
+            f"Invalid lookup '{key}' on {model_cls.__name__}." f" Available fields: {available}"
+        )
     return result
 
 
@@ -496,6 +493,7 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
                 if target_model_cls:
                     related_table = getattr(target_model_cls, "_table_name", "")
                 elif isinstance(target_str, str):
+                    # Deferred import: executor.py ↔ models.py circular dependency
                     from openviper.db.models import ModelMeta
 
                     # Try to look up in registry first before falling back to string parsing
@@ -582,12 +580,17 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
     # Add composite indexes and unique constraints from Meta
     table_args: list[Any] = list(columns)
     for idx in getattr(model_cls, "_meta_indexes", []):
-        # Generate a default index name if not provided
-        index_name = idx.name or f"idx_{table_name}_{'_'.join(idx.fields)}"
-        table_args.append(sa.Index(index_name, *idx.fields))
+        col_names = [
+            model_cls._fields[f].column_name if f in model_cls._fields else f for f in idx.fields
+        ]
+        index_name = idx.name or f"idx_{table_name}_{'_'.join(col_names)}"
+        table_args.append(sa.Index(index_name, *col_names))
 
     for ut_fields in getattr(model_cls, "_meta_unique_together", []):
-        table_args.append(sa.UniqueConstraint(*ut_fields))
+        col_names = [
+            model_cls._fields[f].column_name if f in model_cls._fields else f for f in ut_fields
+        ]
+        table_args.append(sa.UniqueConstraint(*col_names))
 
     return sa.Table(table_name, metadata, *table_args, extend_existing=True)
 
@@ -768,6 +771,11 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
     # Unwrap LazyFK values to raw IDs for SQL binding
     if isinstance(value, LazyFK):
         value = value.fk_id
+    # Unwrap Model instances to their primary key for FK filter comparisons
+    if hasattr(value, "_meta_table_name") or (
+        hasattr(value, "__class__") and hasattr(value.__class__, "_fields")
+    ):
+        value = getattr(value, "id", value)
     # Convert UUID objects to strings for database comparison
     if isinstance(value, uuid.UUID):
         value = str(value)
@@ -795,7 +803,14 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
     if lookup == "lte":
         return col <= value  # type: ignore[no-any-return]
     if lookup == "in":
-        value = [v.fk_id if isinstance(v, LazyFK) else v for v in value]
+        value = [
+            (
+                v.fk_id
+                if isinstance(v, LazyFK)
+                else getattr(v, "id", v) if hasattr(v.__class__, "_fields") else v
+            )
+            for v in value
+        ]
         return col.in_(value)
     if lookup == "isnull":
         return col.is_(None) if value else col.isnot(None)
@@ -863,6 +878,62 @@ def _compile_q(table: sa.Table, q_obj: Any) -> sa.ColumnElement[Any] | None:
     return sa.not_(combined) if getattr(q_obj, "negated", False) else combined
 
 
+def _compile_q_with_traversals(
+    model_cls: type,
+    base_table: sa.Table,
+    q_obj: Any,
+    collected_joins: dict[str, tuple[sa.FromClause, sa.Table]],
+    from_clause_box: list[sa.FromClause],
+) -> sa.ColumnElement[Any] | None:
+    """Recursively compile a Q object to a SQLAlchemy clause with FK traversal support.
+
+    Duck-typed against :class:`~openviper.db.models.Q` without a circular
+    import.  ``from_clause_box`` is a single-element list used as a mutable
+    reference: the caller reads ``from_clause_box[0]`` after this call to
+    obtain the (possibly extended) FROM clause when traversal JOINs were added.
+    """
+    if not q_obj.children:
+        return None
+
+    clauses: list[sa.ColumnElement[Any]] = []
+    for child in q_obj.children:
+        if isinstance(child, tuple):
+            key, value = child
+            try:
+                traversal = _cached_traversal_lookup(key, model_cls)
+                if not traversal.is_simple_field():
+                    if key in collected_joins:
+                        _cached_from, final_table = collected_joins[key]
+                    else:
+                        traversal_from, final_table = _build_traversal_joins(traversal, base_table)
+                        collected_joins[key] = (traversal_from, final_table)
+                        from_clause_box[0] = traversal_from
+                    col = final_table.c[traversal.final_field.column_name]
+                    clause: sa.ColumnElement[Any] | None = _apply_lookup(col, "", value)
+                    if clause is not None:
+                        clauses.append(clause)
+                    continue
+            except FieldError:
+                pass
+            clause = _compile_single_filter(base_table, key, value)
+            if clause is not None:
+                clauses.append(clause)
+        else:
+            clause = _compile_q_with_traversals(
+                model_cls, base_table, child, collected_joins, from_clause_box
+            )
+            if clause is not None:
+                clauses.append(clause)
+
+    if not clauses:
+        return None
+
+    combined: sa.ColumnElement[Any] = (
+        sa.or_(*clauses) if getattr(q_obj, "connector", "AND") == "OR" else sa.and_(*clauses)
+    )
+    return sa.not_(combined) if getattr(q_obj, "negated", False) else combined
+
+
 def _compile_filters(
     table: sa.Table, filter_dicts: list[dict[str, Any]]
 ) -> sa.ColumnElement[Any] | None:
@@ -875,9 +946,11 @@ def _compile_filters(
                 col_name = key.split("__")[0]
                 if col_name == "pk":
                     col_name = "pk (primary key)"
+                available = ", ".join(sorted(table.c.keys()))
                 raise FieldError(
                     f"Invalid filter key '{key}': column '{col_name}' does not exist"
-                    f" in table '{table.name}'"
+                    f" in table '{table.name}'."
+                    f" Available columns: {available}"
                 )
             clauses.append(clause)
     return sa.and_(*clauses) if clauses else None
@@ -964,9 +1037,11 @@ def _build_where_clause_with_traversals(
             # Normal field compilation fallback
             fallback_clause = _compile_single_filter(base_table, key, value)
             if fallback_clause is None:
+                available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
                     f"Invalid filter key '{key}': field '{key.split('__')[0]}'"
-                    f" does not exist on {model_cls.__name__}"
+                    f" does not exist on {model_cls.__name__}."
+                    f" Available fields: {available}"
                 )
             parts.append(fallback_clause)
 
@@ -994,15 +1069,21 @@ def _build_where_clause_with_traversals(
             # Normal exclude fallback
             fallback_exclude = _compile_single_filter(base_table, key, value)
             if fallback_exclude is None:
+                available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
                     f"Invalid exclude key '{key}': field '{key.split('__')[0]}'"
-                    f" does not exist on {model_cls.__name__}"
+                    f" does not exist on {model_cls.__name__}."
+                    f" Available fields: {available}"
                 )
             parts.append(sa.not_(fallback_exclude))
 
-    # Q objects compile against base_table (TODO: could support traversal too)
+    # Q objects — with traversal support
     for q_obj in q_filters:
-        q_clause = _compile_q(base_table, q_obj)
+        from_clause_box: list[sa.FromClause] = [from_clause]
+        q_clause = _compile_q_with_traversals(
+            model_cls, base_table, q_obj, collected_joins, from_clause_box
+        )
+        from_clause = from_clause_box[0]
         if q_clause is not None:
             parts.append(q_clause)
 
@@ -1572,6 +1653,7 @@ async def execute_values(
     if fields:
         # Resolve field names → column names
         field_defs = model_cls._fields
+        available = sorted(field_defs.keys())
         wanted_cols: list[Any] = []
         for fname in fields:
             if fname in annotations:
@@ -1581,8 +1663,12 @@ async def execute_values(
             else:
                 field_def = field_defs.get(fname)
                 col_name = field_def.column_name if field_def else fname
-                if col_name in table.c:
-                    wanted_cols.append(table.c[col_name].label(fname))
+                if col_name not in table.c:
+                    raise FieldError(
+                        f"Invalid field '{fname}' for model {model_cls.__name__}."
+                        f" Available fields: {', '.join(available)}"
+                    )
+                wanted_cols.append(table.c[col_name].label(fname))
         stmt = sa.select(*wanted_cols) if wanted_cols else sa.select(table)
     else:
         ann_cols = [
@@ -1685,9 +1771,7 @@ async def execute_explain(qs: QuerySet) -> str:
 
     async with _connect() as conn:
         if dialect_name == "postgresql":
-            from sqlalchemy.dialects import postgresql
-
-            compiled = stmt.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+            compiled = stmt.compile(dialect=_pg_dialect.dialect())  # type: ignore[no-untyped-call]
             explain_text = f"EXPLAIN {compiled}"
             result = await conn.execute(sa.text(explain_text))
             lines = [str(row[0]) for row in result]

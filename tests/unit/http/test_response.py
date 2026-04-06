@@ -299,6 +299,47 @@ class TestRedirectResponse:
         with pytest.raises(ValueError, match="CR or LF"):
             RedirectResponse("/ok\nX-Injected: evil")
 
+    def test_redirect_resolves_namespaced_route(self):
+        """RedirectResponse resolves \"namespace:name\" via the active router context."""
+        from openviper.core.context import current_router
+        from openviper.routing.router import Router
+
+        router = Router(namespace="users")
+
+        @router.get("/profile", name="me")
+        async def me(request):
+            pass
+
+        token = current_router.set(router)
+        try:
+            r = RedirectResponse("users:me")
+            assert r.headers.get("location") == "/profile"
+        finally:
+            current_router.reset(token)
+
+    def test_redirect_direct_path_unchanged(self):
+        """A direct path is never treated as a namespaced route."""
+        r = RedirectResponse("/users/me")
+        assert r.headers.get("location") == "/users/me"
+
+    def test_redirect_namespaced_with_path_params(self):
+        """Namespaced route with path params fills placeholders correctly."""
+        from openviper.core.context import current_router
+        from openviper.routing.router import Router
+
+        router = Router(namespace="blog")
+
+        @router.get("/posts/{slug:slug}", name="detail")
+        async def detail(request, slug):
+            pass
+
+        token = current_router.set(router)
+        try:
+            r = RedirectResponse("blog:detail", slug="hello-world")
+            assert r.headers.get("location") == "/posts/hello-world"
+        finally:
+            current_router.reset(token)
+
 
 # ---------------------------------------------------------------------------
 # StreamingResponse

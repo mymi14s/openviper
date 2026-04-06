@@ -1600,6 +1600,7 @@ class MigrationExecutor:
 
         # Invalidate soft-removed column cache after applying migrations
         if newly_applied:
+            # Deferred import: migrations/executor.py ↔ executor.py circular dependency
             from openviper.db.executor import invalidate_soft_removed_cache
 
             invalidate_soft_removed_cache()

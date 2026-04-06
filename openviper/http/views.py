@@ -42,7 +42,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from openviper.conf import settings
-from openviper.exceptions import MethodNotAllowed, PermissionDenied
+from openviper.exceptions import MethodNotAllowed, PermissionDenied, TooManyRequests
 from openviper.http.response import JSONResponse, Response
 from openviper.utils.importlib import import_string
 
@@ -108,17 +108,22 @@ class View:
     #: Optional Pydantic serializer class for request body schema.
     #: When set, the OpenAPI schema generator uses it to produce the
     #: ``requestBody`` entry so that Swagger UI displays input fields.
-    serializer_class: list[Any] = []
+    serializer_class: type | None = None
 
     #: List of authentication classes to apply to this view.
-    #: When ``None``, falls back to ``settings.DEFAULT_AUTHENTICATION_CLASSES``.
+    #: ``None`` inherits ``settings.DEFAULT_AUTHENTICATION_CLASSES``.
     #: Set to ``[]`` to explicitly disable per-view authentication.
-    authentication_classes: list[Any] = []
+    authentication_classes: list[Any] | None = None
 
     #: List of permission classes to apply to this view.
-    #: When ``None``, falls back to ``settings.DEFAULT_PERMISSION_CLASSES``.
+    #: ``None`` inherits ``settings.DEFAULT_PERMISSION_CLASSES``.
     #: Set to ``[]`` to explicitly disable per-view permission checks.
-    permission_classes: list[Any] = []
+    permission_classes: list[Any] | None = None
+
+    #: List of throttle classes to apply to this view.
+    #: ``None`` inherits ``settings.DEFAULT_THROTTLE_CLASSES`` when present.
+    #: Set to ``[]`` to explicitly disable throttling.
+    throttle_classes: list[Any] | None = None
 
     def __init__(self, **kwargs: Any) -> None:
         for key, value in kwargs.items():
@@ -136,15 +141,25 @@ class View:
         if method not in self.http_method_names:
             return cast("Response", self.http_method_not_allowed(request))
 
-        # Perform authentication and check permissions before dispatching
+        # Perform authentication, check permissions, then check throttles.
         await self.perform_authentication(request)
         await self.check_permissions(request)
+        await self.check_throttles(request)
+
+        # Delegate HEAD to get() when no explicit head() handler is defined.
+        if method == "head" and not hasattr(type(self), "head"):
+            method = "get"
 
         handler = getattr(self, method, self.http_method_not_allowed)
         result = await handler(request, **kwargs)
         if isinstance(result, (dict, list)):
             return JSONResponse(result)
-        return cast("Response", result)
+        response = cast("Response", result)
+
+        # Strip body for HEAD responses while preserving all headers.
+        if request.method == "HEAD":
+            response.body = b""
+        return response
 
     async def perform_authentication(self, request: Request) -> None:
         """
@@ -167,7 +182,7 @@ class View:
         authenticators = []
         auth_classes = self.authentication_classes
         if auth_classes is None:
-            auth_classes = settings.DEFAULT_AUTHENTICATION_CLASSES
+            auth_classes = getattr(settings, "DEFAULT_AUTHENTICATION_CLASSES", [])
 
         for auth_class in auth_classes:
             if isinstance(auth_class, str):
@@ -216,18 +231,45 @@ class View:
         """
         perm_sources = self.permission_classes
         if perm_sources is None:
-            perm_sources = settings.DEFAULT_PERMISSION_CLASSES
+            perm_sources = getattr(settings, "DEFAULT_PERMISSION_CLASSES", [])
 
         permissions: list[Any] = []
         for entry in perm_sources:
             if isinstance(entry, str):
                 entry = import_string(entry)
-            # callable but not a type covers OperandHolder
             if isinstance(entry, type) or callable(entry) and not hasattr(entry, "has_permission"):
                 permissions.append(entry())
             else:
                 permissions.append(entry)
         return permissions
+
+    def get_throttles(self) -> list[Any]:
+        """Instantiate and return the list of throttles that this view uses."""
+        throttle_sources = self.throttle_classes
+        if throttle_sources is None:
+            throttle_sources = getattr(settings, "DEFAULT_THROTTLE_CLASSES", [])
+
+        throttles: list[Any] = []
+        for entry in throttle_sources:
+            if isinstance(entry, str):
+                entry = import_string(entry)
+            throttles.append(entry() if isinstance(entry, type) else entry)
+        return throttles
+
+    async def check_throttles(self, request: Request) -> None:
+        """Check request against each configured throttle.
+
+        Each throttle must expose an async ``allow_request(request, view) -> bool``
+        method and a ``wait() -> float | None`` method returning seconds to retry.
+
+        Raises:
+            TooManyRequests: If any throttle does not permit the request.
+        """
+        for throttle in self.get_throttles():
+            if not await throttle.allow_request(request, self):
+                wait = throttle.wait() if callable(getattr(throttle, "wait", None)) else None
+                retry_after = int(wait) if wait is not None else None
+                raise TooManyRequests(retry_after=retry_after)
 
     def permission_denied(self, request: Request, message: str | None = None) -> None:
         """If request is not permitted, determine what kind of exception to raise."""

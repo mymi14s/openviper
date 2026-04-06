@@ -280,6 +280,37 @@ class TestApplyLookup:
         clause = _apply_lookup(self.col, "exact", uid)
         assert clause is not None
 
+    def test_model_instance_unwrapped_to_id(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users"
+
+            username = CharField(max_length=100)
+
+        user = FakeUser(username="alice")
+        user.__dict__["id"] = 5
+        clause = _apply_lookup(self.age_col, "exact", user)
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "5" in compiled
+
+    def test_in_with_model_instances_unwrapped_to_ids(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users2"
+
+            username = CharField(max_length=100)
+
+        u1 = FakeUser(username="alice")
+        u1.__dict__["id"] = 1
+        u2 = FakeUser(username="bob")
+        u2.__dict__["id"] = 2
+        clause = _apply_lookup(self.age_col, "in", [u1, u2])
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+        assert "2" in compiled
+
 
 # ---------------------------------------------------------------------------
 # _compile_single_filter

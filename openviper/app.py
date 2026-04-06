@@ -38,9 +38,15 @@ from openviper._version import __version__
 from openviper.conf import settings
 from openviper.contrib.default.middleware import DefaultLandingMiddleware
 from openviper.core.context import current_request, current_router
-from openviper.exceptions import FieldError, HTTPException, QueryError, TableNotFound
+from openviper.exceptions import FieldError, HTTPException, NotFound, QueryError, TableNotFound
 from openviper.http.request import Request
-from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from openviper.http.response import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from openviper.middleware.base import ASGIApp, build_middleware_stack
 from openviper.middleware.cors import CORSMiddleware
 from openviper.middleware.error import ServerErrorMiddleware
@@ -529,6 +535,10 @@ class OpenViper:
                 handler = mw(handler)  # type: ignore[assignment,call-arg]
 
             response = await self._call_handler(handler, request)
+        except NotFound as exc:
+            response = self._try_append_slash_redirect(request) or await self._handle_exception(
+                request, exc
+            )
         except Exception as exc:
             response = await self._handle_exception(request, exc)
         finally:
@@ -611,6 +621,28 @@ class OpenViper:
             with contextlib.suppress(Exception):
                 return JSONResponse(result.model_dump())
         return JSONResponse(result)
+
+    def _try_append_slash_redirect(self, request: Request) -> RedirectResponse | None:
+        """Return a 301 redirect to ``path + "/"`` in production when the route exists.
+
+        Only active when ``settings.DEBUG`` is falsy and the request path does
+        not already end with a slash.  Returns ``None`` when the slash-appended
+        path still does not resolve, so the caller can fall through to normal
+        error handling.
+        """
+        if settings.DEBUG:
+            return None
+        path = request.path
+        if path.endswith("/"):
+            return None
+        slash_path = path + "/"
+        try:
+            self.router.resolve(request.method, slash_path)
+        except Exception:
+            return None
+        qs = request.query_string
+        location = slash_path + (f"?{qs.decode()}" if qs else "")
+        return RedirectResponse(location, status_code=301)
 
     async def _handle_exception(self, request: Request, exc: Exception) -> Response:
         """Dispatch to the appropriate exception handler or return generic error."""

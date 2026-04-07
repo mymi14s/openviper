@@ -676,10 +676,22 @@ def configure_logging(instance: Settings) -> None:
 
     ov_logger = logging.getLogger("openviper")
     ov_logger.setLevel(level)
-    # Replace any previously installed default handler; leave other handlers
-    # (e.g. those added by tests or external frameworks) untouched.
     ov_logger.handlers = [h for h in ov_logger.handlers if not isinstance(h, _OVDefaultHandler)]
     ov_logger.addHandler(handler)
+
+    if level > logging.DEBUG:
+        for _noisy in (
+            "aiosqlite",
+            "asyncio",
+            "urllib3",
+            "urllib3.connectionpool",
+            "watchfiles",
+            "watchfiles.main",
+            "sqlalchemy.engine",
+            "sqlalchemy.pool",
+            "dramatiq",
+        ):
+            logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 
 def validate_settings(s: Settings, env: str) -> None:

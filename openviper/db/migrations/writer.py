@@ -483,6 +483,8 @@ def _parse_operation(node: ast.AST, state: dict[str, dict[str, Any]]) -> None:
         _parse_remove_column(node, state)
     elif op_name == "AlterColumn":
         _parse_alter_column(node, state)
+    elif op_name == "RemoveIndex":
+        _parse_remove_index(node, state)
     elif op_name == "RenameColumn":
         _parse_rename_column(node, state)
     elif op_name == "RestoreColumn":
@@ -513,6 +515,24 @@ def _parse_create_table(node: ast.Call, state: dict[str, dict[str, Any]]) -> Non
             "indexes": [],
             "unique_together": [],
         }
+
+
+def _parse_remove_index(node: ast.Call, state: dict[str, dict[str, Any]]) -> None:
+    """Handle a RemoveIndex operation."""
+    table_name = _get_keyword_str(node, "table_name")
+    index_name = _get_keyword_str(node, "index_name")
+    if not table_name or not index_name or table_name not in state:
+        return
+    state[table_name]["indexes"] = [
+        idx for idx in state[table_name]["indexes"] if idx.get("name") != index_name
+    ]
+    state[table_name]["unique_together"] = [
+        ut_fields
+        for ut_fields in state[table_name]["unique_together"]
+        if f"uniq_{table_name}_{'_'.join(ut_fields)}" != index_name
+    ]
+    state[table_name]["indexes"].sort(key=lambda x: x.get("name") or str(x.get("fields")))
+    state[table_name]["unique_together"].sort()
 
 
 def _parse_create_index(node: ast.Call, state: dict[str, dict[str, Any]]) -> None:
@@ -560,15 +580,20 @@ def _parse_add_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> None:
 
     # Determine nullable (default True in AddColumn)
     nullable = True
+    default: Any = None
     for kw in node.keywords:
         if kw.arg == "nullable" and isinstance(kw.value, ast.Constant):
             nullable = bool(kw.value.value)
+        elif kw.arg == "default" and isinstance(kw.value, ast.Constant):
+            default = kw.value.value
 
     col: dict[str, Any] = {
         "name": column_name,
         "type": column_type,
         "nullable": nullable,
     }
+    if default is not None:
+        col["default"] = default
 
     if table_name not in state:
         state[table_name] = {"columns": [], "indexes": [], "unique_together": []}
@@ -964,6 +989,16 @@ def _format_operation(op: Operation) -> str:
         )
     if isinstance(op, DropTable):
         return f"    migrations.DropTable(table_name={op.table_name!r}),"
+    if isinstance(op, CreateIndex):
+        parts = [
+            f"        table_name={op.table_name!r}",
+            f"        index_name={op.index_name!r}",
+            f"        columns={op.columns!r}",
+        ]
+        if op.unique:
+            parts.append(f"        unique={op.unique!r}")
+        inner = ",\n".join(parts)
+        return f"    migrations.CreateIndex(\n{inner},\n    ),"
     if isinstance(op, RemoveIndex):
         inner = f"table_name={op.table_name!r}, index_name={op.index_name!r}"
         return f"    migrations.RemoveIndex({inner}),"

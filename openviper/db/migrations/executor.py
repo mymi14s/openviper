@@ -276,6 +276,42 @@ def _map_column_type(col_type: str, dialect: str) -> str:
     return col_type
 
 
+# PostgreSQL type names that require an explicit USING clause when used as
+# the target of ALTER COLUMN TYPE (i.e., PG will not auto-cast from other
+# numeric/text types).  The value is the canonical PG cast target name.
+_PG_NEEDS_USING: frozenset[str] = frozenset(
+    {
+        "DOUBLE PRECISION",
+        "REAL",
+        "NUMERIC",
+        "BIGINT",
+        "INTEGER",
+        "SMALLINT",
+        "TEXT",
+        "VARCHAR",
+        "FLOAT",
+    }
+)
+
+
+def _pg_auto_using(column_name: str, pg_type: str) -> str:
+    """Return a PostgreSQL USING clause string when the target type requires one.
+
+    Returns an empty string when the cast can be performed implicitly.
+    The column name is validated to be a safe identifier before embedding.
+    """
+    # Strip any length/precision suffix to get the base type name.
+    base = re.match(r"^([A-Z_ ]+)", pg_type.strip().upper())
+    base_type = base.group(1).strip() if base else pg_type.upper()
+    if base_type in _PG_NEEDS_USING:
+        # column_name is already validated as a safe identifier by _validate_identifier
+        # at migration-write time; re-verify defensively.
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column_name):
+            return ""
+        return f' USING "{column_name}"::{pg_type}'
+    return ""
+
+
 # ── Operation primitives ──────────────────────────────────────────────────────
 
 
@@ -700,7 +736,7 @@ class AlterColumn(Operation):
                 if self.using:
                     # Only allow safe column references and type casts
                     safe_using_pattern = re.compile(
-                        r"^[a-zA-Z_][a-zA-Z0-9_]*(::[a-zA-Z_][a-zA-Z0-9_]*)?$"
+                        r"^[a-zA-Z_][a-zA-Z0-9_]*(::[a-zA-Z_ ][a-zA-Z0-9_ ]*)*$"
                     )
                     if not safe_using_pattern.match(self.using.strip()):
                         raise ValueError(
@@ -710,7 +746,9 @@ class AlterColumn(Operation):
                         )
                     using_clause = f" USING {self.using}"
                 else:
-                    using_clause = ""
+                    # Auto-generate USING clause for type changes that require explicit
+                    # casts on PostgreSQL (e.g. REAL -> DOUBLE PRECISION).
+                    using_clause = _pg_auto_using(self.column_name, raw_type)
                 stmts.append(
                     f"ALTER TABLE {quoted_table} ALTER COLUMN"
                     f" {quoted_column} TYPE {raw_type}{using_clause}"
@@ -779,8 +817,10 @@ class AlterColumn(Operation):
         if self.old_type and self.old_type != self.column_type:
             raw_type = _map_column_type(self.old_type, dialect)
             if dialect == "postgresql":
+                using_clause = _pg_auto_using(self.column_name, raw_type)
                 stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} TYPE {raw_type}"
+                    f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                    f" {quoted_column} TYPE {raw_type}{using_clause}"
                 )
             elif dialect == "mysql":
                 stmts.append(f"ALTER TABLE {quoted_table} MODIFY COLUMN {quoted_column} {raw_type}")

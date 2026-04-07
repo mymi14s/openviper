@@ -144,8 +144,8 @@ export const useAdminStore = defineStore('admin', () => {
       const instance = await modelsApi.createModelInstance(appLabel, modelName, data)
       return instance
     } catch (err: any) {
-      // Re-throw 409 Conflict so the caller can handle the "record already exists" case.
-      if (err.response?.status === 409) {
+      // Re-throw 409 Conflict and 422 Unprocessable Entity so the caller can handle them.
+      if (err.response?.status === 409 || err.response?.status === 422) {
         throw err
       }
       error.value = err.response?.data?.error || 'Failed to create instance'
@@ -166,6 +166,10 @@ export const useAdminStore = defineStore('admin', () => {
       currentInstance.value = instance
       return instance
     } catch (err: any) {
+      // Re-throw 422 Unprocessable Entity so the caller can display field-level errors.
+      if (err.response?.status === 422) {
+        throw err
+      }
       error.value = err.response?.data?.error || 'Failed to update instance'
       showOperationalError(error.value ?? 'Failed to update instance')
       return null

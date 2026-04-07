@@ -85,6 +85,10 @@ class Command(BaseCommand):
         reload = options["reload"]
         workers = options.get("workers", 1)
 
+        from openviper.conf import settings
+
+        log_level = getattr(settings, "LOG_LEVEL", "INFO").lower()
+
         get_banner(self, host, port)
 
         # Show migration check result if it completes quickly
@@ -98,7 +102,7 @@ class Command(BaseCommand):
             pass
 
         if reload:
-            self._run_with_cache_clear(uvicorn, app_path, host, port)
+            self._run_with_cache_clear(uvicorn, app_path, host, port, log_level)
         else:
             uvicorn.run(
                 app_path,
@@ -106,7 +110,7 @@ class Command(BaseCommand):
                 port=port,
                 reload=False,
                 workers=workers,
-                log_level="debug",
+                log_level=log_level,
             )
 
     # ── helpers ───────────────────────────────────────────────────────
@@ -127,7 +131,9 @@ class Command(BaseCommand):
                 dirs.append(pkg_parent)
         return dirs
 
-    def _run_with_cache_clear(self, uvicorn, app_path: str, host: str, port: int) -> None:
+    def _run_with_cache_clear(
+        self, uvicorn, app_path: str, host: str, port: int, log_level: str = "info"
+    ) -> None:
         """Run uvicorn with ``--reload`` and clear ``__pycache__`` before every restart.
 
         Patches :meth:`uvicorn.supervisors.ChangeReload.restart` (stat-based,
@@ -163,7 +169,7 @@ class Command(BaseCommand):
             port=port,
             reload=True,
             reload_dirs=reload_dirs,
-            log_level="debug",
+            log_level=log_level,
         )
 
     def _resolve_app_path(self, options: dict) -> str:

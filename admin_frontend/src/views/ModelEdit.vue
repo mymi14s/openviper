@@ -118,8 +118,28 @@ function scrollToFirstError(errs: Record<string, string>) {
   scrollToFormTop()
 }
 
+function validateRequiredFields(): Record<string, string> {
+  const fieldErrors: Record<string, string> = {}
+  for (const field of model.value?.fields ?? []) {
+    if (!field.required || field.readonly || field.type === 'BooleanField' || field.type === 'boolean') continue
+    const val = formData.value[field.name]
+    if (val === null || val === undefined || val === '') {
+      fieldErrors[field.name] = `${field.label} is required.`
+    }
+  }
+  return fieldErrors
+}
+
 async function handleSubmit() {
   errors.value = {}
+
+  const fieldErrors = validateRequiredFields()
+  if (Object.keys(fieldErrors).length > 0) {
+    errors.value = fieldErrors
+    scrollToFirstError(errors.value)
+    return
+  }
+
   saving.value = true
 
   try {

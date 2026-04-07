@@ -2211,9 +2211,9 @@ class Model(metaclass=ModelMeta):
             filter_kwargs: dict[str, Any] = {}
             skip = False
             for f_name in ut_fields:
-                field_def = self._fields.get(f_name)
-                col = field_def.column_name if field_def else f_name
-                raw = self.__dict__.get(col) if field_def else getattr(self, f_name, None)
+                ut_field: Field | None = self._fields.get(f_name)
+                col = ut_field.column_name if ut_field else f_name
+                raw = self.__dict__.get(col) if ut_field else getattr(self, f_name, None)
                 if raw is None:
                     skip = True
                     break

@@ -207,17 +207,6 @@ Performance
       python viperctl.py makemigrations
       python viperctl.py migrate
 
-Security
---------
-
-* **Length guard** — values longer than 10 characters are rejected before
-  any lookup, preventing denial-of-service via pathological input.
-* **Strict mode** — the default ``strict=True`` enforces the two-letter
-  alphabetic format, blocking numeric codes, SQL injection strings, and
-  other malformed inputs.
-* **Uppercase normalisation** — all values are uppercased before both
-  storage and validation, eliminating case-sensitivity edge cases.
-* **No dynamic SQL** — country validation never touches the database.
 
 Testing
 -------

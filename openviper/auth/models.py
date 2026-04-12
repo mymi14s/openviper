@@ -183,7 +183,9 @@ class AbstractUser(Model):
     date_joined = DateTimeField(auto_now_add=True, editable=False)
 
     # ManyToMany relationship to roles
-    roles = ManyToManyField(to="auth.Role", through="auth.UserRole", related_name="users")
+    roles = ManyToManyField(
+        to="auth.Role", through="auth.UserRole", related_name="users", null=True, blank=True
+    )
 
     class Meta:
         abstract = True

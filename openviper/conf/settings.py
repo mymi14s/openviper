@@ -485,7 +485,11 @@ class _LazySettings:
                             mod = importlib.import_module(module_path)
                             _MODULE_CACHE[module_path] = mod
 
-                        # Find a frozen dataclass subclass of Settings
+                        # Find the most-derived frozen dataclass subclass of
+                        # Settings.  Modules often import a base settings class
+                        # and then define a more specific subclass; we want the
+                        # deepest one (highest MRO depth).
+                        candidates: list[tuple[str, type[Settings]]] = []
                         for attr_name, obj in vars(mod).items():
                             if (
                                 isinstance(obj, type)
@@ -493,15 +497,18 @@ class _LazySettings:
                                 and obj is not Settings
                                 and dataclasses.is_dataclass(obj)
                             ):
-                                # Cache the Settings class for future use
-                                _SETTINGS_CLASS_CACHE[module_path] = obj
-                                instance = obj()
-                                logger.debug(
-                                    "Loaded settings class %r from %r",
-                                    attr_name,
-                                    module_path,
-                                )
-                                break
+                                candidates.append((attr_name, obj))
+
+                        if candidates:
+                            # Pick the class with the longest MRO (most derived)
+                            attr_name, best = max(candidates, key=lambda c: len(c[1].__mro__))
+                            _SETTINGS_CLASS_CACHE[module_path] = best
+                            instance = best()
+                            logger.debug(
+                                "Loaded settings class %r from %r",
+                                attr_name,
+                                module_path,
+                            )
                         if instance is None:
                             raise RuntimeError(
                                 f"OPENVIPER_SETTINGS_MODULE={module_path!r} was imported "

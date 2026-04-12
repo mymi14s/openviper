@@ -15,12 +15,13 @@ class MockModel(Model):
 async def test_on_change_receives_change_dict_on_update():
     instance = MockModel(id=1, name="Original")
     instance._previous_state = {"id": 1, "name": "Original"}
+    instance._persisted = True
     instance.name = "Changed"
 
     # Mock dispatcher
     mock_dispatcher = MagicMock()
 
-    with patch("openviper.db.events.get_dispatcher", return_value=mock_dispatcher):
+    with patch("openviper.db.models.get_dispatcher", return_value=mock_dispatcher):
         with patch("openviper.db.models.execute_save", new=AsyncMock()):
             await instance.save()
 
@@ -48,7 +49,7 @@ async def test_on_change_fires_on_create():
     # Mock dispatcher
     mock_dispatcher = MagicMock()
 
-    with patch("openviper.db.events.get_dispatcher", return_value=mock_dispatcher):
+    with patch("openviper.db.models.get_dispatcher", return_value=mock_dispatcher):
         with patch("openviper.db.models.execute_save", new=AsyncMock()):
             # Simulate ID being set during save
             async def side_effect(inst, **kwargs):

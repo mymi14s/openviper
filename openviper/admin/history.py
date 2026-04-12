@@ -84,9 +84,7 @@ class ChangeHistory(Model):
         Returns:
             List of ChangeHistory records.
         """
-        # Convert object_id to string for querying VARCHAR field
         object_id_str = str(object_id)
-        # This will be called as async in views
         return (
             cls.objects.filter(model_name=model_name, object_id=object_id_str)
             .order_by("-change_time")
@@ -131,7 +129,6 @@ async def log_change(
     if changes:
         changed_fields_json = json.dumps(changes, default=str)
 
-    # Convert object_id to string for storage in VARCHAR field
     object_id_str = str(object_id)
 
     record = await ChangeHistory.objects.create(
@@ -160,7 +157,6 @@ async def get_change_history(
     Returns:
         List of ChangeHistory records, most recent first.
     """
-    # Convert object_id to string for querying VARCHAR field
     object_id_str = str(object_id)
     return (
         await ChangeHistory.objects.filter(model_name=model_name, object_id=object_id_str)
@@ -207,8 +203,6 @@ def compute_changes(
         Dict mapping field names to {"old": value, "new": value}.
     """
     changes = {}
-    # Only track fields that were actually sent in the update (new_data).
-    # This avoids logging fields as 'None' if they were just omitted from a partial update.
     for key in new_data:
         # Skip sensitive fields to prevent exposure in history logs
         if key in SENSITIVE_FIELDS or any(s in key.lower() for s in SENSITIVE_FIELDS):

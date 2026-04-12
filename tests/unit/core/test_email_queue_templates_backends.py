@@ -131,6 +131,7 @@ class TestQueue:
     async def test_deliver_email_job_executes_send_now(self) -> None:
         sender_mod = types.ModuleType("openviper.core.email.sender")
         sender_mod._send_now = AsyncMock()
+        sender_mod._configure_email_log = MagicMock()
 
         payload = {
             "recipients": ["to@example.com"],

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import email.utils
 import functools
 import importlib.util
 import mimetypes
 import shutil
 import stat as stat_module
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import aiofiles
 import aiofiles.os
@@ -107,25 +108,31 @@ class StaticFilesMiddleware:
             await self._send_response(send, 404, b"Not Found", "text/plain")
             return
 
-        await self._serve_file(scope, send, entry, method)
+        await self._serve_file(scope, receive, send, entry, method)
 
     async def _find_file(self, relative: str) -> _FileEntry | None:
         """Find a file and return a _FileEntry, performing a single stat syscall."""
         for raw_dir, resolved_dir in self._resolved_dirs:
             candidate = (raw_dir / relative).resolve()
 
-            # Check for symlinks before proceeding
+            # Reject symlinks to prevent traversal attacks.
             if candidate.is_symlink():
-                continue  # Reject symlinks to prevent traversal attacks
+                continue
 
-            # Check any parent is a symlink
+            # Reject if any parent path component between candidate and the
+            # serve root is itself a symlink — ensures the full resolved path
+            # stays inside the expected directory tree.
+            symlinked_parent = False
             try:
                 for parent in candidate.parents:
                     if parent == resolved_dir:
                         break
                     if parent.is_symlink():
-                        continue  # Parent is symlink, skip
+                        symlinked_parent = True
+                        break
             except Exception:
+                continue
+            if symlinked_parent:
                 continue
 
             # Ensure candidate is inside the directory (no traversal).
@@ -145,11 +152,12 @@ class StaticFilesMiddleware:
     async def _serve_file(
         self,
         scope: dict[str, Any],
+        receive: Any,
         send: Any,
         entry: _FileEntry,
         method: str,
     ) -> None:
-        """Serve file with async I/O, using the pre-fetched stat result."""
+        """Serve a static file with ETag, Last-Modified, Range, and HEAD support."""
         file_size = entry.stat_result.st_size
         last_modified = entry.stat_result.st_mtime
         path = entry.path
@@ -158,42 +166,89 @@ class StaticFilesMiddleware:
             mime_type = "application/octet-stream"
 
         etag = f'"{int(last_modified)}-{file_size}"'
-        headers = [
+        last_modified_str = email.utils.formatdate(last_modified, usegmt=True)
+
+        headers_raw: list[list[bytes]] = scope.get("headers", [])
+        incoming = {k.lower(): v for k, v in headers_raw}
+
+        if incoming.get(b"if-none-match", b"") == etag.encode():
+            await NotModifiedResponse()(scope, receive, send)
+            return
+
+        common_headers: list[list[bytes]] = [
             [b"content-type", mime_type.encode()],
-            [b"content-length", str(file_size).encode()],
             [b"etag", etag.encode()],
             [b"accept-ranges", b"bytes"],
             [b"cache-control", b"public, max-age=3600"],
             [b"x-content-type-options", b"nosniff"],
+            [b"last-modified", last_modified_str.encode()],
         ]
         if encoding:
-            headers.append([b"content-encoding", encoding.encode()])
+            common_headers.append([b"content-encoding", encoding.encode()])
 
-        headers_raw: list[list[bytes]] = scope.get("headers", [])
-        incoming = {k.lower(): v for k, v in headers_raw}
-        if incoming.get(b"if-none-match", b"") == etag.encode():
-            await send({"type": "http.response.start", "status": 304, "headers": []})
-            await send({"type": "http.response.body", "body": b""})
-            return
+        range_start: int | None = None
+        range_end: int | None = None
+        range_header = incoming.get(b"range", b"")
+        if_range = incoming.get(b"if-range", b"")
+        if range_header:
+            if if_range and if_range != etag.encode():
+                range_header = b""
+            else:
+                result = _parse_range(range_header, file_size)
+                if result == "unsatisfiable":
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": 416,
+                            "headers": [
+                                [b"content-range", f"bytes */{file_size}".encode()],
+                                [b"content-length", b"0"],
+                            ],
+                        }
+                    )
+                    await send({"type": "http.response.body", "body": b""})
+                    return
+                if result != "ignore":
+                    range_start, range_end = result
 
-        await send({"type": "http.response.start", "status": 200, "headers": headers})
+        if range_start is not None and range_end is not None:
+            partial_length = range_end - range_start + 1
+            response_headers: list[list[bytes]] = [
+                *common_headers,
+                [b"content-length", str(partial_length).encode()],
+                [b"content-range", f"bytes {range_start}-{range_end}/{file_size}".encode()],
+            ]
+            status = 206
+        else:
+            response_headers = [
+                *common_headers,
+                [b"content-length", str(file_size).encode()],
+            ]
+            status = 200
+
+        await send({"type": "http.response.start", "status": status, "headers": response_headers})
+
         if method == "HEAD":
             await send({"type": "http.response.body", "body": b""})
             return
 
+        chunk_size = 65536
         async with aiofiles.open(str(path), "rb") as f:
-            chunk_size = 65536
-            while True:
-                chunk = await f.read(chunk_size)
-                if not chunk:
-                    break
-                await send(
-                    {
-                        "type": "http.response.body",
-                        "body": chunk,
-                        "more_body": True,
-                    }
-                )
+            if range_start is not None and range_end is not None:
+                await f.seek(range_start)
+                remaining = range_end - range_start + 1
+                while remaining > 0:
+                    chunk = await f.read(min(chunk_size, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    await send({"type": "http.response.body", "body": chunk, "more_body": True})
+            else:
+                while True:
+                    chunk = await f.read(chunk_size)
+                    if not chunk:
+                        break
+                    await send({"type": "http.response.body", "body": chunk, "more_body": True})
         await send({"type": "http.response.body", "body": b"", "more_body": False})
 
     @staticmethod
@@ -209,6 +264,68 @@ class StaticFilesMiddleware:
             }
         )
         await send({"type": "http.response.body", "body": body})
+
+
+def _parse_range(
+    range_header: bytes,
+    file_size: int,
+) -> tuple[int, int] | Literal["ignore", "unsatisfiable"]:
+    """Parse a bytes Range header and return byte offsets or a resolution sentinel.
+
+    Returns:
+        ``(start, end)`` — inclusive byte offsets for a satisfiable single range.
+        ``"ignore"``       — multi-range, unknown unit, or parse error; serve 200.
+        ``"unsatisfiable"`` — valid but start is at or beyond EOF; respond 416.
+    """
+    try:
+        value = range_header.decode("ascii")
+    except UnicodeDecodeError, ValueError:
+        return "ignore"
+
+    if not value.startswith("bytes="):
+        return "ignore"
+
+    spec = value[6:].strip()
+    if "," in spec:
+        return "ignore"
+
+    if spec.startswith("-"):
+        try:
+            suffix = int(spec[1:])
+        except ValueError:
+            return "ignore"
+        if suffix <= 0:
+            return "ignore"
+        start = max(0, file_size - suffix)
+        end = file_size - 1
+        if start > end:
+            return "unsatisfiable"
+        return start, end
+
+    if spec.endswith("-"):
+        try:
+            start = int(spec[:-1])
+        except ValueError:
+            return "ignore"
+        if start >= file_size:
+            return "unsatisfiable"
+        end = file_size - 1
+        return start, end
+
+    parts = spec.split("-", 1)
+    if len(parts) != 2:
+        return "ignore"
+    try:
+        start = int(parts[0])
+        end = int(parts[1])
+    except ValueError:
+        return "ignore"
+
+    if start > end or start >= file_size:
+        return "unsatisfiable"
+
+    end = min(end, file_size - 1)
+    return start, end
 
 
 @functools.lru_cache(maxsize=1)

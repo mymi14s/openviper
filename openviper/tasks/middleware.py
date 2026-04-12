@@ -34,7 +34,6 @@ from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger("openviper.tasks")
 
-# Terminal statuses — trigger an immediate flush so results are visible ASAP.
 _TERMINAL_STATUSES = frozenset({"success", "failure", "skipped", "dead"})
 
 
@@ -68,7 +67,6 @@ class _EventBuffer:
         self._queue: deque[_TrackingEvent] = deque()
         self._lock = threading.Lock()
         self.flush_threshold = flush_threshold
-        # Single-threaded executor ensures serial DB writes
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="task_flush")
 
     def push(self, event: _TrackingEvent) -> None:
@@ -81,7 +79,6 @@ class _EventBuffer:
             else:
                 events = []
         if events:
-            # Submit flush to background thread (non-blocking)
             self._executor.submit(self._flush, events)
 
     def _flush(self, events: list[_TrackingEvent]) -> None:
@@ -150,7 +147,7 @@ class TaskTrackingMiddleware(Middleware):
             logger.debug("TaskTracking.before_enqueue: %s", exc)
 
     # ------------------------------------------------------------------
-    # Worker side  (runs inside the Dramatiq worker threads)
+    # Worker side
     # ------------------------------------------------------------------
 
     def before_process_message(self, broker: Any, message: Any) -> None:
@@ -193,7 +190,7 @@ class TaskTrackingMiddleware(Middleware):
                         terminal=True,
                     )
                 )
-                logger.info(
+                logger.debug(
                     "[%s] Succeeded actor=%s",
                     message.message_id[:8],
                     message.actor_name,

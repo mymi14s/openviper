@@ -527,8 +527,22 @@ class TestCreateTableExtended:
             ],
         )
         with patch("openviper.db.migrations.executor._get_dialect", return_value="postgresql"):
+            # FK constraints are deferred for PostgreSQL to avoid circular-dependency
+            # failures when referenced tables haven't been created yet.
+            create_sql = op.forward_sql()[0]
+            assert (
+                'REFERENCES "users"' not in create_sql
+            ), "FK must not be inlined in CREATE TABLE for PostgreSQL"
+            fk_stmts = op.deferred_fk_stmts()
+            assert len(fk_stmts) == 1
+            assert 'FOREIGN KEY ("author_id")' in fk_stmts[0]
+            assert 'REFERENCES "users"(id) ON DELETE CASCADE' in fk_stmts[0]
+
+        # SQLite keeps inline REFERENCES (no ALTER TABLE ADD CONSTRAINT FK support)
+        with patch("openviper.db.migrations.executor._get_dialect", return_value="sqlite"):
             sql = op.forward_sql()[0]
             assert 'REFERENCES "users"(id) ON DELETE CASCADE' in sql
+            assert op.deferred_fk_stmts() == []
 
 
 class TestAddColumnExtended:

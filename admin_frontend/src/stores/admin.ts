@@ -10,6 +10,7 @@ import type {
   FilterOption
 } from '@/types/admin'
 import { modelsApi, dashboardApi, historyApi } from '@/api/client'
+import { useAlertsStore } from '@/stores/alerts'
 
 export const useAdminStore = defineStore('admin', () => {
   const models = ref<ModelConfig[]>([])
@@ -50,6 +51,11 @@ export const useAdminStore = defineStore('admin', () => {
   })
 
   const appLabels = computed(() => Object.keys(modelsByApp.value).sort())
+
+  function showOperationalError(message: string): void {
+    const alertsStore = useAlertsStore()
+    alertsStore.show({ type: 'error', title: 'Operation Failed', message })
+  }
 
   async function fetchModels(): Promise<void> {
     error.value = null
@@ -110,6 +116,7 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch instances'
       instances.value = []
+      showOperationalError(error.value ?? 'Failed to fetch instances')
     }
   }
 
@@ -124,6 +131,7 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to fetch instance'
       currentInstance.value = null
+      showOperationalError(error.value ?? 'Failed to fetch instance')
     }
   }
 
@@ -136,6 +144,10 @@ export const useAdminStore = defineStore('admin', () => {
       const instance = await modelsApi.createModelInstance(appLabel, modelName, data)
       return instance
     } catch (err: any) {
+      // Re-throw 409 Conflict and 422 Unprocessable Entity so the caller can handle them.
+      if (err.response?.status === 409 || err.response?.status === 422) {
+        throw err
+      }
       error.value = err.response?.data?.error || 'Failed to create instance'
       return null
     } finally {
@@ -154,7 +166,12 @@ export const useAdminStore = defineStore('admin', () => {
       currentInstance.value = instance
       return instance
     } catch (err: any) {
+      // Re-throw 422 Unprocessable Entity so the caller can display field-level errors.
+      if (err.response?.status === 422) {
+        throw err
+      }
       error.value = err.response?.data?.error || 'Failed to update instance'
+      showOperationalError(error.value ?? 'Failed to update instance')
       return null
     } finally {
       // Don't set loading.value = false here
@@ -176,6 +193,7 @@ export const useAdminStore = defineStore('admin', () => {
       return true
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to delete instance'
+      showOperationalError(error.value ?? 'Failed to delete instance')
       return false
     }
   }
@@ -195,6 +213,7 @@ export const useAdminStore = defineStore('admin', () => {
       return result
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to perform bulk action'
+      showOperationalError(error.value ?? 'Failed to perform bulk action')
       return { success: false, affected: 0 }
     }
   }

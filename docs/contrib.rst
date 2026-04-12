@@ -10,7 +10,7 @@ extended or replaced by application code.
 Overview
 --------
 
-Currently ``openviper.contrib`` contains two sub-packages:
+Currently ``openviper.contrib`` contains three sub-packages:
 
 ``openviper.contrib.default``
     The default landing page and its ASGI middleware, shown in ``DEBUG`` mode
@@ -19,6 +19,11 @@ Currently ``openviper.contrib`` contains two sub-packages:
 ``openviper.contrib.countries``
     Lightweight ISO 3166-1 alpha-2 ``CountryField`` for ORM models.  See
     :doc:`country_field` for full documentation.
+
+``openviper.contrib.geolocation``
+    Optional PostGIS-compatible ``PointField`` and ``Point`` geometry class.
+    Requires ``pip install openviper[Geolocation]`` for shapely integration.
+    See :doc:`geolocation` for full documentation.
 
 Key Classes & Functions
 -----------------------

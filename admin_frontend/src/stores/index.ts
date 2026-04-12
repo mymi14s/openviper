@@ -1,3 +1,5 @@
 export { useAuthStore } from './auth'
 export { useAdminStore } from './admin'
 export { useThemeStore } from './theme'
+export { useAlertsStore } from './alerts'
+export type { Alert, AlertAction } from './alerts'

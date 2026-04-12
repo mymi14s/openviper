@@ -69,10 +69,9 @@ class TestResolveMiddlewareEntry:
         assert result is object
 
     @patch("importlib.import_module", side_effect=ImportError("Module not found"))
-    def test_returns_none_on_import_error(self, mock_import):
-        result = _resolve_middleware_entry("nonexistent.Middleware")
-
-        assert result is None
+    def test_raises_on_import_error(self, mock_import):
+        with pytest.raises(ImportError, match="nonexistent.Middleware"):
+            _resolve_middleware_entry("nonexistent.Middleware")
 
 
 class TestOpenViperInit:
@@ -894,24 +893,15 @@ class TestAutodiscoverRoutes:
 
         assert app is not None
 
-    def test_raises_in_debug_when_routes_module_has_broken_imports(self, monkeypatch):
+    def test_raises_when_routes_module_has_broken_imports(self, monkeypatch):
+        """A broken nested import inside the routes module always propagates."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
 
         exc = ModuleNotFoundError("No module named 'nonexistent_dep'")
         exc.name = "nonexistent_dep"
         with patch("importlib.import_module", side_effect=exc):
             with pytest.raises(ModuleNotFoundError):
-                OpenViper(debug=True)
-
-    def test_skips_silently_in_production_when_routes_module_has_broken_imports(self, monkeypatch):
-        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "myproject.settings")
-
-        exc = ModuleNotFoundError("No module named 'nonexistent_dep'")
-        exc.name = "nonexistent_dep"
-        with patch("importlib.import_module", side_effect=exc):
-            app = OpenViper(debug=False)
-
-        assert app is not None
+                OpenViper()
 
     def test_skips_gracefully_when_route_paths_not_defined(self, monkeypatch):
         fake_routes_module = MagicMock(spec=[])  # no route_paths attribute
@@ -938,6 +928,24 @@ class TestAutodiscoverRoutes:
             OpenViper()
 
         assert "ecommerce_clone.routes" in imported_modules
+
+    def test_derives_routes_module_from_nested_settings_module(self, monkeypatch):
+        """project.settings.prod -> project.routes (top-level package only)."""
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "project.settings.prod")
+
+        imported_modules: list[str] = []
+
+        def capture_import(name: str, *args, **kwargs):
+            imported_modules.append(name)
+            m = MagicMock()
+            m.route_paths = []
+            return m
+
+        with patch("importlib.import_module", side_effect=capture_import):
+            OpenViper()
+
+        assert "project.routes" in imported_modules
+        assert "project.settings.routes" not in imported_modules
 
     def test_registers_multiple_routers(self, monkeypatch):
         router_a = Router()
@@ -1052,16 +1060,14 @@ class TestInstalledAppReadyHooks:
                 await app._call_installed_app_ready_hooks()
 
     @pytest.mark.asyncio
-    async def test_skips_unimportable_app_with_warning(self):
-        """An ImportError on the app itself logs a warning and continues."""
+    async def test_raises_on_unimportable_app(self):
+        """An ImportError on an INSTALLED_APPS entry raises RuntimeError at startup."""
         app = OpenViper()
-        # Patch logger first (before import_module is mocked) to avoid resolver clash.
-        with patch("openviper.app.logger") as mock_logger:
-            with patch("openviper.app.settings") as ms:
-                ms.INSTALLED_APPS = ["nonexistent_plugin"]
-                with patch("importlib.import_module", side_effect=ImportError("no module")):
+        with patch("openviper.app.settings") as ms:
+            ms.INSTALLED_APPS = ["nonexistent_plugin"]
+            with patch("importlib.import_module", side_effect=ImportError("no module")):
+                with pytest.raises(RuntimeError, match="nonexistent_plugin"):
                     await app._call_installed_app_ready_hooks()
-            mock_logger.warning.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_raises_when_ready_raises(self):

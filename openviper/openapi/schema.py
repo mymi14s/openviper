@@ -47,6 +47,31 @@ _TYPE_HINTS_CACHE: dict[int, dict[str, Any]] = {}
 # NoneType sentinel for isinstance/identity checks (avoids unidiomatic type() calls).
 NoneType: type = type(None)
 
+# Segments that are too generic to serve as an OpenAPI tag on their own.
+# Routes whose path starts with these are drilled into for a more specific segment.
+_GENERIC_PATH_SEGMENTS: frozenset[str] = frozenset({"api", "v1", "v2", "v3"})
+
+# Matches version segments of the form v<n> (e.g. v1, v12, v123).
+_VERSION_SEGMENT_RE: re.Pattern[str] = re.compile(r"^v\d+$", re.IGNORECASE)
+
+
+def _tag_from_path(path: str) -> str:
+    """Derive a meaningful OpenAPI tag from a route path.
+
+    Skips path parameters, generic prefixes such as 'api', and version
+    segments such as 'v1' / 'v2'.  Returns the first remaining segment
+    capitalised, or 'Root' when none is found.
+    """
+    parts = [
+        p
+        for p in path.split("/")
+        if p
+        and not p.startswith("{")
+        and p.lower() not in _GENERIC_PATH_SEGMENTS
+        and not _VERSION_SEGMENT_RE.match(p)
+    ]
+    return parts[0].capitalize() if parts else "Root"
+
 
 def reset_openapi_cache() -> None:
     """Clear the generated schema cache. Primarily for tests or dynamic routing."""
@@ -462,9 +487,9 @@ def _build_operation(route: Route, method: str) -> dict[str, Any]:
     if method.upper() in ("POST", "PUT", "PATCH", "DELETE"):
         responses["422"] = {"description": "Validation Error"}
 
-    # Tags: use the first non-param path segment so /{id}/foo → "Foo" not "{id}"
-    path_parts = [p for p in route.path.split("/") if p and not p.startswith("{")]
-    tag = path_parts[0].capitalize() if path_parts else "Root"
+    # Tags: prefer explicit route tags; fall back to smart path-based derivation
+    # that skips generic prefixes ('api') and version segments ('v1', 'v2').
+    tag = route.tags[0] if route.tags else _tag_from_path(route.path)
 
     # operationId: include module suffix to avoid collisions between same-named handlers
     module = getattr(handler, "__module__", "") or ""
@@ -529,16 +554,16 @@ def _build_per_route_security(handler: Any) -> list[dict[str, list[Any]]] | None
 def generate_openapi_schema(
     routes: Sequence[Route],
     title: str = "OpenViper API",
-    version: str = "0.0.1",
     description: str = "",
+    version: str = "1.0.0",
 ) -> dict[str, Any]:
     """Build a complete OpenAPI 3.1.0 document from the router's routes.
 
     Args:
         routes: All registered Route objects.
         title: API title.
-        version: API version string.
         description: API description.
+        version: API version string included in the ``info`` block.
 
     Returns:
         OpenAPI 3.1.0 document as a dict.
@@ -547,7 +572,7 @@ def generate_openapi_schema(
     # route sets produce different cache keys, preventing stale schema hits after
     # OPENAPI_EXCLUDE changes without a full process restart.
     routes_fingerprint = ",".join(sorted(f"{r.path}:{','.join(sorted(r.methods))}" for r in routes))
-    raw_key = f"{title}\x00{version}\x00{description}\x00{routes_fingerprint}"
+    raw_key = f"{title}\x00{description}\x00{version}\x00{routes_fingerprint}"
     cache_key = hashlib.sha256(raw_key.encode()).hexdigest()
 
     cached_entry: dict[str, Any] | None = _SCHEMA_CACHE_STORE[0]
@@ -576,8 +601,8 @@ def generate_openapi_schema(
         "openapi": "3.1.0",
         "info": {
             "title": title,
-            "version": version,
             "description": description,
+            "version": version,
         },
         "paths": paths,
         "components": {

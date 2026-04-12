@@ -23,8 +23,10 @@ from openviper.exceptions import (
     OpenViperException,
     ORMException,
     PermissionDenied,
+    QueryError,
     ServiceUnavailable,
     SettingsValidationError,
+    TableNotFound,
     TokenExpired,
     TooManyRequests,
     Unauthorized,
@@ -105,10 +107,21 @@ class TestExceptionHierarchy:
             MultipleObjectsReturned,
             IntegrityError,
             FieldError,
+            QueryError,
+            TableNotFound,
         ],
     )
     def test_orm_subclasses(self, exc_cls):
         assert issubclass(exc_cls, ORMException)
+
+    def test_field_error_not_http(self):
+        assert not issubclass(FieldError, HTTPException)
+
+    def test_query_error_not_http(self):
+        assert not issubclass(QueryError, HTTPException)
+
+    def test_table_not_found_not_http(self):
+        assert not issubclass(TableNotFound, HTTPException)
 
     @pytest.mark.parametrize("exc_cls", [ModelNotFoundError, ModelCollisionError])
     def test_ai_subclasses(self, exc_cls):
@@ -253,11 +266,32 @@ class TestORMExceptions:
             MultipleObjectsReturned,
             IntegrityError,
             FieldError,
+            QueryError,
         ],
     )
     def test_can_raise_and_catch(self, exc_cls):
         with pytest.raises(exc_cls):
             raise exc_cls("boom")
+
+    def test_table_not_found_stores_names(self):
+        exc = TableNotFound("User", "auth_user")
+        assert exc.model_name == "User"
+        assert exc.table_name == "auth_user"
+
+    def test_table_not_found_message(self):
+        exc = TableNotFound("Post", "blog_post")
+        assert "blog_post" in str(exc)
+        assert "Post" in str(exc)
+
+    def test_table_not_found_is_orm(self):
+        with pytest.raises(ORMException):
+            raise TableNotFound("M", "t")
+
+    def test_field_error_message(self):
+        assert "missing_col" in str(FieldError("missing_col"))
+
+    def test_query_error_message(self):
+        assert "bad filter" in str(QueryError("bad filter"))
 
     def test_migration_error_message(self):
         exc = MigrationError("bad migration")

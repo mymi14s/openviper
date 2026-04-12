@@ -135,7 +135,7 @@ class Scheduler:
                 "        ...\n\n"
                 "Then pass the decorated name to run_now()."
             )
-        logger.info(
+        logger.debug(
             "Instant enqueue: actor=%r  args=%r  kwargs=%r",
             getattr(actor, "actor_name", repr(actor)),
             args,
@@ -169,7 +169,7 @@ class Scheduler:
                 entry.actor.send(*entry.args, **entry.kwargs)
                 entry.last_run_at = _now
                 enqueued.append(entry.name)
-                logger.info(
+                logger.debug(
                     "Enqueued scheduled task %r (schedule=%s)",
                     entry.name,
                     entry.schedule,

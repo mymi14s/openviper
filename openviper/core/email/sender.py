@@ -8,9 +8,11 @@ from typing import Any
 
 from openviper.conf import settings
 from openviper.core.email.attachments import resolve_attachments
-from openviper.core.email.backends import EmailSettings, get_backend
+from openviper.core.email.backends import get_backend
 from openviper.core.email.message import EmailMessageData
+from openviper.core.email.queue import enqueue_email_job, worker_available
 from openviper.core.email.templates import render_template_content
+from openviper.tasks.log import configure_email_logging
 
 logger = logging.getLogger("openviper.email")
 
@@ -58,7 +60,6 @@ async def send_email(
                 html = rendered_html
 
         resolved_attachments = await resolve_attachments(attachments)
-        backend_settings = EmailSettings.from_settings()
         message_data = EmailMessageData(
             recipients=normalized_recipients,
             subject=subject,
@@ -67,30 +68,41 @@ async def send_email(
             cc=normalized_cc,
             bcc=normalized_bcc,
             attachments=resolved_attachments,
-            sender=sender or backend_settings.default_sender,
+            sender=sender or "",
         )
 
-        from openviper.core.email.queue import enqueue_email_job, worker_available
-
-        worker_cfg = email_config.get("use_background_worker")  # None when key absent
-        if background is not None:
-            use_background = background
-        elif worker_cfg is None:
-            # Not explicitly configured — auto-detect availability (result is cached)
-            use_background = worker_available()
-        else:
-            use_background = bool(worker_cfg)
-
-        if use_background and worker_available():
+        if background is True:
             await enqueue_email_job(message_data)
             return True
+
+        if background is None:
+            worker_cfg = email_config.get("use_background_worker")
+            prefer_queue = bool(worker_cfg) if worker_cfg is not None else worker_available()
+            if prefer_queue and worker_available():
+                await enqueue_email_job(message_data)
+                return True
 
         await _send_now(message_data)
         return True
     except Exception:
+        _configure_email_log()
+        logger.exception("Email delivery failed: subject=%r", subject)
         if resolved_fail_silently:
             return False
         raise
+
+
+def _configure_email_log() -> None:
+    """Initialise email file logging from project settings (once per process)."""
+    try:
+        email_cfg = _read_email_config()
+        task_cfg: dict[str, object] = dict(getattr(settings, "TASKS", {}) or {})
+        raw_dir = email_cfg.get("log_dir") or task_cfg.get("log_dir") or task_cfg.get("LOG_DIR")
+        log_dir: str | None = str(raw_dir) if raw_dir is not None else None
+        log_format = str(email_cfg.get("log_format") or task_cfg.get("log_format") or "text")
+        configure_email_logging(log_dir=log_dir, log_format=log_format)
+    except Exception:
+        pass
 
 
 async def _send_now(message_data: EmailMessageData) -> None:

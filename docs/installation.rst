@@ -19,6 +19,55 @@ Install from PyPI using ``pip``:
 
    pip install openviper
 
+Optional Extras
+~~~~~~~~~~~~~~~
+
+OpenViper ships optional feature sets as pip extras:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 30 50
+
+   * - Extra
+     - Install command
+     - Installs
+   * - ``postgres``
+     - ``pip install openviper[postgres]``
+     - ``asyncpg``, ``psycopg2-binary``
+   * - ``mariadb``
+     - ``pip install openviper[mariadb]``
+     - ``aiomysql``
+   * - ``mssql``
+     - ``pip install openviper[mssql]``
+     - ``aioodbc``
+   * - ``oracle``
+     - ``pip install openviper[oracle]``
+     - ``oracledb``
+   * - ``redis``
+     - ``pip install openviper[redis]``
+     - ``redis``
+   * - ``tasks``
+     - ``pip install openviper[tasks]``
+     - ``dramatiq``
+   * - ``geolocation``
+     - ``pip install openviper[geolocation]``
+     - ``shapely``, ``psycopg2-binary``
+   * - ``ai``
+     - ``pip install openviper[ai]``
+     - ``openai``, ``anthropic``, ``google-genai``
+   * - ``db-tools``
+     - ``pip install openviper[db-tools]``
+     - Database backup & restore CLI commands
+   * - ``all``
+     - ``pip install openviper[all]``
+     - All of the above
+
+Multiple extras can be combined:
+
+.. code-block:: bash
+
+   pip install openviper[postgres,redis,tasks]
+
 
 Database URL Format
 -------------------

@@ -37,10 +37,16 @@ import uvicorn
 from openviper._version import __version__
 from openviper.conf import settings
 from openviper.contrib.default.middleware import DefaultLandingMiddleware
-from openviper.core.context import current_request
-from openviper.exceptions import HTTPException
+from openviper.core.context import current_request, current_router
+from openviper.exceptions import FieldError, HTTPException, NotFound, QueryError, TableNotFound
 from openviper.http.request import Request
-from openviper.http.response import HTMLResponse, JSONResponse, PlainTextResponse, Response
+from openviper.http.response import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from openviper.middleware.base import ASGIApp, build_middleware_stack
 from openviper.middleware.cors import CORSMiddleware
 from openviper.middleware.error import ServerErrorMiddleware
@@ -69,11 +75,10 @@ def _get_handler_signature(
     return sig, hints
 
 
-def _resolve_middleware_entry(mw: Any, critical: bool = False) -> Any | None:
+def _resolve_middleware_entry(mw: Any) -> Any:
     """Import and return a middleware class from a dotted string, or pass through as-is.
 
-    Returns ``None`` and logs a warning if the import fails.
-    Raises ImportError if critical=True and import fails.
+    Raises ``ImportError`` if *mw* is a string that cannot be imported.
     """
     if not isinstance(mw, str):
         return mw
@@ -82,11 +87,7 @@ def _resolve_middleware_entry(mw: Any, critical: bool = False) -> Any | None:
         mod = importlib.import_module(module_path)
         return getattr(mod, class_name)
     except (ImportError, AttributeError) as exc:
-        if critical:
-            logger.error("Failed to load critical middleware %s: %s", mw, exc)
-            raise ImportError(f"Critical middleware {mw} could not be loaded: {exc}") from exc
-        logger.warning("Could not load middleware %s: %s", mw, exc)
-        return None
+        raise ImportError(f"Could not load middleware {mw!r}: {exc}") from exc
 
 
 class OpenViper:
@@ -142,7 +143,6 @@ class OpenViper:
     ) -> None:
         self.debug = debug if debug is not None else getattr(settings, "DEBUG", True)
 
-        # Warn if debug mode is enabled in production-like environments
         if self.debug and os.environ.get("ENVIRONMENT") in ("production", "prod"):
             logger.warning(
                 "DEBUG mode is enabled in a production environment. "
@@ -226,42 +226,29 @@ class OpenViper:
         if not settings_module:
             return
 
-        # Derive the routes module: swap the last component for "routes"
-        # e.g. "settings" -> skip (no package prefix to look up)
-        parts = settings_module.rsplit(".", 1)
-        if len(parts) < 2:
+        # Derive the routes module from the top-level package.
+        # e.g. "project.settings"       -> "project.routes"
+        #      "project.settings.prod"   -> "project.routes"
+        #      "settings"               -> skip (no package prefix)
+        top_package = settings_module.split(".")[0]
+        if top_package == settings_module:
+            # Bare module name with no package — cannot derive routes path.
             return
-        routes_module_path = f"{parts[0]}.routes"
+        routes_module_path = f"{top_package}.routes"
 
         try:
             routes_module = importlib.import_module(routes_module_path)
         except ModuleNotFoundError as exc:
             if exc.name == routes_module_path:
-                # Genuinely no routes module — nothing to register.
+                # The routes module itself simply does not exist — nothing to register.
                 logger.debug(
                     "No routes module found at %s — skipping auto-discovery.",
                     routes_module_path,
                 )
                 return
-            # A nested import inside the routes module failed — surface this
-            # clearly so developers do not see a silent 404 for every route.
-            logger.error(
-                "Import error while loading routes from %s: %s",
-                routes_module_path,
-                exc,
-            )
-            if self.debug:
-                raise
-            return
-        except Exception as exc:
-            logger.error(
-                "Unexpected error while loading routes from %s: %s",
-                routes_module_path,
-                exc,
-            )
-            if self.debug:
-                raise
-            return
+            # A nested import inside the routes module failed — always re-raise so
+            # developers see a clear error instead of silent 404s for every route.
+            raise
 
         route_paths: list[tuple[str, Router]] = getattr(routes_module, "route_paths", [])
         for prefix, router in route_paths:
@@ -306,11 +293,11 @@ class OpenViper:
             try:
                 mod = importlib.import_module(app_label)
                 hook = getattr(mod, "ready", None)
-            except ImportError:
-                logger.warning(
-                    "INSTALLED_APPS: could not import %r — skipping ready() hook.", app_label
-                )
-                continue
+            except ImportError as exc:
+                raise RuntimeError(
+                    f"INSTALLED_APPS: could not import {app_label!r}. "
+                    f"Ensure the package is installed and the name is correct."
+                ) from exc
 
             if hook is None:
                 try:
@@ -417,50 +404,36 @@ class OpenViper:
     def _build_middleware_stack(self) -> ASGIApp:
         raw_middleware: list[Any] = []
 
-        # Define critical middleware that must load successfully
-        critical_middleware = getattr(settings, "CRITICAL_MIDDLEWARE", [])
-
-        # Load from settings — resolve strings immediately.
         for mw_path in getattr(settings, "MIDDLEWARE", []):
-            is_critical = mw_path in critical_middleware
-            cls = _resolve_middleware_entry(mw_path, critical=is_critical)
-            if cls is not None:
-                raw_middleware.append(cls)
+            raw_middleware.append(_resolve_middleware_entry(mw_path))
 
-        # Prepend extra middleware passed at construction (already classes or strings).
         resolved_middleware: list[Any] = []
         for mw in list(self._extra_middleware) + raw_middleware:
-            cls = _resolve_middleware_entry(mw, critical=False)
-            if cls is not None:
-                if cls is CORSMiddleware:
-                    # Wire CORS settings from settings.py into the middleware instance.
-                    cors_kwargs: dict[str, Any] = {
-                        "allowed_origins": list(
-                            getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]
-                        ),
-                        "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
-                        "allowed_methods": list(
-                            getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]
-                        ),
-                        "allowed_headers": list(
-                            getattr(settings, "CORS_ALLOWED_HEADERS", None) or ["*"]
-                        ),
-                        "expose_headers": list(
-                            getattr(settings, "CORS_EXPOSE_HEADERS", None) or []
-                        ),
-                        "max_age": getattr(settings, "CORS_MAX_AGE", 600),
-                    }
-                    resolved_middleware.append((cls, cors_kwargs))
-                else:
-                    resolved_middleware.append(cls)
+            cls = _resolve_middleware_entry(mw)
+            if cls is CORSMiddleware:
+                # Wire CORS settings from settings.py into the middleware instance.
+                cors_kwargs: dict[str, Any] = {
+                    "allowed_origins": list(
+                        getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]
+                    ),
+                    "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
+                    "allowed_methods": list(
+                        getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]
+                    ),
+                    "allowed_headers": list(
+                        getattr(settings, "CORS_ALLOWED_HEADERS", None) or ["*"]
+                    ),
+                    "expose_headers": list(getattr(settings, "CORS_EXPOSE_HEADERS", None) or []),
+                    "max_age": getattr(settings, "CORS_MAX_AGE", 600),
+                }
+                resolved_middleware.append((cls, cors_kwargs))
+            else:
+                resolved_middleware.append(cls)
 
         # Add Rate Limit middleware if configured.
         if getattr(settings, "RATE_LIMIT_REQUESTS", 0) > 0:
-            cls = _resolve_middleware_entry(
-                "openviper.middleware.ratelimit.RateLimitMiddleware", critical=True
-            )
-            if cls is not None:
-                resolved_middleware.insert(0, cls)
+            cls = _resolve_middleware_entry("openviper.middleware.ratelimit.RateLimitMiddleware")
+            resolved_middleware.insert(0, cls)
 
         app = build_middleware_stack(self._core_app, resolved_middleware)
 
@@ -512,7 +485,7 @@ class OpenViper:
         """Check if the user has defined a GET / route (not just OpenAPI routes)."""
         openapi_names = {"openapi_schema", "swagger_ui", "redoc_ui"}
         for route in self.router.routes:
-            if getattr(route, "path", "") == "/" and "GET" in getattr(route, "methods", []):
+            if getattr(route, "path", "") in ("/", "") and "GET" in getattr(route, "methods", []):
                 name = getattr(route, "name", "")
                 if name not in openapi_names:
                     return True
@@ -552,20 +525,25 @@ class OpenViper:
         request.auth = scope.get("auth")
 
         token = current_request.set(request)
+        router_token = current_router.set(self.router)
         try:
             route, path_params = self.router.resolve(request.method, request.path)
             request.path_params = path_params
 
-            # Build handler middleware chain (per-route middlewares)
             handler = route.handler
             for mw in reversed(route.middlewares):
                 handler = mw(handler)  # type: ignore[assignment,call-arg]
 
             response = await self._call_handler(handler, request)
+        except NotFound as exc:
+            response = self._try_append_slash_redirect(request) or await self._handle_exception(
+                request, exc
+            )
         except Exception as exc:
             response = await self._handle_exception(request, exc)
         finally:
             current_request.reset(token)
+            current_router.reset(router_token)
 
         await response(scope, receive, send)
 
@@ -573,7 +551,6 @@ class OpenViper:
         """Call a view handler, performing automatic response coercion."""
         handler_id = id(handler)
 
-        # Check if we've pre-computed parameter mapping for this handler
         if handler_id not in self._handler_param_cache:
             sig, hints = _get_handler_signature(handler)
             params = sig.parameters
@@ -610,7 +587,6 @@ class OpenViper:
             elif name in request.path_params:
                 kwargs[name] = request.path_params[name]
             elif info["is_var_keyword"]:
-                # Populate **kwargs with any path params not already consumed
                 for p_name, p_value in request.path_params.items():
                     if p_name not in kwargs:
                         kwargs[p_name] = p_value
@@ -641,11 +617,32 @@ class OpenViper:
         except ImportError:
             # Pydantic not available, fall through
             pass
-        # Fallback: check for model_dump method (duck typing)
         if hasattr(result, "model_dump") and callable(result.model_dump):
             with contextlib.suppress(Exception):
                 return JSONResponse(result.model_dump())
         return JSONResponse(result)
+
+    def _try_append_slash_redirect(self, request: Request) -> RedirectResponse | None:
+        """Return a 301 redirect to ``path + "/"`` in production when the route exists.
+
+        Only active when ``settings.DEBUG`` is falsy and the request path does
+        not already end with a slash.  Returns ``None`` when the slash-appended
+        path still does not resolve, so the caller can fall through to normal
+        error handling.
+        """
+        if settings.DEBUG:
+            return None
+        path = request.path
+        if path.endswith("/"):
+            return None
+        slash_path = path + "/"
+        try:
+            self.router.resolve(request.method, slash_path)
+        except Exception:
+            return None
+        qs = request.query_string
+        location = slash_path + (f"?{qs.decode()}" if qs else "")
+        return RedirectResponse(location, status_code=301)
 
     async def _handle_exception(self, request: Request, exc: Exception) -> Response:
         """Dispatch to the appropriate exception handler or return generic error."""
@@ -664,6 +661,20 @@ class OpenViper:
                 {"detail": exc.detail},
                 status_code=exc.status_code,
                 headers=exc.headers,
+            )
+
+        if isinstance(exc, TableNotFound):
+            return self._create_error_response(
+                request,
+                {"error": "TableNotFound", "detail": str(exc)},
+                status_code=503,
+            )
+
+        if isinstance(exc, (FieldError, QueryError)):
+            return self._create_error_response(
+                request,
+                {"error": type(exc).__name__, "detail": str(exc)},
+                status_code=400,
             )
 
         logger.exception("Unhandled exception: %s", exc)
@@ -706,16 +717,11 @@ class OpenViper:
             message = await receive()
             if message["type"] == "lifespan.startup":
                 try:
-                    # Pre-build the middleware stack during startup so the first
-                    # HTTP request is not penalised by the synchronous I/O involved
-                    # (app static-dir discovery, settings reads, etc.).
                     await asyncio.to_thread(self._get_middleware_app)
 
-                    # Pre-build OpenAPI schema so the first schema request is instant.
                     if should_register_openapi():
                         await asyncio.to_thread(self._get_openapi_schema)
 
-                    # Call ready() on every installed app before user handlers.
                     await self._call_installed_app_ready_hooks()
 
                     for handler in self._startup_handlers:

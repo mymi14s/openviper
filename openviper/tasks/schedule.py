@@ -81,7 +81,6 @@ class IntervalSchedule(Schedule):
         if last_run_at is None:
             return True
         _now = now if now is not None else datetime.now(UTC)
-        # Ensure both datetimes are timezone-aware before subtracting.
         if _now.tzinfo is None:
             _now = _now.replace(tzinfo=UTC)
         if last_run_at.tzinfo is None:

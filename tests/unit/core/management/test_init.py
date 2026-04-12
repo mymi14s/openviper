@@ -4,7 +4,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from openviper.core.management import _find_command, _list_commands, execute_from_command_line
+from openviper.core.management import (
+    _auto_discover_settings,
+    _extract_settings_flag,
+    _find_command,
+    _list_commands,
+    execute_from_command_line,
+)
 from openviper.core.management.base import BaseCommand, CommandError
 
 
@@ -40,7 +46,7 @@ class TestExecuteFromCommandLine:
 
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
-        assert "Usage: viperctl.py <command> [options]" in captured.out
+        assert "Usage: viperctl.py [--settings=<module>] <command> [options]" in captured.out
         assert "Available commands:" in captured.out
 
     def test_execute_from_command_line_no_args(self, capsys):
@@ -49,7 +55,171 @@ class TestExecuteFromCommandLine:
 
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
-        assert "Usage: viperctl.py <command> [options]" in captured.out
+        assert "Usage: viperctl.py [--settings=<module>] <command> [options]" in captured.out
+
+
+class TestExtractSettingsFlag:
+    """Tests for _extract_settings_flag."""
+
+    def test_equals_syntax(self) -> None:
+        value, remaining = _extract_settings_flag(
+            ["viperctl.py", "--settings=project.settings.prod", "runserver"]
+        )
+        assert value == "project.settings.prod"
+        assert remaining == ["viperctl.py", "runserver"]
+
+    def test_space_syntax(self) -> None:
+        value, remaining = _extract_settings_flag(
+            ["viperctl.py", "--settings", "project.settings.dev", "migrate"]
+        )
+        assert value == "project.settings.dev"
+        assert remaining == ["viperctl.py", "migrate"]
+
+    def test_not_present(self) -> None:
+        value, remaining = _extract_settings_flag(["viperctl.py", "runserver"])
+        assert value is None
+        assert remaining == ["viperctl.py", "runserver"]
+
+    def test_flag_after_subcommand(self) -> None:
+        value, remaining = _extract_settings_flag(
+            ["viperctl.py", "runserver", "--settings=project.settings.prod"]
+        )
+        assert value == "project.settings.prod"
+        assert remaining == ["viperctl.py", "runserver"]
+
+
+class TestAutoDiscoverSettings:
+    """Tests for _auto_discover_settings."""
+
+    def test_discovers_package_settings(self, tmp_path) -> None:
+        pkg = tmp_path / "myproject"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        (pkg / "settings.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result == "myproject.settings"
+
+    def test_discovers_root_settings(self, tmp_path) -> None:
+        (tmp_path / "settings.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result == "settings"
+
+    def test_returns_none_when_nothing_found(self, tmp_path) -> None:
+        (tmp_path / "viperctl.py").write_text("")
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result is None
+
+    def test_package_without_init_ignored(self, tmp_path) -> None:
+        pkg = tmp_path / "myproject"
+        pkg.mkdir()
+        (pkg / "settings.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result is None
+
+    def test_name_match_takes_priority_over_alphabetical_first(self, tmp_path) -> None:
+        """Package matching the directory name wins over alphabetically earlier packages."""
+        dir_name = tmp_path.name
+        # Create an alphabetically earlier package with settings.py
+        earlier = tmp_path / "aaa_other"
+        earlier.mkdir()
+        (earlier / "__init__.py").write_text("")
+        (earlier / "settings.py").write_text("")
+        # Create the package matching the directory name
+        matched = tmp_path / dir_name
+        matched.mkdir()
+        (matched / "__init__.py").write_text("")
+        (matched / "settings.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result == f"{dir_name}.settings"
+
+    def test_ambiguous_packages_returns_none(self, tmp_path) -> None:
+        """Multiple candidate packages with no name match → None (ambiguous)."""
+        for name in ("api", "parniq"):
+            pkg = tmp_path / name
+            pkg.mkdir()
+            (pkg / "__init__.py").write_text("")
+            (pkg / "settings.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result is None
+
+    def test_discovers_settings_package_directory(self, tmp_path) -> None:
+        """settings/ package directory is recognised alongside settings.py."""
+        pkg = tmp_path / "myproject"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("")
+        settings_pkg = pkg / "settings"
+        settings_pkg.mkdir()
+        (settings_pkg / "__init__.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result == "myproject.settings"
+
+    def test_name_match_with_settings_package_directory(self, tmp_path) -> None:
+        """Name-match priority applies when settings is a package directory."""
+        dir_name = tmp_path.name
+        matched = tmp_path / dir_name
+        matched.mkdir()
+        (matched / "__init__.py").write_text("")
+        settings_pkg = matched / "settings"
+        settings_pkg.mkdir()
+        (settings_pkg / "__init__.py").write_text("")
+        (tmp_path / "viperctl.py").write_text("")
+
+        result = _auto_discover_settings(str(tmp_path / "viperctl.py"))
+        assert result == f"{dir_name}.settings"
+
+
+class TestExecuteFromCommandLineSettings:
+    """Tests for --settings flag in execute_from_command_line."""
+
+    @patch("openviper.core.management._find_command")
+    @patch("openviper.setup")
+    def test_settings_flag_sets_env_and_forces_setup(
+        self, mock_setup, mock_find_command, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("OPENVIPER_SETTINGS_MODULE", raising=False)
+        mock_command = Mock()
+        mock_find_command.return_value = mock_command
+
+        with pytest.raises(SystemExit):
+            execute_from_command_line(
+                ["viperctl.py", "--settings=myproject.settings.prod", "migrate"]
+            )
+
+        import os
+
+        assert os.environ.get("OPENVIPER_SETTINGS_MODULE") == "myproject.settings.prod"
+        mock_setup.assert_called_with(force=True)
+        mock_command.run_from_argv.assert_called_once_with(["viperctl.py", "migrate"])
+
+    @patch("openviper.core.management._find_command")
+    @patch("openviper.setup")
+    def test_settings_flag_stripped_from_argv(
+        self, mock_setup, mock_find_command, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("OPENVIPER_SETTINGS_MODULE", raising=False)
+        mock_command = Mock()
+        mock_find_command.return_value = mock_command
+
+        with pytest.raises(SystemExit):
+            execute_from_command_line(
+                ["viperctl.py", "--settings", "myproject.settings.dev", "runserver", "--port=9000"]
+            )
+
+        mock_command.run_from_argv.assert_called_once_with(
+            ["viperctl.py", "runserver", "--port=9000"]
+        )
 
 
 class TestFindCommand:

@@ -27,20 +27,13 @@ class AuthenticationMiddleware(BaseMiddleware):
 
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
-        self._authenticators_cache: list[BaseAuthentication] | None = None
-
-    @property
-    def authenticators(self) -> list[BaseAuthentication]:
-        """Load and instantiate authentication classes once."""
-        if self._authenticators_cache is None:
-            self._authenticators_cache = []
-            for auth_path in getattr(settings, "DEFAULT_AUTHENTICATION_CLASSES", []):
-                try:
-                    auth_cls = import_string(auth_path)
-                    self._authenticators_cache.append(auth_cls())
-                except Exception as exc:
-                    logger.error("Could not load authentication class %r: %s", auth_path, exc)
-        return self._authenticators_cache
+        self._authenticator_classes: list[type[BaseAuthentication]] = []
+        for auth_path in getattr(settings, "DEFAULT_AUTHENTICATION_CLASSES", []):
+            try:
+                auth_cls = import_string(auth_path)
+                self._authenticator_classes.append(auth_cls)
+            except Exception as exc:
+                logger.error("Could not load authentication class %r: %s", auth_path, exc)
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] not in ("http", "websocket"):
@@ -49,7 +42,8 @@ class AuthenticationMiddleware(BaseMiddleware):
 
         # Wrap scope in a Request object for authentication classes
         request = Request(scope, receive)
-        user, auth_info = await self._authenticate(request)
+        authenticators = [cls() for cls in self._authenticator_classes]
+        user, auth_info = await self._authenticate(request, authenticators)
 
         scope["user"] = user
         scope["auth"] = auth_info
@@ -60,14 +54,16 @@ class AuthenticationMiddleware(BaseMiddleware):
         finally:
             context_current_user.reset(token)
 
-    async def _authenticate(self, request: Request) -> tuple[Any, Any]:
+    async def _authenticate(
+        self, request: Request, authenticators: list[BaseAuthentication]
+    ) -> tuple[Any, Any]:
         """Try each configured authentication scheme in order.
 
         Returns:
             ``(user, auth_info)`` tuple.  ``user`` is :class:`AnonymousUser`
             if no scheme succeeds.
         """
-        for authenticator in self.authenticators:
+        for authenticator in authenticators:
             try:
                 result = await authenticator.authenticate(request)
                 if result is not None:

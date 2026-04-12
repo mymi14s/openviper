@@ -21,6 +21,7 @@ from openviper.db.fields import (
     UniqueConstraint,
 )
 from openviper.db.models import AbstractModel, Index, Manager, Model, QuerySet
+from openviper.exceptions import TableNotFound
 
 __all__ = [
     "get_engine",
@@ -45,4 +46,5 @@ __all__ = [
     "NullBooleanField",
     "SmallIntegerField",
     "UniqueConstraint",
+    "TableNotFound",
 ]

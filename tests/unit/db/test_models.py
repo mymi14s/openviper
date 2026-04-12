@@ -809,8 +809,8 @@ class TestTriggerEvent:
         e = self.Evt(name="test")
         mock_dispatcher = MagicMock()
         with (
-            patch("openviper.db.events.get_dispatcher", return_value=mock_dispatcher),
-            patch("openviper.db.events._dispatch_decorator_handlers"),
+            patch("openviper.db.models.get_dispatcher", return_value=mock_dispatcher),
+            patch("openviper.db.models._dispatch_decorator_handlers"),
         ):
             e._trigger_event("after_insert")
             mock_dispatcher.trigger.assert_called_once()
@@ -818,15 +818,15 @@ class TestTriggerEvent:
     def test_trigger_event_without_dispatcher(self):
         e = self.Evt(name="test")
         with (
-            patch("openviper.db.events.get_dispatcher", return_value=None),
-            patch("openviper.db.events._dispatch_decorator_handlers") as mock_dec,
+            patch("openviper.db.models.get_dispatcher", return_value=None),
+            patch("openviper.db.models._dispatch_decorator_handlers") as mock_dec,
         ):
             e._trigger_event("after_insert")
             mock_dec.assert_called_once()
 
     def test_trigger_event_exception_suppressed(self):
         e = self.Evt(name="test")
-        with patch("openviper.db.events.get_dispatcher", side_effect=RuntimeError("boom")):
+        with patch("openviper.db.models.get_dispatcher", side_effect=RuntimeError("boom")):
             e._trigger_event("after_insert")
 
 

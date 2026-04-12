@@ -56,6 +56,9 @@ from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.mysql import insert as _mysql_insert
+from sqlalchemy.dialects.postgresql import insert as _pg_insert
+from sqlalchemy.dialects.sqlite import insert as _sqlite_insert
 
 from openviper.conf import settings
 
@@ -155,9 +158,6 @@ def _get_engine() -> Any:
 
         url = _to_sync_url(url)
 
-        # Increased pool defaults for better concurrency under ASGI workloads.
-        # pool_size=20 accommodates multiple worker threads + ASGI handlers;
-        # max_overflow=30 allows bursts without blocking.
         engine_kwargs: dict[str, Any] = {"pool_pre_ping": True}
         if ":memory:" not in url and "mode=memory" not in url:
             engine_kwargs["pool_size"] = 20
@@ -165,9 +165,6 @@ def _get_engine() -> Any:
             engine_kwargs["pool_timeout"] = 30  # Prevent indefinite blocking
 
         engine = create_engine(url, **engine_kwargs)
-        # Ensure the table exists — idempotent, safe to call repeatedly.
-        # Assign to _engine only after create_all succeeds so a failed attempt
-        # doesn't leave a broken engine in the singleton cache.
         _metadata.create_all(engine, checkfirst=True)
         _engine = engine
         _upsert_fn = _build_upsert_fn(engine.dialect.name)
@@ -220,7 +217,6 @@ def _build_upsert_fn(dialect_name: str) -> Any:
         upsert(conn, message_id: str, fields: dict) -> None
     """
     if dialect_name == "postgresql":
-        from sqlalchemy.dialects.postgresql import insert as _ins
 
         def _pg(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
             data = {
@@ -231,7 +227,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
                 "message_id": message_id,
             }
             update_data = {k: v for k, v in fields.items() if k != "message_id"}
-            stmt = _ins(_table).values(**data)
+            stmt = _pg_insert(_table).values(**data)
             stmt = (
                 stmt.on_conflict_do_update(index_elements=["message_id"], set_=update_data)
                 if update_data
@@ -242,7 +238,6 @@ def _build_upsert_fn(dialect_name: str) -> Any:
         return _pg
 
     if dialect_name == "sqlite":
-        from sqlalchemy.dialects.sqlite import insert as sqlite_ins
 
         def _sqlite(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
             data = {
@@ -253,7 +248,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
                 "message_id": message_id,
             }
             update_data = {k: v for k, v in fields.items() if k != "message_id"}
-            stmt = sqlite_ins(_table).values(**data)
+            stmt = _sqlite_insert(_table).values(**data)
             stmt = (
                 stmt.on_conflict_do_update(index_elements=["message_id"], set_=update_data)
                 if update_data
@@ -264,7 +259,6 @@ def _build_upsert_fn(dialect_name: str) -> Any:
         return _sqlite
 
     if dialect_name in ("mysql", "mariadb"):
-        from sqlalchemy.dialects.mysql import insert as mysql_ins
 
         def _mysql(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
             data = {
@@ -275,7 +269,7 @@ def _build_upsert_fn(dialect_name: str) -> Any:
                 "message_id": message_id,
             }
             update_data = {k: v for k, v in fields.items() if k != "message_id"}
-            stmt: Any = mysql_ins(_table).values(**data)
+            stmt: Any = _mysql_insert(_table).values(**data)
             if update_data:
                 conn.execute(stmt.on_duplicate_key_update(**update_data))
             else:
@@ -283,7 +277,6 @@ def _build_upsert_fn(dialect_name: str) -> Any:
 
         return _mysql
 
-    # Generic fallback: SELECT + INSERT or UPDATE (two round-trips but universally portable).
     def _generic(conn: Any, message_id: str, fields: dict[str, Any]) -> None:
         row = conn.execute(
             sa.select(_table.c.id).where(_table.c.message_id == message_id)
@@ -320,7 +313,6 @@ def upsert_result(message_id: str, **fields: Any) -> None:
         logger.debug("upsert_result skipped: %s", exc)
         return
 
-    # Serialise dict / list fields to JSON strings.
     for key in ("args", "kwargs"):
         if key in fields and not isinstance(fields[key], str):
             try:
@@ -356,7 +348,6 @@ def batch_upsert_results(events: list[tuple[str, dict[str, Any]]]) -> None:
         logger.debug("batch_upsert_results skipped: %s", exc)
         return
 
-    # Serialise dict / list fields to JSON strings (mutate a copy per event).
     prepared: list[tuple[str, dict[str, Any]]] = []
     for message_id, raw_fields in events:
         fields = dict(raw_fields)
@@ -520,14 +511,12 @@ async def get_task_stats() -> dict[str, int]:
 
 def _row_to_dict(row: Any) -> dict[str, Any]:
     d = dict(row._mapping)
-    # Deserialise JSON columns back to Python objects for convenience.
     for key in ("args", "kwargs"):
         if isinstance(d.get(key), str):
             try:
                 d[key] = json.loads(d[key])
             except (json.JSONDecodeError, ValueError) as exc:
                 logger.debug("_row_to_dict: could not parse %r column: %s", key, exc)
-    # Normalise datetime objects to ISO strings.
     for key in ("enqueued_at", "started_at", "completed_at"):
         val = d.get(key)
         if isinstance(val, datetime):
@@ -554,7 +543,7 @@ def setup_cleanup_task() -> None:
         def cleanup_old_task_results() -> int:
             """Remove task results older than configured days."""
             deleted = clean_old_results(days=cleanup_days)
-            logger.info(
+            logger.debug(
                 "Cleaned up %d old task results (older than %d days)", deleted, cleanup_days
             )
             return deleted

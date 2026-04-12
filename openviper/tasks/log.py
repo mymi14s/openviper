@@ -1,19 +1,11 @@
-"""Worker logging configuration for openviper tasks.
+"""Logging configuration for the openviper task worker and email subsystem.
 
-Sets up rotating file handlers in the project's ``logs/`` directory when
-the task worker starts.  Two log files are maintained:
+Log files written to the project ``logs/`` directory (configurable via
+``TASKS["log_dir"]`` or ``EMAIL["log_dir"]``):
 
 * ``logs/worker.log``       — all messages at the configured level (10 MB, 5 backups)
-* ``logs/worker.error.log`` — WARNING and above only          (5 MB,  3 backups)
-
-Log level and format are read from settings:
-
-    TASKS = {
-        "broker": "redis",
-        "log_level": "INFO",     # optional — falls back to LOG_LEVEL
-        "log_format": "text",    # optional — "text" (default) or "json"
-        "log_dir": "/var/log/myapp",  # optional — defaults to {cwd}/logs
-    }
+* ``logs/worker.error.log`` — WARNING and above only (5 MB, 3 backups)
+* ``logs/email.error.log``  — email WARNING and above (10 MB, 5 backups)
 """
 
 from __future__ import annotations
@@ -25,6 +17,11 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+try:
+    import openviper.conf as _conf_module
+except Exception:
+    _conf_module = None  # type: ignore[assignment]
+
 _LOGGING_CONFIGURED = False
 _LOGGING_LOCK = threading.Lock()
 
@@ -35,22 +32,9 @@ def configure_worker_logging(
     log_format: str = "text",
     log_to_file: bool = False,
 ) -> Path:
-    """Set up file and console logging for the task worker.
+    """Configure file and console handlers for the task worker loggers.
 
-    Safe to call multiple times — subsequent calls after the first are no-ops.
-
-    Args:
-        log_dir:     Directory for log files.  Defaults to ``{cwd}/logs``.
-                     Ignored when *log_to_file* is ``False``.
-        log_level:   Python logging level name (``"DEBUG"``, ``"INFO"``, …).
-        log_format:  ``"text"`` (default) or ``"json"``.
-        log_to_file: When ``False`` only the console (stdout) handler is
-                     attached; no files are created.  Disable via
-                     ``TASKS["log_to_file"] = False``.
-
-    Returns:
-        Resolved log directory path (directory is only created when
-        *log_to_file* is ``True``).
+    Idempotent — subsequent calls after the first are no-ops.
     """
     global _LOGGING_CONFIGURED
     resolved = Path(log_dir) if log_dir else Path(os.getcwd()) / "logs"
@@ -62,7 +46,6 @@ def configure_worker_logging(
 
     level = getattr(logging, log_level.upper(), logging.INFO)
 
-    # ── Formatters ────────────────────────────────────────────────────────────
     if log_format == "json":
         file_fmt = (
             '{"time": "%(asctime)s", "level": "%(levelname)s",'
@@ -77,7 +60,6 @@ def configure_worker_logging(
         datefmt="%H:%M:%S",
     )
 
-    # ── Build handler list ────────────────────────────────────────────────────
     handlers: list[logging.Handler] = []
 
     if log_to_file:
@@ -108,7 +90,6 @@ def configure_worker_logging(
     console_handler.setFormatter(console_formatter)
     handlers.append(console_handler)
 
-    # ── Attach to openviper.tasks and dramatiq loggers ────────────────────────
     for name in ("openviper.tasks", "dramatiq"):
         lg = logging.getLogger(name)
         lg.setLevel(level)
@@ -128,37 +109,79 @@ def configure_worker_logging(
     return resolved
 
 
-def configure_worker_logging_from_settings() -> Path:
-    """Read openviper settings and call :func:`configure_worker_logging`.
+_EMAIL_LOGGING_CONFIGURED = False
+_EMAIL_LOGGING_LOCK = threading.Lock()
 
-    Reads ``TASKS.log_level``, ``TASKS.log_format``, ``TASKS.log_dir``,
-    falling back to the top-level ``LOG_LEVEL`` / ``LOG_FORMAT`` settings.
-    ``OPENVIPER_WORKER_LOG_LEVEL`` environment variable takes highest priority.
+
+def configure_email_logging(
+    log_dir: str | Path | None = None,
+    log_format: str = "text",
+) -> None:
+    """Attach a rotating WARNING+ file handler to the ``openviper.email`` logger.
+
+    Idempotent — subsequent calls after the first are no-ops.
+    Writes to ``logs/email.error.log`` (10 MB, 5 backups).
     """
+    global _EMAIL_LOGGING_CONFIGURED
+    if _EMAIL_LOGGING_CONFIGURED:
+        return
+    with _EMAIL_LOGGING_LOCK:
+        if _EMAIL_LOGGING_CONFIGURED:
+            return
+
+        resolved = Path(log_dir) if log_dir else Path(os.getcwd()) / "logs"
+        resolved.mkdir(parents=True, exist_ok=True)
+
+        if log_format == "json":
+            fmt = (
+                '{"time": "%(asctime)s", "level": "%(levelname)s",'
+                ' "logger": "%(name)s", "message": %(message)r}'
+            )
+        else:
+            fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+        formatter = logging.Formatter(fmt, datefmt="%Y-%m-%d %H:%M:%S")
+
+        handler = RotatingFileHandler(
+            resolved / "email.error.log",
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+            encoding="utf-8",
+        )
+        handler.setLevel(logging.WARNING)
+        handler.setFormatter(formatter)
+
+        email_logger = logging.getLogger("openviper.email")
+        existing_types = {type(h) for h in email_logger.handlers}
+        if RotatingFileHandler not in existing_types:
+            email_logger.addHandler(handler)
+
+        _EMAIL_LOGGING_CONFIGURED = True
+
+
+def configure_worker_logging_from_settings() -> Path:
+    """Read project settings and call :func:`configure_worker_logging`."""
     log_level = "INFO"
     log_format = "text"
     log_dir: str | None = None
     log_to_file: bool = False
 
     try:
-        from openviper.conf import settings
-
-        task_settings: dict[str, Any] = getattr(settings, "TASKS", {}) or {}
+        _settings = getattr(_conf_module, "settings", None)
+        task_settings: dict[str, Any] = getattr(_settings, "TASKS", {}) or {}
         log_level = task_settings.get(
             "log_level",
-            task_settings.get("LOG_LEVEL", getattr(settings, "LOG_LEVEL", "INFO")),
+            task_settings.get("LOG_LEVEL", getattr(_settings, "LOG_LEVEL", "INFO")),
         )
         log_format = task_settings.get(
             "log_format",
-            task_settings.get("LOG_FORMAT", getattr(settings, "LOG_FORMAT", "text")),
+            task_settings.get("LOG_FORMAT", getattr(_settings, "LOG_FORMAT", "text")),
         )
         log_dir = task_settings.get("log_dir") or task_settings.get("LOG_DIR")
         log_to_file = bool(task_settings.get("log_to_file", False))
     except Exception:
         pass
 
-    # Env var takes highest priority — allows the runworker command to force
-    # DEBUG level for --verbose without modifying settings.
     env_level = os.environ.get("OPENVIPER_WORKER_LOG_LEVEL")
     if env_level:
         log_level = env_level

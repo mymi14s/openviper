@@ -88,8 +88,6 @@ class AdminAction:
         for _perm in self.permissions:
             if not hasattr(user, "has_perm"):
                 return getattr(user, "is_superuser", False)
-            # This would need to be async in practice
-            # For now, assume basic permission check
         return True
 
     def get_info(self) -> dict[str, Any]:

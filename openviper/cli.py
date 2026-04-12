@@ -47,15 +47,10 @@ _VERPERCTL_PY_TEMPLATE = '''\
 #!/usr/bin/env python
 """OpenViper viperctl.py for {project_name}."""
 
-import os
 import sys
-import openviper
 from openviper.core.management import execute_from_command_line
 
 def main() -> None:
-    os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "{project_name}.settings")
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    openviper.setup(force=True)
     execute_from_command_line(sys.argv)
 
 if __name__ == "__main__":
@@ -150,9 +145,7 @@ app = OpenViper()
 _ROUTES_TEMPLATE = '''\
 """Top-level routes for {project_name}."""
 
-from openviper.conf import settings
 from openviper.admin import get_admin_site
-from openviper.staticfiles import media, static
 
 from {project_name}.views import router as root_router
 
@@ -160,10 +153,6 @@ route_paths = [
     ("/admin", get_admin_site()),
     ("/root", root_router)
 ]
-
-# to force static files serving in production, not recommended
-if not settings.DEBUG:
-    route_paths += static() + media()
 '''
 
 _VIEWS_TEMPLATE = '''
@@ -174,31 +163,31 @@ from openviper.routing import Router
 
 async def home(request):
     """Home page view."""
-    context = {{{{
+    context = {{
         "title": "Welcome to {project_name}",
         "project_name": "{project_name}",
         "message": "Your OpenViper project is running successfully."
-    }}}}
+    }}
     return HTMLResponse(template="home.html", context=context)
 
 async def api_index(request):
     """API endpoint view that handles both GET and POST."""
     if request.method == "GET":
-        return JSONResponse({{{{
+        return JSONResponse({{
             "message": "Welcome to {project_name} API!",
             "status": "success"
-        }}}})
+        }})
     elif request.method == "POST":
-        return JSONResponse({{{{
+        return JSONResponse({{
             "message": "Data received",
             "status": "success",
             "method": "POST"
-        }}}})
+        }})
     else:
-        return JSONResponse({{{{
+        return JSONResponse({{
             "error": "Method not allowed",
             "status": "error"
-        }}}}, status_code=405)
+        }}, status_code=405)
 
 # Routes for apps should be in each app's routes.py file
 router = Router()

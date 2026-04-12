@@ -135,7 +135,11 @@ def load(env: Any, *, wait: bool = True) -> None:
         if _STATE.globals:
             env.globals.update(_STATE.globals.copy())
 
-        _STATE.loaded = True
+        # Only mark as fully loaded once the background future has completed.
+        # When wait=False and discovery is still running, leave _STATE.loaded
+        # as False so that subsequent load() calls can eventually apply results.
+        if _STATE.future is None or _STATE.future.done():
+            _STATE.loaded = True
 
 
 def _discover_plugins(cfg: dict[str, Any]) -> bool:
@@ -260,7 +264,8 @@ def _import_module(path: str, name: str) -> Any:
     Returns ``None`` and logs a warning if loading fails.
 
     Bytecode writing is suppressed for the duration of the load to avoid
-    leaving unclosed SQLite connections in Python's ``__pycache__`` store.
+    writing transient ``.pyc`` files to ``__pycache__`` for dynamically
+    discovered plugin modules.
     """
     try:
         spec = importlib.util.spec_from_file_location(name, path)

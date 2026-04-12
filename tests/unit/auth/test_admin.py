@@ -86,12 +86,12 @@ class TestContentTypeAdmin:
     def test_has_no_add_permission(self):
         """Should not allow manual creation of content types."""
         admin = ContentTypeAdmin(ContentType)
-        assert admin.has_add_permission() is None
+        assert not admin.has_add_permission()
 
     def test_has_no_delete_permission(self):
         """Should not allow manual deletion of content types."""
         admin = ContentTypeAdmin(ContentType)
-        assert admin.has_delete_permission() is None
+        assert not admin.has_delete_permission()
 
 
 class TestPermissionAdmin:

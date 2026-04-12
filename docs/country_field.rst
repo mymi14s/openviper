@@ -194,17 +194,19 @@ Performance
 * The ``CHAR(2)`` column type and optional ``db_index=True`` ensure fast
   equality filters and ``ORDER BY country`` queries at the database level.
 
-Security
---------
+.. note::
 
-* **Length guard** — values longer than 10 characters are rejected before
-  any lookup, preventing denial-of-service via pathological input.
-* **Strict mode** — the default ``strict=True`` enforces the two-letter
-  alphabetic format, blocking numeric codes, SQL injection strings, and
-  other malformed inputs.
-* **Uppercase normalisation** — all values are uppercased before both
-  storage and validation, eliminating case-sensitivity edge cases.
-* **No dynamic SQL** — country validation never touches the database.
+   ``CountryField`` stores its length in the column type as ``CHAR(2)`` (or
+   ``CHAR(n)`` for a custom ``max_length``).  Bare ``CHAR`` without a length
+   defaults to ``CHAR(1)`` in PostgreSQL, which would truncate any value
+   longer than one character.  Always regenerate and apply migrations after
+   upgrading from a version that used the bare ``CHAR`` type:
+
+   .. code-block:: bash
+
+      python viperctl.py makemigrations
+      python viperctl.py migrate
+
 
 Testing
 -------

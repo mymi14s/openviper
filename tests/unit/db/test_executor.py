@@ -45,7 +45,7 @@ from openviper.db.executor import (
     get_table,
     invalidate_soft_removed_cache,
 )
-from openviper.db.fields import CharField, ForeignKey, IntegerField, LazyFK
+from openviper.db.fields import CharField, ForeignKey, IntegerField, LazyFK, UUIDField
 from openviper.db.models import Count, F, Model, Q, Sum
 from openviper.exceptions import FieldError
 
@@ -68,6 +68,16 @@ class Post(Model):
 
     class Meta:
         table_name = "exec_posts"
+
+
+class OtpRecord(Model):
+    """Model whose PK is a UUID, matching the bug report scenario."""
+
+    id = UUIDField(auto=True, primary_key=True)
+    otp = CharField(max_length=6)
+
+    class Meta:
+        table_name = "exec_otp_records"
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +279,37 @@ class TestApplyLookup:
         uid = uuid.uuid4()
         clause = _apply_lookup(self.col, "exact", uid)
         assert clause is not None
+
+    def test_model_instance_unwrapped_to_id(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users"
+
+            username = CharField(max_length=100)
+
+        user = FakeUser(username="alice")
+        user.__dict__["id"] = 5
+        clause = _apply_lookup(self.age_col, "exact", user)
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "5" in compiled
+
+    def test_in_with_model_instances_unwrapped_to_ids(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users2"
+
+            username = CharField(max_length=100)
+
+        u1 = FakeUser(username="alice")
+        u1.__dict__["id"] = 1
+        u2 = FakeUser(username="bob")
+        u2.__dict__["id"] = 2
+        clause = _apply_lookup(self.age_col, "in", [u1, u2])
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+        assert "2" in compiled
 
 
 # ---------------------------------------------------------------------------
@@ -1130,6 +1171,43 @@ class TestExecuteSave:
             mock_begin.return_value.__aexit__ = AsyncMock(return_value=None)
             await execute_save(p)
             assert mock_conn.execute.called
+
+    @pytest.mark.asyncio
+    async def test_uuid_pk_excluded_from_update_set_clause(self):
+        """UUID primary keys must not appear in the UPDATE SET clause."""
+        uid = uuid.uuid4()
+        otp = OtpRecord._from_row({"id": uid, "otp": "111111"})
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        captured_stmt = {}
+
+        async def _capture_execute(stmt):
+            captured_stmt["stmt"] = stmt
+            return mock_result
+
+        mock_conn.execute = _capture_execute
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor._load_soft_removed_columns", new_callable=AsyncMock),
+            patch("openviper.db.executor.get_soft_removed_columns", return_value=frozenset()),
+            patch("openviper.db.executor._begin") as mock_begin,
+        ):
+            mock_begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_begin.return_value.__aexit__ = AsyncMock(return_value=None)
+            otp.otp = "999999"
+            await execute_save(otp)
+
+        stmt = captured_stmt["stmt"]
+        # _values is an immutabledict of {column_name: value} for the SET clause.
+        set_col_names = set(stmt._values.keys())
+        assert (
+            "id" not in set_col_names
+        ), f"Primary key 'id' must not appear in UPDATE SET; columns being set: {set_col_names}"
 
 
 # ---------------------------------------------------------------------------

@@ -26,7 +26,7 @@ class TestPeriodicDecorator:
         """Mock task/broker registration to prevent Dramatiq actor name collisions."""
         _pending.clear()
         with (
-            patch("openviper.tasks.decorators.get_broker"),
+            patch("openviper.tasks.broker.get_broker"),
             patch("openviper.tasks.decorators.dramatiq.actor") as mock_actor,
         ):
 

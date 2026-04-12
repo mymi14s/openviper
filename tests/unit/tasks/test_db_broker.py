@@ -112,12 +112,15 @@ class TestDatabaseBroker:
         with (
             patch("openviper.tasks.db_broker.settings", mock_settings),
             patch("openviper.tasks.db_broker.sa.create_engine") as mock_engine,
+            patch("openviper.tasks.db_broker.sa.event.listens_for"),
         ):
             mock_engine_obj = MagicMock()
             mock_engine_obj.dialect.name = "sqlite"
             mock_engine.return_value = mock_engine_obj
             DatabaseBroker()
         mock_engine.assert_called_once()
+        _, kwargs = mock_engine.call_args
+        assert kwargs["connect_args"]["timeout"] == 30
 
     def test_mysql_url_replacement(self) -> None:
         mock_settings = MagicMock()

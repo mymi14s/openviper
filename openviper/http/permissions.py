@@ -134,7 +134,6 @@ class OperandHolder:
         *args: Any,
     ) -> None:
         self.operator_class = operator_class
-        # Ensure we instantiate classes if passed as types
         self.args = [arg() if isinstance(arg, type) else arg for arg in args]
 
     def __call__(self) -> BasePermission:

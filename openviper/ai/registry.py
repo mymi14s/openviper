@@ -189,7 +189,6 @@ class ProviderRegistry:
                 self.register_provider(p, allow_override=allow_override)
                 count += 1
 
-        logger.info("ProviderRegistry: loaded %d provider(s) from module %r.", count, module_path)
         return count
 
     def load_plugins(self, plugin_dir: str, *, allow_override: bool = True) -> int:
@@ -243,9 +242,6 @@ class ProviderRegistry:
             if inserted and parent in sys.path:
                 sys.path.remove(parent)
 
-        logger.info(
-            "ProviderRegistry: loaded %d provider(s) from plugin dir %r.", total, plugin_dir
-        )
         return total
 
     def discover_entrypoints(
@@ -290,11 +286,6 @@ class ProviderRegistry:
                     exc,
                 )
 
-        logger.info(
-            "ProviderRegistry: discovered %d provider(s) from entry-points (group=%r).",
-            total,
-            group,
-        )
         return total
 
     def get_by_model(self, model_id: str) -> AIProvider:

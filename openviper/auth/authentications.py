@@ -456,25 +456,9 @@ _DOTTED_PATH_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)
 class OAuth2Authentication(BaseAuthentication):
     """OAuth2 authentication backend with configurable lifecycle events.
 
-    This class provides ``authenticate`` for Bearer-token-based OAuth2
-    flows and a full event system driven by ``OAUTH2_EVENTS`` in settings.
-
-    Event hooks
-    -----------
-    Configure ``OAUTH2_EVENTS`` in your project settings to wire up async
-    or sync callables for any of the four lifecycle points:
-
-    .. code-block:: python
-
-        OAUTH2_EVENTS = {
-            "on_success": "myapp.events.oauth_success",
-            "on_fail":    "myapp.events.oauth_fail",
-            "on_error":   "myapp.events.oauth_error",
-            "on_initial": "myapp.events.oauth_initial",
-        }
-
-    Each handler receives a single ``payload`` dict with at minimum the keys
-    documented in :attr:`_build_payload`.
+    Provides ``authenticate`` for Bearer-token-based OAuth2 flows and an
+    event system driven by ``OAUTH2_EVENTS`` in settings. Supported event
+    names: ``on_success``, ``on_fail``, ``on_error``, ``on_initial``.
     """
 
     async def authenticate(self, request: Request) -> tuple[Any, Any] | None:

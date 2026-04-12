@@ -12,6 +12,7 @@ _PROVIDER_TEMPLATE = '''\
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -42,7 +43,7 @@ class {{ class_name }}(AIProvider):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self._api_key: str = config.get("api_key") or os.environ.get("{{ env_var }}") or ""
-        # TODO: initialise your SDK / HTTP client here
+        # Store an authenticated SDK or HTTP client so it can be reused across calls.
 
     async def generate(self, prompt: str, **kwargs: Any) -> str:
         """Call the {{ provider_title }} API and return generated text.
@@ -57,7 +58,7 @@ class {{ class_name }}(AIProvider):
         prompt, kwargs = await self.before_inference(prompt, kwargs)
         model = kwargs.pop("model", self.default_model)
 
-        # TODO: Replace with real API call
+        # Placeholder — replace with the actual provider API call.
         result = f"[{{ class_name }}] model={model!r}  prompt={prompt[:80]!r}"
 
         return await self.after_inference(prompt, result)
@@ -77,8 +78,6 @@ def get_providers() -> list[AIProvider]:
     Called by ``provider_registry.register_from_module()`` and the
     ``openviper.ai.providers`` entry-point mechanism.
     """
-    import os
-
     config: dict[str, Any] = {
         "api_key": os.environ.get("{{ env_var }}"),
         "models": {
@@ -96,11 +95,12 @@ from __future__ import annotations
 
 import pytest
 
+from openviper.ai.base import AIProvider
+from {{ module_import }} import {{ class_name }}, get_providers
+
 
 @pytest.fixture
 def provider():
-    from {{ module_import }} import {{ class_name }}
-
     return {{ class_name }}({
         "api_key": "test-key",
         "models": {
@@ -133,11 +133,8 @@ async def test_stream(provider):
     assert all(isinstance(c, str) for c in chunks)
 
 def test_get_providers():
-    from {{ module_import }} import get_providers
-
     providers = get_providers()
     assert providers
-    from openviper.ai.base import AIProvider
     assert all(isinstance(p, AIProvider) for p in providers)
 '''
 

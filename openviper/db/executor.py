@@ -16,6 +16,9 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, cast
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql as _pg_dialect
+from sqlalchemy.exc import DBAPIError as SADBAPIError
+from sqlalchemy.exc import OperationalError as SAOperationalError
 
 from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
@@ -41,7 +44,7 @@ from openviper.db.fields import (
     UUIDField,
 )
 from openviper.db.migrations.executor import _get_soft_removed_table
-from openviper.exceptions import FieldError
+from openviper.exceptions import FieldError, TableNotFound
 
 _SAFE_TABLE_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 
@@ -50,6 +53,59 @@ def _assert_safe_table_name(name: str) -> None:
     """Raise ValueError if the table name contains unsafe characters."""
     if not _SAFE_TABLE_NAME_RE.match(name):
         raise ValueError(f"Unsafe table name: {name!r}")
+
+
+# Patterns reported by different DB backends when a table is missing.
+_TABLE_MISSING_RE: re.Pattern[str] = re.compile(
+    r"no such table|doesn't exist|does not exist|undefined table",
+    re.IGNORECASE,
+)
+
+
+def _check_table_missing(exc: Exception, model_cls: type) -> None:
+    """Re-raise *exc* as :class:`TableNotFound` when the DB reports a missing table.
+
+    Clears the full SQLAlchemy traceback so only a clean 503 propagates.
+    """
+    if isinstance(exc, SAOperationalError) and _TABLE_MISSING_RE.search(str(exc)):
+        table_name: str = getattr(model_cls, "_table_name", model_cls.__name__)
+        raise TableNotFound(model_cls.__name__, table_name) from None
+
+
+def _is_data_error(exc: SADBAPIError) -> bool:
+    """Return True when *exc* represents invalid query parameter data.
+
+    Drivers raise this for values that cannot be cast to the target column
+    type (e.g. an empty string supplied for a UUID column).  Such queries
+    can never match any row, so callers may safely treat the result as empty.
+    """
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        orig_type = type(orig).__name__
+        if "DataError" in orig_type or "InvalidTextRepresentation" in orig_type:
+            return True
+    return "DataError" in type(exc).__name__ or "invalid input" in str(exc).lower()
+
+
+# Patterns reported by different DB backends when a column/field is missing.
+_FIELD_MISSING_RE: re.Pattern[str] = re.compile(
+    r"column[^\n]*does not exist|no such column|undefined column",
+    re.IGNORECASE,
+)
+
+
+def _check_field_missing(exc: Exception, model_cls: type) -> None:
+    """Raise :class:`FieldError` when the DB reports a missing column.
+
+    Converts low-level database "column does not exist" errors into a clean
+    400 response so callers receive a descriptive message rather than a 500.
+    """
+    if isinstance(exc, SADBAPIError) and _FIELD_MISSING_RE.search(str(exc)):
+        available = ", ".join(sorted(model_cls._fields))
+        raise FieldError(
+            f"Query referenced a field that does not exist on {model_cls.__name__}."
+            f" Available fields: {available}"
+        ) from None
 
 
 logger = logging.getLogger(__name__)
@@ -63,16 +119,6 @@ if TYPE_CHECKING:
 # When unset (the default) no automatic limit is applied.
 MAX_QUERY_ROWS: int | None = getattr(settings, "MAX_QUERY_ROWS", None)
 
-
-# Short-lived cache for repeated identical SELECT queries.  Inspired by
-# the read-through cache pattern used at Twitter/X and Google Search where
-# hot queries are served from memory instead of hitting the database.
-#
-# Enabled per-model via ``Meta.cache_ttl = <seconds>`` (default 0 = off).
-# The cache is invalidated on any write (INSERT / UPDATE / DELETE) touching
-# the same model.  Thread-safe for single-writer async contexts.
-#
-# Max entries configurable via QUERY_CACHE_MAX_SIZE setting (default 2048).
 
 _QUERY_CACHE_MAX_SIZE: int = int(getattr(settings, "QUERY_CACHE_MAX_SIZE", 2048))
 
@@ -258,6 +304,7 @@ async def preload_table_schemas() -> None:
     Call this during application initialization to avoid schema
     introspection overhead on first requests (~20-50% faster queries).
     """
+    # Deferred import: executor.py ↔ models.py circular dependency
     from openviper.db.models import ModelMeta
 
     engine = await get_engine()
@@ -277,6 +324,7 @@ def _parse_traversal_cached(key: str, model_cls: type) -> Any:
 
     LRU cache with maxsize=1024 prevents unbounded memory growth.
     """
+    # Deferred import: executor.py ↔ models.py circular dependency
     from openviper.db.models import TraversalLookup
 
     try:
@@ -297,8 +345,10 @@ def _cached_traversal_lookup(key: str, model_cls: type) -> Any:
     """
     result = _parse_traversal_cached(key, model_cls)
     if result is _TRAVERSAL_FAILURE:
-
-        raise FieldError(key)
+        available = ", ".join(sorted(model_cls._fields))
+        raise FieldError(
+            f"Invalid lookup '{key}' on {model_cls.__name__}." f" Available fields: {available}"
+        )
     return result
 
 
@@ -443,6 +493,7 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
                 if target_model_cls:
                     related_table = getattr(target_model_cls, "_table_name", "")
                 elif isinstance(target_str, str):
+                    # Deferred import: executor.py ↔ models.py circular dependency
                     from openviper.db.models import ModelMeta
 
                     # Try to look up in registry first before falling back to string parsing
@@ -529,12 +580,17 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
     # Add composite indexes and unique constraints from Meta
     table_args: list[Any] = list(columns)
     for idx in getattr(model_cls, "_meta_indexes", []):
-        # Generate a default index name if not provided
-        index_name = idx.name or f"idx_{table_name}_{'_'.join(idx.fields)}"
-        table_args.append(sa.Index(index_name, *idx.fields))
+        col_names = [
+            model_cls._fields[f].column_name if f in model_cls._fields else f for f in idx.fields
+        ]
+        index_name = idx.name or f"idx_{table_name}_{'_'.join(col_names)}"
+        table_args.append(sa.Index(index_name, *col_names))
 
     for ut_fields in getattr(model_cls, "_meta_unique_together", []):
-        table_args.append(sa.UniqueConstraint(*ut_fields))
+        col_names = [
+            model_cls._fields[f].column_name if f in model_cls._fields else f for f in ut_fields
+        ]
+        table_args.append(sa.UniqueConstraint(*col_names))
 
     return sa.Table(table_name, metadata, *table_args, extend_existing=True)
 
@@ -545,6 +601,8 @@ def get_table(model_cls: type[Model]) -> sa.Table:
 
 
 def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
+    if hasattr(field, "get_sa_type"):
+        return field.get_sa_type()
     if isinstance(field, AutoField):
         return sa.Integer()
     if isinstance(field, BinaryField):
@@ -557,7 +615,7 @@ def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
             for _fname, tfield in target_fields.items():
                 if getattr(tfield, "primary_key", False):
                     if isinstance(tfield, UUIDField):
-                        return sa.String(36)
+                        return sa.UUID(as_uuid=True)
                     if isinstance(tfield, CharField):
                         return sa.String(tfield.max_length)
                     if isinstance(tfield, BigIntegerField):
@@ -581,7 +639,7 @@ def _sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if isinstance(field, TimeField):
         return sa.Time()
     if isinstance(field, UUIDField):
-        return sa.String(36)
+        return sa.UUID(as_uuid=True)
     if isinstance(field, JSONField):
         return sa.JSON()
     if isinstance(field, FileField):
@@ -713,6 +771,11 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
     # Unwrap LazyFK values to raw IDs for SQL binding
     if isinstance(value, LazyFK):
         value = value.fk_id
+    # Unwrap Model instances to their primary key for FK filter comparisons
+    if hasattr(value, "_meta_table_name") or (
+        hasattr(value, "__class__") and hasattr(value.__class__, "_fields")
+    ):
+        value = getattr(value, "id", value)
     # Convert UUID objects to strings for database comparison
     if isinstance(value, uuid.UUID):
         value = str(value)
@@ -740,7 +803,14 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
     if lookup == "lte":
         return col <= value  # type: ignore[no-any-return]
     if lookup == "in":
-        value = [v.fk_id if isinstance(v, LazyFK) else v for v in value]
+        value = [
+            (
+                v.fk_id
+                if isinstance(v, LazyFK)
+                else getattr(v, "id", v) if hasattr(v.__class__, "_fields") else v
+            )
+            for v in value
+        ]
         return col.in_(value)
     if lookup == "isnull":
         return col.is_(None) if value else col.isnot(None)
@@ -761,6 +831,11 @@ def _compile_single_filter(
     parts = key.split("__", 1)
     col_name = parts[0]
     lookup = parts[1] if len(parts) > 1 else "exact"
+
+    # Resolve 'pk' to the actual primary key column name
+    if col_name == "pk":
+        pk_cols = list(table.primary_key.columns)
+        col_name = pk_cols[0].name if pk_cols else "id"
 
     # Support FK _id column aliases (e.g. filter(author=5) -> author_id column)
     if col_name not in table.c and f"{col_name}_id" in table.c:
@@ -803,6 +878,62 @@ def _compile_q(table: sa.Table, q_obj: Any) -> sa.ColumnElement[Any] | None:
     return sa.not_(combined) if getattr(q_obj, "negated", False) else combined
 
 
+def _compile_q_with_traversals(
+    model_cls: type,
+    base_table: sa.Table,
+    q_obj: Any,
+    collected_joins: dict[str, tuple[sa.FromClause, sa.Table]],
+    from_clause_box: list[sa.FromClause],
+) -> sa.ColumnElement[Any] | None:
+    """Recursively compile a Q object to a SQLAlchemy clause with FK traversal support.
+
+    Duck-typed against :class:`~openviper.db.models.Q` without a circular
+    import.  ``from_clause_box`` is a single-element list used as a mutable
+    reference: the caller reads ``from_clause_box[0]`` after this call to
+    obtain the (possibly extended) FROM clause when traversal JOINs were added.
+    """
+    if not q_obj.children:
+        return None
+
+    clauses: list[sa.ColumnElement[Any]] = []
+    for child in q_obj.children:
+        if isinstance(child, tuple):
+            key, value = child
+            try:
+                traversal = _cached_traversal_lookup(key, model_cls)
+                if not traversal.is_simple_field():
+                    if key in collected_joins:
+                        _cached_from, final_table = collected_joins[key]
+                    else:
+                        traversal_from, final_table = _build_traversal_joins(traversal, base_table)
+                        collected_joins[key] = (traversal_from, final_table)
+                        from_clause_box[0] = traversal_from
+                    col = final_table.c[traversal.final_field.column_name]
+                    clause: sa.ColumnElement[Any] | None = _apply_lookup(col, "", value)
+                    if clause is not None:
+                        clauses.append(clause)
+                    continue
+            except FieldError:
+                pass
+            clause = _compile_single_filter(base_table, key, value)
+            if clause is not None:
+                clauses.append(clause)
+        else:
+            clause = _compile_q_with_traversals(
+                model_cls, base_table, child, collected_joins, from_clause_box
+            )
+            if clause is not None:
+                clauses.append(clause)
+
+    if not clauses:
+        return None
+
+    combined: sa.ColumnElement[Any] = (
+        sa.or_(*clauses) if getattr(q_obj, "connector", "AND") == "OR" else sa.and_(*clauses)
+    )
+    return sa.not_(combined) if getattr(q_obj, "negated", False) else combined
+
+
 def _compile_filters(
     table: sa.Table, filter_dicts: list[dict[str, Any]]
 ) -> sa.ColumnElement[Any] | None:
@@ -813,9 +944,13 @@ def _compile_filters(
             clause = _compile_single_filter(table, key, value)
             if clause is None:
                 col_name = key.split("__")[0]
+                if col_name == "pk":
+                    col_name = "pk (primary key)"
+                available = ", ".join(sorted(table.c.keys()))
                 raise FieldError(
                     f"Invalid filter key '{key}': column '{col_name}' does not exist"
-                    f" in table '{table.name}'"
+                    f" in table '{table.name}'."
+                    f" Available columns: {available}"
                 )
             clauses.append(clause)
     return sa.and_(*clauses) if clauses else None
@@ -902,9 +1037,11 @@ def _build_where_clause_with_traversals(
             # Normal field compilation fallback
             fallback_clause = _compile_single_filter(base_table, key, value)
             if fallback_clause is None:
+                available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
                     f"Invalid filter key '{key}': field '{key.split('__')[0]}'"
-                    f" does not exist on {model_cls.__name__}"
+                    f" does not exist on {model_cls.__name__}."
+                    f" Available fields: {available}"
                 )
             parts.append(fallback_clause)
 
@@ -932,15 +1069,21 @@ def _build_where_clause_with_traversals(
             # Normal exclude fallback
             fallback_exclude = _compile_single_filter(base_table, key, value)
             if fallback_exclude is None:
+                available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
                     f"Invalid exclude key '{key}': field '{key.split('__')[0]}'"
-                    f" does not exist on {model_cls.__name__}"
+                    f" does not exist on {model_cls.__name__}."
+                    f" Available fields: {available}"
                 )
             parts.append(sa.not_(fallback_exclude))
 
-    # Q objects compile against base_table (TODO: could support traversal too)
+    # Q objects — with traversal support
     for q_obj in q_filters:
-        q_clause = _compile_q(base_table, q_obj)
+        from_clause_box: list[sa.FromClause] = [from_clause]
+        q_clause = _compile_q_with_traversals(
+            model_cls, base_table, q_obj, collected_joins, from_clause_box
+        )
+        from_clause = from_clause_box[0]
         if q_clause is not None:
             parts.append(q_clause)
 
@@ -1183,7 +1326,34 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             if cache_key is not None:
                 _query_cache.put(cache_key, rows, cache_ttl)
             return rows
+        except SADBAPIError as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            # Invalid parameter values (e.g. malformed UUID, wrong type) mean no
+            # matching row can exist — treat as an empty result set rather than
+            # propagating a 500 error.
+            if _is_data_error(e):
+                logger.debug(
+                    "SELECT query returned no results due to invalid parameter for model %s: %s",
+                    model_cls.__name__,
+                    str(e),
+                )
+                return []
+            logger.error(
+                "SELECT query failed for model %s: %s",
+                model_cls.__name__,
+                str(e),
+                exc_info=True,
+                extra={
+                    "model": model_cls.__name__,
+                    "filters": qs._filters,
+                    "excludes": qs._excludes,
+                },
+            )
+            raise
         except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
             logger.error(
                 "SELECT query failed for model %s: %s",
                 model_cls.__name__,
@@ -1216,7 +1386,12 @@ async def execute_count(qs: QuerySet) -> int:
         stmt = stmt.where(where)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         return int(result.scalar_one())
 
 
@@ -1234,7 +1409,12 @@ async def execute_exists(qs: QuerySet) -> bool:
     stmt = stmt.limit(1)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         return result.first() is not None
 
 
@@ -1254,6 +1434,8 @@ async def execute_delete(qs: QuerySet) -> int:
             _query_cache.invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
+        _check_table_missing(e, model_cls)
+        _check_field_missing(e, model_cls)
         logger.error(
             "Bulk DELETE failed for model %s: %s",
             model_cls.__name__,
@@ -1299,6 +1481,8 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
             _query_cache.invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
+        _check_table_missing(e, model_cls)
+        _check_field_missing(e, model_cls)
         logger.error(
             "Bulk UPDATE failed for model %s: %s",
             model_cls.__name__,
@@ -1309,8 +1493,20 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
         raise
 
 
-async def execute_save(instance: Model, ignore_permissions: bool = False) -> None:
-    """INSERT or UPDATE a single model instance."""
+async def execute_save(
+    instance: Model,
+    ignore_permissions: bool = False,
+    update_fields: list[str] | None = None,
+) -> None:
+    """INSERT or UPDATE a single model instance.
+
+    Args:
+        instance: The model instance to persist.
+        ignore_permissions: Skip permission checks when ``True``.
+        update_fields: When provided on an UPDATE, only these field names are
+            written to the database.  Ignored on INSERT.  Raises
+            :exc:`ValueError` if a name is not a known field on the model.
+    """
     model_cls = type(instance)
     action = "update" if getattr(instance, "pk", None) else "create"
     # Honour both the ContextVar (preferred) and the legacy flag
@@ -1327,6 +1523,18 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
     # Fast path: if no soft-removed columns, avoid membership checks in loop
     has_soft_removed = bool(soft_removed)
 
+    # Validate update_fields names before touching the DB.
+    if update_fields is not None:
+        unknown = [f for f in update_fields if f not in model_cls._fields]
+        if unknown:
+            raise ValueError(
+                f"update_fields contains unknown field(s) for " f"{model_cls.__name__}: {unknown!r}"
+            )
+        # Normalise to a frozenset for O(1) membership checks below.
+        _update_fields: frozenset[str] | None = frozenset(update_fields)
+    else:
+        _update_fields = None
+
     data = {}
     for name, field in model_cls._fields.items():
         # Skip ManyToMany fields - they don't have database columns
@@ -1342,23 +1550,16 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
             continue
         if has_soft_removed and field.column_name in soft_removed:
             continue
+        # When update_fields is set on an UPDATE, skip fields not in the list.
+        # Always include all fields for INSERT.
+        if _update_fields is not None and name not in _update_fields:
+            continue
         data[field.column_name] = field.to_db(val)
 
     pk_val = getattr(instance, "id", None)
-    is_new = pk_val is None
-
-    if not is_new and hasattr(instance, "_previous_state") and instance._previous_state:
-        # Check if this is a user-created instance vs DB-loaded instance.
-        # DB-loaded instances have ID in _previous_state matching current ID.
-        # User-created instances with auto-UUID have None in _previous_state but current ID set.
-        prev_id = instance._previous_state.get("id")
-        if prev_id is None:
-            # ID in _previous_state was None - this is a user-created instance
-            is_new = True
-        elif prev_id != pk_val:
-            # ID changed - treat as new (unusual case, client-side assigned)
-            is_new = True
-        # else: prev_id == pk_val, so it came from DB, keep is_new = False
+    # _persisted is authoritative: False means the instance has never been saved,
+    # regardless of whether a PK is already set (UUID, string, user-assigned int).
+    is_new = not getattr(instance, "_persisted", False)
 
     if is_new:
         stmt = sa.insert(table).values(**data)
@@ -1368,8 +1569,11 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
                 # Only update instance.id if it's not already set (for auto-increment)
                 if pk_val is None:
                     instance.id = cast("Any", result).inserted_primary_key[0]
+            instance._persisted = True
             _query_cache.invalidate_model(model_cls._table_name)
         except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
             logger.error(
                 "INSERT failed for model %s: %s",
                 model_cls.__name__,
@@ -1378,15 +1582,24 @@ async def execute_save(instance: Model, ignore_permissions: bool = False) -> Non
             )
             raise
     else:
-        upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**data)
+        # Primary key columns must never appear in the SET clause — they belong
+        # only in the WHERE predicate.  Remove them regardless of how they ended
+        # up in `data` (e.g. UUID PKs are not auto-increment so the loop above
+        # does not skip them).
+        pk_columns = {f.column_name for f in model_cls._fields.values() if f.primary_key}
+        update_data = {k: v for k, v in data.items() if k not in pk_columns}
+        upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**update_data)
         try:
             async with _begin() as conn:
                 result = await conn.execute(upd_stmt)
-                if result.rowcount == 0:
+                if result.rowcount == 0 and _update_fields is None:
                     ins_stmt = sa.insert(table).values(**data)
                     await conn.execute(ins_stmt)
+            instance._persisted = True
             _query_cache.invalidate_model(model_cls._table_name)
         except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
             logger.error(
                 "UPDATE failed for model %s (pk=%s): %s",
                 model_cls.__name__,
@@ -1412,6 +1625,8 @@ async def execute_delete_instance(instance: Model, ignore_permissions: bool = Fa
             await conn.execute(sa.delete(table).where(table.c.id == pk_val))
         _query_cache.invalidate_model(model_cls._table_name)
     except Exception as e:
+        _check_table_missing(e, model_cls)
+        _check_field_missing(e, model_cls)
         logger.error(
             "DELETE failed for model %s (pk=%s): %s",
             model_cls.__name__,
@@ -1438,6 +1653,7 @@ async def execute_values(
     if fields:
         # Resolve field names → column names
         field_defs = model_cls._fields
+        available = sorted(field_defs.keys())
         wanted_cols: list[Any] = []
         for fname in fields:
             if fname in annotations:
@@ -1447,8 +1663,12 @@ async def execute_values(
             else:
                 field_def = field_defs.get(fname)
                 col_name = field_def.column_name if field_def else fname
-                if col_name in table.c:
-                    wanted_cols.append(table.c[col_name].label(fname))
+                if col_name not in table.c:
+                    raise FieldError(
+                        f"Invalid field '{fname}' for model {model_cls.__name__}."
+                        f" Available fields: {', '.join(available)}"
+                    )
+                wanted_cols.append(table.c[col_name].label(fname))
         stmt = sa.select(*wanted_cols) if wanted_cols else sa.select(table)
     else:
         ann_cols = [
@@ -1479,7 +1699,12 @@ async def execute_values(
         stmt = stmt.offset(qs._offset)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         return [dict(row) for row in result.mappings()]
 
 
@@ -1508,7 +1733,12 @@ async def execute_aggregate(qs: QuerySet, agg_kwargs: dict[str, Any]) -> dict[st
         stmt = stmt.where(where)
 
     async with _connect() as conn:
-        result = await conn.execute(stmt)
+        try:
+            result = await conn.execute(stmt)
+        except Exception as e:
+            _check_table_missing(e, model_cls)
+            _check_field_missing(e, model_cls)
+            raise
         row = result.mappings().first()
         return dict(row) if row else {}
 
@@ -1541,9 +1771,7 @@ async def execute_explain(qs: QuerySet) -> str:
 
     async with _connect() as conn:
         if dialect_name == "postgresql":
-            from sqlalchemy.dialects import postgresql
-
-            compiled = stmt.compile(dialect=postgresql.dialect())  # type: ignore[no-untyped-call]
+            compiled = stmt.compile(dialect=_pg_dialect.dialect())  # type: ignore[no-untyped-call]
             explain_text = f"EXPLAIN {compiled}"
             result = await conn.execute(sa.text(explain_text))
             lines = [str(row[0]) for row in result]

@@ -52,7 +52,6 @@ class AdminMiddleware(BaseMiddleware):
             await self.app(scope, receive, send)
             return
 
-        # Check authentication
         if not await self.check_admin_authentication(scope):
             await self._send_unauthorized(scope, receive, send)
             return
@@ -68,16 +67,13 @@ class AdminMiddleware(BaseMiddleware):
         Returns:
             True if user is authenticated and is staff/superuser.
         """
-        # User should be set by AuthenticationMiddleware
         user = scope.get("user")
         if user is None:
             return False
 
-        # Check if user is authenticated
         if not getattr(user, "is_authenticated", False):
             return False
 
-        # Check if user is staff or superuser
         is_staff = getattr(user, "is_staff", False)
         is_superuser = getattr(user, "is_superuser", False)
 

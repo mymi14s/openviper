@@ -27,7 +27,6 @@ _ARGON2_HASHER_CHECK = PasswordHasher()
 # Running a real Argon2 verify against a valid (but always-failing) hash
 # takes the same wall time as a real password check, preventing user
 # enumeration via response-time differences.
-# Use a cryptographically random password that will never match user input.
 _DUMMY_PASSWORD_SECRET = secrets.token_urlsafe(32)
 _ARGON2_DUMMY_HASH: str = "argon2$" + _ARGON2_HASHER_MAKE.hash(_DUMMY_PASSWORD_SECRET)
 

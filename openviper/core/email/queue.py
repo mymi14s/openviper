@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from typing import Any
 
@@ -11,14 +12,24 @@ from openviper.core.email.message import EmailMessageData
 from openviper.tasks import task
 from openviper.tasks.broker import get_broker
 
+logger = logging.getLogger("openviper.email")
+
 
 @task(queue_name="emails", actor_name="openviper.core.email.deliver_email")
 async def _deliver_email_job(payload: dict[str, Any]) -> None:
     """Dramatiq actor — deserialises and delivers a queued email message."""
-    # Local import avoids circular dependency (sender → queue → sender).
-    from openviper.core.email.sender import _send_now
+    from openviper.core.email.sender import _configure_email_log, _send_now
 
-    await _send_now(_payload_to_message(payload))
+    _configure_email_log()
+    try:
+        await _send_now(_payload_to_message(payload))
+    except Exception:
+        logger.exception(
+            "Background email delivery failed: subject=%r recipients=%r",
+            payload.get("subject"),
+            payload.get("recipients"),
+        )
+        raise
 
 
 async def enqueue_email_job(data: EmailMessageData) -> Any:

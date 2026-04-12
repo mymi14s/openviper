@@ -45,6 +45,9 @@ from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger("openviper.tasks")
 
+# Framework modules that register Dramatiq actors; always imported by the worker.
+_FRAMEWORK_TASK_MODULES: tuple[str, ...] = ("openviper.core.email.queue",)
+
 _SKIP_DIRS: frozenset[str] = frozenset(
     {"migrations", "tests", "__pycache__", ".git", "static", "templates"}
 )
@@ -89,10 +92,9 @@ def discover_tasks(extra_modules: list[str] | None = None) -> list[str]:
     app_names: list[str] = list(getattr(settings, "INSTALLED_APPS", []))
     module_paths: list[str] = []
 
-    # Build list of all module paths to import
     for app_name in app_names:
         if app_name.startswith("openviper."):
-            continue  # skip framework internals
+            continue
 
         app_path, found = resolver.resolve_app(app_name)
         if not (found and app_path):
@@ -115,16 +117,17 @@ def discover_tasks(extra_modules: list[str] | None = None) -> list[str]:
                 module_path = f"{app_name}.{submodule}"
                 module_paths.append(module_path)
 
-    # Add extra modules
     if extra_modules:
         module_paths.extend(extra_modules)
 
-    # Import modules in parallel for faster startup
+    for fw_module in _FRAMEWORK_TASK_MODULES:
+        if fw_module not in module_paths:
+            module_paths.append(fw_module)
+
     imported: list[str] = []
     failed: int = 0
 
     def _import_module(module_path: str) -> tuple[str | None, str | None]:
-        """Import a single module and return (module_path, error_msg)."""
         try:
             importlib.import_module(module_path)
             logger.debug("Imported %s", module_path)
@@ -133,8 +136,6 @@ def discover_tasks(extra_modules: list[str] | None = None) -> list[str]:
             logger.warning("Could not import %s: %s", module_path, exc)
             return (None, str(exc))
 
-    # Use ThreadPoolExecutor for parallel imports (GIL-friendly for I/O-bound imports)
-    # Max workers = min(32, cpu_count + 4) is a good default for I/O-bound tasks
     max_workers = min(32, (os.cpu_count() or 1) + 4)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

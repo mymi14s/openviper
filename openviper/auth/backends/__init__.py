@@ -82,12 +82,6 @@ async def authenticate(username: str, password: str, request: Any = None) -> Any
         )
         return None
 
-    # Successful authentication
-    logger.info(
-        "Authentication successful",
-        extra={"username": username, "user_id": user.pk, "client_ip": client_ip},
-    )
-
     # Update last_login in background to avoid blocking the response
     asyncio.create_task(_update_last_login(user))
     return user
@@ -176,18 +170,6 @@ async def login(request: Any, user: Any, response: Any = None) -> str:
     if isinstance(scope, dict):
         scope["session"] = new_session
 
-    # Audit log for session creation
-    client_ip = _get_client_ip(request)
-    logger.info(
-        "User session created",
-        extra={
-            "user_id": user.pk,
-            "username": getattr(user, "username", "unknown"),
-            "client_ip": client_ip,
-            "session_key": session_key[:16] + "..." if len(session_key) > 16 else session_key,
-        },
-    )
-
     if response is not None:
         cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
         cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
@@ -231,25 +213,8 @@ async def logout(request: Any, response: Any = None) -> None:
 
     session_key = request.cookies.get(cookie_name)
 
-    # Get user info for audit log before invalidating
-    user = getattr(request, "user", None)
-    user_id = getattr(user, "pk", None) if user and not isinstance(user, AnonymousUser) else None
-    username = getattr(user, "username", "anonymous") if user else "anonymous"
-    client_ip = _get_client_ip(request)
-
     if session_key:
         await delete_session(session_key)
-
-        # Audit log
-        logger.info(
-            "User logged out",
-            extra={
-                "user_id": user_id,
-                "username": username,
-                "client_ip": client_ip,
-                "session_key": session_key[:16] + "..." if len(session_key) > 16 else session_key,
-            },
-        )
 
     if response is not None:
         cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)

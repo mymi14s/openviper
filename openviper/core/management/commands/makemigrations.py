@@ -35,7 +35,7 @@ from openviper.db.migrations.writer import (
     write_initial_migration,
     write_migration,
 )
-from openviper.db.models import Model, check_primary_keys
+from openviper.db.models import Model, ModelMeta, check_primary_keys
 
 # Maximum length for the auto-generated descriptive part of a migration name
 _MAX_NAME_LENGTH = 40
@@ -140,9 +140,6 @@ class Command(BaseCommand):
                 )
             if not resolved_apps:
                 return
-        elif not_found_apps:
-            # Auto-detected apps that weren't found — just skip silently
-            pass
 
         # Show app locations if we found any
         if resolved_apps:
@@ -207,6 +204,16 @@ class Command(BaseCommand):
                     finally:
                         if app_path in sys.path:
                             sys.path.remove(app_path)
+
+            # Include auto-generated through models (for ManyToManyField without explicit
+            # 'through') that were registered in ModelMeta.registry during module import.
+            for cls in ModelMeta.registry.values():
+                if (
+                    getattr(cls, "_app_name", None) == app_module_label
+                    and getattr(cls, "_is_auto_created", False)
+                    and cls not in model_classes
+                ):
+                    model_classes.append(cls)
 
             app_data[app_module_label] = {
                 "name": app_name,

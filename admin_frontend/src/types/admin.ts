@@ -24,6 +24,7 @@ export interface ModelField {
   max_value?: number
   related_model?: string
   component?: string
+  srid?: number
 }
 
 export interface ChildTableConfig {

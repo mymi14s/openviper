@@ -107,10 +107,3 @@ async def sync_content_types() -> None:
         if key not in current_keys:
             await ct.delete()
             deleted_count += 1
-
-    if newly_created > 0 or deleted_count > 0:
-        logger.info(
-            "ContentType synchronization: created %d, deleted %d",
-            newly_created,
-            deleted_count,
-        )

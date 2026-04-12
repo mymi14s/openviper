@@ -134,9 +134,7 @@ class TestDiscoverModelsBranches:
 
 class TestSyncContentTypesBranches:
     @pytest.mark.asyncio
-    async def test_creates_and_deletes_and_logs(self, caplog: pytest.LogCaptureFixture) -> None:
-        caplog.set_level(logging.INFO, logger="openviper.auth")
-
+    async def test_creates_and_deletes(self) -> None:
         base_model = type("BaseModel", (), {"_app_name": "default", "_model_name": "Model"})
         existing_model = type("ExistingModel", (), {"_app_name": "app", "_model_name": "Existing"})
         new_model = type("NewModel", (), {"_app_name": "app", "_model_name": "New"})
@@ -162,33 +160,6 @@ class TestSyncContentTypesBranches:
 
         content_type_objects.create.assert_awaited_once_with(app_label="app", model="New")
         stale_ct.delete.assert_awaited_once()
-        assert any("ContentType synchronization" in rec.message for rec in caplog.records)
-
-    @pytest.mark.asyncio
-    async def test_no_changes_does_not_log_info(self, caplog: pytest.LogCaptureFixture) -> None:
-        caplog.set_level(logging.INFO, logger="openviper.auth")
-
-        model = type("Only", (), {"_app_name": "app", "_model_name": "Only"})
-        ct = MagicMock(app_label="app", model="Only")
-        ct.delete = AsyncMock()
-
-        objects = MagicMock()
-        objects.all = AsyncMock(return_value=[ct])
-        objects.create = AsyncMock()
-
-        with (
-            patch("openviper.auth.utils.discover_models"),
-            patch("openviper.auth.utils.ModelMeta") as mock_meta,
-            patch("openviper.auth.utils.ContentType") as mock_content_type,
-        ):
-            mock_meta.registry = {"only": model}
-            mock_content_type.objects = objects
-
-            await sync_content_types()
-
-        objects.create.assert_not_awaited()
-        ct.delete.assert_not_awaited()
-        assert not any("ContentType synchronization" in rec.message for rec in caplog.records)
 
     @pytest.mark.asyncio
     async def test_returns_early_when_content_type_query_fails(self) -> None:

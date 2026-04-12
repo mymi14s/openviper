@@ -190,10 +190,44 @@ class MigrationError(OpenViperException):
     __slots__ = ()
 
 
-class FieldError(ORMException):
-    """Field lookup or traversal error."""
+class TableNotFound(ORMException):
+    """Raised when a model's database table does not exist.
+
+    This typically means migrations have not been run yet.
+    """
+
+    __slots__ = ("model_name", "table_name")
+
+    def __init__(self, model_name: str, table_name: str) -> None:
+        self.model_name = model_name
+        self.table_name = table_name
+        super().__init__(
+            f"[TableNotFound] Table '{table_name}' for model '{model_name}' does not exist. "
+            "Run 'manage.py migrate' to create it."
+        )
+
+
+class QueryError(ORMException):
+    """ORM query is invalid.
+
+    Raised when a query cannot be executed due to a structural problem such as
+    referencing a non-existent field, an invalid operator, or a malformed
+    filter expression.
+    """
 
     __slots__ = ()
+
+    def __init__(self, detail: str = "Invalid query.") -> None:
+        super().__init__(detail)
+
+
+class FieldError(ORMException):
+    """Referenced field does not exist on the model."""
+
+    __slots__ = ()
+
+    def __init__(self, detail: str = "Field does not exist.") -> None:
+        super().__init__(detail)
 
 
 class MiddlewareException(OpenViperException):

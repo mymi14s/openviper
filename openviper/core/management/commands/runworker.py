@@ -137,7 +137,13 @@ class Command(BaseCommand):
                     modules.append(f"{app_name}.{rel[:-3].replace(os.sep, '.')}")
 
         if not modules:
-            self.stdout("No task modules found. Exiting.")
+            msg = "No task modules found."
+            if not os.environ.get("OPENVIPER_SETTINGS_MODULE"):
+                msg += (
+                    " No settings module was configured"
+                    " — try: python viperctl.py --settings=<module> runworker"
+                )
+            self.stdout(msg + " Exiting.")
             sys.exit(1)
 
         cmd: list[str] = ["dramatiq"] + ["openviper.tasks", "openviper.core.email.queue"] + modules

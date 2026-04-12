@@ -12,7 +12,7 @@ Full settings example::
     from typing import Any
 
     TASKS: dict[str, Any] = {
-        "enabled": 1,                  # required — worker will not start without this
+        "enabled": 1,
         "broker": "redis",
         "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
         "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
@@ -72,7 +72,7 @@ except ImportError:
 
 try:
     from openviper.tasks.middleware import SchedulerMiddleware, TaskTrackingMiddleware
-except Exception:
+except ImportError:
     TaskTrackingMiddleware = None  # type: ignore[assignment, misc]
     SchedulerMiddleware = None  # type: ignore[assignment, misc]
 
@@ -94,17 +94,14 @@ def get_broker() -> Any:
     lock release and the ``return`` statement.
     """
     global _broker
-    # Fast path: take a local snapshot (CPython GIL makes the ref-read atomic).
     broker = _broker
     if broker is not None:
         return broker
     with _broker_lock:
-        # Re-read inside the lock; another thread may have won the race.
         broker = _broker
         if broker is None:
             broker = _create_broker()
             _broker = broker  # write inside the lock
-    # Return the local variable — never re-read the global after lock release.
     return broker
 
 
@@ -149,12 +146,8 @@ def _create_broker() -> Any:
             f"Unknown TASKS broker {backend!r}. Valid choices: 'redis', 'rabbitmq', 'stub'."
         )
 
-    # AsyncIO middleware — enables `async def` actor functions.
     broker.add_middleware(AsyncIO())
 
-    # Result-tracking middleware — records every task lifecycle event to the
-    # database so callers can poll for completion / inspect failures.
-    # Enable with TASKS["tracking_enabled"] = 1 or True.
     if bool(cfg.get("tracking_enabled", False)):
         if TaskTrackingMiddleware is not None:
             try:
@@ -164,7 +157,7 @@ def _create_broker() -> Any:
         else:
             logger.warning("TaskTrackingMiddleware is unavailable; tracking disabled.")
     else:
-        logger.info("Task result tracking disabled (set TASKS['tracking_enabled'] = 1 to enable.)")
+        logger.debug("Task result tracking disabled (set TASKS['tracking_enabled'] = 1 to enable.)")
 
     # Scheduler middleware — starts @periodic tick thread after worker boot.
     # Enable with TASKS["scheduler_enabled"] = 1 or True.
@@ -195,17 +188,13 @@ def _create_broker() -> Any:
             try:
                 result_backend = RedisBackend(url=cfg["backend_url"])  # type: ignore[no-untyped-call]
                 broker.add_middleware(Results(backend=result_backend))  # type: ignore[no-untyped-call]
-                logger.info(
-                    "Dramatiq result backend: %s",
-                    cfg["backend_url"].split("@")[-1],
-                )
             except Exception as exc:
                 logger.warning("Could not attach result backend: %s", exc)
         else:
             logger.warning("Dramatiq Results or RedisBackend not available; backend_url ignored.")
 
     dramatiq.set_broker(broker)
-    logger.info(
+    logger.debug(
         "Dramatiq broker ready: %s  (backend=%s)",
         type(broker).__name__,
         backend,

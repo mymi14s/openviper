@@ -33,10 +33,8 @@ class RedisCache(BaseCache):
         if value is None:
             return default
         try:
-            # We serialize to JSON to maintain types like dict/list
             return json.loads(value)
         except json.JSONDecodeError:
-            # Fallback to returning raw string if it wasn't valid JSON
             return value.decode("utf-8") if isinstance(value, bytes) else value
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:

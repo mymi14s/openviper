@@ -6,6 +6,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useAdminStore } from '@/stores/admin'
 import Sidebar from '@/components/Sidebar.vue'
 import Header from '@/components/Header.vue'
+import AlertModal from '@/components/AlertModal.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -101,6 +102,9 @@ watch(() => authStore.isAuthenticated, async (isAuth) => {
       </div>
     </template>
   </div>
+
+  <!-- Global alert modal, rendered outside the layout tree -->
+  <AlertModal />
 </template>
 
 <style>

@@ -17,11 +17,13 @@ class _FakeRoute:
         methods: list[str],
         handler: object,
         name: str | None = None,
+        tags: list[str] | None = None,
     ) -> None:
         self.path = path
         self.methods = methods
         self.handler = handler
         self.name = name or getattr(handler, "__name__", "handler")
+        self.tags = tags or []
 
 
 # Use type() so that cls.__name__ returns the intended string
@@ -171,7 +173,7 @@ class TestBuildOperationWithTokenAuth:
 
         token_only.authentication_classes = [FakeTokenAuth]  # type: ignore[attr-defined]
         route = _FakeRoute("/token-only/", ["GET"], token_only)
-        schema = generate_openapi_schema([route], title="T", version="1")
+        schema = generate_openapi_schema([route], title="T")
         ops = schema["paths"]["/token-only/"]
         assert "security" in ops["get"]
         assert {"TokenAuth": []} in ops["get"]["security"]

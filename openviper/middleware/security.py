@@ -29,6 +29,10 @@ class SecurityMiddleware(BaseMiddleware):
         content_type_nosniff: Add ``X-Content-Type-Options: nosniff``.
         xss_filter: Add ``X-XSS-Protection: 1; mode=block``.
         csp: Optional Content-Security-Policy dictionary or string.
+        permissions_policy: Value for the ``Permissions-Policy`` header.
+        cross_origin_opener_policy: Value for the ``Cross-Origin-Opener-Policy`` header.
+        cross_origin_embedder_policy: Value for the ``Cross-Origin-Embedder-Policy`` header.
+        cross_origin_resource_policy: Value for the ``Cross-Origin-Resource-Policy`` header.
     """
 
     __slots__ = (
@@ -40,6 +44,10 @@ class SecurityMiddleware(BaseMiddleware):
         "content_type_nosniff",
         "xss_filter",
         "csp",
+        "permissions_policy",
+        "cross_origin_opener_policy",
+        "cross_origin_embedder_policy",
+        "cross_origin_resource_policy",
         "_fixed_headers",
         "_exact_hosts",
         "_wildcard_hosts",
@@ -57,6 +65,10 @@ class SecurityMiddleware(BaseMiddleware):
         content_type_nosniff: bool = True,
         xss_filter: bool | None = None,
         csp: dict[str, Any] | str | None = None,
+        permissions_policy: str | None = None,
+        cross_origin_opener_policy: str | None = None,
+        cross_origin_embedder_policy: str | None = None,
+        cross_origin_resource_policy: str | None = None,
     ) -> None:
         super().__init__(app)
         self.ssl_redirect = (
@@ -93,6 +105,26 @@ class SecurityMiddleware(BaseMiddleware):
         self.csp = (
             csp if csp is not None else getattr(settings, "SECURE_CONTENT_SECURITY_POLICY", None)
         )
+        self.permissions_policy = (
+            permissions_policy
+            if permissions_policy is not None
+            else getattr(settings, "SECURE_PERMISSIONS_POLICY", None)
+        )
+        self.cross_origin_opener_policy = (
+            cross_origin_opener_policy
+            if cross_origin_opener_policy is not None
+            else getattr(settings, "SECURE_CROSS_ORIGIN_OPENER_POLICY", None)
+        )
+        self.cross_origin_embedder_policy = (
+            cross_origin_embedder_policy
+            if cross_origin_embedder_policy is not None
+            else getattr(settings, "SECURE_CROSS_ORIGIN_EMBEDDER_POLICY", None)
+        )
+        self.cross_origin_resource_policy = (
+            cross_origin_resource_policy
+            if cross_origin_resource_policy is not None
+            else getattr(settings, "SECURE_CROSS_ORIGIN_RESOURCE_POLICY", None)
+        )
 
         # Pre-build fixed security headers — done once at init, zero per-request alloc.
         self._fixed_headers: list[tuple[bytes, bytes]] = []
@@ -110,11 +142,35 @@ class SecurityMiddleware(BaseMiddleware):
             self._fixed_headers.append((b"strict-transport-security", hsts.encode("latin-1")))
         if self.xss_filter:
             self._fixed_headers.append((b"x-xss-protection", b"1; mode=block"))
+        if self.permissions_policy is not None:
+            self._fixed_headers.append(
+                (b"permissions-policy", self.permissions_policy.encode("latin-1"))
+            )
+        if self.cross_origin_opener_policy is not None:
+            self._fixed_headers.append(
+                (
+                    b"cross-origin-opener-policy",
+                    self.cross_origin_opener_policy.encode("latin-1"),
+                )
+            )
+        if self.cross_origin_embedder_policy is not None:
+            self._fixed_headers.append(
+                (
+                    b"cross-origin-embedder-policy",
+                    self.cross_origin_embedder_policy.encode("latin-1"),
+                )
+            )
+        if self.cross_origin_resource_policy is not None:
+            self._fixed_headers.append(
+                (
+                    b"cross-origin-resource-policy",
+                    self.cross_origin_resource_policy.encode("latin-1"),
+                )
+            )
         if self.csp:
             if isinstance(self.csp, dict):
                 sanitized_parts: list[str] = []
                 for k, v in self.csp.items():
-                    # Strip semicolons to prevent directive injection
                     key = str(k).replace(";", "")
                     if isinstance(v, list):
                         val = " ".join(str(item).replace(";", "") for item in v)
@@ -199,7 +255,6 @@ class SecurityMiddleware(BaseMiddleware):
         for name, value in scope.get("headers", []):
             if name == b"host":
                 raw_host = value.decode("latin-1")
-                # Strip port for ALLOWED_HOSTS comparison (handles IPv6)
                 host = self._strip_port(raw_host)
                 break
         if not host:

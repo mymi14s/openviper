@@ -4,6 +4,7 @@ import type { ModelConfig, ModelField } from '@/types/admin'
 import ForeignKeyField from '@/components/ForeignKeyField.vue'
 import FileUploadField from '@/components/FileUploadField.vue'
 import CountrySelectField from '@/components/CountrySelectField.vue'
+import PointFieldComponent from '@/components/PointField.vue'
 import { formatFieldName, isValidUrl } from '@/utils/formatters'
 
 const props = defineProps<{
@@ -122,6 +123,9 @@ function getFieldType(field: ModelField): string {
     // File uploads
     FileField: 'file',
     ImageField: 'file',
+
+    // Geolocation
+    PointField: 'point',
   }
   return typeMap[field.type] || 'text'
 }
@@ -135,6 +139,10 @@ function getFieldComponent(field: ModelField): string {
   // Country field
   if (field.type === 'CountryField' || field.component === 'country') {
     return 'country'
+  }
+  // Geolocation point field
+  if (field.type === 'PointField' || field.component === 'point') {
+    return 'point'
   }
   // Check for foreignkey field (has related_model)
   if (field.related_model) return 'foreignkey'
@@ -420,6 +428,16 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
                 @update:model-value="updateField(field.name, $event)"
               />
 
+              <!-- PointField -->
+              <PointFieldComponent
+                v-else-if="getFieldComponent(field) === 'point'"
+                :model-value="formData[field.name] ?? null"
+                :srid="field.srid ?? 4326"
+                :disabled="disabled || isReadonly(field)"
+                :required="field.required"
+                @update:model-value="updateField(field.name, $event)"
+              />
+
               <!-- Textarea -->
               <textarea
                 v-else-if="getFieldComponent(field) === 'textarea'"
@@ -581,6 +599,16 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
           v-else-if="getFieldComponent(field) === 'file'"
           :field="field"
           :model-value="formData[field.name]"
+          :disabled="disabled || isReadonly(field)"
+          :required="field.required"
+          @update:model-value="updateField(field.name, $event)"
+        />
+
+        <!-- PointField -->
+        <PointFieldComponent
+          v-else-if="getFieldComponent(field) === 'point'"
+          :model-value="formData[field.name] ?? null"
+          :srid="field.srid ?? 4326"
           :disabled="disabled || isReadonly(field)"
           :required="field.required"
           @update:model-value="updateField(field.name, $event)"

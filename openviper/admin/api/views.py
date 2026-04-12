@@ -14,6 +14,7 @@ import importlib
 import io
 import json
 import logging
+import re
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -34,6 +35,7 @@ from openviper.auth import authenticate, create_access_token, create_refresh_tok
 from openviper.auth.jwt import decode_refresh_token, decode_token_unverified
 from openviper.auth.token_blocklist import is_token_revoked, revoke_token
 from openviper.conf import settings
+from openviper.db.fields import ManyToManyField
 from openviper.db.utils import cast_to_pk_type
 from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, ValidationError
 from openviper.http.response import JSONResponse, Response
@@ -152,6 +154,49 @@ async def _batch_load_children(
     return children_by_instance
 
 
+def _parse_unique_violation_fields(exc: sqlalchemy.exc.IntegrityError) -> dict[str, str | None]:
+    """Parse a unique-violation IntegrityError and return the conflicting column→value map."""
+    orig_str = str(exc.orig) if hasattr(exc, "orig") and exc.orig else str(exc)
+    # PostgreSQL: Key (col1, col2)=(val1, val2) already exists.
+    pg_match = re.search(r"Key \(([^)]+)\)=\(([^)]*)\) already exists", orig_str)
+    if pg_match:
+        col_names = [c.strip() for c in pg_match.group(1).split(",")]
+        col_values = [v.strip() for v in pg_match.group(2).split(",")]
+        return dict(zip(col_names, col_values, strict=False))
+    # SQLite: UNIQUE constraint failed: table.column
+    sqlite_match = re.search(r"UNIQUE constraint failed: \w+\.(\w+)", orig_str)
+    if sqlite_match:
+        return {sqlite_match.group(1): None}
+    return {}
+
+
+async def _find_existing_on_unique_violation(
+    model_class: type[Any],
+    exc: sqlalchemy.exc.IntegrityError,
+    coerced_data: dict[str, Any],
+) -> int | str | None:
+    """Return the PK of the conflicting record, or None if it cannot be determined."""
+    parsed = _parse_unique_violation_fields(exc)
+    if not parsed:
+        return None
+    model_fields = getattr(model_class, "_fields", {})
+    filter_kwargs: dict[str, Any] = {}
+    for col_name, col_value in parsed.items():
+        if col_name not in model_fields:
+            continue
+        if col_name in coerced_data:
+            filter_kwargs[col_name] = coerced_data[col_name]
+        elif col_value is not None:
+            filter_kwargs[col_name] = col_value
+    if not filter_kwargs:
+        return None
+    with contextlib.suppress(Exception):
+        existing = await model_class.objects.filter(**filter_kwargs).first()
+        if existing:
+            return existing.id
+    return None
+
+
 async def _serialize_instance_with_children(
     request: Request,
     model_admin: ModelAdmin,
@@ -175,8 +220,10 @@ async def _serialize_instance_with_children(
     fields = getattr(model_class, "_fields", {})
 
     response_data = {"id": instance.id}
-    for field_name in fields:
+    for field_name, field_obj in fields.items():
         if field_name in sensitive_fields:
+            continue
+        if isinstance(field_obj, ManyToManyField):
             continue
         value = getattr(instance, field_name, None)
         if hasattr(value, "isoformat"):
@@ -185,7 +232,6 @@ async def _serialize_instance_with_children(
             value = str(value)
         response_data[field_name] = value
 
-    # Use preloaded children if available, otherwise fetch individually (fallback)
     if preloaded_children is not None:
         response_data.update(preloaded_children)
     else:
@@ -812,12 +858,6 @@ def get_admin_router() -> Router:
         else:
             data = await request.json()
 
-        logger.info(
-            "Creating %s.%s",
-            app_label,
-            model_name,
-        )
-
         # Coerce field values
         fields = getattr(model_class, "_fields", {})
         coerced_data = {}
@@ -853,6 +893,9 @@ def get_admin_router() -> Router:
             field = fields[field_name]
             # Skip auto-generated PKs on create — let save() produce the value
             if getattr(field, "primary_key", False) and getattr(field, "auto", False):
+                continue
+            # ManyToManyFields don't map to a DB column and cannot be set via constructor
+            if isinstance(field, ManyToManyField):
                 continue
             try:
                 coerced_data[field_name] = coerce_field_value(field, value)
@@ -949,6 +992,17 @@ def get_admin_router() -> Router:
                 model_name,
                 msg,
             )
+            existing_id = await _find_existing_on_unique_violation(model_class, exc, coerced_data)
+            if existing_id is not None:
+                return JSONResponse(
+                    {
+                        "errors": {"__all__": "A record with that data already exists."},
+                        "existing_id": existing_id,
+                        "app_label": app_label,
+                        "model_name": model_name,
+                    },
+                    status_code=409,
+                )
             user_msg = (
                 msg
                 if getattr(settings, "DEBUG", False)
@@ -1099,17 +1153,12 @@ def get_admin_router() -> Router:
         else:
             data = await request.json()
 
-        logger.info(
-            "Updating %s.%s (pk=%s)",
-            app_label,
-            model_name,
-            obj_id,
-        )
-
         # Get old data for change tracking
         fields = getattr(model_class, "_fields", {})
         old_data = {}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             old_data[field_name] = getattr(instance, field_name, None)
 
         # Coerce and apply field values
@@ -1142,6 +1191,9 @@ def get_admin_router() -> Router:
                 continue
             # Block writes to excluded or sensitive fields
             if field_name in excluded_fields or field_name in sensitive_fields:
+                continue
+            # ManyToManyFields don't map to a DB column and cannot be set directly
+            if isinstance(fields[field_name], ManyToManyField):
                 continue
             try:
                 coerced_value = coerce_field_value(fields[field_name], value)
@@ -1355,7 +1407,8 @@ def get_admin_router() -> Router:
         except NotRegistered as exc:
             raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
 
-        instance = await model_class.objects.get_or_none(id=obj_id)
+        obj_id_casted = cast_to_pk_type(model_class, obj_id)
+        instance = await model_class.objects.get_or_none(id=obj_id_casted)
         if not instance:
             raise NotFound(f"{model_name} with id {obj_id} not found.")
 
@@ -1565,7 +1618,6 @@ def get_admin_router() -> Router:
             search_fields = model_admin.get_search_fields(request)
             if search_fields:
                 # Build OR conditions for search
-                # This is simplified - real implementation would use proper filtering
                 for field in search_fields:
                     if hasattr(qs, "filter"):
                         qs = qs.filter(**{f"{field}__contains": search_query})
@@ -1670,7 +1722,7 @@ def get_admin_router() -> Router:
             except ValueError as exc:
                 logger.error("Coercion exception for %s: %s", field_name, exc)
                 field_errors[field_name] = str(exc)
-
+        print(coerced_data)
         if field_errors:
             return JSONResponse({"errors": field_errors}, status_code=422)
 
@@ -1690,7 +1742,9 @@ def get_admin_router() -> Router:
 
         # Serialize response
         response_data = {"id": instance.id}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             value = getattr(instance, field_name, None)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
@@ -1721,7 +1775,9 @@ def get_admin_router() -> Router:
         # Serialize instance
         fields = getattr(model_class, "_fields", {})
         response_data = {"id": instance.id}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             value = getattr(instance, field_name, None)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
@@ -1766,7 +1822,9 @@ def get_admin_router() -> Router:
         # Get old data for change tracking
         fields = getattr(model_class, "_fields", {})
         old_data = {}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             old_data[field_name] = getattr(instance, field_name, None)
 
         # Coerce and apply field values
@@ -1809,7 +1867,9 @@ def get_admin_router() -> Router:
 
         # Serialize response
         response_data = {"id": instance.id}
-        for field_name in fields:
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
             value = getattr(instance, field_name, None)
             if hasattr(value, "isoformat"):
                 value = value.isoformat()
@@ -2069,7 +2129,8 @@ def get_admin_router() -> Router:
             raise NotFound(f"Model '{model_name}' not found.") from exc
 
         # Verify instance exists
-        instance = await model_class.objects.get_or_none(id=obj_id)
+        obj_id_casted = cast_to_pk_type(model_class, obj_id)
+        instance = await model_class.objects.get_or_none(id=obj_id_casted)
         if not instance:
             raise NotFound(f"{model_name} with id {obj_id} not found.")
 
@@ -2178,7 +2239,6 @@ def get_admin_router() -> Router:
         if not check_admin_access(request):
             raise PermissionDenied("Admin access required.")
 
-        # Placeholder - plugins would be discovered from frontend
         return JSONResponse({"plugins": []})
 
     # ── Global Search endpoint ───────────────────────────────────────────

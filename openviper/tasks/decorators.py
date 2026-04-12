@@ -32,7 +32,7 @@ from typing import Any
 
 import dramatiq
 
-from openviper.tasks.broker import get_broker
+import openviper.tasks.broker as _broker_module
 
 logger = logging.getLogger("openviper.tasks")
 
@@ -70,9 +70,7 @@ def task(
     """
 
     def decorator(fn: Callable[..., Any]) -> Any:
-        # Ensure the broker (and its middleware) are initialised before the
-        # actor is registered — safe to call multiple times.
-        get_broker()
+        _broker_module.get_broker()
 
         resolved_name = actor_name if actor_name is not None else fn.__name__
 

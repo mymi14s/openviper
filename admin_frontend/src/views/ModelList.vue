@@ -57,6 +57,8 @@ const canChange = computed(() => model.value?.permissions?.change ?? true)
 const canDelete = computed(() => model.value?.permissions?.delete ?? true)
 const hasFilters = computed(() => filterOptions.value.length > 0)
 const showMobileFilters = ref(false)
+const sortField = ref('')
+const sortDirection = ref<'asc' | 'desc'>('asc')
 const activeFilterCount = computed(() => Object.values(activeFilters.value).filter(v => v !== '' && v !== null && v !== undefined).length)
 
 async function loadFilterOptions() {
@@ -72,9 +74,13 @@ async function loadData(page: number = 1) {
   adminStore.clearCurrent()
   try {
     await adminStore.fetchModel(props.appLabel, props.modelName)
+    const ordering = sortField.value
+      ? (sortDirection.value === 'desc' ? `-${sortField.value}` : sortField.value)
+      : undefined
     await adminStore.fetchInstances(props.appLabel, props.modelName, {
       page,
       search: search.value || undefined,
+      ordering,
       filters: Object.keys(activeFilters.value).length > 0 ? activeFilters.value : undefined,
     })
   } finally {
@@ -98,12 +104,20 @@ watch(
   async ([newApp, newModel]) => {
     search.value = ''
     selectedIds.value = []
+    sortField.value = ''
+    sortDirection.value = 'asc'
     activeFilters.value = loadSavedFilters(newApp as string, newModel as string)
     await Promise.all([loadData(), loadFilterOptions()])
   }
 )
 
 function handleSearch() {
+  loadData(1)
+}
+
+function handleSort(field: string, direction: 'asc' | 'desc') {
+  sortField.value = field
+  sortDirection.value = direction
   loadData(1)
 }
 
@@ -248,8 +262,11 @@ async function handleExport(format: 'csv' | 'json') {
           :loading="loading"
           :selectable="canDelete || (model.actions?.length ?? 0) > 0"
           :selected-ids="selectedIds"
+          :sort-field="sortField"
+          :sort-direction="sortDirection"
           @row-click="handleRowClick"
           @selection-change="handleSelectionChange"
+          @sort="handleSort"
         />
       </div>
 

@@ -168,8 +168,8 @@ class AbstractUser(Model):
 
     _app_name = "auth"
 
-    username = CharField(max_length=150, unique=True)
-    email = EmailField(unique=True)
+    username = CharField(max_length=150, unique=True, db_index=True)
+    email = EmailField(unique=True, db_index=True)
     password = CharField(max_length=255, null=True)
     first_name = CharField(max_length=150, null=True)
     last_name = CharField(max_length=150, null=True)

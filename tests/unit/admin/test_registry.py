@@ -12,7 +12,9 @@ from openviper.admin.registry import (
     NotRegistered,
     admin,
 )
-from openviper.admin.registry import admin as admin2
+from openviper.admin.registry import (
+    admin as admin2,
+)
 
 
 def _make_model_class(name="TestModel", app_name="test"):

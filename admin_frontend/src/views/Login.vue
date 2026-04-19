@@ -27,7 +27,17 @@ async function handleLogin() {
     })
 
     if (success) {
-      const redirect = (route.query.redirect as string) || '/dashboard'
+      // Check for redirect in query params first, then localStorage
+      let redirect = (route.query.redirect as string) || localStorage.getItem('openviper_redirect_after_login') || '/dashboard'
+
+      // Clean up localStorage after using it
+      localStorage.removeItem('openviper_redirect_after_login')
+
+      // Ensure redirect stays within admin area
+      if (!redirect.startsWith('/admin')) {
+        redirect = '/dashboard'
+      }
+
       router.push(redirect)
     } else {
       error.value = authStore.error || 'Invalid credentials'

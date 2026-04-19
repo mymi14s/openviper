@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 import { modelsApi } from '@/api/client'
 import DataTable from '@/components/DataTable.vue'
@@ -14,6 +14,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
 const adminStore = useAdminStore()
 
 const search = ref('')
@@ -25,6 +26,10 @@ const activeFilters = ref<Record<string, any>>({})
 
 function filterStorageKey(appLabel: string, modelName: string): string {
   return `openviper_filters__${appLabel}__${modelName}`
+}
+
+function sortStorageKey(appLabel: string, modelName: string): string {
+  return `openviper_sort__${appLabel}__${modelName}`
 }
 
 function loadSavedFilters(appLabel: string, modelName: string): Record<string, any> {
@@ -41,6 +46,23 @@ function saveFilters(appLabel: string, modelName: string, filters: Record<string
     localStorage.removeItem(filterStorageKey(appLabel, modelName))
   } else {
     localStorage.setItem(filterStorageKey(appLabel, modelName), JSON.stringify(filters))
+  }
+}
+
+function loadSavedSort(appLabel: string, modelName: string): { field: string; direction: 'asc' | 'desc' } {
+  try {
+    const raw = localStorage.getItem(sortStorageKey(appLabel, modelName))
+    return raw ? JSON.parse(raw) : { field: '', direction: 'asc' }
+  } catch {
+    return { field: '', direction: 'asc' }
+  }
+}
+
+function saveSortState(appLabel: string, modelName: string, field: string, direction: 'asc' | 'desc'): void {
+  if (!field) {
+    localStorage.removeItem(sortStorageKey(appLabel, modelName))
+  } else {
+    localStorage.setItem(sortStorageKey(appLabel, modelName), JSON.stringify({ field, direction }))
   }
 }
 
@@ -69,6 +91,50 @@ async function loadFilterOptions() {
   }
 }
 
+function updateUrlParams(page: number = 1): void {
+  const query: Record<string, string> = {}
+
+  if (sortField.value) {
+    query.ordering = sortDirection.value === 'desc' ? `-${sortField.value}` : sortField.value
+  }
+
+  if (page > 1) {
+    query.page = String(page)
+  }
+
+  if (search.value) {
+    query.search = search.value
+  }
+
+  router.replace({ query })
+}
+
+function initializeFromUrl(): void {
+  const urlOrdering = route.query.ordering as string | undefined
+  const urlPage = route.query.page as string | undefined
+  const urlSearch = route.query.search as string | undefined
+
+  // Restore search
+  if (urlSearch) {
+    search.value = urlSearch
+  }
+
+  // Restore sort from URL or localStorage
+  if (urlOrdering) {
+    if (urlOrdering.startsWith('-')) {
+      sortField.value = urlOrdering.slice(1)
+      sortDirection.value = 'desc'
+    } else {
+      sortField.value = urlOrdering
+      sortDirection.value = 'asc'
+    }
+  } else {
+    const savedSort = loadSavedSort(props.appLabel, props.modelName)
+    sortField.value = savedSort.field
+    sortDirection.value = savedSort.direction
+  }
+}
+
 async function loadData(page: number = 1) {
   loading.value = true
   adminStore.clearCurrent()
@@ -83,6 +149,7 @@ async function loadData(page: number = 1) {
       ordering,
       filters: Object.keys(activeFilters.value).length > 0 ? activeFilters.value : undefined,
     })
+    updateUrlParams(page)
   } finally {
     loading.value = false
   }
@@ -96,7 +163,10 @@ function handleFilterChange(filters: Record<string, any>) {
 
 onMounted(async () => {
   activeFilters.value = loadSavedFilters(props.appLabel, props.modelName)
-  await Promise.all([loadData(), loadFilterOptions()])
+  initializeFromUrl()
+  const urlPage = route.query.page as string | undefined
+  const page = urlPage ? parseInt(urlPage, 10) : 1
+  await Promise.all([loadData(page), loadFilterOptions()])
 })
 
 watch(
@@ -104,9 +174,8 @@ watch(
   async ([newApp, newModel]) => {
     search.value = ''
     selectedIds.value = []
-    sortField.value = ''
-    sortDirection.value = 'asc'
     activeFilters.value = loadSavedFilters(newApp as string, newModel as string)
+    initializeFromUrl()
     await Promise.all([loadData(), loadFilterOptions()])
   }
 )
@@ -118,6 +187,7 @@ function handleSearch() {
 function handleSort(field: string, direction: 'asc' | 'desc') {
   sortField.value = field
   sortDirection.value = direction
+  saveSortState(props.appLabel, props.modelName, field, direction)
   loadData(1)
 }
 

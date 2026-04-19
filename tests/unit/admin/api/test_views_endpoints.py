@@ -27,7 +27,7 @@ def get_handler(path, method):
 async def test_admin_login_success(monkeypatch):
     user = MagicMock(id=1, username="test", email="e", is_staff=True, is_superuser=False)
     monkeypatch.setattr(views, "authenticate", AsyncMock(return_value=user))
-    monkeypatch.setattr(views, "create_access_token", lambda uid, d: "tok")
+    monkeypatch.setattr(views, "create_access_token", lambda uid, d, **kwargs: "tok")
     monkeypatch.setattr(views, "create_refresh_token", lambda uid: "rtok")
     req = MagicMock()
     req.json = AsyncMock(return_value={"username": "test", "password": "pw"})
@@ -69,7 +69,7 @@ async def test_admin_refresh_token(monkeypatch):
     user_cls = MagicMock()
     user_cls.objects.get_or_none = AsyncMock(return_value=user)
     monkeypatch.setattr(views, "User", user_cls)
-    monkeypatch.setattr(views, "create_access_token", lambda uid, d: "tok")
+    monkeypatch.setattr(views, "create_access_token", lambda uid, d, **kwargs: "tok")
     req = MagicMock()
     req.json = AsyncMock(return_value={"refresh_token": "rtok"})
     handler = get_handler("/auth/refresh/", "POST")

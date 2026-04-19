@@ -93,6 +93,30 @@ _FIELD_MISSING_RE: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
+# Pattern to extract the field/column name from database error messages.
+_FIELD_NAME_EXTRACT_RE: re.Pattern[str] = re.compile(
+    r"""
+    (?:column\s+["']?([^"'\s().]+)["']?\s+does\s+not\s+exist)|  # PostgreSQL
+    (?:no\s+such\s+column:\s+(?:\w+\.)?([^\s]+))|              # SQLite
+    (?:Unknown\s+column\s+['"]([^'"]+)['"])|                   # MySQL
+    (?:["']([^"'\s().]+)["']\s+does\s+not\s+exist)             # Alternative PostgreSQL
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _extract_field_names(error_msg: str) -> list[str]:
+    """Extract unknown field names from a database error message."""
+    fields = []
+    for match in _FIELD_NAME_EXTRACT_RE.finditer(error_msg):
+        field = next((g for g in match.groups() if g), None)
+        if field:
+            # Strip table prefix if present (e.g., "table.column" -> "column")
+            field = field.split(".")[-1]
+            if field not in fields:
+                fields.append(field)
+    return fields
+
 
 def _check_field_missing(exc: Exception, model_cls: type) -> None:
     """Raise :class:`FieldError` when the DB reports a missing column.
@@ -102,10 +126,24 @@ def _check_field_missing(exc: Exception, model_cls: type) -> None:
     """
     if isinstance(exc, SADBAPIError) and _FIELD_MISSING_RE.search(str(exc)):
         available = ", ".join(sorted(model_cls._fields))
-        raise FieldError(
-            f"Query referenced a field that does not exist on {model_cls.__name__}."
-            f" Available fields: {available}"
-        ) from None
+        error_msg = str(exc)
+        unknown_fields = _extract_field_names(error_msg)
+
+        # Log the raw database error for debugging
+        logger.debug(f"Database error for {model_cls.__name__}: {error_msg}")
+
+        if unknown_fields:
+            fields_str = ", ".join(unknown_fields)
+            raise FieldError(
+                f"Query referenced a field that does not exist on {model_cls.__name__}. "
+                f"Non Existent Fields: {fields_str}. "
+                f"Available fields: {available}"
+            ) from None
+        else:
+            raise FieldError(
+                f"Query referenced a field that does not exist on {model_cls.__name__}. "
+                f"Available fields: {available}"
+            ) from None
 
 
 logger = logging.getLogger(__name__)

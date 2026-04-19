@@ -346,8 +346,10 @@ def get_admin_router() -> Router:
         if not getattr(user, "is_staff", False) and not getattr(user, "is_superuser", False):
             raise PermissionDenied("Admin access requires staff privileges.")
 
-        # Generate tokens
-        access_token = create_access_token(user.id, {"username": user.username})
+        # Generate tokens with 24-hour expiration for admin sessions
+        access_token = create_access_token(
+            user.id, {"username": user.username}, expires_delta=datetime.timedelta(hours=24)
+        )
         refresh_token = create_refresh_token(user.id)
 
         return JSONResponse(
@@ -448,7 +450,10 @@ def get_admin_router() -> Router:
         if not user:
             raise ValidationError({"detail": "User not found."})
 
-        access_token = create_access_token(user.id, {"username": user.username})
+        # Generate new access token with 24-hour expiration for admin sessions
+        access_token = create_access_token(
+            user.id, {"username": user.username}, expires_delta=datetime.timedelta(hours=24)
+        )
 
         return JSONResponse(
             {

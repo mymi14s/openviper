@@ -12,6 +12,7 @@ import os
 import shutil
 from pathlib import Path
 
+from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
 from openviper.core.management.utils import get_banner
@@ -28,6 +29,14 @@ except Exception:  # pragma: no cover
     _openviper_pkg = None  # type: ignore[assignment]
 
 logger = logging.getLogger("openviper.runserver")
+
+_LEVEL_RANK: dict[str, int] = {
+    "debug": 0,
+    "info": 1,
+    "warning": 2,
+    "error": 3,
+    "critical": 4,
+}
 
 # Thread pool for background migration check
 _MIGRATION_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(
@@ -85,9 +94,8 @@ class Command(BaseCommand):
         reload = options["reload"]
         workers = options.get("workers", 1)
 
-        from openviper.conf import settings
-
-        log_level = getattr(settings, "LOG_LEVEL", "INFO").lower()
+        settings_level = getattr(settings, "LOG_LEVEL", "INFO").lower()
+        log_level = settings_level if _LEVEL_RANK.get(settings_level, 1) <= 1 else "info"
 
         get_banner(self, host, port)
 
@@ -193,8 +201,6 @@ class Command(BaseCommand):
         This runs in a background thread to avoid blocking server startup.
         """
         try:
-            from openviper.conf import settings
-
             resolver = AppResolver()
             installed_apps = getattr(settings, "INSTALLED_APPS", [])
             resolved = resolver.resolve_all_apps(installed_apps)

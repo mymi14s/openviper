@@ -59,6 +59,13 @@ client.interceptors.response.use(
       if (!isLoginPage && !isLoginRequest) {
         const authStore = useAuthStore()
         authStore.clearAuth()
+
+        // Store current path for redirect after login
+        const currentPath = window.location.pathname + window.location.search
+        if (currentPath !== '/admin' && currentPath !== '/admin/' && currentPath !== '/admin/login') {
+          localStorage.setItem('openviper_redirect_after_login', currentPath)
+        }
+
         window.location.href = '/admin/login'
       }
     }

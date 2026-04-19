@@ -1612,7 +1612,6 @@ class MigrationExecutor:
                 if verbose:
                     _MigrationLogger.log_status(MigrationStatus.OK)
                 migration_log.append((record.app, record.name, MigrationStatus.OK))
-                logger.info("Applied %s/%s", record.app, record.name)
 
             except Exception as e:
                 if verbose:

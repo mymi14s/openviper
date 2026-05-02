@@ -1309,10 +1309,11 @@ async def _should_skip_forward(conn: Any, op: Operation) -> bool:
     """Return ``True`` if this forward operation should be skipped.
 
     * ``CreateTable auth_users`` — skip when a custom USER_MODEL is configured.
+    * ``CreateIndex`` on auth_users — skip when a custom USER_MODEL is configured.
     * ``AddColumn`` — skip when the column already exists.
     * ``RemoveColumn`` — skip when the column does not exist.
     """
-    if isinstance(op, CreateTable) and op.table_name == _AUTH_USERS_TABLE:
+    if isinstance(op, (CreateTable, CreateIndex)) and op.table_name == _AUTH_USERS_TABLE:
         user_model = getattr(settings, "USER_MODEL", _AUTH_USER_MODEL)
         if user_model != _AUTH_USER_MODEL:
             return True
@@ -1480,7 +1481,13 @@ async def _should_skip_backward(conn: Any, op: Operation) -> bool:
 
     Backward for ``AddColumn`` is DROP; backward for ``RemoveColumn`` is
     (nothing), so we only need to guard the ``AddColumn`` rollback.
+    Backward for ``CreateIndex`` on auth_users is also skipped when a custom
+    USER_MODEL is configured, since the table was never created.
     """
+    if isinstance(op, CreateIndex) and op.table_name == _AUTH_USERS_TABLE:
+        user_model = getattr(settings, "USER_MODEL", _AUTH_USER_MODEL)
+        if user_model != _AUTH_USER_MODEL:
+            return True
     if isinstance(op, AddColumn) and not await _column_exists(conn, op.table_name, op.column_name):
         logger.info(
             "  Skipping rollback DROP: %s.%s does not exist.",

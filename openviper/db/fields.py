@@ -307,10 +307,10 @@ class BooleanField(Field):
             return value
         return str(value).lower() in ("1", "true", "yes", "on")
 
-    def to_db(self, value: Any) -> int | None:
+    def to_db(self, value: Any) -> bool | None:
         if value is None:
             return None
-        return 1 if value else 0
+        return bool(value)
 
 
 class DateTimeField(Field):

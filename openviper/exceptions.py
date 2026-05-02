@@ -203,7 +203,7 @@ class TableNotFound(ORMException):
         self.table_name = table_name
         super().__init__(
             f"[TableNotFound] Table '{table_name}' for model '{model_name}' does not exist. "
-            "Run 'manage.py migrate' to create it."
+            "Run 'viperctl.py migrate' to create it."
         )
 
 

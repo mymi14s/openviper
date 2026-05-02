@@ -19,6 +19,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql as _pg_dialect
 from sqlalchemy.exc import DBAPIError as SADBAPIError
 from sqlalchemy.exc import OperationalError as SAOperationalError
+from sqlalchemy.exc import ProgrammingError as SAProgrammingError
+from sqlalchemy.sql.sqltypes import Uuid
 
 from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
@@ -67,7 +69,9 @@ def _check_table_missing(exc: Exception, model_cls: type) -> None:
 
     Clears the full SQLAlchemy traceback so only a clean 503 propagates.
     """
-    if isinstance(exc, SAOperationalError) and _TABLE_MISSING_RE.search(str(exc)):
+    if isinstance(exc, (SAOperationalError, SAProgrammingError)) and _TABLE_MISSING_RE.search(
+        str(exc)
+    ):
         table_name: str = getattr(model_cls, "_table_name", model_cls.__name__)
         raise TableNotFound(model_cls.__name__, table_name) from None
 
@@ -759,7 +763,7 @@ def _compile_traversal_filter(
         if col_name not in base_table.c and f"{col_name}_id" in base_table.c:
             col_name = f"{col_name}_id"
         col = base_table.c[col_name]
-        where_clause = _apply_lookup(col, "", value)
+        where_clause = _apply_lookup(col, "", value, field=lookup_obj.final_field)
         return where_clause, []
 
     # Build JOINs for traversal
@@ -784,7 +788,7 @@ def _compile_traversal_filter(
         col_name = final_field.column_name
 
     col = final_table.c[col_name]
-    where_clause = _apply_lookup(col, lookup, value)
+    where_clause = _apply_lookup(col, lookup, value, field=final_field)
 
     # Collect all JOINs from the from_clause
     # The from_clause is a join with multiple tables, we need to extract it
@@ -804,8 +808,18 @@ def _escape_like(value: Any) -> str:
     return str_value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.ColumnElement[Any]:
+def _apply_lookup(
+    col: sa.ColumnElement[Any], lookup: str, value: Any, field: Any = None
+) -> sa.ColumnElement[Any]:
     """Apply a lookup operator to a column."""
+    # Use Field.to_db() if available to prepare the value for the database.
+    # This respects field-specific logic like DateTime timezones or Boolean mappings.
+    if field is not None:
+        if lookup in ("in", "not_in") and isinstance(value, (list, tuple)):
+            value = [field.to_db(v) for v in value]
+        else:
+            value = field.to_db(value)
+
     # Unwrap LazyFK values to raw IDs for SQL binding
     if isinstance(value, LazyFK):
         value = value.fk_id
@@ -814,12 +828,33 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
         hasattr(value, "__class__") and hasattr(value.__class__, "_fields")
     ):
         value = getattr(value, "id", value)
-    # Convert UUID objects to strings for database comparison
-    if isinstance(value, uuid.UUID):
-        value = str(value)
+    # Intercept UUID columns to ensure they get a uuid.UUID object
+
+    is_uuid_col = (
+        hasattr(col, "type") and isinstance(col.type, Uuid) and getattr(col.type, "as_uuid", True)
+    )
+
+    if is_uuid_col:
+        if isinstance(value, str):
+            with contextlib.suppress(ValueError):
+                value = uuid.UUID(value)
+    else:
+        # For non-UUID columns, convert UUID objects to strings for database comparison
+        if isinstance(value, uuid.UUID):
+            value = str(value)
+
+    if is_uuid_col and isinstance(value, uuid.UUID):
+        if lookup in ("exact", ""):
+            return col == value
+        if lookup == "ne":
+            return col != value
+        if lookup == "isnull":
+            return col.is_(None) if value else col.isnot(None)
 
     if lookup in ("exact", ""):
         return col == value  # type: ignore[no-any-return]
+    if lookup == "ne":
+        return col != value  # type: ignore[no-any-return]
     if lookup == "contains":
         escaped_value = _escape_like(value)
         return col.like(f"%{escaped_value}%", escape="\\")
@@ -850,12 +885,42 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
             for v in value
         ]
         return col.in_(value)
+    if lookup == "not_in":
+        value = [
+            (
+                v.fk_id
+                if isinstance(v, LazyFK)
+                else getattr(v, "id", v) if hasattr(v.__class__, "_fields") else v
+            )
+            for v in value
+        ]
+        return col.notin_(value)
     if lookup == "isnull":
         return col.is_(None) if value else col.isnot(None)
     if lookup == "range":
         lo, hi = value
         return col.between(lo, hi)
-    return col == value  # type: ignore[no-any-return]
+    if lookup == "iexact":
+        return sa.func.lower(col) == value.lower()
+    if lookup == "istartswith":
+        escaped_value = _escape_like(value)
+        return col.ilike(f"{escaped_value}%", escape="\\")
+    if lookup == "iendswith":
+        escaped_value = _escape_like(value)
+        return col.ilike(f"%{escaped_value}", escape="\\")
+    if lookup == "regex":
+        return col.regexp_match(value)
+    if lookup == "iregex":
+        return col.regexp_match(value, flags="i")
+    if lookup == "date":
+        return sa.cast(col, sa.Date) == value
+    if lookup == "year":
+        return sa.extract("year", col) == value
+    if lookup == "month":
+        return sa.extract("month", col) == value
+    if lookup == "day":
+        return sa.extract("day", col) == value
+    raise FieldError(f"Unsupported lookup type: '{lookup}'")
 
 
 def _compile_single_filter(
@@ -883,7 +948,19 @@ def _compile_single_filter(
         return None
 
     col = table.c[col_name]
-    return _apply_lookup(col, lookup, value)
+
+    # Resolve the field from model_cls if available to enable field-aware prep in _apply_lookup
+    field = None
+    if model_cls and hasattr(model_cls, "_fields"):
+        # For FKs, the column might be 'author_id' but the field is 'author'
+        lookup_name = col_name
+        if lookup_name not in model_cls._fields and lookup_name.endswith("_id"):
+            base_name = lookup_name[:-3]
+            if base_name in model_cls._fields:
+                lookup_name = base_name
+        field = model_cls._fields.get(lookup_name)
+
+    return _apply_lookup(col, lookup, value, field=field)
 
 
 def _compile_q(table: sa.Table, q_obj: Any) -> sa.ColumnElement[Any] | None:
@@ -947,7 +1024,9 @@ def _compile_q_with_traversals(
                         collected_joins[key] = (traversal_from, final_table)
                         from_clause_box[0] = traversal_from
                     col = final_table.c[traversal.final_field.column_name]
-                    clause: sa.ColumnElement[Any] | None = _apply_lookup(col, "", value)
+                    clause: sa.ColumnElement[Any] | None = _apply_lookup(
+                        col, "", value, field=traversal.final_field
+                    )
                     if clause is not None:
                         clauses.append(clause)
                     continue
@@ -1065,7 +1144,7 @@ def _build_where_clause_with_traversals(
 
                     # Compile filter on final table
                     col = final_table.c[traversal.final_field.column_name]
-                    clause = _apply_lookup(col, "", value)
+                    clause = _apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
                         parts.append(clause)
                     continue
@@ -1073,7 +1152,7 @@ def _build_where_clause_with_traversals(
                 pass
 
             # Normal field compilation fallback
-            fallback_clause = _compile_single_filter(base_table, key, value)
+            fallback_clause = _compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_clause is None:
                 available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
@@ -1097,7 +1176,7 @@ def _build_where_clause_with_traversals(
                         from_clause = traversal_from
 
                     col = final_table.c[traversal.final_field.column_name]
-                    clause = _apply_lookup(col, "", value)
+                    clause = _apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
                         parts.append(sa.not_(clause))
                     continue
@@ -1105,7 +1184,7 @@ def _build_where_clause_with_traversals(
                 pass
 
             # Normal exclude fallback
-            fallback_exclude = _compile_single_filter(base_table, key, value)
+            fallback_exclude = _compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_exclude is None:
                 available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(

@@ -265,9 +265,9 @@ class TestApplyLookup:
         clause = _apply_lookup(self.age_col, "range", (10, 20))
         assert clause is not None
 
-    def test_unknown_lookup_falls_back_to_eq(self):
-        clause = _apply_lookup(self.col, "bogus_lookup", "x")
-        assert clause is not None
+    def test_unknown_lookup_raises_field_error(self):
+        with pytest.raises(FieldError, match="Unsupported lookup type"):
+            _apply_lookup(self.col, "bogus_lookup", "x")
 
     def test_lazyfk_unwrapped(self):
         lf = MagicMock(spec=LazyFK)
@@ -310,6 +310,336 @@ class TestApplyLookup:
         compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
         assert "1" in compiled
         assert "2" in compiled
+
+    def test_ne(self):
+        clause = _apply_lookup(self.col, "ne", "alice")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "!=" in compiled or "<>" in compiled
+
+    def test_not_in(self):
+        clause = _apply_lookup(self.age_col, "not_in", [1, 2, 3])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+
+    def test_not_in_with_lazyfk(self):
+        lf = MagicMock(spec=LazyFK)
+        lf.fk_id = 42
+        clause = _apply_lookup(self.age_col, "not_in", [lf])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+        assert "42" in compiled
+
+    def test_not_in_with_model_instances(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users_notin"
+
+            username = CharField(max_length=100)
+
+        u1 = FakeUser(username="alice")
+        u1.__dict__["id"] = 10
+        clause = _apply_lookup(self.age_col, "not_in", [u1])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+        assert "10" in compiled
+
+    def test_iexact(self):
+        clause = _apply_lookup(self.col, "iexact", "Alice")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "lower" in compiled.lower()
+        assert "alice" in compiled.lower()
+
+    def test_istartswith(self):
+        clause = _apply_lookup(self.col, "istartswith", "al")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert "al%" in compiled
+
+    def test_iendswith(self):
+        clause = _apply_lookup(self.col, "iendswith", "ce")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert "%ce" in compiled
+
+    def test_regex(self):
+        clause = _apply_lookup(self.col, "regex", r"^al.*")
+        assert clause is not None
+
+    def test_iregex(self):
+        clause = _apply_lookup(self.col, "iregex", r"^al.*")
+        assert clause is not None
+
+    def test_date(self):
+        import datetime
+
+        dt_table = _make_table("dt", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = _apply_lookup(col, "date", datetime.date(2026, 4, 19))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper() or "DATE" in compiled.upper()
+
+    def test_year(self):
+        dt_table = _make_table("dt_y", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = _apply_lookup(col, "year", 2026)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "year" in compiled.lower()
+
+    def test_month(self):
+        dt_table = _make_table("dt_m", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = _apply_lookup(col, "month", 4)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "month" in compiled.lower()
+
+    def test_day(self):
+        dt_table = _make_table("dt_d", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = _apply_lookup(col, "day", 19)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "day" in compiled.lower()
+
+
+class TestApplyLookupEdgeCases:
+    """Smoke and edge-case tests for all lookup operators."""
+
+    def setup_method(self) -> None:
+        self.table = _make_table(
+            "edge", name=sa.String(100), age=sa.Integer(), created=sa.DateTime()
+        )
+        self.col = self.table.c["name"]
+        self.age_col = self.table.c["age"]
+        self.dt_col = self.table.c["created"]
+
+    def test_ne_with_none(self) -> None:
+        clause = _apply_lookup(self.col, "ne", None)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NOT NULL" in compiled.upper()
+
+    def test_ne_with_integer(self) -> None:
+        clause = _apply_lookup(self.age_col, "ne", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "!=" in compiled or "<>" in compiled
+
+    def test_ne_with_lazyfk(self) -> None:
+        lf = MagicMock(spec=LazyFK)
+        lf.fk_id = 7
+        clause = _apply_lookup(self.age_col, "ne", lf)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "7" in compiled
+
+    def test_ne_with_uuid(self) -> None:
+        uid = uuid.uuid4()
+        clause = _apply_lookup(self.col, "ne", uid)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert str(uid) in compiled
+
+    def test_exact_with_none(self) -> None:
+        clause = _apply_lookup(self.col, "exact", None)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NULL" in compiled.upper()
+
+    def test_not_in_empty_list(self) -> None:
+        clause = _apply_lookup(self.age_col, "not_in", [])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+
+    def test_in_empty_list(self) -> None:
+        clause = _apply_lookup(self.age_col, "in", [])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IN" in compiled.upper()
+
+    def test_contains_special_chars(self) -> None:
+        clause = _apply_lookup(self.col, "contains", "100%_off")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"100\%\_off" in compiled
+
+    def test_icontains_special_chars(self) -> None:
+        clause = _apply_lookup(self.col, "icontains", "50%_sale")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"50\%\_sale" in compiled
+
+    def test_startswith_special_chars(self) -> None:
+        clause = _apply_lookup(self.col, "startswith", "test_")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert r"test\_" in compiled
+
+    def test_endswith_special_chars(self) -> None:
+        clause = _apply_lookup(self.col, "endswith", "%done")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert r"\%done" in compiled
+
+    def test_istartswith_special_chars(self) -> None:
+        clause = _apply_lookup(self.col, "istartswith", "50%")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"50\%" in compiled
+
+    def test_iendswith_special_chars(self) -> None:
+        clause = _apply_lookup(self.col, "iendswith", "_end")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"\_end" in compiled
+
+    def test_iexact_with_empty_string(self) -> None:
+        clause = _apply_lookup(self.col, "iexact", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "lower" in compiled.lower()
+
+    def test_iexact_preserves_case_insensitivity(self) -> None:
+        clause = _apply_lookup(self.col, "iexact", "ALICE")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "alice" in compiled
+
+    def test_range_with_dates(self) -> None:
+        import datetime
+
+        lo = datetime.date(2026, 1, 1)
+        hi = datetime.date(2026, 12, 31)
+        clause = _apply_lookup(self.dt_col, "range", (lo, hi))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "BETWEEN" in compiled.upper()
+
+    def test_range_with_integers(self) -> None:
+        clause = _apply_lookup(self.age_col, "range", (0, 150))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "BETWEEN" in compiled.upper()
+        assert "0" in compiled
+        assert "150" in compiled
+
+    def test_isnull_true_produces_is_null(self) -> None:
+        clause = _apply_lookup(self.col, "isnull", True)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NULL" in compiled.upper()
+        assert "NOT" not in compiled.upper()
+
+    def test_isnull_false_produces_is_not_null(self) -> None:
+        clause = _apply_lookup(self.col, "isnull", False)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NOT NULL" in compiled.upper()
+
+    def test_gt_with_zero(self) -> None:
+        clause = _apply_lookup(self.age_col, "gt", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "> 0" in compiled
+
+    def test_lt_with_negative(self) -> None:
+        clause = _apply_lookup(self.age_col, "lt", -1)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "< -1" in compiled
+
+    def test_gte_boundary(self) -> None:
+        clause = _apply_lookup(self.age_col, "gte", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert ">= 0" in compiled
+
+    def test_lte_boundary(self) -> None:
+        clause = _apply_lookup(self.age_col, "lte", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "<= 0" in compiled
+
+    def test_regex_with_complex_pattern(self) -> None:
+        clause = _apply_lookup(self.col, "regex", r"^(foo|bar)\d+$")
+        assert clause is not None
+
+    def test_iregex_with_complex_pattern(self) -> None:
+        clause = _apply_lookup(self.col, "iregex", r"^(foo|bar)\d+$")
+        assert clause is not None
+
+    def test_date_with_datetime_value(self) -> None:
+        import datetime
+
+        dt = datetime.datetime(2026, 4, 19, 14, 30, 0)
+        clause = _apply_lookup(self.dt_col, "date", dt)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper() or "DATE" in compiled.upper()
+
+    def test_year_boundary_values(self) -> None:
+        clause = _apply_lookup(self.dt_col, "year", 1970)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1970" in compiled
+
+    def test_month_boundary_min(self) -> None:
+        clause = _apply_lookup(self.dt_col, "month", 1)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+
+    def test_month_boundary_max(self) -> None:
+        clause = _apply_lookup(self.dt_col, "month", 12)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "12" in compiled
+
+    def test_day_boundary_min(self) -> None:
+        clause = _apply_lookup(self.dt_col, "day", 1)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+
+    def test_day_boundary_max(self) -> None:
+        clause = _apply_lookup(self.dt_col, "day", 31)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "31" in compiled
+
+    def test_contains_empty_string(self) -> None:
+        clause = _apply_lookup(self.col, "contains", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+
+    def test_startswith_empty_string(self) -> None:
+        clause = _apply_lookup(self.col, "startswith", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+
+    def test_endswith_empty_string(self) -> None:
+        clause = _apply_lookup(self.col, "endswith", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+
+    def test_model_instance_unwrap_applies_to_ne(self) -> None:
+        class FakeItem(Model):
+            class Meta:
+                table_name = "fake_items_ne"
+
+            name = CharField(max_length=50)
+
+        item = FakeItem(name="x")
+        item.__dict__["id"] = 42
+        clause = _apply_lookup(self.age_col, "ne", item)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "42" in compiled
+
+    def test_uuid_unwrap_applies_to_ne(self) -> None:
+        uid = uuid.uuid4()
+        clause = _apply_lookup(self.col, "ne", uid)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert str(uid) in compiled
+
+    def test_multiple_unknown_lookups_all_raise(self) -> None:
+        bad_lookups = ["nee", "iin", "like", "between", "eq", "not_equal", "notin"]
+        for lookup in bad_lookups:
+            with pytest.raises(FieldError, match="Unsupported lookup type"):
+                _apply_lookup(self.col, lookup, "x")
+
+    def test_not_in_single_element(self) -> None:
+        clause = _apply_lookup(self.age_col, "not_in", [99])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+        assert "99" in compiled
+
+    def test_in_single_element(self) -> None:
+        clause = _apply_lookup(self.age_col, "in", [99])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IN" in compiled.upper()
+        assert "99" in compiled
+
+    def test_regex_empty_pattern(self) -> None:
+        clause = _apply_lookup(self.col, "regex", "")
+        assert clause is not None
+
+    def test_iregex_empty_pattern(self) -> None:
+        clause = _apply_lookup(self.col, "iregex", "")
+        assert clause is not None
 
 
 # ---------------------------------------------------------------------------

@@ -228,6 +228,16 @@ operations = [
             {"name": "date_joined", "type": "DATETIME", "nullable": True},
         ],
     ),
+    migrations.CreateIndex(
+        table_name="auth_users",
+        index_name="idx_auth_users_username",
+        columns=["username"],
+    ),
+    migrations.CreateIndex(
+        table_name="auth_users",
+        index_name="idx_auth_users_email",
+        columns=["email"],
+    ),
     migrations.CreateTable(
         table_name="auth_user_roles",
         columns=[

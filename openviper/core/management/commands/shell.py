@@ -115,20 +115,19 @@ class Command(BaseCommand):
             return
 
         try:
-            from IPython import embed
-            from traitlets.config import Config
-        except ImportError as exc:
-            raise SystemExit(f"IPython is required but failed to import: {exc}") from exc
-
-        cfg = Config()
-        cfg.InteractiveShell.confirm_exit = False
-        cfg.InteractiveShell.autoawait = True
+            from IPython.terminal.embed import InteractiveShellEmbed
+        except ImportError:
+            self.stderr("Error: IPython is required to use the shell command.")
+            self.stderr("Install it with: pip install ipython")
+            raise SystemExit(1) from None
 
         pre_imported = ", ".join(n for n in sorted(ns) if n[0].isupper() or n == "settings")
-        embed(
+        shell = InteractiveShellEmbed(
             user_ns=ns,
             banner1=banner + f"# Pre-imported: {pre_imported}\n",
-            config=cfg,
             colors="Neutral",
-            using="asyncio",
+            confirm_exit=False,
         )
+        shell.autoawait = True
+        shell.loop_runner = "asyncio"
+        shell()

@@ -40,19 +40,16 @@ class Command(BaseCommand):
             help="Database alias to migrate (default: default)",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
 
         app_label = options.get("app_label")
         migration_name = options.get("migration_name")
 
-        # Use enhanced logging only when stdout is a TTY (not in tests/pipes)
         use_verbose = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
-        # Resolve app locations from INSTALLED_APPS
         resolver = AppResolver()
         installed_apps = getattr(settings, "INSTALLED_APPS", [])
 
-        # If specific app requested, validate it exists
         if app_label:
             app_path, found = resolver.resolve_app(app_label)
             if not found:
@@ -72,11 +69,9 @@ class Command(BaseCommand):
                 )
                 return
 
-        # Resolve all apps
         resolved = resolver.resolve_all_apps(installed_apps)
         resolved_apps = resolved.get("found", {})
 
-        # Import model classes so the registry is populated for PK validation.
         for _app_name in resolved_apps:
             try:
                 importlib.import_module(f"{_app_name}.models")
@@ -86,14 +81,13 @@ class Command(BaseCommand):
         check_primary_keys()
 
         if use_verbose and resolved_apps:
-            # Show app locations in verbose mode
-            print(f"\n{self.style_notice('App Locations:')}\n")
+            self.stdout(f"\n{self.style_notice('App Locations:')}\n")
             for app_name, app_path in sorted(
                 resolved_apps.items() if isinstance(resolved_apps, dict) else []
             ):
                 rel_path = os.path.relpath(app_path, os.getcwd())
-                print(f"  {self.style_success('✓')} {app_name} → {rel_path}")
-            print()
+                self.stdout(f"  {self.style_success('✓')} {app_name} → {rel_path}")
+            self.stdout("")
 
         if not use_verbose:
             self.stdout("Running migrations…")
@@ -109,12 +103,15 @@ class Command(BaseCommand):
                 ignore_errors=True,
             )
 
-        applied = asyncio.run(run())
+        run_coro = run()
+        try:
+            applied = asyncio.run(run_coro)
+        finally:
+            run_coro.close()
 
         if not applied:
             self.stdout(self.style_notice("  No migrations to apply."))
         elif not use_verbose:
-            # Only print individual migrations if not in verbose mode
             for name in applied:
                 self.stdout(self.style_success(f"  Applying {name}… OK"))
 

@@ -490,13 +490,13 @@ email worker:
 
 .. code-block:: bash
 
-   openviper viperctl runworker . --queues emails
+   openviper viperctl startworker . --queues emails
 
 Or process all queues in a single worker:
 
 .. code-block:: bash
 
-   openviper viperctl runworker .
+   openviper viperctl startworker .
 
 
 Backends

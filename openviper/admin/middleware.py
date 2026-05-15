@@ -8,6 +8,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from openviper.admin.api.permissions import (
+    PermissionChecker,
+    check_admin_access,
+    check_model_permission,
+    check_object_permission,
+)
 from openviper.http.response import JSONResponse
 from openviper.middleware.base import BaseMiddleware
 
@@ -39,15 +45,12 @@ class AdminMiddleware(BaseMiddleware):
             return
 
         path = scope.get("path", "")
-        # Normalize path for comparison (strip trailing slash)
         normalized_path = path.rstrip("/") + "/"
 
-        # Skip non-admin paths
         if not normalized_path.startswith(self.ADMIN_PATH_PREFIX):
             await self.app(scope, receive, send)
             return
 
-        # Skip exempt paths (login, refresh)
         if normalized_path in self.EXEMPT_PATHS:
             await self.app(scope, receive, send)
             return
@@ -98,68 +101,10 @@ class AdminMiddleware(BaseMiddleware):
         await response(scope, receive, send)
 
 
-def check_admin_access(request: Any) -> bool:
-    """Check if a request has admin access.
-
-    Args:
-        request: The Request object.
-
-    Returns:
-        True if user has admin access.
-    """
-    user = getattr(request, "user", None)
-    if user is None:
-        return False
-
-    if not getattr(user, "is_authenticated", False):
-        return False
-
-    return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
-
-
-def check_model_permission(request: Any, model_class: Any, action: str) -> bool:
-    """Check if user has permission for a model action.
-
-    Args:
-        request: The Request object.
-        model_class: The model class.
-        action: The action (view, add, change, delete).
-
-    Returns:
-        True if user has permission.
-    """
-    user = getattr(request, "user", None)
-    if user is None:
-        return False
-
-    # Superusers have all permissions
-    if getattr(user, "is_superuser", False):
-        return True
-
-    # Staff users have basic permissions
-    # Could implement granular permission checking here
-    # e.g., user.has_perm(f"{model_class._app_name}.{action}_{model_class.__name__.lower()}")
-    return getattr(user, "is_staff", False)
-
-
-def check_object_permission(request: Any, obj: Any, action: str) -> bool:
-    """Check if user has permission for a specific object.
-
-    Args:
-        request: The Request object.
-        obj: The model instance.
-        action: The action (view, change, delete).
-
-    Returns:
-        True if user has permission.
-    """
-    user = getattr(request, "user", None)
-    if user is None:
-        return False
-
-    # Superusers have all permissions
-    if getattr(user, "is_superuser", False):
-        return True
-
-    # Staff users have basic permissions
-    return bool(getattr(user, "is_staff", False))
+__all__ = [
+    "AdminMiddleware",
+    "PermissionChecker",
+    "check_admin_access",
+    "check_model_permission",
+    "check_object_permission",
+]

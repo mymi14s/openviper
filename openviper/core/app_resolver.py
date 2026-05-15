@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Bounded to prevent unbounded memory growth in long-running processes.
 _SEARCH_PATTERN_CACHE_MAX = 256
 _SEARCH_PATTERN_CACHE: dict[tuple[str, str], str | None] = {}
+_CACHE_LOCK = threading.Lock()
 
 
 class AppResolver:
@@ -27,11 +29,9 @@ class AppResolver:
     - Full module path: "myproject.apps.blog"
     """
 
-    # Color codes for terminal output
     COLORS = {
         "GREEN": "\033[92m",
         "RED": "\033[91m",
-        "YELLOW": "\033[93m",
         "BLUE": "\033[94m",
         "END": "\033[0m",
     }
@@ -150,8 +150,9 @@ class AppResolver:
 
         # Check global cache first
         cache_key = (self.project_root, base_name)
-        if cache_key in _SEARCH_PATTERN_CACHE:
-            return _SEARCH_PATTERN_CACHE[cache_key]
+        with _CACHE_LOCK:
+            if cache_key in _SEARCH_PATTERN_CACHE:
+                return _SEARCH_PATTERN_CACHE[cache_key]
 
         # Search recursively in project root
         result = None
@@ -180,9 +181,10 @@ class AppResolver:
                     break
 
         # Cache the result (even if None); evict oldest entry if at capacity.
-        if len(_SEARCH_PATTERN_CACHE) >= _SEARCH_PATTERN_CACHE_MAX:
-            _SEARCH_PATTERN_CACHE.pop(next(iter(_SEARCH_PATTERN_CACHE)))
-        _SEARCH_PATTERN_CACHE[cache_key] = result
+        with _CACHE_LOCK:
+            if len(_SEARCH_PATTERN_CACHE) >= _SEARCH_PATTERN_CACHE_MAX:
+                _SEARCH_PATTERN_CACHE.pop(next(iter(_SEARCH_PATTERN_CACHE)))
+            _SEARCH_PATTERN_CACHE[cache_key] = result
         return result
 
     @staticmethod

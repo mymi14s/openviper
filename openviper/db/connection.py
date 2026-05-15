@@ -7,45 +7,51 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import Any
+from typing import Any, cast
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from openviper.conf import settings
+from openviper.db.utils import get_per_loop_lock
 
 logger = logging.getLogger(__name__)
 
 _engine: AsyncEngine | None = None
 _metadata: sa.MetaData = sa.MetaData()
-_engine_lock: asyncio.Lock | None = None
 
 # Per-request connection for reuse across multiple ORM calls.
 _request_conn: ContextVar[AsyncConnection | None] = ContextVar("_request_conn", default=None)
 
 # Shared compiled-statement cache (thread-safe dict used by SQLAlchemy).
-# Eliminates repeated SQL string generation for identical query structures.
 _compiled_cache: dict[Any, Any] = {}
 
 # Per-event-loop engine lock storage to avoid cross-loop errors.
 _engine_lock_per_loop: dict[int, asyncio.Lock] = {}
-_engine_lock_fallback: asyncio.Lock | None = None
+
+
+class _MissingDriverAsyncEngine:
+    """Minimal async-engine stand-in used when optional DB drivers are absent."""
+
+    def __init__(self, url: str, echo: bool, missing_driver: str) -> None:
+        self.url = sa.engine.make_url(url)
+        self.echo = echo
+        self._missing_driver = missing_driver
+
+    async def dispose(self) -> None:
+        return None
+
+    def connect(self) -> Any:
+        raise ModuleNotFoundError(
+            f"No module named {self._missing_driver!r}; install the database driver "
+            f"required for {self.url.drivername!r}."
+        )
 
 
 def _get_engine_lock() -> asyncio.Lock:
     """Return a per-event-loop engine lock, creating lazily."""
-    global _engine_lock_fallback
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        if _engine_lock_fallback is None:
-            _engine_lock_fallback = asyncio.Lock()
-        return _engine_lock_fallback
-    loop_id = id(loop)
-    if loop_id not in _engine_lock_per_loop:
-        _engine_lock_per_loop[loop_id] = asyncio.Lock()
-    return _engine_lock_per_loop[loop_id]
+    return get_per_loop_lock(_engine_lock_per_loop)
 
 
 def get_metadata() -> sa.MetaData:
@@ -179,11 +185,16 @@ def _create_engine(url: str, echo: bool = False) -> AsyncEngine:
                 default=256,
             )
 
-    engine = create_async_engine(
-        async_url,
-        execution_options={"compiled_cache": _compiled_cache},
-        **kwargs,
-    )
+    try:
+        engine = create_async_engine(
+            async_url,
+            execution_options={"compiled_cache": _compiled_cache},
+            **kwargs,
+        )
+    except ModuleNotFoundError as exc:
+        if "asyncpg" in async_url or "aiomysql" in async_url:
+            return cast("AsyncEngine", _MissingDriverAsyncEngine(async_url, echo, exc.name or ""))
+        raise
 
     if "sqlite" in async_url:
 

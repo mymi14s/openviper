@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime
+import inspect
 import logging
 import os
 import time
@@ -82,8 +83,11 @@ async def authenticate(username: str, password: str, request: Any = None) -> Any
         )
         return None
 
-    # Update last_login in background to avoid blocking the response
-    asyncio.create_task(_update_last_login(user))
+    # Update last_login in background to avoid blocking the response.
+    update_coro = _update_last_login(user)
+    task = asyncio.create_task(update_coro)
+    if not isinstance(task, asyncio.Task) and inspect.iscoroutine(update_coro):
+        update_coro.close()
     return user
 
 

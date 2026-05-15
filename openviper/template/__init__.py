@@ -2,6 +2,8 @@ from typing import Any
 
 from openviper.template.environment import get_jinja2_env, get_template_directories
 
+__all__ = ["render_to_string", "get_jinja2_env", "get_template_directories"]
+
 
 def render_to_string(template_name: str, context: dict[str, Any] | None = None) -> str:
     """Render a template to a string.

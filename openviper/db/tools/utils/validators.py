@@ -57,10 +57,10 @@ def validate_backup_file(file_path: str | Path) -> Path:
 
 
 def validate_subprocess_arg(value: str, *, label: str = "argument") -> str:
-    """Reject subprocess arguments that contain shell meta-characters.
+    """Reject subprocess arguments that contain console meta-characters.
 
     All subprocess calls use ``asyncio.create_subprocess_exec`` (not
-    ``shell=True``), but this extra layer prevents accidental injection of
+    ``console=True``), but this extra layer prevents accidental injection of
     dangerous tokens into argument lists.
 
     Raises:

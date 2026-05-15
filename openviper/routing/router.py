@@ -18,7 +18,10 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
-import regex as re  # C extension drop-in for stdlib re (~2x faster matching)
+try:
+    import regex as re  # C extension drop-in for stdlib re (~2x faster matching)
+except ImportError:
+    import re
 
 from openviper.exceptions import MethodNotAllowed, NotFound
 

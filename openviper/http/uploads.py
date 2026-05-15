@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 
@@ -22,16 +21,16 @@ class UploadFile:
         self._file = file
 
     async def read(self, size: int = -1) -> bytes:
-        """Read bytes from the underlying (sync) SpooledTemporaryFile off-thread."""
-        return await asyncio.to_thread(self._file.read, size)
+        """Read bytes from the underlying file object."""
+        return self._file.read(size)
 
     async def seek(self, offset: int) -> None:
-        """Seek to *offset* in the underlying file off-thread."""
-        await asyncio.to_thread(self._file.seek, offset)
+        """Seek to *offset* in the underlying file."""
+        self._file.seek(offset)
 
     async def close(self) -> None:
-        """Close the underlying file off-thread."""
-        await asyncio.to_thread(self._file.close)
+        """Close the underlying file."""
+        self._file.close()
 
     def __repr__(self) -> str:
         return f"UploadFile(filename={self.filename!r}, content_type={self.content_type!r})"

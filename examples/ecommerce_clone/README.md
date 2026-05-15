@@ -76,7 +76,7 @@ cd examples/ecommerce_clone
 pip install openviper
 
 # Run the server
-python viperctl.py runserver
+python viperctl.py startserver
 # or
 uvicorn ecommerce_clone.asgi:app --reload
 ```

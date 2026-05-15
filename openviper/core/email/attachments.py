@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import mimetypes
 from dataclasses import dataclass
@@ -43,11 +42,10 @@ async def resolve_attachments(attachments: list[Any] | None) -> list[AttachmentD
     """Resolve arbitrary attachment inputs into :class:`AttachmentData`."""
     if not attachments:
         return []
-    tasks = [
-        _resolve_attachment(attachment, index)
+    return [
+        await _resolve_attachment(attachment, index)
         for index, attachment in enumerate(attachments, start=1)
     ]
-    return list(await asyncio.gather(*tasks))
 
 
 async def _resolve_attachment(item: Any, index: int) -> AttachmentData:
@@ -166,7 +164,7 @@ async def _resolve_tuple_attachment(item: tuple[Any, ...], index: int) -> Attach
 
 
 async def _resolve_file_attachment(path: Path, filename: str) -> AttachmentData:
-    content = await asyncio.to_thread(path.read_bytes)
+    content = path.read_bytes()
     if len(content) > _MAX_ATTACHMENT_BYTES:
         raise ValueError(
             f"File attachment {filename!r} exceeds {_MAX_ATTACHMENT_BYTES} byte limit."
@@ -179,7 +177,7 @@ async def _resolve_file_attachment(path: Path, filename: str) -> AttachmentData:
 
 
 async def _resolve_url_attachment(url: str, index: int) -> AttachmentData:
-    content, content_type = await asyncio.to_thread(_fetch_url_attachment, url)
+    content, content_type = _fetch_url_attachment(url)
     parsed = urlparse(url)
     filename = Path(parsed.path).name or f"attachment-{index}.bin"
     return AttachmentData(

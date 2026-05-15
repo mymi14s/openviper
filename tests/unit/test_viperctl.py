@@ -33,7 +33,7 @@ def test_viperctl_success(mock_run, mock_settings, mock_resolve):
 def test_viperctl_with_settings(mock_run, mock_settings, mock_resolve):
     mock_settings.return_value = "custom.settings"
     runner = CliRunner()
-    result = runner.invoke(viperctl, ["--settings", "custom.settings", "shell"])
+    result = runner.invoke(viperctl, ["--settings", "custom.settings", "console"])
     assert result.exit_code == 0
     mock_run.assert_called_once()
     assert mock_run.call_args[1]["settings_module"] == "custom.settings"

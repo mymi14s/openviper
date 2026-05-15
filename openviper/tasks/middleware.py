@@ -34,6 +34,8 @@ from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger("openviper.tasks")
 
+__all__ = ["TaskTrackingMiddleware", "SchedulerMiddleware", "reset_tracking_buffer"]
+
 _TERMINAL_STATUSES = frozenset({"success", "failure", "skipped", "dead"})
 
 
@@ -47,7 +49,7 @@ class _TrackingEvent:
 
     message_id: str
     fields: dict[str, Any]
-    terminal: bool  # if True the buffer is flushed immediately
+    terminal: bool
 
 
 class _EventBuffer:
@@ -86,7 +88,7 @@ class _EventBuffer:
         try:
             batch_upsert_results([(e.message_id, e.fields) for e in events])
         except Exception as exc:
-            logger.debug("_EventBuffer._flush failed: %s", exc)
+            logger.warning("_EventBuffer._flush failed: %s", exc)
 
     def shutdown(self, wait: bool = True) -> None:
         """Shut down the executor. Called on process exit."""
@@ -144,7 +146,7 @@ class TaskTrackingMiddleware(Middleware):
                 )
             )
         except Exception as exc:
-            logger.debug("TaskTracking.before_enqueue: %s", exc)
+            logger.warning("TaskTracking.before_enqueue: %s", exc)
 
     # ------------------------------------------------------------------
     # Worker side
@@ -166,7 +168,7 @@ class TaskTrackingMiddleware(Middleware):
                 message.queue_name,
             )
         except Exception as exc:
-            logger.debug("TaskTracking.before_process_message: %s", exc)
+            logger.warning("TaskTracking.before_process_message: %s", exc)
 
     def after_process_message(
         self,
@@ -215,7 +217,7 @@ class TaskTrackingMiddleware(Middleware):
                     exception,
                 )
         except Exception as exc:
-            logger.debug("TaskTracking.after_process_message: %s", exc)
+            logger.warning("TaskTracking.after_process_message: %s", exc)
 
     def after_skip_message(self, broker: Any, message: Any) -> None:
         try:
@@ -227,7 +229,7 @@ class TaskTrackingMiddleware(Middleware):
                 )
             )
         except Exception as exc:
-            logger.debug("TaskTracking.after_skip_message: %s", exc)
+            logger.warning("TaskTracking.after_skip_message: %s", exc)
 
     def after_nack(self, broker: Any, message: Any) -> None:
         """Called when a message is nacked (e.g. moved to the dead-letter queue)."""
@@ -245,7 +247,7 @@ class TaskTrackingMiddleware(Middleware):
                 message.actor_name,
             )
         except Exception as exc:
-            logger.debug("TaskTracking.after_nack: %s", exc)
+            logger.warning("TaskTracking.after_nack: %s", exc)
 
 
 class SchedulerMiddleware(Middleware):
@@ -272,10 +274,13 @@ class SchedulerMiddleware(Middleware):
 
 
 def _serialise(value: Any) -> str | None:
-    """Return a JSON string, or fall back to repr if not serialisable."""
+    """Return a JSON string, or a safe truncated string if not serialisable."""
     if value is None:
         return None
     try:
         return json.dumps(value)
     except TypeError, ValueError:
-        return repr(value)
+        text = str(value)
+        if len(text) > 2000:
+            text = text[:2000] + "…[truncated]"
+        return text

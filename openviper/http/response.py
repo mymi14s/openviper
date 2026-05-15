@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import datetime
 import email.utils
 import gzip
 import importlib
 import json
+import logging
 import mimetypes
+import os
 import re
 import time
 import uuid
@@ -18,14 +19,14 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
 
-import aiofiles
-import aiofiles.os
 import orjson as _orjson
 
 from openviper.conf import settings
 from openviper.core.context import current_request, current_router
 from openviper.template.environment import get_jinja2_env
 from openviper.utils.datastructures import MutableHeaders
+
+logger = logging.getLogger(__name__)
 
 _MISSING = object()  # sentinel for getattr default
 
@@ -289,6 +290,9 @@ class HTMLResponse(Response):
                 if req is not None:
                     context = {**context, "request": req}
             except Exception:
+                logger.debug(
+                    "Failed to inject current request into template context", exc_info=True
+                )
                 pass
 
         env = _get_jinja2_env(search_paths)
@@ -365,7 +369,6 @@ class StreamingResponse(Response):
             async for chunk in iterator:
                 await send({"type": "http.response.body", "body": chunk, "more_body": True})
         else:
-            # Offload sync iterator to thread pool to avoid blocking event loop
             sync_iter = iter(iterator)
 
             def _next() -> tuple[bytes | None, bool]:
@@ -375,7 +378,7 @@ class StreamingResponse(Response):
                     return None, True
 
             while True:
-                chunk, done = await asyncio.to_thread(_next)
+                chunk, done = _next()
                 if done:
                     break
                 await send({"type": "http.response.body", "body": chunk, "more_body": True})
@@ -424,8 +427,7 @@ class FileResponse(Response):
         return mt or "application/octet-stream"
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:  # noqa: ARG002
-        # Async file stat to avoid blocking event loop
-        fstat = await aiofiles.os.stat(self.file_path)
+        fstat = os.stat(self.file_path)
         file_size = fstat.st_size
         etag = f'"{int(fstat.st_mtime)}-{file_size}"'
         last_modified = email.utils.formatdate(fstat.st_mtime, usegmt=True)
@@ -510,12 +512,12 @@ class FileResponse(Response):
                 "headers": self._headers.raw,
             }
         )
-        async with aiofiles.open(self.file_path, "rb") as f:
+        with open(self.file_path, "rb") as f:
             if range_start:
-                await f.seek(range_start)
+                f.seek(range_start)
             remaining = content_length
             while remaining > 0:
-                chunk = await f.read(min(self.chunk_size, remaining))
+                chunk = f.read(min(self.chunk_size, remaining))
                 if not chunk:
                     break
                 remaining -= len(chunk)
@@ -557,8 +559,7 @@ class GZipResponse(Response):
             body = b"".join(collected_parts)
 
         if len(body) >= self._minimum_size:
-            # Offload CPU-intensive compression to thread pool to avoid blocking event loop.
-            body = await asyncio.to_thread(gzip.compress, body, self._compresslevel)
+            body = gzip.compress(body, self._compresslevel)
             inner._headers.set("content-encoding", "gzip")
             inner._headers.set("vary", "Accept-Encoding")
 

@@ -158,7 +158,7 @@ class CORSMiddleware(BaseMiddleware):
         is_preflight = scope.get("method", "GET").upper() == "OPTIONS"
 
         if is_preflight:
-            cors_headers: list[Any] = []
+            cors_headers: list[tuple[bytes, bytes]] = []
             if self._origin_allowed(origin):
                 cors_headers.append((b"access-control-allow-origin", origin.encode("latin-1")))
                 cors_headers.extend(self._preflight_headers_base)

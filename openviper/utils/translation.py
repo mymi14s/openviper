@@ -1,15 +1,20 @@
 import gettext as gettext_module
 from contextvars import ContextVar
-from typing import Any
+from pathlib import Path
 
-# Context storage for current language
+__all__ = [
+    "LOCALE_DIR",
+    "DEFAULT_DOMAIN",
+    "get_language",
+    "set_language",
+    "gettext",
+    "ngettext",
+    "LazyString",
+]
+
 _active_language: ContextVar[str] = ContextVar("active_language", default="en")
-
-# Cache for translation objects
 _translations_cache: dict[str, gettext_module.NullTranslations] = {}
-
-# Default configuration
-LOCALE_DIR = "locale"
+LOCALE_DIR: str = str(Path(__file__).resolve().parent.parent.parent / "locale")
 DEFAULT_DOMAIN = "messages"
 
 
@@ -27,8 +32,6 @@ def _get_translation_object(language: str) -> gettext_module.NullTranslations:
     """Retrieve or load a translation object for the given language."""
     if language not in _translations_cache:
         try:
-            # Attempt to load binary .mo translations from locale directory
-            # Structure: locale/{lang}/LC_MESSAGES/{domain}.mo
             translation = gettext_module.translation(
                 domain=DEFAULT_DOMAIN,
                 localedir=LOCALE_DIR,
@@ -36,8 +39,7 @@ def _get_translation_object(language: str) -> gettext_module.NullTranslations:
                 fallback=True,
             )
             _translations_cache[language] = translation
-        except Exception:
-            # Fallback to NullTranslations if directory or file is missing
+        except OSError, ValueError:
             _translations_cache[language] = gettext_module.NullTranslations()
 
     return _translations_cache[language]
@@ -55,16 +57,16 @@ class LazyString:
     def __repr__(self) -> str:
         return f"LazyString({self._message!r})"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return str(self) == str(other)
 
-    def __add__(self, other: Any) -> str:
+    def __add__(self, other: str) -> str:
         return str(self) + str(other)
 
-    def __radd__(self, other: Any) -> str:
+    def __radd__(self, other: str) -> str:
         return str(other) + str(self)
 
-    def __mod__(self, other: Any) -> str:
+    def __mod__(self, other: str | int | float | tuple) -> str:
         return str(self) % other
 
     def __bool__(self) -> bool:
@@ -84,10 +86,16 @@ def gettext(message: str) -> str:
     return translation.gettext(message)
 
 
+def ngettext(singular: str, plural: str, n: int) -> str:
+    """Translate a message with plural forms using the active language."""
+    lang = get_language()
+    translation = _get_translation_object(lang)
+    return translation.ngettext(singular, plural, n)
+
+
 def gettext_lazy(message: str) -> LazyString:
     """Return a LazyString that will be translated when evaluated."""
     return LazyString(message)
 
 
-# Alias for gettext_lazy
 _ = gettext_lazy

@@ -9,12 +9,23 @@ const props = defineProps<{
   loading: boolean
   selectable?: boolean
   selectedIds?: Array<string | number>
+  sortField?: string
+  sortDirection?: 'asc' | 'desc'
 }>()
 
 const emit = defineEmits<{
   'row-click': [instance: ModelInstance]
   'selection-change': [ids: Array<string | number>]
+  'sort': [field: string, direction: 'asc' | 'desc']
 }>()
+
+function handleSort(column: string) {
+  if (props.sortField === column) {
+    emit('sort', column, props.sortDirection === 'asc' ? 'desc' : 'asc')
+  } else {
+    emit('sort', column, 'asc')
+  }
+}
 
 const allSelected = computed(() => {
   if (!props.selectable || props.instances.length === 0) return false
@@ -123,8 +134,31 @@ function isCountryField(fieldName: string): boolean {
           <th
             v-for="column in getDisplayColumns()"
             :key="column"
+            class="cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            @click="handleSort(column)"
           >
-            {{ getFieldLabel(column) }}
+            <span class="inline-flex items-center gap-1">
+              {{ getFieldLabel(column) }}
+              <svg
+                v-if="sortField === column"
+                class="w-4 h-4 flex-shrink-0"
+                :class="{ 'rotate-180': sortDirection === 'desc' }"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+              </svg>
+              <svg
+                v-else
+                class="w-4 h-4 flex-shrink-0 opacity-0 group-hover:opacity-30"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+            </span>
           </th>
         </tr>
       </thead>

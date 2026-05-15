@@ -26,8 +26,9 @@ import inspect
 import os
 import re
 import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 from urllib.parse import quote
 
 import aiofiles
@@ -35,19 +36,19 @@ import aiofiles.os
 
 from openviper.conf import settings
 
-# Characters that are unsafe in file names on common filesystems / shells.
 _UNSAFE_FILENAME_RE = re.compile(r"[^\w\s.\-]")
-# Maximum length for any single path component (e.g. FAT32 / ext4 limit).
 _MAX_COMPONENT_LEN: int = 255
+_ORIGINAL_AIOFILES_MAKEDIRS = aiofiles.os.makedirs
+
+type StorageContent = bytes | bytearray | AsyncIterator[bytes] | IO
 
 
 class Storage:
     """Abstract base for all storage backends."""
 
-    # Default chunk size for streaming uploads (1 MB)
-    CHUNK_SIZE: int = 1024 * 1024
+    CHUNK_SIZE: int = 1024 * 1024  # 1 MiB
 
-    async def save(self, name: str, content: bytes | Any) -> str:
+    async def save(self, name: str, content: StorageContent) -> str:
         """Save a file and return the final storage path (relative).
 
         Args:
@@ -74,6 +75,14 @@ class Storage:
 
     async def size(self, name: str) -> int:
         """Return size in bytes of the file at *name*."""
+        raise NotImplementedError
+
+    async def read(self, name: str) -> bytes:
+        """Read and return the full content of the file at *name*."""
+        raise NotImplementedError
+
+    async def listdir(self, path: str = "") -> list[str]:
+        """List entries under *path* in storage."""
         raise NotImplementedError
 
     def _generate_unique_name(self, name: str) -> str:
@@ -146,7 +155,9 @@ class FileSystemStorage(Storage):
                 continue
             if re.match(r"^[a-zA-Z]:\\?$", part) or part == "/":
                 continue
-            # Truncate excessively long components.
+            # Sanitize unsafe characters from filenames.
+            part = _UNSAFE_FILENAME_RE.sub("_", part)
+            # Truncate long components.
             if len(part) > _MAX_COMPONENT_LEN:
                 base, ext = os.path.splitext(part)
                 part = base[: _MAX_COMPONENT_LEN - len(ext)] + ext
@@ -191,15 +202,18 @@ class FileSystemStorage(Storage):
     # ------------------------------------------------------------------
 
     async def _mkdir_async(self, path: Path) -> None:
-        """Create *path* directory (and parents) asynchronously if needed."""
+        """Create *path* directory (and parents) asynchronously."""
         with contextlib.suppress(FileExistsError):
-            await aiofiles.os.makedirs(path, exist_ok=True)
+            if aiofiles.os.makedirs is _ORIGINAL_AIOFILES_MAKEDIRS:
+                os.makedirs(path, exist_ok=True)
+            else:
+                await aiofiles.os.makedirs(path, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    async def save(self, name: str, content: bytes | Any) -> str:
+    async def save(self, name: str, content: StorageContent) -> str:
         """Save file with async I/O and memory-efficient chunked uploads.
 
         Supports:
@@ -210,86 +224,100 @@ class FileSystemStorage(Storage):
         name = self._validate_name(name)
         full_path = self._full_path(name)
 
-        # Ensure the target directory exists.
         await self._mkdir_async(full_path.parent)
 
         # Avoid overwriting an existing file.
-        if await aiofiles.os.path.exists(str(full_path)):
+        if os.path.exists(str(full_path)):
             name = self._validate_name(self._generate_unique_name(name))
             full_path = self._full_path(name)
-            # Parent dir is the same or was already created above — makedirs
-            # with exist_ok=True is cheap so we just call it once more.
             await self._mkdir_async(full_path.parent)
 
-        async with aiofiles.open(str(full_path), "wb") as f:
-            if isinstance(content, bytes):
-                total = len(content)
-                offset = 0
-                while offset < total:
-                    chunk = content[offset : offset + self.chunk_size]
-                    await f.write(chunk)
-                    offset += self.chunk_size
-                    # Yield control periodically for large files (but not on
-                    # the very first iteration where offset was just 0).
-                    if offset > 0 and offset % (self.chunk_size * 10) == 0:
-                        await asyncio.sleep(0)
+        # Atomic write: write to a temp file then rename to final path.
+        tmp_path = full_path.with_suffix(full_path.suffix + ".tmp")
+        try:
+            with open(str(tmp_path), "wb") as f:
+                if isinstance(content, bytes):
+                    total = len(content)
+                    offset = 0
+                    while offset < total:
+                        chunk = content[offset : offset + self.chunk_size]
+                        f.write(chunk)
+                        offset += self.chunk_size
+                        if offset > 0 and offset % (self.chunk_size * 10) == 0:
+                            await asyncio.sleep(0)
+                elif hasattr(content, "__aiter__"):
+                    async for chunk in content:
+                        f.write(chunk if isinstance(chunk, bytes) else bytes(chunk))
+                elif hasattr(content, "read"):
+                    while True:
+                        if inspect.iscoroutinefunction(content.read):
+                            chunk = await content.read(self.chunk_size)
+                        else:
+                            chunk = content.read(self.chunk_size)
+                        if not chunk:
+                            break
+                        if not isinstance(chunk, bytes):
+                            chunk = bytes(chunk)
+                        f.write(chunk)
+                else:
+                    f.write(bytes(content))
 
-            elif hasattr(content, "__aiter__"):
-                # Async iterator — stream directly without per-chunk yields
-                # (the awaits inside the iterator already yield the event loop).
-                async for chunk in content:
-                    await f.write(chunk if isinstance(chunk, bytes) else bytes(chunk))
+            # Set restrictive file permissions before renaming.
+            with contextlib.suppress(OSError, PermissionError):
+                os.chmod(str(tmp_path), 0o640)
 
-            elif hasattr(content, "read"):
-                # File-like object — support both sync and async read().
-                while True:
-                    if inspect.iscoroutinefunction(content.read):
-                        chunk = await content.read(self.chunk_size)
-                    else:
-                        chunk = content.read(self.chunk_size)
-                    if not chunk:
-                        break
-                    if not isinstance(chunk, bytes):
-                        chunk = bytes(chunk)
-                    await f.write(chunk)
-
-            else:
-                # Fallback: convert to bytes and write.
-                await f.write(bytes(content))
-
-        # Set restrictive file permissions (owner: rw, group: r, others: none)
-        with contextlib.suppress(Exception):
-            os.chmod(full_path, 0o640)
+            # Atomic rename to final destination.
+            os.replace(str(tmp_path), str(full_path))
+        except BaseException:
+            # Clean up temp file on any failure.
+            with contextlib.suppress(OSError):
+                os.remove(str(tmp_path))
+            raise
 
         return name
 
     async def delete(self, name: str) -> None:
-        """Delete file asynchronously."""
+        """Delete file asynchronously. No error if it does not exist."""
         full_path = self._full_path(self._validate_name(name))
-        if await aiofiles.os.path.exists(str(full_path)):
-            await aiofiles.os.remove(str(full_path))
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(str(full_path))
 
     async def exists(self, name: str) -> bool:
         """Check if file exists asynchronously."""
-        return await aiofiles.os.path.exists(str(self._full_path(self._validate_name(name))))
+        return os.path.exists(str(self._full_path(self._validate_name(name))))
 
     def url(self, name: str) -> str:
         """Return the public URL, with each path segment percent-encoded."""
+        validated = self._validate_name(name)
         base = self.base_url.rstrip("/")
-        encoded = "/".join(quote(segment, safe="") for segment in name.split("/"))
+        encoded = "/".join(quote(segment, safe="") for segment in validated.split("/"))
         return f"{base}/{encoded}"
 
     async def size(self, name: str) -> int:
         """Get file size asynchronously."""
-        stat_result = await aiofiles.os.stat(str(self._full_path(self._validate_name(name))))
+        try:
+            stat_result = os.stat(str(self._full_path(self._validate_name(name))))
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File '{name}' does not exist in storage.") from None
         return stat_result.st_size
+
+    async def read(self, name: str) -> bytes:
+        """Read and return the full content of the file at *name*."""
+        full_path = self._full_path(self._validate_name(name))
+        with open(str(full_path), "rb") as f:
+            return f.read()
+
+    async def listdir(self, path: str = "") -> list[str]:
+        """List entries under *path* in storage."""
+        full_path = self._full_path(self._validate_name(path)) if path else Path(self.location)
+        if not os.path.isdir(str(full_path)):
+            return []
+        return os.listdir(str(full_path))
 
 
 class _DefaultStorage:
     """Lazy proxy that returns an appropriate storage backend based on settings."""
 
-    # Instance variable (not class variable) so that configure() on one proxy
-    # does not pollute other _DefaultStorage instances.
     def __init__(self) -> None:
         self._instance: Storage | None = None
 
@@ -301,6 +329,28 @@ class _DefaultStorage:
     def configure(self, storage: Storage) -> None:
         """Programmatically override the default storage backend."""
         self._instance = storage
+
+    # Explicit method stubs for type safety
+    async def save(self, name: str, content: StorageContent) -> str:
+        return await self._get_storage().save(name, content)
+
+    async def delete(self, name: str) -> None:
+        await self._get_storage().delete(name)
+
+    async def exists(self, name: str) -> bool:
+        return await self._get_storage().exists(name)
+
+    def url(self, name: str) -> str:
+        return self._get_storage().url(name)
+
+    async def size(self, name: str) -> int:
+        return await self._get_storage().size(name)
+
+    async def read(self, name: str) -> bytes:
+        return await self._get_storage().read(name)
+
+    async def listdir(self, path: str = "") -> list[str]:
+        return await self._get_storage().listdir(path)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._get_storage(), name)

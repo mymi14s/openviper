@@ -23,14 +23,17 @@ except ImportError:
     _console = None  # type: ignore[assignment]
     _has_rich = False
 
+import uvicorn
+
 import openviper
 from openviper.conf.settings import generate_secret_key
 from openviper.core.management.base import BaseCommand
 from openviper.core.management.utils import get_banner
+from openviper.utils.logging import get_uvicorn_log_config
 from openviper.viperctl import viperctl as _viperctl_cmd
 
 
-def _print(msg: str, style: str = "") -> None:
+def _display(msg: str, style: str = "") -> None:
     if _has_rich and _console:
         _console.print(msg, style=style or None)
     else:
@@ -43,7 +46,7 @@ def cli() -> None:
     """OpenViper web framework CLI."""
 
 
-_VERPERCTL_PY_TEMPLATE = '''\
+_VIPERCTL_PY_TEMPLATE = '''\
 #!/usr/bin/env python
 """OpenViper viperctl.py for {project_name}."""
 
@@ -64,8 +67,6 @@ from __future__ import annotations
 
 import dataclasses
 import os
-from datetime import timedelta
-from typing import Any
 
 from openviper.conf.settings import Settings
 
@@ -91,34 +92,6 @@ class ProjectSettings(Settings):
     STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
     MEDIA_ROOT: str = os.environ.get("MEDIA_ROOT", "media")
     MEDIA_URL: str = os.environ.get("MEDIA_URL", "/media/")
-
-    # # Background Tasks
-    # TASKS: dict[str, Any] = dataclasses.field(
-    #     default_factory=lambda: {{
-    #         "enabled": 0,
-    #         "scheduler_enabled": 0,
-    #         "tracking_enabled": 1,
-    #         "log_to_file": 1,
-    #         "log_level": "DEBUG",
-    #         "log_format": "json",
-    #         "log_dir": "logs",
-    #         "broker": "redis",
-    #         "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-    #         "backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
-    #     }}
-    # )
-
-    # # Model events configuration: maps "app.model" to event hooks to lists of
-    # # "app.events.func" paths.
-    # MODEL_EVENTS: dict = dataclasses.field(
-    #     default_factory=lambda: {{
-    #         "posts.models.Post": {{
-    #             "after_insert": ["posts.events.create_likes"],
-    #             "after_delete": ["posts.events.cleanup_comments"],
-    #             "on_update": ["posts.events.handle_post_update"],
-    #         }},
-    #     }}
-    # )
 '''
 
 _ASGI_TEMPLATE = '''\
@@ -256,13 +229,12 @@ def create_project(name: str, directory: str | None) -> None:
     secret_key = generate_secret_key()
     ctx = {"project_name": name, "secret_key": secret_key}
 
-    # Create directory structure
     (project_root / name).mkdir(parents=True)
 
     def write(path: Path, content: str) -> None:
         path.write_text(content.format(**ctx))
 
-    write(project_root / "viperctl.py", _VERPERCTL_PY_TEMPLATE)
+    write(project_root / "viperctl.py", _VIPERCTL_PY_TEMPLATE)
     os.chmod(project_root / "viperctl.py", 0o755)
     write(project_root / name / "__init__.py", _PROJECT_INIT_TEMPLATE)
     write(project_root / name / "settings.py", _SETTINGS_TEMPLATE)
@@ -281,14 +253,14 @@ def create_project(name: str, directory: str | None) -> None:
             Panel.fit(
                 f"[bold green]Project '{name}' created![/bold green]\n\n"
                 f"  [cyan]cd {name}[/cyan]\n"
-                f"  [cyan]python viperctl.py runserver[/cyan]",
+                f"  [cyan]python viperctl.py startserver[/cyan]",
                 title="OpenViper",
             )
         )
     else:
         click.echo(f"Project '{name}' created at {project_root}")
         click.echo(f"  cd {name}")
-        click.echo("  python viperctl.py runserver")
+        click.echo("  python viperctl.py startserver")
 
 
 @cli.command("create-app")
@@ -296,12 +268,13 @@ def create_project(name: str, directory: str | None) -> None:
 @click.option("--directory", "-d", default=None, help="Target directory (default: CWD)")
 def create_app(name: str, directory: str | None) -> None:
     """Scaffold a new app inside an existing OpenViper project."""
-    # Delegate to the management command so it works both ways
-
     args = [sys.executable, "viperctl.py", "create-app", name]
     if directory:
         args += ["--directory", directory]
-    subprocess.run(args, check=False)
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        click.echo(f"Error: {result.stderr.strip()}", err=True)
+        sys.exit(result.returncode)
 
 
 @cli.command("run")
@@ -331,15 +304,6 @@ def run_cmd(target: str, host: str, port: int, reload: bool, workers: int) -> No
       openviper run app.py
       openviper run myproject.asgi:app
     """
-    try:
-        import uvicorn
-    except ImportError:
-        click.echo(
-            "Error: uvicorn is required.  Install it with: pip install uvicorn",
-            err=True,
-        )
-        sys.exit(1)
-
     # Accept "app.py" as well as "app"
     if target.endswith(".py"):
         target = target[:-3]
@@ -350,7 +314,7 @@ def run_cmd(target: str, host: str, port: int, reload: bool, workers: int) -> No
     else:
         module_str, attr_str = target, "app"
 
-    # Make sure the current directory is on sys.path so bare module names resolve
+    # Ensure CWD is on sys.path so bare module names resolve
     cwd = str(Path.cwd())
     if cwd not in sys.path:
         sys.path.insert(0, cwd)
@@ -361,8 +325,8 @@ def run_cmd(target: str, host: str, port: int, reload: bool, workers: int) -> No
         host=host,
         port=port,
         reload=reload,
-        # uvicorn rejects workers > 1 when reload is enabled
         workers=1 if reload else workers,
+        log_config=get_uvicorn_log_config(),
     )
 
 

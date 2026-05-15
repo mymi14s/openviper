@@ -2,8 +2,15 @@ import asyncio
 
 import pytest
 
-from openviper.utils.translation import LazyString, get_language, gettext, set_language
-from openviper.utils.translation import gettext_lazy as _
+from openviper.utils.translation import (
+    LazyString,
+    get_language,
+    gettext,
+    set_language,
+)
+from openviper.utils.translation import (
+    gettext_lazy as _,
+)
 
 
 def test_immediate_translation():

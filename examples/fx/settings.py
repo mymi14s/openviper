@@ -9,7 +9,7 @@ Usage::
     cd examples/fx
     openviper viperctl makemigrations .
     openviper viperctl migrate .
-    openviper viperctl shell
+    openviper viperctl console
 """
 
 import dataclasses

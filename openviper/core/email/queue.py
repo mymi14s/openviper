@@ -49,6 +49,7 @@ def worker_available() -> bool:
 
         return not isinstance(get_broker(), StubBroker)
     except Exception:
+        logger.debug("Worker availability check failed; assuming no worker", exc_info=True)
         return False
 
 

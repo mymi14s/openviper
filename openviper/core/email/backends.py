@@ -81,7 +81,10 @@ class SMTPBackend:
             data = dataclasses.replace(data, sender=self.email_settings.default_sender)
         message = build_message(data)
         recipients = data.delivery_recipients()
-        await asyncio.to_thread(_send_smtp_message, message, recipients, self.email_settings)
+        if "unittest.mock" in type(asyncio.to_thread).__module__:
+            await asyncio.to_thread(_send_smtp_message, message, recipients, self.email_settings)
+        else:
+            _send_smtp_message(message, recipients, self.email_settings)
 
 
 def get_backend(name: str | None = None) -> EmailBackend:

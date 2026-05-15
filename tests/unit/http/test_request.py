@@ -426,7 +426,7 @@ class TestUploadFile:
         await upload.close()
         assert f.closed
 
-    def test_repr(self):
+    async def test_repr(self):
 
         f = io.BytesIO(b"")
         upload = UploadFile("photo.jpg", "image/jpeg", f)

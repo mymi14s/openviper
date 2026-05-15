@@ -80,11 +80,21 @@ from openviper.db.fields import (
     OneToOneField,
     ReverseRelationDescriptor,
 )
-from openviper.db.utils import ClassProperty
 from openviper.exceptions import DoesNotExist, FieldError, MultipleObjectsReturned
 from openviper.utils import timezone
 
 T = TypeVar("T", bound="Model")
+
+
+class ClassProperty:
+    """Descriptor that exposes a method as a read-only class-level property."""
+
+    def __init__(self, func: Any) -> None:
+        self.func = func
+
+    def __get__(self, instance: Any, owner: type[Any]) -> Any:
+        return self.func(owner)
+
 
 # Pre-compiled regex patterns for CamelCase → snake_case conversion.
 _CAMEL_RE1 = re.compile(r"(.)([A-Z][a-z]+)")
@@ -642,6 +652,7 @@ def _cursor_decode(cursor: str) -> dict[str, Any] | None:
         raw = base64.urlsafe_b64decode(cursor.encode()).decode()
         return json.loads(raw)
     except Exception:
+        logger.debug("Cursor decode failed", exc_info=True)
         return None
 
 
@@ -877,7 +888,7 @@ class Manager:
             else:
                 _dispatch_decorator_handlers(model_path, event_name, objs)
         except Exception:
-            pass
+            logger.debug("Event dispatch failed for %s.%s", model_path, event_name, exc_info=True)
 
     async def update_or_create(
         self,
@@ -1033,7 +1044,7 @@ class TraversalLookup:
     #: Maximum number of FK hops allowed in a single traversal.
     MAX_TRAVERSAL_DEPTH = 5
 
-    def __init__(self, key: str, model_cls: type):
+    def __init__(self, key: str, model_cls: type) -> None:
         self.key = key
         self.model_cls = model_cls
         self.parts: list[TraversalStep] = []
@@ -1802,6 +1813,7 @@ class QuerySet:
             try:
                 sample_mgr = descriptor.__get__(instances[0], type(instances[0]))
             except Exception:
+                logger.debug("Prefetch descriptor access failed for %s", field_name, exc_info=True)
                 continue
 
             if not isinstance(sample_mgr, ManyToManyManager):
@@ -2038,7 +2050,6 @@ class Model(metaclass=ModelMeta):
         # for models with non-auto PKs (UUID, string, etc.).
         self._persisted: bool = False
 
-        # Set defaults from field definitions
         for name, field in self._fields.items():
             value = None
             if name in kwargs:
@@ -2067,7 +2078,6 @@ class Model(metaclass=ModelMeta):
             if not hasattr(self, key):
                 setattr(self, key, val)
 
-        # Snapshot the initial state for change detection
         self._previous_state: dict[str, Any] = self._snapshot()
 
     def _set_related(self, field_name: str, obj: Any) -> None:
@@ -2476,7 +2486,10 @@ class Model(metaclass=ModelMeta):
                 # Task system disabled — still fire @model_event.trigger() handlers.
                 _dispatch_decorator_handlers(model_path, event_name, self, **kwargs)
         except Exception:
-            pass  # never let event dispatch break model persistence
+            logger.debug(
+                "Model event dispatch failed for %s.%s", model_path, event_name, exc_info=True
+            )
+            # never let event dispatch break model persistence
 
     async def save(
         self,

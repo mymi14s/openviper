@@ -42,4 +42,4 @@ async def index(request: Request) -> JSONResponse:
 
 @app.get("/notes")
 async def list_notes(request: Request) -> JSONResponse:
-    return JSONResponse({"notes": [], "hint": "Run migrations first, then add data via shell."})
+    return JSONResponse({"notes": [], "hint": "Run migrations first, then add data via console."})

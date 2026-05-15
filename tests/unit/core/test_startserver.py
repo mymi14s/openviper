@@ -1,14 +1,13 @@
-"""Unit tests for runserver management command."""
+"""Unit tests for startserver management command."""
 
 import concurrent.futures
-import contextlib
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 import uvicorn
 import uvicorn.supervisors
 
-from openviper.core.management.commands.runserver import (
+from openviper.core.management.commands.startserver import (
     _MIGRATION_THREAD_POOL,
     Command,
     _clear_pycache,
@@ -21,13 +20,13 @@ def command():
     return Command()
 
 
-class TestRunServerCommand:
-    """Test runserver command basic functionality."""
+class TestStartServerCommand:
+    """Test startserver command basic functionality."""
 
-    def test_help_attribute(self, command):
+    def test_help_attribute(self, command) -> None:
         assert "development server" in command.help or "uvicorn" in command.help
 
-    def test_add_arguments(self, command):
+    def test_add_arguments(self, command) -> None:
         parser = Mock()
         parser.add_argument = Mock()
 
@@ -40,7 +39,7 @@ class TestRunServerCommand:
 class TestClearPycache:
     """Test _clear_pycache function."""
 
-    def test_clear_pycache_removes_pycache_dirs(self, tmp_path):
+    def test_clear_pycache_removes_pycache_dirs(self, tmp_path) -> None:
         # Create some __pycache__ directories
         cache1 = tmp_path / "__pycache__"
         cache1.mkdir()
@@ -55,8 +54,8 @@ class TestClearPycache:
         assert not cache1.exists()
         assert not cache2.exists()
 
-    @patch("openviper.core.management.commands.runserver.shutil.rmtree")
-    def test_clear_pycache_handles_errors(self, mock_rmtree, tmp_path):
+    @patch("openviper.core.management.commands.startserver.shutil.rmtree")
+    def test_clear_pycache_handles_errors(self, mock_rmtree, tmp_path) -> None:
         # Create a real __pycache__ so rglob finds it
         cache_dir = tmp_path / "__pycache__"
         cache_dir.mkdir()
@@ -68,53 +67,53 @@ class TestClearPycache:
 class TestHandleBasic:
     """Test basic handle functionality."""
 
-    def test_handle_imports_uvicorn(self, command):
+    def test_handle_imports_uvicorn(self, command) -> None:
         """Test that handle imports and uses uvicorn."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
+        with patch("openviper.core.management.commands.startserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="myproject.asgi:app"):
                     with patch(
-                        "openviper.core.management.commands.runserver._MIGRATION_THREAD_POOL"
+                        "openviper.core.management.commands.startserver._MIGRATION_THREAD_POOL"
                     ) as mock_pool:
                         mock_future = Mock()
                         mock_future.result = Mock(side_effect=Exception("ignored"))
                         mock_pool.submit = Mock(return_value=mock_future)
 
-                        with patch("openviper.core.management.commands.runserver.get_banner"):
+                        with patch("openviper.core.management.commands.startserver.get_banner"):
                             command.handle(
                                 host="127.0.0.1", port=8000, reload=False, workers=1, app=None
                             )
 
         mock_uvicorn.run.assert_called_once()
 
-    def test_handle_with_timeout_error(self, command):
+    def test_handle_with_timeout_error(self, command) -> None:
         """Test that handle works when migration check times out."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
+        with patch("openviper.core.management.commands.startserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="myproject.asgi:app"):
                     with patch(
-                        "openviper.core.management.commands.runserver._MIGRATION_THREAD_POOL"
+                        "openviper.core.management.commands.startserver._MIGRATION_THREAD_POOL"
                     ) as mock_pool:
                         mock_future = Mock()
                         mock_future.result = Mock(side_effect=concurrent.futures.TimeoutError)
                         mock_pool.submit = Mock(return_value=mock_future)
 
-                        with patch("openviper.core.management.commands.runserver.get_banner"):
+                        with patch("openviper.core.management.commands.startserver.get_banner"):
                             command.handle(
                                 host="127.0.0.1", port=8000, reload=False, workers=1, app=None
                             )
 
         mock_uvicorn.run.assert_called_once()
 
-    def test_handle_missing_uvicorn_shows_error(self, command, capsys):
+    def test_handle_missing_uvicorn_shows_error(self, command, capsys) -> None:
         """Test that missing uvicorn shows appropriate error."""
-        with patch("openviper.core.management.commands.runserver.uvicorn", None):
+        with patch("openviper.core.management.commands.startserver.uvicorn", None):
             command.handle(host="127.0.0.1", port=8000, reload=False, workers=1, app=None)
 
         captured = capsys.readouterr()
@@ -124,16 +123,16 @@ class TestHandleBasic:
 class TestResolveAppPath:
     """Test _resolve_app_path method."""
 
-    def test_resolve_app_path_uses_provided_app(self, command):
+    def test_resolve_app_path_uses_provided_app(self, command) -> None:
         app_path = command._resolve_app_path({"app": "custom.asgi:application"})
         assert app_path == "custom.asgi:application"
 
     @patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "myproject.settings"})
-    def test_resolve_app_path_from_settings_module(self, command):
+    def test_resolve_app_path_from_settings_module(self, command) -> None:
         app_path = command._resolve_app_path({"app": None})
         assert app_path == "myproject.asgi:app"
 
-    def test_resolve_app_path_from_cwd(self, command):
+    def test_resolve_app_path_from_cwd(self, command) -> None:
         with patch.dict("os.environ", clear=True):
             with patch("os.getcwd", return_value="/project/myapp"):
                 with patch("os.path.basename", return_value="myapp"):
@@ -144,24 +143,24 @@ class TestResolveAppPath:
 class TestReloadDirs:
     """Test _reload_dirs method."""
 
-    def test_reload_dirs_includes_project_root(self, command):
+    def test_reload_dirs_includes_project_root(self, command) -> None:
         dirs = command._reload_dirs("/project/root")
         assert "/project/root" in dirs
 
     @patch("openviper.__file__", "/site-packages/openviper/__init__.py")
-    def test_reload_dirs_excludes_site_packages(self, command):
+    def test_reload_dirs_excludes_site_packages(self, command) -> None:
         dirs = command._reload_dirs("/project/root")
         # Should not include site-packages path
         assert all("site-packages" not in d for d in dirs)
 
-    def test_reload_dirs_includes_local_openviper(self, command):
+    def test_reload_dirs_includes_local_openviper(self, command) -> None:
         with patch("openviper.__file__", "/dev/openviper/openviper/__init__.py"):
             command._reload_dirs("/project/root")
             # May include local openviper path if not in site-packages
 
-    def test_reload_dirs_handles_exception(self, command):
+    def test_reload_dirs_handles_exception(self, command) -> None:
         """Test reload dirs handles ImportError."""
-        with patch("openviper.core.management.commands.runserver._openviper_pkg", None):
+        with patch("openviper.core.management.commands.startserver._openviper_pkg", None):
             dirs = command._reload_dirs("/project/root")
             assert dirs == ["/project/root"]
 
@@ -169,7 +168,7 @@ class TestReloadDirs:
 class TestRunWithCacheClear:
     """Test _run_with_cache_clear method."""
 
-    def test_run_with_cache_clear_patches_reload(self, command):
+    def test_run_with_cache_clear_patches_reload(self, command) -> None:
         """Test that _run_with_cache_clear calls uvicorn.run with reload=True."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
@@ -182,8 +181,8 @@ class TestRunWithCacheClear:
         assert call_kwargs["reload"] is True
 
     @patch("uvicorn.run")
-    def test_patched_restart_function(self, mock_run, command, tmp_path):
-        """Test the patched restart method on actual uvicorn classes if available."""
+    def test_patched_restart_function(self, mock_run, command, tmp_path) -> None:
+        """Test that _run_with_cache_clear patches uvicorn restart and clears __pycache__."""
         if not hasattr(uvicorn, "supervisors"):
             pytest.skip("uvicorn is not fully installed")
 
@@ -192,7 +191,7 @@ class TestRunWithCacheClear:
         try:
             with patch.object(command, "_reload_dirs", return_value=["/project"]):
                 with patch(
-                    "openviper.core.management.commands.runserver.os.getcwd",
+                    "openviper.core.management.commands.startserver.os.getcwd",
                     return_value=str(tmp_path),
                 ):
                     command._run_with_cache_clear(uvicorn, "app:main", "127.0.0.1", 8000)
@@ -200,19 +199,12 @@ class TestRunWithCacheClear:
                     cache_dir = tmp_path / "__pycache__"
                     cache_dir.mkdir()
 
-                    # Mock the original so it doesn't crash from fake args
-                    mock_orig = Mock()
+                    # Verify the restart method was patched by _run_with_cache_clear
+                    assert uvicorn.supervisors.ChangeReload.restart is not orig_restart
 
-                    # Instead of calling real restart which might crash,
-                    # we temporarily swap orig to avoid problems
-                    with patch.object(uvicorn.supervisors.ChangeReload, "restart", mock_orig):
-                        # Actually wait, _run_with_cache_clear already patched it!
-                        # We just need to call the patched one
-                        pass
-
-                    # So we just catch any errors from the real _orig
-                    with contextlib.suppress(Exception):
-                        uvicorn.supervisors.ChangeReload.restart(Mock())
+                    # Call the patched restart — it should clear __pycache__
+                    mock_reloader = Mock()
+                    uvicorn.supervisors.ChangeReload.restart(mock_reloader)
 
                     assert not cache_dir.exists()
         finally:
@@ -222,7 +214,7 @@ class TestRunWithCacheClear:
 class TestMigrationCheck:
     """Test _check_pending_migrations method."""
 
-    def test_check_pending_migrations_with_pending(self, command, capsys):
+    def test_check_pending_migrations_with_pending(self, command, capsys) -> None:
         """Test that pending migrations trigger a warning."""
         mock_settings = Mock()
         mock_settings.INSTALLED_APPS = []
@@ -241,15 +233,15 @@ class TestMigrationCheck:
 
         with patch("openviper.conf.settings", mock_settings):
             with patch(
-                "openviper.core.management.commands.runserver.AppResolver",
+                "openviper.core.management.commands.startserver.AppResolver",
                 return_value=mock_resolver,
             ):
                 with patch(
-                    "openviper.core.management.commands.runserver.MigrationExecutor",
+                    "openviper.core.management.commands.startserver.MigrationExecutor",
                     return_value=mock_executor,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runserver.discover_migrations",
+                        "openviper.core.management.commands.startserver.discover_migrations",
                         return_value=[mock_rec],
                     ):
                         command._check_pending_migrations()
@@ -257,7 +249,7 @@ class TestMigrationCheck:
         captured = capsys.readouterr()
         assert "unapplied migrations" in captured.out or "Missing migrations" in captured.out
 
-    def test_check_pending_migrations_with_invalid_resolved_apps(self, command):
+    def test_check_pending_migrations_with_invalid_resolved_apps(self, command) -> None:
         """Test with invalid resolved_apps."""
         mock_settings = Mock()
         mock_settings.INSTALLED_APPS = []
@@ -271,20 +263,20 @@ class TestMigrationCheck:
 
         with patch("openviper.conf.settings", mock_settings):
             with patch(
-                "openviper.core.management.commands.runserver.AppResolver",
+                "openviper.core.management.commands.startserver.AppResolver",
                 return_value=mock_resolver,
             ):
                 with patch(
-                    "openviper.core.management.commands.runserver.MigrationExecutor",
+                    "openviper.core.management.commands.startserver.MigrationExecutor",
                     return_value=mock_executor,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runserver.discover_migrations",
+                        "openviper.core.management.commands.startserver.discover_migrations",
                         return_value=[],
                     ):
                         command._check_pending_migrations()
 
-    def test_check_pending_migrations_db_exception(self, command):
+    def test_check_pending_migrations_db_exception(self, command) -> None:
         """Test exception when retrieving applied migrations."""
         mock_settings = Mock()
         mock_settings.INSTALLED_APPS = []
@@ -302,20 +294,20 @@ class TestMigrationCheck:
 
         with patch("openviper.conf.settings", mock_settings):
             with patch(
-                "openviper.core.management.commands.runserver.AppResolver",
+                "openviper.core.management.commands.startserver.AppResolver",
                 return_value=mock_resolver,
             ):
                 with patch(
-                    "openviper.core.management.commands.runserver.MigrationExecutor",
+                    "openviper.core.management.commands.startserver.MigrationExecutor",
                     return_value=mock_executor,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runserver.discover_migrations",
+                        "openviper.core.management.commands.startserver.discover_migrations",
                         return_value=[mock_rec],
                     ):
                         command._check_pending_migrations()
 
-    def test_check_pending_migrations_handles_errors(self, command):
+    def test_check_pending_migrations_handles_errors(self, command) -> None:
         """Test that errors in migration check don't raise exceptions."""
         mock_settings = Mock()
         mock_settings.INSTALLED_APPS = []
@@ -325,7 +317,7 @@ class TestMigrationCheck:
 
         with patch("openviper.conf.settings", mock_settings):
             with patch(
-                "openviper.core.management.commands.runserver.AppResolver",
+                "openviper.core.management.commands.startserver.AppResolver",
                 return_value=mock_resolver,
             ):
                 # Should not raise
@@ -335,22 +327,22 @@ class TestMigrationCheck:
 class TestHandleOptions:
     """Test handle with different options."""
 
-    def test_handle_with_custom_host_port(self, command):
+    def test_handle_with_custom_host_port(self, command) -> None:
         """Test handle with custom host and port."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
+        with patch("openviper.core.management.commands.startserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="app:main"):
                     with patch(
-                        "openviper.core.management.commands.runserver._MIGRATION_THREAD_POOL"
+                        "openviper.core.management.commands.startserver._MIGRATION_THREAD_POOL"
                     ) as mock_pool:
                         mock_future = Mock()
                         mock_future.result = Mock(side_effect=Exception("ignored"))
                         mock_pool.submit = Mock(return_value=mock_future)
 
-                        with patch("openviper.core.management.commands.runserver.get_banner"):
+                        with patch("openviper.core.management.commands.startserver.get_banner"):
                             command.handle(
                                 host="0.0.0.0", port=3000, reload=False, workers=1, app=None
                             )
@@ -359,23 +351,23 @@ class TestHandleOptions:
         assert call_kwargs["host"] == "0.0.0.0"
         assert call_kwargs["port"] == 3000
 
-    def test_handle_with_reload(self, command):
+    def test_handle_with_reload(self, command) -> None:
         """Test handle with reload enabled."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
+        with patch("openviper.core.management.commands.startserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="app:main"):
                     with patch.object(command, "_run_with_cache_clear") as mock_cache_clear:
                         with patch(
-                            "openviper.core.management.commands.runserver._MIGRATION_THREAD_POOL"
+                            "openviper.core.management.commands.startserver._MIGRATION_THREAD_POOL"
                         ) as mock_pool:
                             mock_future = Mock()
                             mock_future.result = Mock(side_effect=Exception("ignored"))
                             mock_pool.submit = Mock(return_value=mock_future)
 
-                            with patch("openviper.core.management.commands.runserver.get_banner"):
+                            with patch("openviper.core.management.commands.startserver.get_banner"):
                                 command.handle(
                                     host="127.0.0.1", port=8000, reload=True, workers=1, app=None
                                 )
@@ -386,23 +378,23 @@ class TestHandleOptions:
 class TestBanner:
     """Test banner display."""
 
-    def test_handle_displays_banner(self, command):
+    def test_handle_displays_banner(self, command) -> None:
         """Test that handle displays the banner."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch("openviper.core.management.commands.runserver.uvicorn", mock_uvicorn):
+        with patch("openviper.core.management.commands.startserver.uvicorn", mock_uvicorn):
             with patch.object(command, "_check_pending_migrations"):
                 with patch.object(command, "_resolve_app_path", return_value="app:main"):
                     with patch(
-                        "openviper.core.management.commands.runserver._MIGRATION_THREAD_POOL"
+                        "openviper.core.management.commands.startserver._MIGRATION_THREAD_POOL"
                     ) as mock_pool:
                         mock_future = Mock()
                         mock_future.result = Mock(side_effect=Exception("ignored"))
                         mock_pool.submit = Mock(return_value=mock_future)
 
                         with patch(
-                            "openviper.core.management.commands.runserver.get_banner"
+                            "openviper.core.management.commands.startserver.get_banner"
                         ) as mock_banner:
                             command.handle(
                                 host="127.0.0.1", port=8000, reload=False, workers=1, app=None
@@ -414,11 +406,11 @@ class TestBanner:
 class TestThreadPoolShutdown:
     """Test that _MIGRATION_THREAD_POOL is operational and registered for cleanup."""
 
-    def test_thread_pool_is_alive(self):
+    def test_thread_pool_is_alive(self) -> None:
         """Pool should not be shut down prematurely at import time."""
         assert not _MIGRATION_THREAD_POOL._shutdown
 
-    def test_thread_pool_can_submit(self):
+    def test_thread_pool_can_submit(self) -> None:
         """Pool should accept work (proves atexit hasn't fired yet)."""
         future = _MIGRATION_THREAD_POOL.submit(lambda: 42)
         assert future.result(timeout=2) == 42
@@ -427,7 +419,7 @@ class TestThreadPoolShutdown:
 class TestEdgeCases:
     """Test edge cases."""
 
-    def test_command_instantiation(self):
+    def test_command_instantiation(self) -> None:
         """Test that command can be instantiated."""
         cmd = Command()
         assert cmd is not None

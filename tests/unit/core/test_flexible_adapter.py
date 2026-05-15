@@ -44,100 +44,76 @@ def mock_root_resolved():
 class TestEnsureSysPath:
     """Test _ensure_sys_path function."""
 
-    def test_ensure_sys_path_adds_new_path(self):
+    def test_ensure_sys_path_adds_new_path(self, monkeypatch) -> None:
         test_path = Path("/unique/test/path")
-        original_sys_path = sys.path.copy()
+        monkeypatch.setattr("sys.path", sys.path.copy())
 
-        try:
-            _ensure_sys_path(test_path)
-            assert str(test_path) in sys.path
-            assert sys.path.index(str(test_path)) == 0  # Should be first
-        finally:
-            sys.path[:] = original_sys_path
+        _ensure_sys_path(test_path)
+        assert str(test_path) in sys.path
+        assert sys.path.index(str(test_path)) == 0
 
-    def test_ensure_sys_path_does_not_duplicate(self):
+    def test_ensure_sys_path_does_not_duplicate(self, monkeypatch) -> None:
         test_path = Path("/duplicate/test/path")
-        original_sys_path = sys.path.copy()
+        monkeypatch.setattr("sys.path", sys.path.copy())
 
-        try:
-            sys.path.insert(0, str(test_path))
-            initial_count = sys.path.count(str(test_path))
+        sys.path.insert(0, str(test_path))
+        initial_count = sys.path.count(str(test_path))
 
-            _ensure_sys_path(test_path)
+        _ensure_sys_path(test_path)
 
-            assert sys.path.count(str(test_path)) == initial_count
-        finally:
-            sys.path[:] = original_sys_path
+        assert sys.path.count(str(test_path)) == initial_count
 
 
 class TestPrepareRootLayout:
     """Test _prepare_root_layout function."""
 
-    def test_prepare_root_layout_creates_init_py(self):
+    def test_prepare_root_layout_creates_init_py(self, monkeypatch) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            original_cwd = os.getcwd()
+            monkeypatch.chdir(tmpdir_path)
 
-            try:
-                os.chdir(tmpdir_path)
-                _prepare_root_layout(tmpdir_path)
+            _prepare_root_layout(tmpdir_path)
 
-                init_file = tmpdir_path / "__init__.py"
-                assert init_file.exists()
-            finally:
-                os.chdir(original_cwd)
+            init_file = tmpdir_path / "__init__.py"
+            assert init_file.exists()
 
-    def test_prepare_root_layout_existing_init_py(self):
+    def test_prepare_root_layout_existing_init_py(self, monkeypatch) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             init_file = tmpdir_path / "__init__.py"
             init_file.write_text("# existing")
 
-            original_cwd = os.getcwd()
+            monkeypatch.chdir(tmpdir_path)
+            _prepare_root_layout(tmpdir_path)
 
-            try:
-                os.chdir(tmpdir_path)
-                _prepare_root_layout(tmpdir_path)
+            # Should not overwrite
+            assert init_file.read_text() == "# existing"
 
-                # Should not overwrite
-                assert init_file.read_text() == "# existing"
-            finally:
-                os.chdir(original_cwd)
-
-    def test_prepare_root_layout_changes_cwd(self):
+    def test_prepare_root_layout_changes_cwd(self, monkeypatch) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            original_cwd = os.getcwd()
+            monkeypatch.chdir(tmpdir_path)
 
-            try:
-                os.chdir(tmpdir_path)
-                _prepare_root_layout(tmpdir_path)
+            _prepare_root_layout(tmpdir_path)
 
-                # Should have changed to parent (use realpath for symlink resolution)
-                assert os.path.realpath(os.getcwd()) == os.path.realpath(str(tmpdir_path.parent))
-            finally:
-                os.chdir(original_cwd)
+            # Should have changed to parent (use realpath for symlink resolution)
+            assert os.path.realpath(os.getcwd()) == os.path.realpath(str(tmpdir_path.parent))
 
-    def test_prepare_root_layout_adds_parent_to_sys_path(self):
+    def test_prepare_root_layout_adds_parent_to_sys_path(self, monkeypatch) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            original_cwd = os.getcwd()
-            original_sys_path = sys.path.copy()
+            monkeypatch.chdir(tmpdir_path)
+            monkeypatch.setattr("sys.path", sys.path.copy())
 
-            try:
-                os.chdir(tmpdir_path)
-                _prepare_root_layout(tmpdir_path)
+            _prepare_root_layout(tmpdir_path)
 
-                assert str(tmpdir_path.parent) in sys.path
-            finally:
-                os.chdir(original_cwd)
-                sys.path[:] = original_sys_path
+            assert str(tmpdir_path.parent) in sys.path
 
 
 class TestInjectAppIntoSettings:
     """Test _inject_app_into_settings function."""
 
-    def test_inject_app_into_settings_new_app(self):
+    def test_inject_app_into_settings_new_app(self) -> None:
         """Test injecting a new app into settings."""
         # Create a custom class that mimics the LazySettings behavior
         # object.__getattribute__ is used to access _instance directly
@@ -166,7 +142,7 @@ class TestInjectAppIntoSettings:
                 assert "INSTALLED_APPS" in call_kwargs
                 assert call_kwargs["INSTALLED_APPS"][0] == "new_app"
 
-    def test_inject_app_into_settings_existing_app(self):
+    def test_inject_app_into_settings_existing_app(self) -> None:
         """Test that existing apps are not duplicated."""
         mock_lazy = Mock()
         mock_lazy.INSTALLED_APPS = ("existing_app",)
@@ -182,20 +158,20 @@ class TestInjectAppIntoSettings:
 class TestEnsureModelsImported:
     """Test _ensure_models_imported function."""
 
-    def test_ensure_models_imported_success(self, mock_resolved):
+    def test_ensure_models_imported_success(self, mock_resolved) -> None:
         with patch("importlib.import_module") as mock_import:
             _ensure_models_imported(mock_resolved)
 
             mock_import.assert_called_once_with("testapp.models")
 
-    def test_ensure_models_imported_import_error_non_root(self, mock_resolved):
+    def test_ensure_models_imported_import_error_non_root(self, mock_resolved) -> None:
         mock_resolved.is_root = False
 
         with patch("importlib.import_module", side_effect=ImportError):
             # Should not raise, just log
             _ensure_models_imported(mock_resolved)
 
-    def test_ensure_models_imported_root_layout_file_exists(self, mock_root_resolved):
+    def test_ensure_models_imported_root_layout_file_exists(self, mock_root_resolved) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             app_path = Path(tmpdir) / "rootapp"
             app_path.mkdir()
@@ -216,7 +192,7 @@ class TestEnsureModelsImported:
                 sys.modules.clear()
                 sys.modules.update(original_sys_modules)
 
-    def test_ensure_models_imported_root_layout_no_file(self, mock_root_resolved):
+    def test_ensure_models_imported_root_layout_no_file(self, mock_root_resolved) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             app_path = Path(tmpdir) / "rootapp"
             app_path.mkdir()
@@ -231,46 +207,38 @@ class TestEnsureModelsImported:
 class TestSynthesizeSettingsModule:
     """Test _synthesize_settings_module function."""
 
-    def test_synthesize_settings_module_creates_module(self):
-        original_sys_modules = sys.modules.copy()
+    def test_synthesize_settings_module_creates_module(self, monkeypatch) -> None:
+        monkeypatch.setattr("sys.modules", sys.modules.copy())
 
-        try:
-            module_name = _synthesize_settings_module()
+        module_name = _synthesize_settings_module()
 
-            assert module_name == "_viperctl_settings"
-            assert "_viperctl_settings" in sys.modules
+        assert module_name == "_viperctl_settings"
+        assert "_viperctl_settings" in sys.modules
 
-            module = sys.modules["_viperctl_settings"]
-            assert hasattr(module, "FlexibleSettings")
+        module = sys.modules["_viperctl_settings"]
+        assert hasattr(module, "FlexibleSettings")
 
-            # Test FlexibleSettings attributes
-            settings_cls = module.FlexibleSettings
-            instance = settings_cls()
-            assert instance.PROJECT_NAME == "viperctl-project"
-            assert instance.DEBUG is True
-            assert instance.DATABASE_URL == "sqlite+aiosqlite:///db.sqlite3"
-            assert instance.INSTALLED_APPS == ()
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_sys_modules)
+        # Test FlexibleSettings attributes
+        settings_cls = module.FlexibleSettings
+        instance = settings_cls()
+        assert instance.PROJECT_NAME == "viperctl-project"
+        assert instance.DEBUG is True
+        assert instance.DATABASE_URL == "sqlite+aiosqlite:///db.sqlite3"
+        assert instance.INSTALLED_APPS == ()
 
-    def test_synthesize_settings_module_frozen_dataclass(self):
-        original_sys_modules = sys.modules.copy()
+    def test_synthesize_settings_module_frozen_dataclass(self, monkeypatch) -> None:
+        monkeypatch.setattr("sys.modules", sys.modules.copy())
 
-        try:
-            module_name = _synthesize_settings_module()
-            module = sys.modules[module_name]
-            settings_cls = module.FlexibleSettings
+        module_name = _synthesize_settings_module()
+        module = sys.modules[module_name]
+        settings_cls = module.FlexibleSettings
 
-            # Test that it's a frozen dataclass
-            assert dataclasses.is_dataclass(settings_cls)
+        # Test that it's a frozen dataclass
+        assert dataclasses.is_dataclass(settings_cls)
 
-            instance = settings_cls()
-            with pytest.raises(dataclasses.FrozenInstanceError):
-                instance.DEBUG = False
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_sys_modules)
+        instance = settings_cls()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            instance.DEBUG = False
 
 
 class TestBootstrapAndRun:
@@ -287,8 +255,10 @@ class TestBootstrapAndRun:
         mock_inject,
         mock_execute,
         mock_resolved,
-    ):
+        monkeypatch,
+    ) -> None:
         mock_resolved.is_root = False
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
 
         with patch("openviper.setup") as mock_setup:
             with patch("sys.exit"):
@@ -318,15 +288,17 @@ class TestBootstrapAndRun:
         mock_inject,
         mock_execute,
         mock_root_resolved,
-    ):
+        monkeypatch,
+    ) -> None:
         mock_root_resolved.is_root = True
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
 
         with patch("openviper.setup") as mock_setup:
             with patch("sys.exit"):
                 bootstrap_and_run(
                     resolved=mock_root_resolved,
                     settings_module="settings",
-                    command="runserver",
+                    command="startserver",
                     command_args=(),
                 )
 
@@ -351,15 +323,17 @@ class TestBootstrapAndRun:
         mock_inject,
         mock_execute,
         mock_resolved,
-    ):
+        monkeypatch,
+    ) -> None:
         mock_synthesize.return_value = "_viperctl_settings"
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
 
         with patch("openviper.setup"):
             with patch("sys.exit"):
                 bootstrap_and_run(
                     resolved=mock_resolved,
                     settings_module=None,
-                    command="shell",
+                    command="console",
                     command_args=(),
                 )
 
@@ -381,7 +355,7 @@ class TestBootstrapAndRun:
         mock_inject,
         mock_execute,
         mock_resolved,
-    ):
+    ) -> None:
         with patch("openviper.setup"):
             with patch("sys.exit"):
                 bootstrap_and_run(
@@ -404,9 +378,11 @@ class TestBootstrapAndRun:
         mock_inject,
         mock_execute,
         mock_root_resolved,
-    ):
+        monkeypatch,
+    ) -> None:
         """Test that non-bare settings names are not rewritten."""
         mock_root_resolved.is_root = True
+        monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
 
         with patch("openviper.setup"):
             with patch("sys.exit"):
@@ -424,18 +400,15 @@ class TestBootstrapAndRun:
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_ensure_sys_path_with_str_path(self):
+    def test_ensure_sys_path_with_str_path(self, monkeypatch) -> None:
         """Test that _ensure_sys_path handles string paths."""
         test_path = "/test/string/path"
-        original_sys_path = sys.path.copy()
+        monkeypatch.setattr("sys.path", sys.path.copy())
 
-        try:
-            _ensure_sys_path(Path(test_path))
-            assert test_path in sys.path
-        finally:
-            sys.path[:] = original_sys_path
+        _ensure_sys_path(Path(test_path))
+        assert test_path in sys.path
 
-    def test_inject_app_tuple_conversion(self):
+    def test_inject_app_tuple_conversion(self) -> None:
         """Test that INSTALLED_APPS list is handled correctly."""
         # Create mock settings with a list INSTALLED_APPS
         mock_instance = Mock()

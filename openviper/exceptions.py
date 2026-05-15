@@ -107,7 +107,7 @@ class ValidationError(HTTPException):
 
     __slots__ = ("validation_errors",)
 
-    def __init__(self, errors: Any) -> None:
+    def __init__(self, errors: list[dict[str, Any]]) -> None:
         self.validation_errors = errors
         super().__init__(422, errors)
 
@@ -203,7 +203,7 @@ class TableNotFound(ORMException):
         self.table_name = table_name
         super().__init__(
             f"[TableNotFound] Table '{table_name}' for model '{model_name}' does not exist. "
-            "Run 'manage.py migrate' to create it."
+            "Run 'viperctl.py migrate' to create it."
         )
 
 
@@ -231,9 +231,17 @@ class FieldError(ORMException):
 
 
 class MiddlewareException(OpenViperException):
-    """Error raised within the middleware pipeline."""
+    """Error raised within the middleware pipeline.
 
-    __slots__ = ()
+    May be used as a base class for more specific middleware errors
+    or raised directly with an optional message.
+    """
+
+    __slots__ = ("detail",)
+
+    def __init__(self, detail: str = "Middleware error.") -> None:
+        self.detail = detail
+        super().__init__(detail)
 
 
 class AIException(OpenViperException):

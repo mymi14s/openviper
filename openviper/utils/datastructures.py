@@ -13,11 +13,32 @@ from typing import Any
 
 from multidict import CIMultiDict, MultiDict
 
+__all__ = ["Headers", "QueryParams", "ImmutableMultiDict"]
+
 
 def _check_no_crlf(value: str, label: str = "Header value") -> None:
     """Raise ValueError if *value* contains CR or LF (HTTP response splitting guard)."""
     if "\r" in value or "\n" in value:
         raise ValueError(f"{label} must not contain CR or LF characters")
+
+
+def _unique_keys(iterable: Any) -> Iterator[str]:
+    """Yield each key from *iterable* only once, preserving first-occurrence order."""
+    seen: set[str] = set()
+    for k in iterable:
+        if k not in seen:
+            seen.add(k)
+            yield k
+
+
+def _unique_items(iterable: Any) -> Iterator[tuple[str, Any]]:
+    """Yield each (key, value) pair from *iterable* only once per key,
+    preserving first-occurrence order."""
+    seen: set[str] = set()
+    for k, v in iterable:
+        if k not in seen:
+            seen.add(k)
+            yield k, v
 
 
 class Headers:
@@ -32,9 +53,7 @@ class Headers:
     """
 
     def __init__(self, raw: list[list[bytes]] | list[tuple[bytes, bytes]]) -> None:
-        # Lowercased bytes pairs — preserved for the raw ASGI property.
         self._list: list[tuple[bytes, bytes]] = [(k.lower(), v) for k, v in raw]
-        # C-backed case-insensitive store for O(1) lookups.
         self._store: CIMultiDict[str] = CIMultiDict(
             (k.decode("latin-1"), v.decode("latin-1")) for k, v in self._list
         )
@@ -160,35 +179,19 @@ class QueryParams:
         return key in self._store
 
     def __iter__(self) -> Iterator[str]:
-        seen: set[str] = set()
-        for k in self._store:
-            if k not in seen:
-                seen.add(k)
-                yield k
+        return _unique_keys(self._store)
 
     def __len__(self) -> int:
         return len(set(self._store.keys()))
 
     def items(self) -> list[tuple[str, str]]:
-        seen: set[str] = set()
-        result: list[tuple[str, str]] = []
-        for k, v in self._store.items():
-            if k not in seen:
-                seen.add(k)
-                result.append((k, v))
-        return result
+        return list(_unique_items(self._store.items()))
 
     def multi_items(self) -> list[tuple[str, str]]:
         return list(self._store.items())
 
     def keys(self) -> list[str]:
-        seen: set[str] = set()
-        result: list[str] = []
-        for k in self._store:
-            if k not in seen:
-                seen.add(k)
-                result.append(k)
-        return result
+        return list(_unique_keys(self._store))
 
     def __repr__(self) -> str:
         return f"QueryParams({self.items()!r})"

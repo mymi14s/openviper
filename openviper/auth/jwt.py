@@ -91,9 +91,20 @@ _JWT_REFRESH_EXPIRE: datetime.timedelta = _as_timedelta(
 def create_access_token(
     user_id: int | str,
     extra_claims: dict[str, Any] | None = None,
+    expires_delta: datetime.timedelta | None = None,
 ) -> str:
+    """Create a JWT access token.
+
+    Args:
+        user_id: The user ID to encode in the token.
+        extra_claims: Additional claims to include in the token.
+        expires_delta: Custom expiration time. If None, uses the default from settings.
+
+    Returns:
+        Encoded JWT token string.
+    """
     now = timezone.now()
-    expire = now + _JWT_ACCESS_EXPIRE
+    expire = now + (expires_delta if expires_delta is not None else _JWT_ACCESS_EXPIRE)
     core_claims: dict[str, Any] = {
         "sub": str(user_id),
         "jti": str(uuid.uuid4()),

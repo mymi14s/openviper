@@ -258,7 +258,7 @@ class Command(BaseCommand):
             help="Directory to create the provider package in (default: cwd).",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
         name: str = options["name"].replace("-", "_")
         if not name.isidentifier():
             raise CommandError(f"'{name}' is not a valid Python identifier after normalisation.")

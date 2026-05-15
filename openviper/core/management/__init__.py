@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import importlib
 import importlib.metadata
+import logging
 import os
 import pkgutil
 import sys
@@ -18,6 +19,8 @@ from typing import NoReturn, cast
 
 from openviper.conf import settings
 from openviper.core.management.base import BaseCommand, CommandError
+
+logger = logging.getLogger(__name__)
 
 _BUILTIN_COMMANDS_PACKAGE = "openviper.core.management.commands"
 
@@ -106,6 +109,7 @@ def _find_command(name: str) -> BaseCommand:
     try:
         installed = getattr(settings, "INSTALLED_APPS", [])
     except Exception:
+        logger.debug("Failed to read INSTALLED_APPS from settings", exc_info=True)
         installed = []
 
     for app in installed:
@@ -125,6 +129,7 @@ def _find_command(name: str) -> BaseCommand:
                 cmd_cls = ep.load()
                 return cast("BaseCommand", cmd_cls())
     except Exception:
+        logger.debug("No entry-point command found for %s", name, exc_info=True)
         pass
 
     raise CommandError(
@@ -155,7 +160,7 @@ def execute_from_command_line(argv: list[str] | None = None) -> NoReturn:
     Supports a global ``--settings`` flag that overrides
     ``OPENVIPER_SETTINGS_MODULE`` for any subcommand::
 
-        python viperctl.py --settings=project.settings.prod runserver
+        python viperctl.py --settings=project.settings.prod startserver
         python viperctl.py --settings=project.settings.dev migrate
 
     The flag is stripped from *argv* before passing to the subcommand so

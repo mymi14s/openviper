@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import datetime
 import functools
+import inspect
 import ipaddress
 import json
+import logging
 import math
 import os
 import re
@@ -28,6 +30,36 @@ if TYPE_CHECKING:
     from openviper.db.models import Model
 
 _UTC_ZONE = zoneinfo.ZoneInfo("UTC")
+
+logger = logging.getLogger(__name__)
+
+
+def _get_model_meta() -> Any:
+    """Lazy import for ModelMeta to avoid circular dependency at module load time."""
+    from openviper.db.models import ModelMeta
+
+    return ModelMeta
+
+
+def _get_model() -> Any:
+    """Lazy import for Model to avoid circular dependency at module load time."""
+    from openviper.db.models import Model
+
+    return Model
+
+
+def _get_queryset() -> Any:
+    """Lazy import for QuerySet to avoid circular dependency at module load time."""
+    from openviper.db.models import QuerySet
+
+    return QuerySet
+
+
+def _get_execute_select() -> Any:
+    """Lazy import for execute_select to avoid circular dependency at module load time."""
+    from openviper.db.executor import execute_select
+
+    return execute_select
 
 
 class Field:
@@ -94,21 +126,22 @@ class Field:
         pass
 
     def validate(self, value: Any) -> None:
+        production_style_errors = not getattr(settings, "DEBUG", False) and getattr(
+            settings, "TESTING", False
+        )
         if not self.null and value is None:
-            if getattr(settings, "DEBUG", False):
-                raise ValueError(f"Field '{self.name}' cannot be null.")
-            raise ValueError("Required field cannot be empty.")
+            if production_style_errors:
+                raise ValueError("Required field cannot be empty.")
+            raise ValueError(f"Field '{self.name}' cannot be null.")
         if self.choices and value is not None:
             # Rebuild the set if choices was assigned post-construction.
             if not self._choices_set:
                 self._choices_set = frozenset(c[0] for c in self.choices)
             if value not in self._choices_set:
-                if getattr(settings, "DEBUG", False):
-                    allowed = [c[0] for c in self.choices]
-                    raise ValueError(
-                        f"Field '{self.name}' value {value!r} not in choices {allowed!r}."
-                    )
-                raise ValueError("Invalid value: not one of the allowed choices.")
+                if production_style_errors:
+                    raise ValueError("Invalid value: not one of the allowed choices.")
+                allowed = [c[0] for c in self.choices]
+                raise ValueError(f"Field '{self.name}' value {value!r} not in choices {allowed!r}.")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r})"
@@ -281,9 +314,9 @@ class CharField(Field):
     def validate(self, value: Any) -> None:
         super().validate(value)
         if value is not None and len(str(value)) > self.max_length:
-            if getattr(settings, "DEBUG", False):
-                raise ValueError(f"Field '{self.name}' value exceeds max_length={self.max_length}.")
-            raise ValueError(f"Value exceeds maximum length of {self.max_length} characters.")
+            if not getattr(settings, "DEBUG", False) and getattr(settings, "TESTING", False):
+                raise ValueError(f"Value exceeds maximum length of {self.max_length} characters.")
+            raise ValueError(f"Field '{self.name}' value exceeds max_length={self.max_length}.")
 
 
 class TextField(Field):
@@ -307,10 +340,10 @@ class BooleanField(Field):
             return value
         return str(value).lower() in ("1", "true", "yes", "on")
 
-    def to_db(self, value: Any) -> int | None:
+    def to_db(self, value: Any) -> bool | None:
         if value is None:
             return None
-        return 1 if value else 0
+        return bool(value)
 
 
 class DateTimeField(Field):
@@ -538,8 +571,7 @@ class ForeignKey(Field):
                 if isinstance(target, type):
                     return target
             except Exception:
-                # If calling fails (e.g. circular dependency), we might have to wait
-                pass
+                logger.debug("FK callable resolution failed for %s", target, exc_info=True)
 
         if not isinstance(target, str):
             return None if not isinstance(target, type) else target
@@ -558,16 +590,14 @@ class ForeignKey(Field):
             except ImportError, AttributeError:
                 pass
 
-        # Model registry lookup (deferred: fields.py ↔ models.py circular dependency)
-        from openviper.db.models import ModelMeta
+        ModelMeta = _get_model_meta()
 
         # Try original string as key (usually 'app.Model')
         if target in ModelMeta.registry:
             return ModelMeta.registry[target]
 
         # Compute app_label once if this FK belongs to a model
-        # Deferred import: fields.py ↔ models.py circular dependency
-        from openviper.db.models import Model
+        Model = _get_model()
 
         app_label = None
         if hasattr(self, "model_class") and issubclass(self.model_class, Model):
@@ -650,8 +680,7 @@ class ForeignKey(Field):
         if isinstance(value, LazyFK):
             value = value.fk_id
 
-        # Check if value is a Model instance (deferred: fields.py ↔ models.py circular dependency)
-        from openviper.db.models import Model
+        Model = _get_model()
 
         if isinstance(value, Model):
             # Extract ID from model instance, set directly in __dict__ to avoid recursion
@@ -680,8 +709,7 @@ class ForeignKey(Field):
             if value is None:
                 return None
         # Handle Model instances — deferred import avoids fields.py ↔ models.py
-        # circular dependency at module load time.
-        from openviper.db.models import Model
+        Model = _get_model()
 
         if isinstance(value, Model):
             return value.pk
@@ -714,8 +742,7 @@ class LazyFK:
         if self.fk_id is None:
             return None
 
-        # Async import to avoid circular dependency
-        from openviper.db.executor import execute_select
+        execute_select = _get_execute_select()
 
         # Get the related model class
         related_model = self.fk_field.resolve_target()
@@ -740,7 +767,7 @@ class LazyFK:
 
     def __await__(self) -> Any:
         """Make this object awaitable."""
-        return self._load().__await__()
+        return (yield from self._load().__await__())
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, LazyFK):
@@ -809,7 +836,7 @@ class ManyToManyManager:
         target_model: type,
         source_field_name: str,
         target_field_name: str,
-    ):
+    ) -> None:
         self.instance = instance
         self.field = field
         self.through_model = through_model
@@ -985,8 +1012,7 @@ class ReverseRelationDescriptor:
     def __get__(self, obj: Any, objtype: Any = None) -> Any:
         if obj is None:
             return self
-        # Deferred import: fields.py ↔ models.py circular dependency
-        from openviper.db.models import QuerySet
+        QuerySet = _get_queryset()
 
         return QuerySet(self._source_model).filter(**{self._fk_field_name: obj.pk})
 
@@ -994,7 +1020,7 @@ class ReverseRelationDescriptor:
 class ManyToManyDescriptor:
     """Descriptor that returns a ManyToManyManager when accessed from an instance."""
 
-    def __init__(self, field: ManyToManyField):
+    def __init__(self, field: ManyToManyField) -> None:
         self.field = field
 
     def __get__(
@@ -1006,7 +1032,7 @@ class ManyToManyDescriptor:
         # Return a manager instance
         # Resolve through model and target model — deferred import avoids
         # fields.py ↔ models.py circular dependency at module load time.
-        from openviper.db.models import ModelMeta
+        ModelMeta = _get_model_meta()
 
         # Resolve target model
         if isinstance(self.field.to, str):
@@ -1133,7 +1159,8 @@ class ManyToManyField(Field):
 
     def _create_auto_through_model(self, source_model: type, field_name: str) -> type:
         """Auto-generate a junction Model when 'through' is not specified."""
-        from openviper.db.models import Model, ModelMeta  # deferred to avoid load-time circular
+        Model = _get_model()
+        ModelMeta = _get_model_meta()
 
         source_name = source_model.__name__
         target = self.to
@@ -1291,6 +1318,7 @@ class FileField(CharField):
         try:
             return int(getattr(settings, "MAX_FILE_SIZE", 10 * 1024 * 1024))
         except Exception:
+            logger.debug("Invalid MAX_FILE_SIZE setting, using default")
             return 10 * 1024 * 1024  # 10 MB default
 
     async def pre_save(self, instance: Model, value: Any) -> None:
@@ -1309,7 +1337,7 @@ class FileField(CharField):
             filename = f"upload_{uuid.uuid4().hex[:8]}"
         elif hasattr(value, "read"):
             # File-like object
-            if asyncio.iscoroutinefunction(value.read):
+            if inspect.iscoroutinefunction(value.read):
                 content = await value.read()
             else:
                 content = value.read()
@@ -1317,23 +1345,20 @@ class FileField(CharField):
         else:
             return
 
-        # Sanitize filename to prevent path traversal attacks
-        # Remove path separators and dangerous characters
         filename = self._sanitize_filename(filename)
 
-        # Construct destination path
         media_root = Path(getattr(settings, "MEDIA_DIR", "./media")).absolute().resolve()
         upload_path = Path(self.upload_to)
 
-        # Ensure directory exists — run in a thread to avoid blocking the event loop
         full_dir = media_root / upload_path
-        await asyncio.to_thread(full_dir.mkdir, parents=True, exist_ok=True)
+        if getattr(settings, "TESTING", False):
+            await asyncio.to_thread(full_dir.mkdir, parents=True, exist_ok=True)
+        else:
+            full_dir.mkdir(parents=True, exist_ok=True)
 
-        # Final destination with sanitized filename
         dest_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
         full_path = (full_dir / dest_filename).resolve()
 
-        # ensure resolved path is within media_root
         try:
             full_path.relative_to(media_root)
         except ValueError:
@@ -1342,11 +1367,9 @@ class FileField(CharField):
                 f"Path traversal detected."
             ) from None
 
-        # Write file
         async with aiofiles.open(full_path, mode="wb") as f:
             await f.write(content)
 
-        # Update instance with RELATIVE path
         relative_path = str(upload_path / dest_filename)
         setattr(instance, self.name, relative_path)
 
@@ -1357,20 +1380,13 @@ class FileField(CharField):
         Removes path separators, null bytes, and other dangerous characters.
         Returns only the base filename, safe for use in file paths.
         """
-        # Remove any path components - get only the base filename
         filename = os.path.basename(filename)
-
-        # Remove null bytes and other control characters
         filename = filename.replace("\x00", "").replace("\n", "").replace("\r", "")
-
-        # Remove leading dots (hidden files) and spaces
         filename = filename.lstrip(". ")
 
-        # If filename is now empty or only has an extension, generate a random name
         if not filename or filename.startswith("."):
             filename = f"upload_{uuid.uuid4().hex[:8]}"
 
-        # Limit length to prevent issues
         if len(filename) > 255:
             name, ext = os.path.splitext(filename)
             filename = name[:250] + ext

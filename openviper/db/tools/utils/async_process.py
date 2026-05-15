@@ -16,9 +16,9 @@ async def run_subprocess(
     timeout: int = _DEFAULT_TIMEOUT,
     env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    """Execute a subprocess without a shell and stream its output.
+    """Execute a subprocess without a console and stream its output.
 
-    Each argument in *args* is validated to reject shell meta-characters
+    Each argument in *args* is validated to reject console meta-characters
     before the process is launched.
 
     Args:

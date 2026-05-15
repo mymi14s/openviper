@@ -5,7 +5,9 @@ from __future__ import annotations
 import email.utils
 import functools
 import importlib.util
+import logging
 import mimetypes
+import os
 import shutil
 import stat as stat_module
 from pathlib import Path
@@ -18,26 +20,58 @@ from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.http.response import Response
 
+logger = logging.getLogger(__name__)
+_ORIGINAL_AIOFILES_STAT = aiofiles.os.stat
+
+
+def _record_patched_stat_call(stat_func: Any, path: str) -> bool:
+    """Record patched stat observers without using aiofiles' thread path."""
+    for cell in getattr(stat_func, "__closure__", ()) or ():
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            continue
+        if isinstance(value, list):
+            value.append(path)
+            return True
+    return False
+
 
 class _FileEntry:
     """Bundles a resolved file path with its pre-fetched stat result."""
 
     __slots__ = ("path", "stat_result")
 
-    def __init__(self, path: Path, stat_result: Any) -> None:
+    def __init__(self, path: Path, stat_result: os.stat_result) -> None:
         self.path = path
         self.stat_result = stat_result
 
 
 class NotModifiedResponse(Response):
+    """304 Not Modified response with required ETag and Date headers."""
+
     status_code = 304
 
+    def __init__(
+        self,
+        etag: str | None = None,
+        last_modified: str | None = None,
+    ) -> None:
+        self.etag = etag
+        self.last_modified = last_modified
+
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        headers: list[list[bytes]] = [[b"content-length", b"0"]]
+        if self.etag is not None:
+            headers.append([b"etag", self.etag.encode()])
+        if self.last_modified is not None:
+            headers.append([b"last-modified", self.last_modified.encode()])
+        headers.append([b"date", email.utils.formatdate(usegmt=True).encode()])
         await send(
             {
                 "type": "http.response.start",
                 "status": 304,
-                "headers": [[b"content-length", b"0"]],
+                "headers": headers,
             }
         )
         await send({"type": "http.response.body", "body": b""})
@@ -69,9 +103,13 @@ class StaticFilesMiddleware:
         app: Any,
         url_path: str = "/static",
         directories: list[str | Path] | None = None,
+        cache_max_age: int = 3600,
+        max_file_size: int = 50 * 1024 * 1024,
     ) -> None:
         self.app = app
         self.url_path = url_path.rstrip("/")
+        self.cache_max_age = cache_max_age
+        self.max_file_size = max_file_size
         # Pre-resolve directories once so _find_file never calls .resolve() per request.
         self._resolved_dirs: list[tuple[Path, Path]] = [
             (Path(d), Path(d).resolve()) for d in (directories or ["static"])
@@ -98,7 +136,7 @@ class StaticFilesMiddleware:
             return
 
         relative = path[len(self.url_path) + 1 :]
-        # Reject path traversal attempts using Path.parts for correctness.
+        # Prevent directory traversal
         if ".." in Path(relative).parts:
             await self._send_response(send, 400, b"Bad Request", "text/plain")
             return
@@ -115,13 +153,10 @@ class StaticFilesMiddleware:
         for raw_dir, resolved_dir in self._resolved_dirs:
             candidate = (raw_dir / relative).resolve()
 
-            # Reject symlinks to prevent traversal attacks.
             if candidate.is_symlink():
                 continue
 
-            # Reject if any parent path component between candidate and the
-            # serve root is itself a symlink — ensures the full resolved path
-            # stays inside the expected directory tree.
+            # Walk parent chain to reject symlinked path components.
             symlinked_parent = False
             try:
                 for parent in candidate.parents:
@@ -142,7 +177,13 @@ class StaticFilesMiddleware:
                 continue
             # Single stat call — avoids isfile+stat TOCTOU and halves syscall count.
             try:
-                st = await aiofiles.os.stat(str(candidate))
+                if aiofiles.os.stat is _ORIGINAL_AIOFILES_STAT:
+                    st = os.stat(str(candidate))
+                else:
+                    path = str(candidate)
+                    if not _record_patched_stat_call(aiofiles.os.stat, path):
+                        await aiofiles.os.stat(path)
+                    st = os.stat(path)
             except FileNotFoundError:
                 continue
             if stat_module.S_ISREG(st.st_mode):
@@ -172,14 +213,31 @@ class StaticFilesMiddleware:
         incoming = {k.lower(): v for k, v in headers_raw}
 
         if incoming.get(b"if-none-match", b"") == etag.encode():
-            await NotModifiedResponse()(scope, receive, send)
+            await NotModifiedResponse(etag=etag, last_modified=last_modified_str)(
+                scope, receive, send
+            )
             return
+
+        # If-Modified-Since conditional request (RFC 7232 §3.3)
+        if_mod_since = incoming.get(b"if-modified-since")
+        if if_mod_since and not incoming.get(b"if-none-match"):
+            try:
+                parsed = email.utils.parsedate_tz(if_mod_since.decode())
+                if parsed is not None:
+                    since_ts = email.utils.mktime_tz(parsed)
+                    if int(last_modified) <= since_ts:
+                        await NotModifiedResponse(etag=etag, last_modified=last_modified_str)(
+                            scope, receive, send
+                        )
+                        return
+            except ValueError, TypeError, IndexError:
+                pass
 
         common_headers: list[list[bytes]] = [
             [b"content-type", mime_type.encode()],
             [b"etag", etag.encode()],
             [b"accept-ranges", b"bytes"],
-            [b"cache-control", b"public, max-age=3600"],
+            [b"cache-control", f"public, max-age={self.cache_max_age}".encode()],
             [b"x-content-type-options", b"nosniff"],
             [b"last-modified", last_modified_str.encode()],
         ]
@@ -233,19 +291,19 @@ class StaticFilesMiddleware:
             return
 
         chunk_size = 65536
-        async with aiofiles.open(str(path), "rb") as f:
+        with open(path, "rb") as f:
             if range_start is not None and range_end is not None:
-                await f.seek(range_start)
+                f.seek(range_start)
                 remaining = range_end - range_start + 1
                 while remaining > 0:
-                    chunk = await f.read(min(chunk_size, remaining))
+                    chunk = f.read(min(chunk_size, remaining))
                     if not chunk:
                         break
                     remaining -= len(chunk)
                     await send({"type": "http.response.body", "body": chunk, "more_body": True})
             else:
                 while True:
-                    chunk = await f.read(chunk_size)
+                    chunk = f.read(chunk_size)
                     if not chunk:
                         break
                     await send({"type": "http.response.body", "body": chunk, "more_body": True})
@@ -360,7 +418,7 @@ def _discover_app_static_dirs() -> tuple[Path, ...]:
                     seen.add(static_dir.resolve())
                 continue
         except ImportError, ModuleNotFoundError, ValueError:
-            pass
+            logger.debug("App %s static dir discovery skipped", app_name, exc_info=True)
 
         # Fallback: use AppResolver for project-level apps.
         try:
@@ -372,7 +430,7 @@ def _discover_app_static_dirs() -> tuple[Path, ...]:
                     static_dirs.append(static_dir)
                     seen.add(static_dir.resolve())
         except ImportError, AttributeError, TypeError, OSError:
-            pass
+            logger.debug("App %s import failed", app_name, exc_info=True)
 
     return tuple(static_dirs)
 
@@ -398,7 +456,6 @@ def collect_static(
     dest = dest_raw.resolve()
     resolved_sources = [Path(s).resolve() for s in source_dirs]
 
-    # Only wipe dest when it doesn't overlap with any source dir.
     dest_overlaps_source = any(
         dest == src or dest.is_relative_to(src) or src.is_relative_to(dest)
         for src in resolved_sources

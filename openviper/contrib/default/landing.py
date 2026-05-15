@@ -206,7 +206,7 @@ only visible in development</span>
 $ openviper create-project mysite<br>
 $ <span class="kw">cd</span> mysite<br>
 <span class="comment"># Run the development server</span><br>
-$ python viperctl.py runserver<br>
+$ python viperctl.py startserver<br>
         </div>
     </div>
 

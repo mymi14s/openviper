@@ -27,12 +27,11 @@ from typing import cast
 
 logger = logging.getLogger("openviper.tasks")
 
-_MISSING = object()  # Sentinel for sys.modules lookup when key is absent
-
 __all__ = [
     "Schedule",
     "CronSchedule",
     "IntervalSchedule",
+    "_try_import_croniter",
 ]
 
 
@@ -103,6 +102,11 @@ _CRON_FIELD_RANGES = {
 }
 
 
+def _try_import_croniter() -> bool:
+    """Return whether the optional ``croniter`` dependency is available."""
+    return _HAS_CRONITER
+
+
 def _expand_field(token: str, lo: int, hi: int) -> set[int]:
     """Expand a single cron field token into a set of integers.
 
@@ -166,10 +170,6 @@ class CronSchedule(Schedule):
         if not self._use_croniter:
             self._fields = self._parse(self.expr)
 
-    # ------------------------------------------------------------------
-    # Internal parsing (stdlib-only fallback)
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _parse(expr: str) -> dict[str, set[int]]:
         parts = expr.split()
@@ -184,7 +184,8 @@ class CronSchedule(Schedule):
 
     def _stdlib_is_due(self, last_run_at: datetime | None, now: datetime) -> bool:
         """Check whether *now* matches the cron expression (minute granularity)."""
-        assert self._fields is not None
+        if self._fields is None:
+            raise ValueError("CronSchedule fields not parsed — internal error")
         # Cron dow uses 0=Sunday…6=Saturday; Python weekday() uses 0=Monday…6=Sunday.
         # Convert: cron_dow = (python_weekday + 1) % 7
         cron_dow = (now.weekday() + 1) % 7
@@ -195,10 +196,6 @@ class CronSchedule(Schedule):
             and now.month in self._fields["month"]
             and cron_dow in self._fields["dow"]
         )
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def is_due(self, last_run_at: datetime | None, now: datetime | None = None) -> bool:
         """Return ``True`` if the cron expression matches the current minute.
@@ -239,14 +236,10 @@ class CronSchedule(Schedule):
         return f"CronSchedule({self.expr!r})"
 
 
-def _try_import_croniter() -> bool:
-    """Return ``True`` if ``croniter`` is available."""
-    return _HAS_CRONITER
-
-
 try:
     import croniter as croniter_lib  # type: ignore[import-untyped]
+
+    _HAS_CRONITER = True
 except ImportError:
     croniter_lib = None  # type: ignore[assignment]
-
-_HAS_CRONITER: bool = croniter_lib is not None
+    _HAS_CRONITER = False

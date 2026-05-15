@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy.exc
 
 from openviper.admin.actions import ActionResult, get_action
+from openviper.admin.api.permissions import check_admin_access, check_model_permission
 from openviper.admin.fields import coerce_field_value, get_field_component_type, get_filter_choices
 from openviper.admin.history import (
     ChangeAction,
@@ -29,7 +30,6 @@ from openviper.admin.history import (
     get_recent_activity,
     log_change,
 )
-from openviper.admin.middleware import check_admin_access, check_model_permission
 from openviper.admin.registry import NotRegistered, admin
 from openviper.auth import authenticate, create_access_token, create_refresh_token, get_user_model
 from openviper.auth.jwt import decode_refresh_token, decode_token_unverified
@@ -41,6 +41,7 @@ from openviper.exceptions import NotFound, PermissionDenied, Unauthorized, Valid
 from openviper.http.response import JSONResponse, Response
 from openviper.middleware.ratelimit import rate_limit
 from openviper.routing.router import Router
+from openviper.utils import timezone
 
 if TYPE_CHECKING:
     from openviper.admin import ModelAdmin
@@ -68,6 +69,7 @@ def _is_auth_user_model(model_class: type) -> bool:
         _User = get_user_model()  # noqa: N806
         return model_class is _User or issubclass(model_class, _User)
     except Exception:
+        logger.debug("_is_user_model check failed for %s", model_class, exc_info=True)
         return False
 
 
@@ -346,8 +348,10 @@ def get_admin_router() -> Router:
         if not getattr(user, "is_staff", False) and not getattr(user, "is_superuser", False):
             raise PermissionDenied("Admin access requires staff privileges.")
 
-        # Generate tokens
-        access_token = create_access_token(user.id, {"username": user.username})
+        # Generate tokens with 24-hour expiration for admin sessions
+        access_token = create_access_token(
+            user.id, {"username": user.username}, expires_delta=datetime.timedelta(hours=24)
+        )
         refresh_token = create_refresh_token(user.id)
 
         return JSONResponse(
@@ -395,6 +399,7 @@ def get_admin_router() -> Router:
             body = await request.json()
             refresh_token = body.get("refresh_token")
         except Exception:
+            logger.debug("Failed to parse request body for refresh token revocation")
             refresh_token = None
 
         if refresh_token:
@@ -448,11 +453,17 @@ def get_admin_router() -> Router:
         if not user:
             raise ValidationError({"detail": "User not found."})
 
-        access_token = create_access_token(user.id, {"username": user.username})
+        # Generate new access token with 24-hour expiration for admin sessions
+        expires_at = timezone.now() + datetime.timedelta(hours=24)
+        access_token = create_access_token(
+            user.id, {"username": user.username}, expires_delta=datetime.timedelta(hours=24)
+        )
 
         return JSONResponse(
             {
+                "token": access_token,
                 "access_token": access_token,
+                "expires_at": expires_at.isoformat(),
             }
         )
 
@@ -580,6 +591,7 @@ def get_admin_router() -> Router:
                 count = await model_class.objects.count()
                 return (model_name, count)
             except Exception:
+                logger.warning("Failed to count %s, defaulting to 0", model_name, exc_info=True)
                 return (model_name, 0)
 
         # Run all count queries concurrently
@@ -608,7 +620,7 @@ def get_admin_router() -> Router:
                     }
                 )
         except Exception:
-            pass  # History table might not exist yet
+            logger.debug("Failed to load change history, table may not exist yet", exc_info=True)
 
         return JSONResponse(
             {
@@ -1074,7 +1086,11 @@ def get_admin_router() -> Router:
                                 {"value": str(obj.id), "label": str(obj)} for obj in related_qs
                             ]
                         except Exception:
-                            pass
+                            logger.debug(
+                                "Failed to load related model choices for %s",
+                                field_name,
+                                exc_info=True,
+                            )
 
             filters.append(filter_info)
 

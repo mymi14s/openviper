@@ -84,10 +84,15 @@ class AdminAction:
         if user is None:
             return False
 
-        # Check if user has all required permissions
-        for _perm in self.permissions:
-            if not hasattr(user, "has_perm"):
-                return getattr(user, "is_superuser", False)
+        if bool(getattr(user, "is_superuser", False)):
+            return True
+
+        for perm in self.permissions:
+            if hasattr(user, "has_perm") and callable(user.has_perm):
+                if not user.has_perm(perm):
+                    return False
+            else:
+                return bool(getattr(user, "is_superuser", False))
         return True
 
     def get_info(self) -> dict[str, Any]:

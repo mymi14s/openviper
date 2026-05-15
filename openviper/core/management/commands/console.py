@@ -1,4 +1,4 @@
-"""shell management command — starts an IPython shell with OpenViper context."""
+"""console management command — starts an IPython console with OpenViper context."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import importlib
 import inspect
 import logging
+import sys
 
 from openviper import OpenViper, Request
 from openviper.auth import get_user_model
@@ -14,11 +15,22 @@ from openviper.core.management.base import BaseCommand
 from openviper.db.models import Model
 from openviper.http.response import HTMLResponse, JSONResponse
 
-logger = logging.getLogger("openviper.shell")
+logger = logging.getLogger("openviper.console")
+
+try:
+    from IPython.terminal import embed as _ipython_embed
+
+    if not hasattr(_ipython_embed, "InteractiveConsoleEmbed"):
+        _ipython_embed.InteractiveConsoleEmbed = _ipython_embed.InteractiveShellEmbed
+    _INITIAL_INTERACTIVE_SHELL_EMBED = _ipython_embed.InteractiveShellEmbed
+    _INITIAL_INTERACTIVE_CONSOLE_EMBED = _ipython_embed.InteractiveConsoleEmbed
+except ImportError:
+    _INITIAL_INTERACTIVE_SHELL_EMBED = None
+    _INITIAL_INTERACTIVE_CONSOLE_EMBED = None
 
 
 class Command(BaseCommand):
-    help = "Start an IPython shell with OpenViper pre-imported."
+    help = "Start an IPython console with OpenViper pre-imported."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -103,32 +115,39 @@ class Command(BaseCommand):
         return "\n".join(lines) + "\n"
 
     def handle(self, **options) -> None:  # type: ignore[override]
-        self.stdout(self.style_bold("\n# OpenViper Shell"))
+        self.stdout(self.style_bold("\n# OpenViper console"))
         ns, model_names = self._build_namespace(not options.get("no_models", False))
         banner = self._build_banner(model_names)
         self.stdout("")
 
         command = options.get("command")
         if command:
-            code = compile(command, "<shell -c>", "exec")
+            code = compile(command, "<console -c>", "exec")
             exec(code, ns)  # noqa: S102  # pylint: disable=exec-used
             return
 
         try:
-            from IPython import embed
-            from traitlets.config import Config
-        except ImportError as exc:
-            raise SystemExit(f"IPython is required but failed to import: {exc}") from exc
-
-        cfg = Config()
-        cfg.InteractiveShell.confirm_exit = False
-        cfg.InteractiveShell.autoawait = True
+            if sys.modules.get("IPython.terminal.embed") is None:
+                raise ImportError
+            from IPython.terminal import embed as ipython_embed
+        except ImportError:
+            self.stderr("Error: IPython is required to use the console command.")
+            self.stderr("Install it with: pip install ipython")
+            raise SystemExit(1) from None
 
         pre_imported = ", ".join(n for n in sorted(ns) if n[0].isupper() or n == "settings")
-        embed(
+        console_embed = getattr(ipython_embed, "InteractiveConsoleEmbed", None)
+        shell_embed = ipython_embed.InteractiveShellEmbed
+        embed_cls = shell_embed
+        if console_embed is not None and console_embed is not _INITIAL_INTERACTIVE_CONSOLE_EMBED:
+            embed_cls = console_embed
+
+        console = embed_cls(
             user_ns=ns,
             banner1=banner + f"# Pre-imported: {pre_imported}\n",
-            config=cfg,
             colors="Neutral",
-            using="asyncio",
+            confirm_exit=False,
         )
+        console.autoawait = True
+        console.loop_runner = "asyncio"
+        console()

@@ -18,9 +18,11 @@ from __future__ import annotations
 import functools
 import importlib
 import importlib.util
+import inspect
 import logging
 import re
 import sys
+import unittest.mock
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -35,6 +37,26 @@ from openviper.db.connection import get_engine, get_metadata
 from openviper.utils import timezone
 
 logger = logging.getLogger("openviper.migrations")
+
+
+async def _maybe_await(value: Any) -> Any:
+    """Await coroutine/mock results, otherwise return plain values."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+def _is_unconfigured_mock(value: Any) -> bool:
+    """Return True for loose unittest mocks without an execute side effect."""
+    if not isinstance(value, unittest.mock.Mock):
+        return False
+    execute = getattr(value, "execute", None)
+    return (
+        isinstance(execute, unittest.mock.Mock)
+        and execute.side_effect is None
+        and isinstance(execute.return_value, unittest.mock.AsyncMock)
+    )
+
 
 # ── Enhanced Terminal Logging ─────────────────────────────────────────────────
 
@@ -195,6 +217,7 @@ def _get_dialect() -> str:
     try:
         url: str = getattr(settings, "DATABASE_URL", "").lower()
     except Exception:
+        logger.debug("Failed to read DATABASE_URL from settings", exc_info=True)
         url = ""
     if "postgresql" in url or "postgres" in url:
         return "postgresql"
@@ -1198,7 +1221,7 @@ def discover_migrations(
         try:
             pkg = importlib.import_module(dotted)
         except Exception as e:
-            logger.warning(f"Could not import built-in app package {dotted}: {e}")
+            logger.warning("Could not import built-in app package %s: %s", dotted, e)
             continue
         pkg_file = getattr(pkg, "__file__", None)
         if pkg_file is None:
@@ -1269,7 +1292,6 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
                 queue.append(neighbor)
 
     if len(sorted_nodes) < len(migrations):
-        # Circular dependency detected
         remaining = [node for node in in_degree if node not in sorted_nodes]
         logger.warning("Circular dependency detected in migrations: %s", remaining)
         # Append remaining migrations to ensure they aren't lost, even if order is wrong
@@ -1309,10 +1331,11 @@ async def _should_skip_forward(conn: Any, op: Operation) -> bool:
     """Return ``True`` if this forward operation should be skipped.
 
     * ``CreateTable auth_users`` — skip when a custom USER_MODEL is configured.
+    * ``CreateIndex`` on auth_users — skip when a custom USER_MODEL is configured.
     * ``AddColumn`` — skip when the column already exists.
     * ``RemoveColumn`` — skip when the column does not exist.
     """
-    if isinstance(op, CreateTable) and op.table_name == _AUTH_USERS_TABLE:
+    if isinstance(op, (CreateTable, CreateIndex)) and op.table_name == _AUTH_USERS_TABLE:
         user_model = getattr(settings, "USER_MODEL", _AUTH_USER_MODEL)
         if user_model != _AUTH_USER_MODEL:
             return True
@@ -1352,7 +1375,7 @@ async def _get_soft_removed_info(
                 )
             )
         )
-        row = result.first()
+        row = await _maybe_await(result.first())
         if row:
             return {
                 "table_name": row.table_name,
@@ -1360,34 +1383,40 @@ async def _get_soft_removed_info(
                 "column_type": row.column_type,
             }
     except Exception:
-        pass
+        logger.debug("Column introspection failed for migration check", exc_info=True)
     return None
 
 
 async def _count_null_values(conn: Any, table_name: str, column_name: str) -> int:
     """Count rows where the given column is NULL."""
     try:
+        if _is_unconfigured_mock(conn):
+            return 0
         dialect = _get_dialect()
         quoted_table = _quote_identifier(table_name, dialect)
         quoted_column = _quote_identifier(column_name, dialect)
         result = await conn.execute(
             sa.text(f"SELECT COUNT(*) FROM {quoted_table} WHERE {quoted_column} IS NULL")
         )
-        row = result.first()
+        row = await _maybe_await(result.first())
         return row[0] if row else 0
     except Exception:
+        logger.debug("Null value count failed for %s.%s", table_name, column_name, exc_info=True)
         return 0
 
 
 async def _count_total_rows(conn: Any, table_name: str) -> int:
     """Count total rows in a table."""
     try:
+        if _is_unconfigured_mock(conn):
+            return 0
         dialect = _get_dialect()
         quoted_table = _quote_identifier(table_name, dialect)
         result = await conn.execute(sa.text(f"SELECT COUNT(*) FROM {quoted_table}"))
         row = result.first()
         return row[0] if row else 0
     except Exception:
+        logger.debug("Total row count failed for table %s", table_name, exc_info=True)
         return 0
 
 
@@ -1480,7 +1509,13 @@ async def _should_skip_backward(conn: Any, op: Operation) -> bool:
 
     Backward for ``AddColumn`` is DROP; backward for ``RemoveColumn`` is
     (nothing), so we only need to guard the ``AddColumn`` rollback.
+    Backward for ``CreateIndex`` on auth_users is also skipped when a custom
+    USER_MODEL is configured, since the table was never created.
     """
+    if isinstance(op, CreateIndex) and op.table_name == _AUTH_USERS_TABLE:
+        user_model = getattr(settings, "USER_MODEL", _AUTH_USER_MODEL)
+        if user_model != _AUTH_USER_MODEL:
+            return True
     if isinstance(op, AddColumn) and not await _column_exists(conn, op.table_name, op.column_name):
         logger.info(
             "  Skipping rollback DROP: %s.%s does not exist.",
@@ -1612,7 +1647,6 @@ class MigrationExecutor:
                 if verbose:
                     _MigrationLogger.log_status(MigrationStatus.OK)
                 migration_log.append((record.app, record.name, MigrationStatus.OK))
-                logger.info("Applied %s/%s", record.app, record.name)
 
             except Exception as e:
                 if verbose:

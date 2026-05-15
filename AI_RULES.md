@@ -188,3 +188,33 @@ When generating Python code:
 # Priority of Rules
 
 If an AI tool generates code that violates these rules, the rules in this document **override the generated output**.
+
+# ⚠️ Strict Context Modification Rule
+
+## Objective
+Ensure that only code directly related to the current task or context is modified.
+
+## Rules
+
+1. **Do NOT modify unrelated code**
+   - Any feature, function, file, or logic not explicitly مرتبط (related) to the current request must remain unchanged.
+   - Avoid refactoring, renaming, or optimizing unrelated sections.
+
+2. **Limit changes strictly to scope**
+   - Only edit the minimal set of lines required to complete the task.
+   - Do not introduce changes outside the defined context.
+
+3. **Preserve existing behavior**
+   - Existing functionality must continue to work exactly as before unless explicitly instructed otherwise.
+
+4. **No unsolicited improvements**
+   - Do not “clean up,” “optimize,” or “improve” code outside the requested scope.
+   - Do not upgrade dependencies, change formatting, or reorganize structure unless required.
+
+5. **Respect surrounding code**
+   - Maintain compatibility with the existing architecture and coding style.
+   - Do not break integrations with other modules.
+
+6. **Be explicit about changes**
+   - Clearly indicate what was changed and why.
+   - If unsure whether something is in scope, do not modify it.

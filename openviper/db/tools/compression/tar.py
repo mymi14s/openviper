@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import tarfile
 from pathlib import Path
 
@@ -14,9 +13,6 @@ async def create_tar_gz(archive_path: Path, source_files: list[Path]) -> None:
 
     Files are written with their bare filenames only (no directory structure)
     to avoid accidentally embedding absolute paths inside the archive.
-
-    This operation is dispatched to a thread-pool executor so it does not
-    block the event loop.
 
     Args:
         archive_path: Destination ``.tar.gz`` file path.
@@ -30,13 +26,7 @@ async def create_tar_gz(archive_path: Path, source_files: list[Path]) -> None:
         if not src.exists():
             raise FileNotFoundError(f"Source file not found for archiving: {src}")
 
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(
-        None,
-        _create_tar_gz_sync,
-        archive_path,
-        source_files,
-    )
+    _create_tar_gz_sync(archive_path, source_files)
 
 
 def _create_tar_gz_sync(archive_path: Path, source_files: list[Path]) -> None:
@@ -52,8 +42,6 @@ async def extract_tar_gz(archive_path: Path, dest_dir: Path) -> list[Path]:
     Each member path is validated so that no file is extracted outside
     *dest_dir* (prevents "tar-slip" / "zip-slip" attacks).
 
-    This operation is dispatched to a thread-pool executor.
-
     Args:
         archive_path: Path to the ``.tar.gz`` file.
         dest_dir: Directory to extract into (created if absent).
@@ -68,13 +56,7 @@ async def extract_tar_gz(archive_path: Path, dest_dir: Path) -> list[Path]:
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        None,
-        _extract_tar_gz_sync,
-        archive_path,
-        dest_dir,
-    )
+    return _extract_tar_gz_sync(archive_path, dest_dir)
 
 
 def _extract_tar_gz_sync(archive_path: Path, dest_dir: Path) -> list[Path]:

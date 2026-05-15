@@ -5,7 +5,7 @@ from __future__ import annotations
 import html as _html
 
 SWAGGER_UI_CDN = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5"
-REDOC_CDN = "https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js"
+REDOC_CDN = "https://cdn.jsdelivr.net/npm/redoc@2.5.0/bundles/redoc.standalone.js"
 
 
 def get_swagger_html(title: str, openapi_url: str) -> str:

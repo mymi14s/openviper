@@ -1,4 +1,4 @@
-"""runserver management command."""
+"""startserver management command."""
 
 from __future__ import annotations
 
@@ -12,10 +12,12 @@ import os
 import shutil
 from pathlib import Path
 
+from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
 from openviper.core.management.utils import get_banner
 from openviper.db.migrations.executor import MigrationExecutor, discover_migrations
+from openviper.utils.logging import get_uvicorn_log_config
 
 try:
     import uvicorn
@@ -27,7 +29,15 @@ try:
 except Exception:  # pragma: no cover
     _openviper_pkg = None  # type: ignore[assignment]
 
-logger = logging.getLogger("openviper.runserver")
+logger = logging.getLogger("openviper.startserver")
+
+_LEVEL_RANK: dict[str, int] = {
+    "debug": 0,
+    "info": 1,
+    "warning": 2,
+    "error": 3,
+    "critical": 4,
+}
 
 # Thread pool for background migration check
 _MIGRATION_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(
@@ -71,7 +81,7 @@ class Command(BaseCommand):
             help="ASGI app path, e.g. myproject.asgi:app (auto-detected from settings)",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
         if uvicorn is None:
             self.stderr(self.style_error("uvicorn is required: pip install uvicorn"))
             return
@@ -85,9 +95,8 @@ class Command(BaseCommand):
         reload = options["reload"]
         workers = options.get("workers", 1)
 
-        from openviper.conf import settings
-
-        log_level = getattr(settings, "LOG_LEVEL", "INFO").lower()
+        settings_level = getattr(settings, "LOG_LEVEL", "INFO").lower()
+        log_level = settings_level if _LEVEL_RANK.get(settings_level, 1) <= 1 else "info"
 
         get_banner(self, host, port)
 
@@ -101,8 +110,10 @@ class Command(BaseCommand):
             # Ignore errors from migration check - server should start anyway
             pass
 
+        log_config = get_uvicorn_log_config()
+
         if reload:
-            self._run_with_cache_clear(uvicorn, app_path, host, port, log_level)
+            self._run_with_cache_clear(uvicorn, app_path, host, port, log_level, log_config)
         else:
             uvicorn.run(
                 app_path,
@@ -111,6 +122,7 @@ class Command(BaseCommand):
                 reload=False,
                 workers=workers,
                 log_level=log_level,
+                log_config=log_config,
             )
 
     # ── helpers ───────────────────────────────────────────────────────
@@ -132,7 +144,13 @@ class Command(BaseCommand):
         return dirs
 
     def _run_with_cache_clear(
-        self, uvicorn, app_path: str, host: str, port: int, log_level: str = "info"
+        self,
+        uvicorn,
+        app_path: str,
+        host: str,
+        port: int,
+        log_level: str = "info",
+        log_config: dict | None = None,
     ) -> None:
         """Run uvicorn with ``--reload`` and clear ``__pycache__`` before every restart.
 
@@ -154,8 +172,10 @@ class Command(BaseCommand):
                 cls = getattr(mod, class_name)
                 _orig = cls.restart
 
-                def _patched(self_reloader, _orig=_orig, _root=root):
+                def _patched(self_reloader, _orig=_orig, _root=root, _cls=cls):
                     _clear_pycache(_root)
+                    if not isinstance(self_reloader, _cls):
+                        return
                     _orig(self_reloader)
 
                 cls.restart = _patched  # type: ignore[method-assign]
@@ -170,6 +190,7 @@ class Command(BaseCommand):
             reload=True,
             reload_dirs=reload_dirs,
             log_level=log_level,
+            log_config=log_config,
         )
 
     def _resolve_app_path(self, options: dict) -> str:
@@ -193,8 +214,6 @@ class Command(BaseCommand):
         This runs in a background thread to avoid blocking server startup.
         """
         try:
-            from openviper.conf import settings
-
             resolver = AppResolver()
             installed_apps = getattr(settings, "INSTALLED_APPS", [])
             resolved = resolver.resolve_all_apps(installed_apps)
@@ -217,7 +236,11 @@ class Command(BaseCommand):
                     if (rec.app, rec.name) not in applied
                 ]
 
-            pending = asyncio.run(_get_pending())
+            pending_coro = _get_pending()
+            try:
+                pending = asyncio.run(pending_coro)
+            finally:
+                pending_coro.close()
 
             if pending:
                 self.stdout("")

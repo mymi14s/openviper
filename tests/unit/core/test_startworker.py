@@ -1,4 +1,4 @@
-"""Unit tests for runworker management command."""
+"""Unit tests for startworker management command."""
 
 import importlib
 import signal
@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from openviper.core.management.commands.runworker import Command
+from openviper.core.management.commands.startworker import Command
 
 
 @pytest.fixture
@@ -17,13 +17,13 @@ def command():
     return Command()
 
 
-class TestRunWorkerCommand:
-    """Test runworker command basic functionality."""
+class TestStartWorkerCommand:
+    """Test startworker command basic functionality."""
 
-    def test_help_attribute(self, command):
+    def test_help_attribute(self, command) -> None:
         assert "Dramatiq" in command.help or "task worker" in command.help
 
-    def test_add_arguments(self, command):
+    def test_add_arguments(self, command) -> None:
         parser = Mock()
         parser.add_argument = Mock()
 
@@ -36,7 +36,7 @@ class TestRunWorkerCommand:
 class TestDramatiqImport:
     """Test dramatiq import handling."""
 
-    def test_handle_missing_dramatiq_exits(self, command, capsys):
+    def test_handle_missing_dramatiq_exits(self, command, capsys) -> None:
         """Test that missing dramatiq exits with error."""
         original_import_module = importlib.import_module
 
@@ -46,7 +46,7 @@ class TestDramatiqImport:
             return original_import_module(name, *args, **kwargs)
 
         with patch(
-            "openviper.core.management.commands.runworker.importlib.import_module",
+            "openviper.core.management.commands.startworker.importlib.import_module",
             side_effect=mock_import_module,
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -60,7 +60,7 @@ class TestDramatiqImport:
 class TestDatabaseBroker:
     """Test database broker mode."""
 
-    def test_handle_database_broker_runs_in_process(self, command, capsys):
+    def test_handle_database_broker_runs_in_process(self, command, capsys) -> None:
         """Test that database broker runs worker in-process."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -69,9 +69,9 @@ class TestDatabaseBroker:
         mock_run_worker = Mock()
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.run_worker",
+                    "openviper.core.management.commands.startworker.run_worker",
                     mock_run_worker,
                 ):
                     command.handle(modules=[], queues=None, threads=8, processes=1)
@@ -85,7 +85,7 @@ class TestDatabaseBroker:
 class TestRedisBroker:
     """Test Redis/RabbitMQ broker mode."""
 
-    def test_handle_redis_broker_spawns_subprocess(self, command, capsys):
+    def test_handle_redis_broker_spawns_subprocess(self, command, capsys) -> None:
         """Test that Redis broker spawns dramatiq subprocess."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -100,13 +100,13 @@ class TestRedisBroker:
         mock_proc.wait = Mock()
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.subprocess.Popen",
+                        "openviper.core.management.commands.startworker.subprocess.Popen",
                         return_value=mock_proc,
                     ) as mock_popen:
                         command.handle(modules=["myapp.tasks"], queues=None, threads=8, processes=1)
@@ -117,7 +117,7 @@ class TestRedisBroker:
 class TestModuleDiscovery:
     """Test task module auto-discovery."""
 
-    def test_handle_discovers_task_modules(self, command):
+    def test_handle_discovers_task_modules(self, command) -> None:
         """Test that modules are discovered from INSTALLED_APPS."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -128,13 +128,13 @@ class TestModuleDiscovery:
         mock_resolver.resolve_app = Mock(return_value=("/fake/testapp", True))
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.os.walk",
+                        "openviper.core.management.commands.startworker.os.walk",
                         return_value=[],
                     ):
                         # No modules discovered, should exit
@@ -143,8 +143,10 @@ class TestModuleDiscovery:
 
                         assert exc_info.value.code == 1
 
-    @patch("openviper.core.management.commands.runworker.subprocess.Popen")
-    def test_handle_discovers_task_modules_ignores_openviper_and_unfound(self, mock_popen, command):
+    @patch("openviper.core.management.commands.startworker.subprocess.Popen")
+    def test_handle_discovers_task_modules_ignores_openviper_and_unfound(
+        self, mock_popen, command
+    ) -> None:
         """Test module discovery filters correctly."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -174,13 +176,13 @@ class TestModuleDiscovery:
                 yield (path, [], [])
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.os.walk",
+                        "openviper.core.management.commands.startworker.os.walk",
                         side_effect=mock_walk,
                     ):
                         command.handle(modules=[], queues=None, threads=8, processes=1)
@@ -193,7 +195,7 @@ class TestModuleDiscovery:
 class TestCommandLineBuilding:
     """Test command line argument building."""
 
-    def test_handle_builds_command_with_threads(self, command):
+    def test_handle_builds_command_with_threads(self, command) -> None:
         """Test that threads argument is passed to dramatiq."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -207,13 +209,13 @@ class TestCommandLineBuilding:
         mock_proc.wait = Mock()
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.subprocess.Popen",
+                        "openviper.core.management.commands.startworker.subprocess.Popen",
                         return_value=mock_proc,
                     ) as mock_popen:
                         command.handle(modules=["test"], queues=None, threads=4, processes=1)
@@ -222,7 +224,7 @@ class TestCommandLineBuilding:
         assert "--threads" in call_args
         assert "4" in call_args
 
-    def test_handle_builds_command_with_queues(self, command):
+    def test_handle_builds_command_with_queues(self, command) -> None:
         """Test that queues argument is passed to dramatiq."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -236,13 +238,13 @@ class TestCommandLineBuilding:
         mock_proc.wait = Mock()
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.subprocess.Popen",
+                        "openviper.core.management.commands.startworker.subprocess.Popen",
                         return_value=mock_proc,
                     ) as mock_popen:
                         command.handle(
@@ -258,7 +260,7 @@ class TestCommandLineBuilding:
 class TestSignalHandling:
     """Test signal handling for subprocess."""
 
-    def test_handle_handles_keyboard_interrupt(self, command):
+    def test_handle_handles_keyboard_interrupt(self, command) -> None:
         """Test that KeyboardInterrupt sends SIGTERM to subprocess."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -273,20 +275,20 @@ class TestSignalHandling:
         mock_proc.returncode = 0
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.subprocess.Popen",
+                        "openviper.core.management.commands.startworker.subprocess.Popen",
                         return_value=mock_proc,
                     ):
                         command.handle(modules=["test"], queues=None, threads=8, processes=1)
 
         mock_proc.send_signal.assert_called_with(signal.SIGTERM)
 
-    def test_handle_handles_keyboard_interrupt_with_timeout(self, command):
+    def test_handle_handles_keyboard_interrupt_with_timeout(self, command) -> None:
         """Test KeyboardInterrupt with subprocess timeout."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -309,13 +311,13 @@ class TestSignalHandling:
         mock_proc.returncode = 0
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.subprocess.Popen",
+                        "openviper.core.management.commands.startworker.subprocess.Popen",
                         return_value=mock_proc,
                     ):
                         command.handle(modules=["test"], queues=None, threads=8, processes=1)
@@ -327,14 +329,14 @@ class TestSignalHandling:
 class TestEdgeCases:
     """Test edge cases."""
 
-    def test_command_instantiation(self):
+    def test_command_instantiation(self) -> None:
         """Test that command can be instantiated."""
         cmd = Command()
         assert cmd is not None
         assert hasattr(cmd, "handle")
         assert hasattr(cmd, "add_arguments")
 
-    def test_handle_default_broker_is_redis(self, command):
+    def test_handle_default_broker_is_redis(self, command) -> None:
         """Test that default broker is redis when not specified."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -344,17 +346,17 @@ class TestEdgeCases:
         mock_resolver = Mock()
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
-                    with patch("openviper.core.management.commands.runworker.subprocess.Popen"):
+                    with patch("openviper.core.management.commands.startworker.subprocess.Popen"):
                         # No modules found, should exit
                         with pytest.raises(SystemExit):
                             command.handle(modules=[], queues=None, threads=8, processes=1)
 
-    def test_handle_nonzero_return_code(self, command):
+    def test_handle_nonzero_return_code(self, command) -> None:
         """Test exit with subprocess return code."""
         mock_dramatiq = Mock()
         mock_settings = Mock()
@@ -368,13 +370,13 @@ class TestEdgeCases:
         mock_proc.returncode = 42
 
         with patch.dict(sys.modules, {"dramatiq": mock_dramatiq}):
-            with patch("openviper.core.management.commands.runworker.settings", mock_settings):
+            with patch("openviper.core.management.commands.startworker.settings", mock_settings):
                 with patch(
-                    "openviper.core.management.commands.runworker.AppResolver",
+                    "openviper.core.management.commands.startworker.AppResolver",
                     return_value=mock_resolver,
                 ):
                     with patch(
-                        "openviper.core.management.commands.runworker.subprocess.Popen",
+                        "openviper.core.management.commands.startworker.subprocess.Popen",
                         return_value=mock_proc,
                     ):
                         with pytest.raises(SystemExit) as exc_info:

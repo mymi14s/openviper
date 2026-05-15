@@ -125,7 +125,7 @@ class Command(BaseCommand):
 
     # ── main handler ──────────────────────────────────────────────────
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
 
         User = get_user_model()  # noqa: N806
         field_names = _model_field_names(User)

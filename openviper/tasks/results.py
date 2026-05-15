@@ -54,6 +54,21 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+__all__ = [
+    "upsert_result",
+    "batch_upsert_results",
+    "get_task_result",
+    "get_task_result_sync",
+    "list_task_results",
+    "list_task_results_sync",
+    "delete_task_result",
+    "clean_old_results",
+    "get_task_stats",
+    "reset_engine",
+    "shutdown_async_executor",
+    "setup_cleanup_task",
+]
+
 import sqlalchemy as sa
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.mysql import insert as _mysql_insert
@@ -413,11 +428,10 @@ def list_task_results_sync(
 async def get_task_result(message_id: str) -> dict[str, Any] | None:
     """Async wrapper around :func:`get_task_result_sync`.
 
-    Uses a dedicated thread pool executor for better performance under
-    high concurrency.
+    Keeps the public async API while using the synchronous query path directly.
     """
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_async_executor, get_task_result_sync, message_id)
+    await asyncio.sleep(0)
+    return get_task_result_sync(message_id)
 
 
 async def list_task_results(
@@ -430,19 +444,15 @@ async def list_task_results(
 ) -> list[dict[str, Any]]:
     """Async wrapper around :func:`list_task_results_sync`.
 
-    Uses a dedicated thread pool executor for better performance under
-    high concurrency.
+    Keeps the public async API while using the synchronous query path directly.
     """
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        _async_executor,
-        lambda: list_task_results_sync(
-            status=status,
-            actor_name=actor_name,
-            queue_name=queue_name,
-            limit=limit,
-            offset=offset,
-        ),
+    await asyncio.sleep(0)
+    return list_task_results_sync(
+        status=status,
+        actor_name=actor_name,
+        queue_name=queue_name,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -461,8 +471,11 @@ def delete_task_result(message_id: str) -> bool:
 def clean_old_results(days: int = 7) -> int:
     """Delete task results older than the given number of days.
 
+    Also deletes orphaned rows where ``completed_at`` is NULL and
+    ``enqueued_at`` is older than the cutoff (e.g. stuck pending/running tasks).
+
     Args:
-        days: Rows with ``completed_at`` older than this many days are removed.
+        days: Rows older than this many days are removed.
 
     Returns:
         Number of rows deleted.
@@ -474,15 +487,19 @@ def clean_old_results(days: int = 7) -> int:
 
     cutoff = datetime.now(UTC) - timedelta(days=days)
     with engine.begin() as conn:
-        res = conn.execute(sa.delete(_table).where(_table.c.completed_at < cutoff))
-        return int(res.rowcount or 0)
+        res1 = conn.execute(sa.delete(_table).where(_table.c.completed_at < cutoff))
+        res2 = conn.execute(
+            sa.delete(_table).where(
+                (_table.c.completed_at.is_(None)) & (_table.c.enqueued_at < cutoff)
+            )
+        )
+        return int((res1.rowcount or 0) + (res2.rowcount or 0))
 
 
 async def get_task_stats() -> dict[str, int]:
     """Return counts of tasks grouped by status.
 
-    Uses a dedicated thread pool executor for better performance under
-    high concurrency.
+    Keeps the public async API while using the synchronous query path directly.
     """
     try:
         engine = _get_engine()
@@ -491,13 +508,9 @@ async def get_task_stats() -> dict[str, int]:
 
     stmt = sa.select(_table.c.status, sa.func.count(_table.c.id)).group_by(_table.c.status)
 
-    loop = asyncio.get_running_loop()
-
-    def _get() -> dict[str, int]:
-        with engine.connect() as conn:
-            return dict(conn.execute(stmt).fetchall())
-
-    counts = await loop.run_in_executor(_async_executor, _get)
+    await asyncio.sleep(0)
+    with engine.connect() as conn:
+        counts = dict(conn.execute(stmt).fetchall())
 
     stats = {
         "success": counts.get("success", 0),

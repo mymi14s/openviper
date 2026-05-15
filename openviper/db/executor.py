@@ -19,6 +19,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql as _pg_dialect
 from sqlalchemy.exc import DBAPIError as SADBAPIError
 from sqlalchemy.exc import OperationalError as SAOperationalError
+from sqlalchemy.exc import ProgrammingError as SAProgrammingError
+from sqlalchemy.sql.sqltypes import Uuid
 
 from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
@@ -44,6 +46,7 @@ from openviper.db.fields import (
     UUIDField,
 )
 from openviper.db.migrations.executor import _get_soft_removed_table
+from openviper.db.utils import get_per_loop_lock
 from openviper.exceptions import FieldError, TableNotFound
 
 _SAFE_TABLE_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
@@ -67,7 +70,9 @@ def _check_table_missing(exc: Exception, model_cls: type) -> None:
 
     Clears the full SQLAlchemy traceback so only a clean 503 propagates.
     """
-    if isinstance(exc, SAOperationalError) and _TABLE_MISSING_RE.search(str(exc)):
+    if isinstance(exc, (SAOperationalError, SAProgrammingError)) and _TABLE_MISSING_RE.search(
+        str(exc)
+    ):
         table_name: str = getattr(model_cls, "_table_name", model_cls.__name__)
         raise TableNotFound(model_cls.__name__, table_name) from None
 
@@ -130,7 +135,7 @@ def _check_field_missing(exc: Exception, model_cls: type) -> None:
         unknown_fields = _extract_field_names(error_msg)
 
         # Log the raw database error for debugging
-        logger.debug(f"Database error for {model_cls.__name__}: {error_msg}")
+        logger.debug("Database error for %s: %s", model_cls.__name__, error_msg)
 
         if unknown_fields:
             fields_str = ", ".join(unknown_fields)
@@ -182,7 +187,6 @@ class _QueryCache:
         if time.monotonic() > expire:
             self._store.pop(key, None)
             return None
-        # Move to end (most recently used)
         self._store.move_to_end(key)
         return rows
 
@@ -191,7 +195,6 @@ class _QueryCache:
             return
         self._store[key] = (time.monotonic() + ttl, rows)
         self._store.move_to_end(key)
-        # Evict oldest entries if over capacity
         while len(self._store) > self._max_size:
             self._store.popitem(last=False)
 
@@ -266,7 +269,6 @@ _soft_removed_lock: asyncio.Lock | None = None
 
 # Cache for actual column names in the database to handle legacy/mismatched schemas
 _REAL_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
-_real_columns_lock: asyncio.Lock | None = None
 
 # Per-event-loop lock caches to prevent "bound to a different event loop" errors
 _real_columns_lock_per_loop: dict[int, asyncio.Lock] = {}
@@ -274,14 +276,7 @@ _soft_removed_lock_per_loop: dict[int, asyncio.Lock] = {}
 
 
 def _get_real_columns_lock() -> asyncio.Lock:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.Lock()
-    loop_id = id(loop)
-    if loop_id not in _real_columns_lock_per_loop:
-        _real_columns_lock_per_loop[loop_id] = asyncio.Lock()
-    return _real_columns_lock_per_loop[loop_id]
+    return get_per_loop_lock(_real_columns_lock_per_loop)
 
 
 async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None:
@@ -314,7 +309,13 @@ async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None
                 cols = {row[0] for row in result.fetchall()}
             elif "mysql" in dialect:
                 _assert_safe_table_name(table_name)
-                result = await conn.execute(sa.text(f"SHOW COLUMNS FROM {table_name}"))
+                result = await conn.execute(
+                    sa.text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = DATABASE() AND table_name = :tname"
+                    ),
+                    {"tname": table_name},
+                )
                 cols = {row[0] for row in result.fetchall()}
             else:
                 return None
@@ -324,6 +325,7 @@ async def _get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None
             _REAL_COLUMNS_CACHE[table_name] = frozenset(cols)
             return _REAL_COLUMNS_CACHE[table_name]
         except Exception:
+            logger.debug("Schema introspection failed for table %s", table_name, exc_info=True)
             return None
 
 
@@ -418,14 +420,7 @@ async def _begin() -> AsyncGenerator[Any]:
 
 def _get_soft_removed_lock() -> asyncio.Lock:
     """Return the per-event-loop soft-removed lock, creating it lazily."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.Lock()
-    loop_id = id(loop)
-    if loop_id not in _soft_removed_lock_per_loop:
-        _soft_removed_lock_per_loop[loop_id] = asyncio.Lock()
-    return _soft_removed_lock_per_loop[loop_id]
+    return get_per_loop_lock(_soft_removed_lock_per_loop)
 
 
 async def _load_soft_removed_columns() -> None:
@@ -467,7 +462,7 @@ async def _load_soft_removed_columns() -> None:
                     _SOFT_REMOVED_CACHE[tname] = frozenset(cols)
             _SOFT_REMOVED_LOADED = True
         except Exception:
-            # If the tracking table doesn't exist yet, treat as empty.
+            logger.debug("Soft-removed columns load failed; treating as empty", exc_info=True)
             _SOFT_REMOVED_LOADED = True
 
 
@@ -486,6 +481,92 @@ def get_soft_removed_columns(table_name: str) -> frozenset[str]:
     Values are ``frozenset`` so callers can iterate without holding any lock.
     """
     return _SOFT_REMOVED_CACHE.get(table_name, frozenset())
+
+
+_AUTH_TABLE_PLURALIZATION: dict[str, str] = {
+    "auth_role": "auth_roles",
+    "auth_user": "auth_users",
+    "auth_permission": "auth_permissions",
+    "auth_contenttype": "auth_content_types",
+    "auth_content_type": "auth_content_types",
+}
+
+
+def _resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) -> str:
+    """Resolve the target table name for a ForeignKey or OneToOneField.
+
+    Tries, in order:
+      1. Direct resolution via ``field.resolve_target()``
+      2. Callable ``field.to`` evaluation
+      3. Registry lookup by various key patterns
+      4. String-based fallback heuristics
+    """
+    target_model_cls = field.resolve_target()
+
+    if target_model_cls and hasattr(target_model_cls, "_table_name"):
+        return str(target_model_cls._table_name)
+
+    target_str = field.to
+    if callable(target_str):
+        try:
+            res = target_str()
+            if isinstance(res, type):
+                target_model_cls = res
+        except Exception:
+            logger.debug("FK callable resolution failed for %s", target_str, exc_info=True)
+
+    # Deferred import: executor.py ↔ models.py circular dependency
+    from openviper.db.models import ModelMeta
+
+    # Ensure target_str is a string for registry lookups and string operations
+    if not isinstance(target_str, str):
+        target_str = str(target_str)
+
+    if target_str in ModelMeta.registry:
+        target_model_cls = ModelMeta.registry[target_str]
+        return str(getattr(target_model_cls, "_table_name", ""))
+
+    if "." in target_str:
+        parts = target_str.split(".")
+        model_name = parts[-1]
+
+        app_name: str | None = None
+        if "auth" in parts:
+            app_name = "auth"
+        elif len(parts) >= 2:
+            app_name = parts[-2] if parts[-2] != "models" else parts[0]
+        else:
+            app_name = parts[0]
+
+        registry_keys = [
+            target_str,
+            f"{app_name}.{model_name}",
+            model_name,
+        ]
+
+        for key in registry_keys:
+            if key in ModelMeta.registry:
+                target_model_cls = ModelMeta.registry[key]
+                return str(getattr(target_model_cls, "_table_name", ""))
+
+        model_snake = ModelMeta._camel_to_snake(model_name)
+
+        if model_name == "get_user_model" and "auth" in parts:
+            return "auth_users"
+        if model_name == "User" and "auth" in parts:
+            return "auth_users"
+        related = f"{app_name}_{model_snake}".lower()
+        return _AUTH_TABLE_PLURALIZATION.get(related, related)
+
+    model_snake = ModelMeta._camel_to_snake(target_str)
+    app_name = getattr(model_cls, "_app_name", "default")
+
+    if app_name and app_name != "default":
+        related = f"{app_name}_{model_snake}s".lower()
+    else:
+        related = f"{model_snake}s".lower()
+
+    return _AUTH_TABLE_PLURALIZATION.get(related, related)
 
 
 @functools.lru_cache(maxsize=256)
@@ -513,90 +594,8 @@ def _build_table(table_name: str, model_cls: type) -> sa.Table:
 
         # Add ForeignKey constraint if applicable
         if isinstance(field, (ForeignKey, OneToOneField)):
-            related_table = ""
-            target_model_cls = field.resolve_target()
-
-            if target_model_cls and hasattr(target_model_cls, "_table_name"):
-                related_table = str(target_model_cls._table_name)
-            else:
-                target_str = field.to
-                if callable(target_str):
-                    try:
-                        res = target_str()
-                        if isinstance(res, type):
-                            target_model_cls = res
-                    except Exception:
-                        pass
-
-                if target_model_cls:
-                    related_table = getattr(target_model_cls, "_table_name", "")
-                elif isinstance(target_str, str):
-                    # Deferred import: executor.py ↔ models.py circular dependency
-                    from openviper.db.models import ModelMeta
-
-                    # Try to look up in registry first before falling back to string parsing
-                    if target_str in ModelMeta.registry:
-                        target_model_cls = ModelMeta.registry[target_str]
-                        related_table = getattr(target_model_cls, "_table_name", "")
-                    elif "." in target_str:
-                        parts = target_str.split(".")
-                        model_name = parts[-1]
-
-                        # For full paths like "openviper.auth.models.User", extract app name
-                        # Check if "auth" or other known apps are in the path
-                        app_name = None
-                        if "auth" in parts:
-                            app_name = "auth"
-                        elif len(parts) >= 2:
-                            # Use second-to-last as app name if available
-                            app_name = parts[-2] if parts[-2] != "models" else parts[0]
-                        else:
-                            app_name = parts[0]
-
-                        # Try various registry key combinations
-                        registry_keys = [
-                            target_str,  # Full path
-                            f"{app_name}.{model_name}",  # app.Model
-                            model_name,  # Just Model name
-                        ]
-
-                        for key in registry_keys:
-                            if key in ModelMeta.registry:
-                                target_model_cls = ModelMeta.registry[key]
-                                related_table = getattr(target_model_cls, "_table_name", "")
-                                break
-
-                        if not related_table:
-                            # Fallback to string parsing
-                            model_snake = ModelMeta._camel_to_snake(model_name)
-
-                            if model_name == "get_user_model":
-                                if "auth" in parts:
-                                    related_table = "auth_users"
-                            elif model_name == "User" and "auth" in parts:
-                                related_table = "auth_users"
-                            else:
-                                related_table = f"{app_name}_{model_snake}".lower()
-                    else:
-                        model_snake = ModelMeta._camel_to_snake(target_str)
-                        app_name = getattr(model_cls, "_app_name", "default")
-
-                        if app_name and app_name != "default":
-                            related_table = f"{app_name}_{model_snake}s".lower()
-                        else:
-                            related_table = f"{model_snake}s".lower()
-
+            related_table = _resolve_fk_table_name(field, model_cls)
             if related_table:
-                # Final pluralization check for standard auth models
-                if related_table == "auth_role":
-                    related_table = "auth_roles"
-                elif related_table == "auth_user":
-                    related_table = "auth_users"
-                elif related_table == "auth_permission":
-                    related_table = "auth_permissions"
-                elif related_table == "auth_contenttype" or related_table == "auth_content_type":
-                    related_table = "auth_content_types"
-
                 args.append(sa.ForeignKey(f"{related_table}.id", ondelete=field.on_delete))
 
         col_kwargs: dict[str, Any] = {
@@ -759,7 +758,7 @@ def _compile_traversal_filter(
         if col_name not in base_table.c and f"{col_name}_id" in base_table.c:
             col_name = f"{col_name}_id"
         col = base_table.c[col_name]
-        where_clause = _apply_lookup(col, "", value)
+        where_clause = _apply_lookup(col, "", value, field=lookup_obj.final_field)
         return where_clause, []
 
     # Build JOINs for traversal
@@ -784,7 +783,7 @@ def _compile_traversal_filter(
         col_name = final_field.column_name
 
     col = final_table.c[col_name]
-    where_clause = _apply_lookup(col, lookup, value)
+    where_clause = _apply_lookup(col, lookup, value, field=final_field)
 
     # Collect all JOINs from the from_clause
     # The from_clause is a join with multiple tables, we need to extract it
@@ -804,8 +803,23 @@ def _escape_like(value: Any) -> str:
     return str_value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.ColumnElement[Any]:
+def _apply_lookup(
+    col: sa.ColumnElement[Any], lookup: str, value: Any, field: Any = None
+) -> sa.ColumnElement[Any]:
     """Apply a lookup operator to a column."""
+    # Use Field.to_db() if available to prepare the value for the database.
+    # This respects field-specific logic like DateTime timezones or Boolean mappings.
+    if field is not None:
+        try:
+            if lookup in ("in", "not_in") and isinstance(value, (list, tuple)):
+                value = [field.to_db(v) for v in value]
+            else:
+                value = field.to_db(value)
+        except ValueError:
+            return sa.false()
+        except TypeError:
+            return sa.false()
+
     # Unwrap LazyFK values to raw IDs for SQL binding
     if isinstance(value, LazyFK):
         value = value.fk_id
@@ -814,12 +828,33 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
         hasattr(value, "__class__") and hasattr(value.__class__, "_fields")
     ):
         value = getattr(value, "id", value)
-    # Convert UUID objects to strings for database comparison
-    if isinstance(value, uuid.UUID):
-        value = str(value)
+    # Intercept UUID columns to ensure they get a uuid.UUID object
+
+    is_uuid_col = (
+        hasattr(col, "type") and isinstance(col.type, Uuid) and getattr(col.type, "as_uuid", True)
+    )
+
+    if is_uuid_col:
+        if isinstance(value, str):
+            with contextlib.suppress(ValueError):
+                value = uuid.UUID(value)
+    else:
+        # For non-UUID columns, convert UUID objects to strings for database comparison
+        if isinstance(value, uuid.UUID):
+            value = str(value)
+
+    if is_uuid_col and isinstance(value, uuid.UUID):
+        if lookup in ("exact", ""):
+            return col == value
+        if lookup == "ne":
+            return col != value
+        if lookup == "isnull":
+            return col.is_(None) if value else col.isnot(None)
 
     if lookup in ("exact", ""):
         return col == value  # type: ignore[no-any-return]
+    if lookup == "ne":
+        return col != value  # type: ignore[no-any-return]
     if lookup == "contains":
         escaped_value = _escape_like(value)
         return col.like(f"%{escaped_value}%", escape="\\")
@@ -850,12 +885,42 @@ def _apply_lookup(col: sa.ColumnElement[Any], lookup: str, value: Any) -> sa.Col
             for v in value
         ]
         return col.in_(value)
+    if lookup == "not_in":
+        value = [
+            (
+                v.fk_id
+                if isinstance(v, LazyFK)
+                else getattr(v, "id", v) if hasattr(v.__class__, "_fields") else v
+            )
+            for v in value
+        ]
+        return col.notin_(value)
     if lookup == "isnull":
         return col.is_(None) if value else col.isnot(None)
     if lookup == "range":
         lo, hi = value
         return col.between(lo, hi)
-    return col == value  # type: ignore[no-any-return]
+    if lookup == "iexact":
+        return sa.func.lower(col) == value.lower()
+    if lookup == "istartswith":
+        escaped_value = _escape_like(value)
+        return col.ilike(f"{escaped_value}%", escape="\\")
+    if lookup == "iendswith":
+        escaped_value = _escape_like(value)
+        return col.ilike(f"%{escaped_value}", escape="\\")
+    if lookup == "regex":
+        return col.regexp_match(value)
+    if lookup == "iregex":
+        return col.regexp_match(value, flags="i")
+    if lookup == "date":
+        return sa.cast(col, sa.Date) == value
+    if lookup == "year":
+        return sa.extract("year", col) == value
+    if lookup == "month":
+        return sa.extract("month", col) == value
+    if lookup == "day":
+        return sa.extract("day", col) == value
+    raise FieldError(f"Unsupported lookup type: '{lookup}'")
 
 
 def _compile_single_filter(
@@ -883,7 +948,19 @@ def _compile_single_filter(
         return None
 
     col = table.c[col_name]
-    return _apply_lookup(col, lookup, value)
+
+    # Resolve the field from model_cls if available to enable field-aware prep in _apply_lookup
+    field = None
+    if model_cls and hasattr(model_cls, "_fields"):
+        # For FKs, the column might be 'author_id' but the field is 'author'
+        lookup_name = col_name
+        if lookup_name not in model_cls._fields and lookup_name.endswith("_id"):
+            base_name = lookup_name[:-3]
+            if base_name in model_cls._fields:
+                lookup_name = base_name
+        field = model_cls._fields.get(lookup_name)
+
+    return _apply_lookup(col, lookup, value, field=field)
 
 
 def _compile_q(table: sa.Table, q_obj: Any) -> sa.ColumnElement[Any] | None:
@@ -947,13 +1024,15 @@ def _compile_q_with_traversals(
                         collected_joins[key] = (traversal_from, final_table)
                         from_clause_box[0] = traversal_from
                     col = final_table.c[traversal.final_field.column_name]
-                    clause: sa.ColumnElement[Any] | None = _apply_lookup(col, "", value)
+                    clause: sa.ColumnElement[Any] | None = _apply_lookup(
+                        col, "", value, field=traversal.final_field
+                    )
                     if clause is not None:
                         clauses.append(clause)
                     continue
             except FieldError:
                 pass
-            clause = _compile_single_filter(base_table, key, value)
+            clause = _compile_single_filter(base_table, key, value, model_cls=model_cls)
             if clause is not None:
                 clauses.append(clause)
         else:
@@ -1065,7 +1144,7 @@ def _build_where_clause_with_traversals(
 
                     # Compile filter on final table
                     col = final_table.c[traversal.final_field.column_name]
-                    clause = _apply_lookup(col, "", value)
+                    clause = _apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
                         parts.append(clause)
                     continue
@@ -1073,7 +1152,7 @@ def _build_where_clause_with_traversals(
                 pass
 
             # Normal field compilation fallback
-            fallback_clause = _compile_single_filter(base_table, key, value)
+            fallback_clause = _compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_clause is None:
                 available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
@@ -1097,7 +1176,7 @@ def _build_where_clause_with_traversals(
                         from_clause = traversal_from
 
                     col = final_table.c[traversal.final_field.column_name]
-                    clause = _apply_lookup(col, "", value)
+                    clause = _apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
                         parts.append(sa.not_(clause))
                     continue
@@ -1105,7 +1184,7 @@ def _build_where_clause_with_traversals(
                 pass
 
             # Normal exclude fallback
-            fallback_exclude = _compile_single_filter(base_table, key, value)
+            fallback_exclude = _compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_exclude is None:
                 available = ", ".join(sorted(model_cls._fields))
                 raise FieldError(
@@ -1356,6 +1435,7 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
                 if cached is not None:
                     return cached
             except Exception:
+                logger.debug("Query cache key generation failed", exc_info=True)
                 cache_key = None
 
         try:
@@ -1575,7 +1655,6 @@ async def execute_save(
 
     data = {}
     for name, field in model_cls._fields.items():
-        # Skip ManyToMany fields - they don't have database columns
         if isinstance(field, ManyToManyField):
             continue
 

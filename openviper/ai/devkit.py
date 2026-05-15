@@ -134,8 +134,6 @@ class StreamingAdapter:
         return self._iter()
 
     async def _iter(self) -> AsyncIterator[str]:
-        loop = asyncio.get_event_loop()
-
         def _next(it: Any) -> str | None:
             try:
                 return next(it)
@@ -143,7 +141,12 @@ class StreamingAdapter:
                 return None
 
         while True:
-            token = await loop.run_in_executor(self._executor, _next, self._source)
+            if self._executor is None:
+                token = _next(self._source)
+                await asyncio.sleep(0)
+            else:
+                loop = asyncio.get_running_loop()
+                token = await loop.run_in_executor(self._executor, _next, self._source)
             if token is None:
                 break
             yield token

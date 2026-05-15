@@ -30,7 +30,7 @@ class Command(BaseCommand):
             help="Show what would be collected without copying",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
 
         static_root = getattr(settings, "STATIC_ROOT", "static")
         source_dirs = getattr(settings, "STATICFILES_DIRS", ["static"])

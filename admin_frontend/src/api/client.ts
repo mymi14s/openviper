@@ -88,8 +88,8 @@ export const authApi = {
     return response.data
   },
 
-  async refreshToken(): Promise<{ token: string; expires_at: string }> {
-    const response = await client.post('/auth/refresh/')
+  async refreshToken(refreshToken: string): Promise<{ token: string; expires_at: string }> {
+    const response = await client.post('/auth/refresh/', { refresh_token: refreshToken })
     return response.data
   },
 

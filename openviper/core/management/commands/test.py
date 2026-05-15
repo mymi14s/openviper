@@ -39,7 +39,7 @@ class Command(BaseCommand):
             help="Preserve test database across runs",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
 
         args = [sys.executable, "-m", "pytest"]
 

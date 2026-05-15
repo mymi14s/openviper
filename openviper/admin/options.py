@@ -88,7 +88,6 @@ class ModelAdmin:
         self._app_name = getattr(model_class, "_app_name", "default")
         self._table_name = getattr(model_class, "_table_name", "")
         self._fields = getattr(model_class, "_fields", {})
-        # Cache for model info
         self._cached_model_info: dict[str, Any] | None = None
 
     # -- List view methods -------------------------------------------------
@@ -102,14 +101,12 @@ class ModelAdmin:
         Returns:
             List of field names to display.
         """
-        # Use cached list_display if available
         if hasattr(self, "_cached_list_display"):
             return self._cached_list_display
 
         if self.list_display:
             result = list(self.list_display)
         else:
-            # Default: show pk and first few fields
             field_names = list(self._fields.keys())[:5]
             result = ["id"] + field_names if "id" not in field_names else field_names
 
@@ -127,7 +124,6 @@ class ModelAdmin:
         """
         if self.list_display_links is not None:
             return list(self.list_display_links)
-        # Default: first field in list_display
         display = self.get_list_display(request)
         return [display[0]] if display else []
 
@@ -140,7 +136,6 @@ class ModelAdmin:
         Returns:
             List of field names for filtering.
         """
-        # Use cached list_filter if available
         if hasattr(self, "_cached_list_filter"):
             return self._cached_list_filter
 
@@ -157,7 +152,6 @@ class ModelAdmin:
         Returns:
             List of field names for full-text search.
         """
-        # Use cached search_fields if available
         if hasattr(self, "_cached_search_fields"):
             return self._cached_search_fields
 
@@ -174,7 +168,6 @@ class ModelAdmin:
         Returns:
             List of field names (prefixed with - for descending).
         """
-        # Use cached ordering if available
         if hasattr(self, "_cached_ordering"):
             return self._cached_ordering
 
@@ -201,7 +194,6 @@ class ModelAdmin:
         Returns:
             List of field names to eager load with select_related.
         """
-        # Use cached select_related if available
         if hasattr(self, "_cached_list_select_related"):
             return self._cached_list_select_related
 
@@ -496,7 +488,9 @@ class ModelAdmin:
                     actions[action_name_or_func] = func
                 else:
                     logger.warning(
-                        f"Action '{action_name_or_func}' not found on {self.__class__.__name__}"
+                        "Action '%s' not found on %s",
+                        action_name_or_func,
+                        self.__class__.__name__,
                     )
             else:
                 # Use provided callable

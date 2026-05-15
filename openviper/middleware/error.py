@@ -16,6 +16,9 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from openviper.debug.traceback_page import render_debug_page
+from openviper.http.request import Request
+
 logger = logging.getLogger("openviper.app")
 
 ASGIApp = Callable[[dict[str, Any], Any, Any], Awaitable[None]]
@@ -91,9 +94,6 @@ class ServerErrorMiddleware:
         exc: Exception,
     ) -> None:
         """Render and send the HTML debug traceback page."""
-        from openviper.debug.traceback_page import render_debug_page
-        from openviper.http.request import Request
-
         request = Request(scope, receive)
         body = render_debug_page(exc, request).encode("utf-8")
         headers = [

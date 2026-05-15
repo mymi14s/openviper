@@ -22,6 +22,8 @@ def serialize_instance(
 ) -> dict[str, Any]:
     """Serialize a model instance to a dictionary.
 
+    Sensitive fields (e.g. password, token) are excluded from the output.
+
     Args:
         instance: The model instance.
         model_admin: The ModelAdmin configuration.
@@ -31,11 +33,14 @@ def serialize_instance(
         Dictionary with serialized field values.
     """
     fields = getattr(instance.__class__, "_fields", {})
+    sensitive = set(model_admin.get_sensitive_fields())
     result = {"id": getattr(instance, "id", None)}
 
     field_names = include_fields or list(fields.keys())
 
     for field_name in field_names:
+        if field_name in sensitive:
+            continue
         value = getattr(instance, field_name, None)
         result[field_name] = serialize_value(value)
 
@@ -112,7 +117,7 @@ def serialize_for_detail(
 ) -> dict[str, Any]:
     """Serialize a model instance for detail view.
 
-    Includes all fields and metadata.
+    Includes all fields except sensitive ones, plus metadata.
 
     Args:
         instance: The model instance.
@@ -122,9 +127,12 @@ def serialize_for_detail(
         Dictionary with all field values and metadata.
     """
     fields = getattr(instance.__class__, "_fields", {})
+    sensitive = set(model_admin.get_sensitive_fields())
     result = {"id": getattr(instance, "id", None)}
 
     for field_name in fields:
+        if field_name in sensitive:
+            continue
         value = getattr(instance, field_name, None)
         result[field_name] = serialize_value(value)
 

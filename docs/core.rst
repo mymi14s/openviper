@@ -6,7 +6,7 @@ Core & CLI
 The ``openviper.core`` package contains internal machinery for application
 bootstrapping, request-context variables, and the flexible app resolver.
 The ``viperctl`` CLI command provides management operations (migrations,
-shell, worker, etc.) for projects with non-standard directory layouts.
+console, worker, etc.) for projects with non-standard directory layouts.
 
 Overview
 --------
@@ -39,9 +39,9 @@ supports the following management commands:
      - Interactively create an admin superuser.
    * - ``changepassword``
      - Change a user's password interactively.
-   * - ``shell``
+   * - ``console``
      - Open a Python REPL with models and settings pre-loaded.
-   * - ``runworker``
+   * - ``startworker``
      - Start the background task worker in-process.
    * - ``collectstatic``
      - Collect static assets into ``STATIC_ROOT``.
@@ -91,11 +91,11 @@ Running Management Commands
     # Custom settings module
     openviper viperctl --settings myproject.settings makemigrations myapp
 
-    # Interactive shell
-    openviper viperctl shell
+    # Interactive console
+    openviper viperctl console
 
     # Start a background task worker
-    openviper viperctl runworker .
+    openviper viperctl startworker .
 
     # Collect static files
     openviper viperctl collectstatic .

@@ -38,6 +38,7 @@ OpenAPI Integration:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -45,6 +46,8 @@ from openviper.conf import settings
 from openviper.exceptions import MethodNotAllowed, PermissionDenied, TooManyRequests
 from openviper.http.response import JSONResponse, Response
 from openviper.utils.importlib import import_string
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from openviper.http.request import Request
@@ -175,6 +178,7 @@ class View:
             except Exception:
                 # Authentication failures in per-view auth are ignored
                 # unless explicitly required by a permission class.
+                logger.debug("Authentication failed for %s", authenticator, exc_info=True)
                 pass
 
     def get_authenticators(self) -> list[Any]:

@@ -5,10 +5,12 @@ import { authApi } from '@/api/client'
 
 const TOKEN_KEY = 'openviper_admin_token'
 const USER_KEY = 'openviper_admin_user'
+const REFRESH_TOKEN_KEY = 'openviper_admin_refresh_token'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem(TOKEN_KEY))
   const user = ref<User | null>(JSON.parse(localStorage.getItem(USER_KEY) || 'null'))
+  const refreshTokenValue = ref<string | null>(localStorage.getItem(REFRESH_TOKEN_KEY))
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -25,9 +27,13 @@ export const useAuthStore = defineStore('auth', () => {
 
       token.value = response.access_token
       user.value = response.user
+      refreshTokenValue.value = response.refresh_token
 
       localStorage.setItem(TOKEN_KEY, response.access_token)
       localStorage.setItem(USER_KEY, JSON.stringify(response.user))
+      if (response.refresh_token) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token)
+      }
 
       return true
     } catch (err: any) {
@@ -51,8 +57,10 @@ export const useAuthStore = defineStore('auth', () => {
   function clearAuth(): void {
     token.value = null
     user.value = null
+    refreshTokenValue.value = null
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
   }
 
   async function fetchCurrentUser(): Promise<void> {
@@ -75,10 +83,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function refreshToken(): Promise<boolean> {
-    if (!token.value) return false
+    const currentRefreshToken = refreshTokenValue.value || localStorage.getItem(REFRESH_TOKEN_KEY)
+    if (!token.value || !currentRefreshToken) return false
 
     try {
-      const response = await authApi.refreshToken()
+      const response = await authApi.refreshToken(currentRefreshToken)
       token.value = response.token
       localStorage.setItem(TOKEN_KEY, response.token)
       return true

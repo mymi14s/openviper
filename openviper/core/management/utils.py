@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from openviper.core.management.base import BaseCommand
 
 
-def get_banner(cmd_obj: Any, host: str, port: int) -> None:
+def get_banner(cmd_obj: BaseCommand, host: str, port: int) -> None:
     """Display the startup banner."""
     cmd_obj.stdout(cmd_obj.style_success(rf"""
 
@@ -22,7 +20,7 @@ def get_banner(cmd_obj: Any, host: str, port: int) -> None:
             """))
 
 
-def print_banner(host: str, port: int, cmd_obj: Any = None) -> None:
+def print_banner(host: str, port: int, cmd_obj: BaseCommand | None = None) -> None:
     """Print the startup banner to stdout.
 
     Args:

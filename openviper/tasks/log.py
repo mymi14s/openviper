@@ -17,6 +17,12 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+__all__ = [
+    "configure_worker_logging",
+    "configure_worker_logging_from_settings",
+    "configure_email_logging",
+]
+
 try:
     import openviper.conf as _conf_module
 except Exception:
@@ -49,7 +55,7 @@ def configure_worker_logging(
     if log_format == "json":
         file_fmt = (
             '{"time": "%(asctime)s", "level": "%(levelname)s",'
-            ' "logger": "%(name)s", "message": %(message)r}'
+            ' "logger": "%(name)s", "message": %(message)s}'
         )
     else:
         file_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -135,7 +141,7 @@ def configure_email_logging(
         if log_format == "json":
             fmt = (
                 '{"time": "%(asctime)s", "level": "%(levelname)s",'
-                ' "logger": "%(name)s", "message": %(message)r}'
+                ' "logger": "%(name)s", "message": %(message)s}'
             )
         else:
             fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -179,8 +185,10 @@ def configure_worker_logging_from_settings() -> Path:
         )
         log_dir = task_settings.get("log_dir") or task_settings.get("LOG_DIR")
         log_to_file = bool(task_settings.get("log_to_file", False))
-    except Exception:
-        pass
+    except Exception as _exc:
+        logging.getLogger("openviper.tasks").warning(
+            "Could not read task logging settings: %s", _exc
+        )
 
     env_level = os.environ.get("OPENVIPER_WORKER_LOG_LEVEL")
     if env_level:

@@ -13,7 +13,7 @@ Overview
 
 Background tasks are defined with the ``@task`` decorator and enqueued by
 calling ``.send()`` on the decorated function.  Tasks run in a dedicated
-worker process started with ``openviper viperctl runworker .``.
+worker process started with ``openviper viperctl startworker .``.
 
 Periodic tasks are defined with the ``@periodic`` decorator, which registers
 them with the built-in :class:`~openviper.tasks.core.Scheduler`.  The
@@ -240,10 +240,10 @@ Starting the Worker
 .. code-block:: bash
 
     # Start worker with all queues
-    openviper viperctl runworker .
+    openviper viperctl startworker .
 
     # Start worker for a specific queue
-    openviper viperctl runworker . --queues emails
+    openviper viperctl startworker . --queues emails
 
 Checking Task Results
 ~~~~~~~~~~~~~~~~~~~~~

@@ -18,8 +18,6 @@ Example:
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import functools
 import html
 import importlib
@@ -38,6 +36,7 @@ from openviper._version import __version__
 from openviper.conf import settings
 from openviper.contrib.default.middleware import DefaultLandingMiddleware
 from openviper.core.context import current_request, current_router
+from openviper.debug.traceback_page import render_debug_page
 from openviper.exceptions import FieldError, HTTPException, NotFound, QueryError, TableNotFound
 from openviper.http.request import Request
 from openviper.http.response import (
@@ -54,6 +53,15 @@ from openviper.openapi.router import should_register_openapi
 from openviper.openapi.schema import filter_openapi_routes, generate_openapi_schema
 from openviper.openapi.ui import get_redoc_html, get_swagger_html
 from openviper.routing.router import Router, include
+from openviper.staticfiles.handlers import StaticFilesMiddleware, _discover_app_static_dirs
+from openviper.utils.logging import get_uvicorn_log_config
+
+try:
+    from pydantic import BaseModel as PydanticBaseModel
+
+    _HAS_PYDANTIC = True
+except ImportError:
+    _HAS_PYDANTIC = False
 
 logger = logging.getLogger("openviper.app")
 
@@ -171,11 +179,9 @@ class OpenViper:
         self._state: dict[str, Any] = {}
         self._handler_param_cache: dict[int, dict[str, Any]] = {}
 
-        # Register internal routes (schema, docs)
         if should_register_openapi():
             self._register_openapi_routes()
 
-        # Auto-discover and register project route_paths from <project>.routes
         self._autodiscover_routes()
 
     # ── Route registration (delegate to router) ───────────────────────────
@@ -217,10 +223,8 @@ class OpenViper:
         """Auto-discover and register route_paths from the project routes module.
 
         Derives the routes module from the ``OPENVIPER_SETTINGS_MODULE`` env var
-        by replacing ``.settings`` (or using the parent package) and importing
-        ``route_paths`` from ``<project_package>.routes``.
-
-        ``asgi.py`` — this method handles it transparently at app init time.
+        by using the top-level package and importing ``route_paths`` from
+        ``<project_package>.routes``.
         """
         settings_module = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
         if not settings_module:
@@ -350,7 +354,6 @@ class OpenViper:
 
     def _register_openapi_routes(self) -> None:
         """Register /open-api/openapi.json, /open-api/docs, /open-api/redoc routes."""
-        # Use add() to bypass prefix-stripping issues if any, or just use literal
 
         @self.router.get(self.openapi_url, name="openapi_schema")
         async def openapi_schema_handler(request: Request) -> Response:
@@ -407,37 +410,10 @@ class OpenViper:
         for mw_path in getattr(settings, "MIDDLEWARE", []):
             raw_middleware.append(_resolve_middleware_entry(mw_path))
 
-        resolved_middleware: list[Any] = []
-        for mw in list(self._extra_middleware) + raw_middleware:
-            cls = _resolve_middleware_entry(mw)
-            if cls is CORSMiddleware:
-                # Wire CORS settings from settings.py into the middleware instance.
-                cors_kwargs: dict[str, Any] = {
-                    "allowed_origins": list(
-                        getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]
-                    ),
-                    "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
-                    "allowed_methods": list(
-                        getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]
-                    ),
-                    "allowed_headers": list(
-                        getattr(settings, "CORS_ALLOWED_HEADERS", None) or ["*"]
-                    ),
-                    "expose_headers": list(getattr(settings, "CORS_EXPOSE_HEADERS", None) or []),
-                    "max_age": getattr(settings, "CORS_MAX_AGE", 600),
-                }
-                resolved_middleware.append((cls, cors_kwargs))
-            else:
-                resolved_middleware.append(cls)
-
-        # Add Rate Limit middleware if configured.
-        if getattr(settings, "RATE_LIMIT_REQUESTS", 0) > 0:
-            cls = _resolve_middleware_entry("openviper.middleware.ratelimit.RateLimitMiddleware")
-            resolved_middleware.insert(0, cls)
+        resolved_middleware = self._resolve_middleware(raw_middleware)
 
         app = build_middleware_stack(self._core_app, resolved_middleware)
 
-        # Wrap with the default landing page when no custom root route exists
         has_custom_root = self._has_custom_root_route()
         app = DefaultLandingMiddleware(
             app,
@@ -446,38 +422,65 @@ class OpenViper:
             has_custom_root=has_custom_root,
         )
 
-        # Outermost layer: catches any exception that escapes all inner
-        # middleware and renders a debug traceback page (debug) or a plain
-        # 500 response (production).  This must be the final wrap so it
-        # covers the entire request lifecycle.
         app = ServerErrorMiddleware(app, debug=self.debug)
 
-        # Static and media file serving — DEBUG only.
-        # openviper.staticfiles is never imported when DEBUG=False.
-        # Additional safety check: never serve in production environment
+        app = self._add_static_file_serving(app)
+
+        return app
+
+    def _resolve_middleware(self, raw_middleware: list[Any]) -> list[Any]:
+        """Resolve middleware entries, wiring CORS settings when applicable."""
+        resolved: list[Any] = []
+        for mw in list(self._extra_middleware) + raw_middleware:
+            cls = _resolve_middleware_entry(mw)
+            if cls is CORSMiddleware:
+                resolved.append((cls, self._cors_kwargs()))
+            else:
+                resolved.append(cls)
+
+        if getattr(settings, "RATE_LIMIT_REQUESTS", 0) > 0:
+            cls = _resolve_middleware_entry("openviper.middleware.ratelimit.RateLimitMiddleware")
+            resolved.insert(0, cls)
+
+        return resolved
+
+    @staticmethod
+    def _cors_kwargs() -> dict[str, Any]:
+        """Build keyword arguments for CORSMiddleware from settings."""
+        return {
+            "allowed_origins": list(getattr(settings, "CORS_ALLOWED_ORIGINS", None) or ["*"]),
+            "allow_credentials": getattr(settings, "CORS_ALLOW_CREDENTIALS", False),
+            "allowed_methods": list(getattr(settings, "CORS_ALLOWED_METHODS", None) or ["*"]),
+            "allowed_headers": list(getattr(settings, "CORS_ALLOWED_HEADERS", None) or ["*"]),
+            "expose_headers": list(getattr(settings, "CORS_EXPOSE_HEADERS", None) or []),
+            "max_age": getattr(settings, "CORS_MAX_AGE", 600),
+        }
+
+    def _add_static_file_serving(self, app: ASGIApp) -> ASGIApp:
+        """Wrap the app with static and media file serving in DEBUG mode.
+
+        Both ``self.debug`` and the ``ENVIRONMENT`` variable are checked so
+        that static serving is never accidentally enabled in production.
+        """
         env = os.environ.get("ENVIRONMENT", "").lower()
-        if self.debug and env not in ("production", "prod"):
-            from openviper.staticfiles.handlers import (
-                StaticFilesMiddleware,
-                _discover_app_static_dirs,
-            )
+        if not self.debug or env in ("production", "prod"):
+            return app
 
-            static_url = getattr(settings, "STATIC_URL", "/static/").rstrip("/")
-            static_root = getattr(settings, "STATIC_ROOT", "static")
+        static_url = getattr(settings, "STATIC_URL", "/static/").rstrip("/")
+        static_root = getattr(settings, "STATIC_ROOT", "static")
 
-            # Discover static dirs from all installed apps (includes openviper/admin/static/)
-            discovered = [str(d) for d in _discover_app_static_dirs()]
-            if static_root not in discovered:
-                discovered.append(static_root)
+        discovered = [str(d) for d in _discover_app_static_dirs()]
+        if static_root not in discovered:
+            discovered.append(static_root)
 
-            app = StaticFilesMiddleware(app, url_path=static_url, directories=discovered)  # type: ignore[arg-type]
-            logger.debug("StaticFilesMiddleware enabled for %s", static_url)
+        app = StaticFilesMiddleware(app, url_path=static_url, directories=discovered)  # type: ignore[arg-type]
+        logger.debug("StaticFilesMiddleware enabled for %s", static_url)
 
-            media_url = getattr(settings, "MEDIA_URL", "/media/").rstrip("/")
-            media_root = getattr(settings, "MEDIA_ROOT", "media")
+        media_url = getattr(settings, "MEDIA_URL", "/media/").rstrip("/")
+        media_root = getattr(settings, "MEDIA_ROOT", "media")
 
-            app = StaticFilesMiddleware(app, url_path=media_url, directories=[media_root])
-            logger.debug("Media serving enabled for %s → %s", media_url, media_root)
+        app = StaticFilesMiddleware(app, url_path=media_url, directories=[media_root])
+        logger.debug("Media serving enabled for %s → %s", media_url, media_root)
 
         return app
 
@@ -608,18 +611,10 @@ class OpenViper:
             return Response(b"", status_code=204)
         if isinstance(result, (str, bytes)):
             return PlainTextResponse(result)
-        # Try coercing Pydantic models - check for BaseModel explicitly
-        try:
-            from pydantic import BaseModel
-
-            if isinstance(result, BaseModel):
-                return JSONResponse(result.model_dump())
-        except ImportError:
-            # Pydantic not available, fall through
-            pass
+        if _HAS_PYDANTIC and isinstance(result, PydanticBaseModel):
+            return JSONResponse(result.model_dump())
         if hasattr(result, "model_dump") and callable(result.model_dump):
-            with contextlib.suppress(Exception):
-                return JSONResponse(result.model_dump())
+            return JSONResponse(result.model_dump())
         return JSONResponse(result)
 
     def _try_append_slash_redirect(self, request: Request) -> RedirectResponse | None:
@@ -679,8 +674,6 @@ class OpenViper:
 
         logger.exception("Unhandled exception: %s", exc)
         if self.debug:
-            from openviper.debug.traceback_page import render_debug_page
-
             return HTMLResponse(render_debug_page(exc, request), status_code=500)
         return self._create_error_response(
             request, {"detail": "Internal Server Error"}, status_code=500
@@ -717,10 +710,10 @@ class OpenViper:
             message = await receive()
             if message["type"] == "lifespan.startup":
                 try:
-                    await asyncio.to_thread(self._get_middleware_app)
+                    self._get_middleware_app()
 
                     if should_register_openapi():
-                        await asyncio.to_thread(self._get_openapi_schema)
+                        self._get_openapi_schema()
 
                     await self._call_installed_app_ready_hooks()
 
@@ -762,7 +755,7 @@ class OpenViper:
     ) -> None:
         """Start a uvicorn development server.
 
-        Prefer using ``python viperctl.py runserver`` for project use.
+        Prefer using ``python viperctl.py startserver`` for project use.
 
         Args:
             host: Bind address.
@@ -779,6 +772,7 @@ class OpenViper:
             reload=reload,
             log_level=log_level,
             workers=workers if not reload else 1,
+            log_config=get_uvicorn_log_config(),
         )
 
     def test_client(self, **kwargs: Any) -> httpx.AsyncClient:

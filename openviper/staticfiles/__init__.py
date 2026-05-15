@@ -9,16 +9,19 @@ from typing import Any
 
 from openviper.staticfiles.handlers import StaticFilesMiddleware, collect_static
 
+__all__ = ["static", "media", "StaticFilesMiddleware", "collect_static"]
+
 # Internal flags — set by calling static() / media() in routes.py
 _static_serving_enabled: bool = False
 _media_serving_enabled: bool = False
 
 
 def static() -> list[Any]:
-    """Signal the framework to enable static file serving in DEBUG mode.
+    """Signal the framework to enable static file serving.
 
     Sets ``_static_serving_enabled``.  Returns an empty list so it can be
-    concatenated to ``route_paths`` without error.  No-op when ``DEBUG=False``.
+    concatenated to ``route_paths`` without error.  The ``DEBUG`` check is
+    handled in ``app.py``, not here.
     """
     global _static_serving_enabled
     _static_serving_enabled = True
@@ -31,10 +34,11 @@ def is_static_enabled() -> bool:
 
 
 def media() -> list[Any]:
-    """Signal the framework to enable media file serving in DEBUG mode.
+    """Signal the framework to enable media file serving.
 
     Sets ``_media_serving_enabled``.  Returns an empty list so it can be
-    concatenated to ``route_paths`` without error.  No-op when ``DEBUG=False``.
+    concatenated to ``route_paths`` without error.  The ``DEBUG`` check is
+    handled in ``app.py``, not here.
     """
     global _media_serving_enabled
     _media_serving_enabled = True

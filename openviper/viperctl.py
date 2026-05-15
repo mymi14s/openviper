@@ -1,6 +1,6 @@
 """Flexible ``viperctl`` subcommand for ``openviper``.
 
-Enables management commands (makemigrations, migrate, shell, etc.) on
+Enables management commands (makemigrations, migrate, console, etc.) on
 projects with non-standard layouts: root-level models, standalone
 modules, or mixed arrangements.
 
@@ -9,7 +9,7 @@ Usage::
     openviper viperctl makemigrations .
     openviper viperctl migrate .
     openviper viperctl --settings todo.settings makemigrations todo
-    openviper viperctl shell
+    openviper viperctl console
 """
 
 from __future__ import annotations
@@ -19,13 +19,17 @@ from typing import Final
 
 import click
 
+from openviper.core import flexible_adapter
+from openviper.utils import module_resolver, settings_discovery
+
 # Supported management commands that can be dispatched through viperctl.
 _ALLOWED_COMMANDS: Final[frozenset[str]] = frozenset(
     {
         "makemigrations",
         "migrate",
-        "shell",
-        "runworker",
+        "console",
+        "startserver",
+        "startworker",
         "collectstatic",
         "test",
         "createsuperuser",
@@ -65,8 +69,9 @@ def viperctl(
       migrate          Apply pending database migrations.
       createsuperuser  Create a superuser account interactively.
       changepassword   Change a user's password.
-      shell            Open an interactive Python shell with models loaded.
-      runworker        Start a background task worker.
+      console            Open an interactive Python console with models loaded.
+      startserver       Start the development web server.
+      startworker        Start a background task worker.
       collectstatic    Collect static files into STATIC_ROOT.
       test             Run the project test suite via pytest.
 
@@ -79,33 +84,30 @@ def viperctl(
       openviper viperctl migrate .
       openviper viperctl --settings settings createsuperuser .
       openviper viperctl --settings settings changepassword .
-      openviper viperctl shell
+      openviper viperctl console
     """
     if command not in _ALLOWED_COMMANDS:
         valid = ", ".join(sorted(_ALLOWED_COMMANDS))
         raise click.ClickException(f"Unknown command '{command}'. Valid commands: {valid}")
 
-    # Lazy imports -- only incur the cost when viperctl is actually invoked.
-    from openviper.core.flexible_adapter import bootstrap_and_run
-    from openviper.utils.module_resolver import resolve_target
-    from openviper.utils.settings_discovery import discover_settings_module
-
     cwd = Path.cwd()
 
-    resolved = resolve_target(target, cwd=cwd)
+    resolved = module_resolver.resolve_target(target, cwd=cwd)
 
-    effective_settings = discover_settings_module(
+    effective_settings = settings_discovery.discover_settings_module(
         target=target,
         cwd=cwd,
         explicit=settings_module,
     )
 
-    # Extra args captured by Click's allow_extra_args.
-    extra_args: tuple[str, ...] = tuple(ctx.args)
+    extra_args = ctx.args
 
-    bootstrap_and_run(
-        resolved=resolved,
-        settings_module=effective_settings,
-        command=command,
-        command_args=extra_args,
-    )
+    try:
+        flexible_adapter.bootstrap_and_run(
+            resolved=resolved,
+            settings_module=effective_settings,
+            command=command,
+            command_args=tuple(extra_args),
+        )
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc

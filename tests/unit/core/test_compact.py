@@ -20,7 +20,7 @@ from openviper.core.management.base import BaseCommand, CommandError
 class TestAppResolverCacheEviction:
     """Test search pattern cache eviction."""
 
-    def test_search_pattern_cache_eviction(self):
+    def test_search_pattern_cache_eviction(self) -> None:
         """Test cache evicts oldest entry when at capacity."""
         # Save original cache state
         original_cache = app_resolver._SEARCH_PATTERN_CACHE.copy()
@@ -64,7 +64,7 @@ class TestAppResolverCacheEviction:
 class TestManagementInit:
     """Test management __init__.py uncovered branches."""
 
-    def test_find_command_settings_exception(self):
+    def test_find_command_settings_exception(self) -> None:
         """Test _find_command handles settings exception."""
         # When settings raises an exception, installed should be []
         mock_settings = MagicMock()
@@ -76,7 +76,7 @@ class TestManagementInit:
             with pytest.raises(CommandError, match="Unknown command"):
                 _find_command("nonexistent_command")
 
-    def test_find_command_module_not_found(self):
+    def test_find_command_module_not_found(self) -> None:
         """Test _find_command skips apps with no commands."""
         mock_settings = MagicMock()
         mock_settings.INSTALLED_APPS = ["app_without_commands"]
@@ -94,7 +94,7 @@ class TestManagementInit:
 class TestChangePasswordBranches:
     """Test changepassword command uncovered branches."""
 
-    def test_changepassword_email_field_lookup(self):
+    def test_changepassword_email_field_lookup(self) -> None:
         """Test user lookup by email field."""
         # Simulate field lookup logic
         field_names = {"email", "password"}  # No username field
@@ -111,7 +111,7 @@ class TestChangePasswordBranches:
 
         assert lookup == ("email", username)
 
-    def test_changepassword_name_field_lookup(self):
+    def test_changepassword_name_field_lookup(self) -> None:
         """Test user lookup by name field."""
         field_names = {"name", "password"}  # Only name field
         username = "testuser"
@@ -127,7 +127,7 @@ class TestChangePasswordBranches:
 
         assert lookup == ("name", username)
 
-    def test_changepassword_no_valid_field(self):
+    def test_changepassword_no_valid_field(self) -> None:
         """Test user lookup with no valid field."""
         field_names = {"password"}  # No identity field
 
@@ -143,7 +143,7 @@ class TestChangePasswordBranches:
 
         assert user is None
 
-    def test_changepassword_generic_exception(self):
+    def test_changepassword_generic_exception(self) -> None:
         """Test changepassword wraps generic exception."""
         # Simulate the exception handling
         error_occurred = False
@@ -167,7 +167,7 @@ class TestChangePasswordBranches:
 class TestCreatesuperuserBranches:
     """Test createsuperuser command uncovered branches."""
 
-    def test_prompt_email_preset_invalid(self):
+    def test_prompt_email_preset_invalid(self) -> None:
         """Test _prompt_email raises error for invalid preset."""
 
         # Simulate the validation logic
@@ -183,7 +183,7 @@ class TestCreatesuperuserBranches:
         assert error is not None
         assert "valid email" in str(error)
 
-    def test_prompt_email_invalid_input_retry(self):
+    def test_prompt_email_invalid_input_retry(self) -> None:
         """Test _prompt_email shows error and continues on invalid input."""
 
         # Simulate the validation loop
@@ -207,7 +207,7 @@ class TestCreatesuperuserBranches:
         assert len(errors) == 2
         assert result == "valid@example.com"
 
-    def test_createsuperuser_username_validation_error(self):
+    def test_createsuperuser_username_validation_error(self) -> None:
         """Test createsuperuser raises error for invalid username."""
 
         def _validate_username(username):
@@ -224,7 +224,7 @@ class TestCreatesuperuserBranches:
         assert error is not None
         assert "3 characters" in str(error)
 
-    def test_createsuperuser_generic_exception(self):
+    def test_createsuperuser_generic_exception(self) -> None:
         """Test createsuperuser wraps generic exception."""
         error_occurred = False
         try:
@@ -240,14 +240,14 @@ class TestCreatesuperuserBranches:
 
 
 # ---------------------------------------------------------------------------
-# commands/shell.py
+# commands/console.py
 # ---------------------------------------------------------------------------
 
 
-class TestShellBranches:
-    """Test shell command uncovered branches."""
+class TestConsoleBranches:
+    """Test console command uncovered branches."""
 
-    def test_shell_model_import_error(self):
+    def test_console_model_import_error(self) -> None:
         """Test _discover_models handles ImportError."""
 
         # Simulate model discovery with import error
@@ -263,7 +263,7 @@ class TestShellBranches:
 
         assert models == {}
 
-    def test_shell_model_subclass_type_error(self):
+    def test_console_model_subclass_type_error(self) -> None:
         """Test _discover_models handles TypeError."""
 
         # Simulate checking if class is subclass of Model
@@ -283,7 +283,7 @@ class TestShellBranches:
 
         assert len(results) == 1  # Only NotAClass passes
 
-    def test_shell_model_count_output(self):
+    def test_console_model_count_output(self) -> None:
         """Test _discover_models outputs count when models found."""
         found = 5
         module_name = "myapp.models"
@@ -293,7 +293,7 @@ class TestShellBranches:
         assert message is not None
         assert "5 model(s)" in message
 
-    def test_shell_user_model_exception(self):
+    def test_console_user_model_exception(self) -> None:
         """Test _discover_models handles get_user_model exception."""
         # Simulate user model lookup failure
         models = {"MyModel": object}
@@ -315,7 +315,7 @@ class TestShellBranches:
 class TestMigrateBranches:
     """Test migrate command uncovered branches."""
 
-    def test_migrate_with_dict_resolved_apps(self):
+    def test_migrate_with_dict_resolved_apps(self) -> None:
         """Test migrate with dict resolved_apps."""
         resolved_apps = {"myapp": MagicMock()}
 
@@ -324,7 +324,7 @@ class TestMigrateBranches:
 
         assert result is resolved_apps
 
-    def test_migrate_with_non_dict_resolved_apps(self):
+    def test_migrate_with_non_dict_resolved_apps(self) -> None:
         """Test migrate with non-dict resolved_apps."""
         resolved_apps = ["myapp"]  # List, not dict
 
@@ -341,13 +341,13 @@ class TestMigrateBranches:
 class TestCommandExecutionBranches:
     """Test command execution edge cases."""
 
-    def test_base_command_stderr_output(self):
+    def test_base_command_stderr_output(self) -> None:
         """Test BaseCommand.stderr() method."""
         cmd = BaseCommand()
         # stderr should not raise
         cmd.stderr("Error message")
 
-    def test_base_command_style_methods(self):
+    def test_base_command_style_methods(self) -> None:
         """Test BaseCommand style helper methods."""
         cmd = BaseCommand()
 
@@ -357,13 +357,13 @@ class TestCommandExecutionBranches:
         assert isinstance(cmd.style_warning("text"), str)
         assert isinstance(cmd.style_bold("text"), str)
 
-    def test_command_error_with_returncode(self):
+    def test_command_error_with_returncode(self) -> None:
         """Test CommandError with custom returncode."""
         error = CommandError("Test error", returncode=2)
         assert error.returncode == 2
         assert str(error) == "Test error"
 
-    def test_command_error_default_returncode(self):
+    def test_command_error_default_returncode(self) -> None:
         """Test CommandError default returncode."""
         error = CommandError("Test error")
         assert error.returncode == 1
@@ -377,7 +377,7 @@ class TestCommandExecutionBranches:
 class TestAdditionalEdgeCases:
     """Test additional edge cases for full coverage."""
 
-    def test_async_run_wrapper(self):
+    def test_async_run_wrapper(self) -> None:
         """Test asyncio.run wrapper pattern used in commands."""
 
         async def async_func():
@@ -386,7 +386,7 @@ class TestAdditionalEdgeCases:
         result = asyncio.run(async_func())
         assert result == "result"
 
-    def test_getpass_keyboard_interrupt(self):
+    def test_getpass_keyboard_interrupt(self) -> None:
         """Test password prompt handles KeyboardInterrupt."""
         cancelled = False
 
@@ -397,7 +397,7 @@ class TestAdditionalEdgeCases:
 
         assert cancelled
 
-    def test_getpass_eof_error(self):
+    def test_getpass_eof_error(self) -> None:
         """Test password prompt handles EOFError."""
         cancelled = False
 
@@ -408,7 +408,7 @@ class TestAdditionalEdgeCases:
 
         assert cancelled
 
-    def test_password_mismatch_retry(self):
+    def test_password_mismatch_retry(self) -> None:
         """Test password confirmation mismatch triggers retry."""
         passwords = [("pass1", "different"), ("pass2", "pass2")]
         attempts = 0
@@ -421,7 +421,7 @@ class TestAdditionalEdgeCases:
 
         assert attempts == 2
 
-    def test_empty_password_rejected(self):
+    def test_empty_password_rejected(self) -> None:
         """Test empty password is rejected."""
         password = ""
 
@@ -429,7 +429,7 @@ class TestAdditionalEdgeCases:
 
         assert error is not None
 
-    def test_installed_apps_iteration(self):
+    def test_installed_apps_iteration(self) -> None:
         """Test iteration over INSTALLED_APPS."""
         installed = ["app1", "app2", "app3"]
         found = []
@@ -444,7 +444,7 @@ class TestAdditionalEdgeCases:
 
         assert found == []
 
-    def test_user_exists_check(self):
+    def test_user_exists_check(self) -> None:
         """Test user existence check logic."""
         existing_users = {"admin": True, "user1": True}
 
@@ -457,7 +457,7 @@ class TestAdditionalEdgeCases:
         assert error is not None
         assert "admin" in error
 
-    def test_missing_admin_fields_warning(self):
+    def test_missing_admin_fields_warning(self) -> None:
         """Test warning for missing admin fields."""
         field_names = {"username", "email", "password"}  # Missing is_superuser, is_staff
 
@@ -465,7 +465,7 @@ class TestAdditionalEdgeCases:
 
         assert missing == ["is_superuser", "is_staff"]
 
-    def test_build_user_kwargs_all_fields(self):
+    def test_build_user_kwargs_all_fields(self) -> None:
         """Test user kwargs building with all fields."""
         field_names = {"username", "email", "is_superuser", "is_staff", "is_active"}
         username = "admin"
@@ -493,7 +493,7 @@ class TestAdditionalEdgeCases:
             "is_active": True,
         }
 
-    def test_build_user_kwargs_name_field(self):
+    def test_build_user_kwargs_name_field(self) -> None:
         """Test user kwargs building with name field instead of username."""
         field_names = {"name", "email"}
         username = "admin"

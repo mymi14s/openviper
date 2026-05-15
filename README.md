@@ -97,8 +97,8 @@ python viperctl.py migrate
 python viperctl.py createsuperuser
 
 # Start everything
-python viperctl.py runserver    # web server
-python viperctl.py runworker    # background task worker (separate terminal)
+python viperctl.py startserver    # web server
+python viperctl.py startworker    # background task worker (separate terminal)
 ```
 
 ---
@@ -188,7 +188,7 @@ class PostAdmin(ModelAdmin):
 start server
 
 ```bash
-python viperctl.py runserver
+python viperctl.py startserver
 ```
 
 Visit `http://localhost:8000/admin`
@@ -224,7 +224,7 @@ async def refresh_cache():
 ```
 
 ```bash
-python viperctl.py runworker
+python viperctl.py startworker
 ```
 
 ---

@@ -26,7 +26,7 @@ class Command(BaseCommand):
             help="Specify the new password. If not provided, you will be prompted.",
         )
 
-    def handle(self, **options):
+    def handle(self, **options) -> None:
         username = options.get("username")
         password = options.get("password")
         User = get_user_model()  # noqa: N806
@@ -78,9 +78,12 @@ class Command(BaseCommand):
             await user.save()
             self.stdout(self.style_success(f"Password changed successfully for user '{username}'."))
 
+        run_coro = run_command()
         try:
-            asyncio.run(run_command())
+            asyncio.run(run_coro)
         except CommandError:
             raise
         except Exception as exc:
             raise CommandError(str(exc)) from exc
+        finally:
+            run_coro.close()

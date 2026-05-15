@@ -101,7 +101,7 @@ class Command(BaseCommand):
             help="Permanently DROP removed columns instead of renaming them (data loss!)",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
 
         app_labels = options.get("app_labels") or []
         custom_name = options.get("name")
@@ -244,7 +244,7 @@ class Command(BaseCommand):
                 adj[dep].append(label)
                 in_degree[label] += 1
 
-        queue = deque(sorted([_l for _l, d in in_degree.items() if d == 0]))
+        queue = deque(sorted([label for label, degree in in_degree.items() if degree == 0]))
         sorted_labels = []
         while queue:
             curr = queue.popleft()
@@ -256,7 +256,7 @@ class Command(BaseCommand):
 
         # Handle remaining (cycles)
         if len(sorted_labels) < len(app_data):
-            remaining = sorted([_l for _l in app_data if _l not in sorted_labels])
+            remaining = sorted([label for label in app_data if label not in sorted_labels])
             sorted_labels.extend(remaining)
 
         # Validate primary key configuration before writing any migration files.

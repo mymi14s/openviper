@@ -44,7 +44,7 @@ class Command(BaseCommand):
             help="Base directory (default: current working directory)",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
         command_name: str = options["command_name"]
         app_name: str = options["app_name"]
         base_dir = options.get("directory") or os.getcwd()

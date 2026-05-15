@@ -165,6 +165,7 @@ class TestPermissionHelpers:
         assert check_model_permission(req, None, "view") is True
 
         req.user = MagicMock(is_superuser=False, is_staff=False)
+        req.user.has_perm = MagicMock(return_value=False)
         assert check_model_permission(req, None, "view") is False
 
     def test_check_object_permission(self):

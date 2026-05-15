@@ -58,9 +58,15 @@ def check_model_permission(
     if getattr(user, "is_staff", False):
         return True
 
-    # Check user permissions (if has_perm is available)
-    # Simplified synchronous check for now
-    return hasattr(user, "has_perm")
+    # Check granular permissions if available
+    if hasattr(user, "has_perm") and callable(user.has_perm):
+        model_name = getattr(model_class, "__name__", "")
+        app_label = getattr(model_class, "_app_name", "default")
+        perm_codename = f"{action}_{model_name.lower()}"
+        result = user.has_perm(f"{app_label}.{perm_codename}")
+        return bool(result)
+
+    return False
 
 
 def check_object_permission(
@@ -86,9 +92,7 @@ def check_object_permission(
     if getattr(user, "is_superuser", False):
         return True
 
-    # Check model-level permission first
     return check_model_permission(request, obj.__class__, action)
-    # Object-level permissions are delegated to model-level checks above
 
 
 class PermissionChecker:

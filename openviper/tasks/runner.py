@@ -1,6 +1,6 @@
 """Blocking run-loop for OpenViper's periodic task scheduler.
 
-:func:`run_scheduler` is the entry-point called by the ``runworker``
+:func:`run_scheduler` is the entry-point called by the ``startworker``
 management command.  It ticks the scheduler at *tick_interval* second
 intervals and handles ``SIGINT`` / ``SIGTERM`` for a clean shutdown.
 

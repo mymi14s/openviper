@@ -63,10 +63,10 @@ class TestExtractSettingsFlag:
 
     def test_equals_syntax(self) -> None:
         value, remaining = _extract_settings_flag(
-            ["viperctl.py", "--settings=project.settings.prod", "runserver"]
+            ["viperctl.py", "--settings=project.settings.prod", "startserver"]
         )
         assert value == "project.settings.prod"
-        assert remaining == ["viperctl.py", "runserver"]
+        assert remaining == ["viperctl.py", "startserver"]
 
     def test_space_syntax(self) -> None:
         value, remaining = _extract_settings_flag(
@@ -76,16 +76,16 @@ class TestExtractSettingsFlag:
         assert remaining == ["viperctl.py", "migrate"]
 
     def test_not_present(self) -> None:
-        value, remaining = _extract_settings_flag(["viperctl.py", "runserver"])
+        value, remaining = _extract_settings_flag(["viperctl.py", "startserver"])
         assert value is None
-        assert remaining == ["viperctl.py", "runserver"]
+        assert remaining == ["viperctl.py", "startserver"]
 
     def test_flag_after_subcommand(self) -> None:
         value, remaining = _extract_settings_flag(
-            ["viperctl.py", "runserver", "--settings=project.settings.prod"]
+            ["viperctl.py", "startserver", "--settings=project.settings.prod"]
         )
         assert value == "project.settings.prod"
-        assert remaining == ["viperctl.py", "runserver"]
+        assert remaining == ["viperctl.py", "startserver"]
 
 
 class TestAutoDiscoverSettings:
@@ -214,11 +214,17 @@ class TestExecuteFromCommandLineSettings:
 
         with pytest.raises(SystemExit):
             execute_from_command_line(
-                ["viperctl.py", "--settings", "myproject.settings.dev", "runserver", "--port=9000"]
+                [
+                    "viperctl.py",
+                    "--settings",
+                    "myproject.settings.dev",
+                    "startserver",
+                    "--port=9000",
+                ]
             )
 
         mock_command.run_from_argv.assert_called_once_with(
-            ["viperctl.py", "runserver", "--port=9000"]
+            ["viperctl.py", "startserver", "--port=9000"]
         )
 
 

@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 # Ensure the openviper package is importable from the repo root
 sys.path.insert(0, "/home/claude")
+
+# Remove OPENVIPER_SETTINGS_MODULE if it points to a non-existent module
+# (e.g. a project-specific settings module that isn't installed in this env).
+_settings_module = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
+if _settings_module:
+    try:
+        __import__(_settings_module)
+    except ImportError:
+        os.environ.pop("OPENVIPER_SETTINGS_MODULE", None)
 
 # ---------------------------------------------------------------------------
 # ASGI helpers

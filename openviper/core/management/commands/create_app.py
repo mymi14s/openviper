@@ -88,7 +88,7 @@ class Command(BaseCommand):
             help="Target directory (default: current working directory)",
         )
 
-    def handle(self, **options):  # type: ignore[override]
+    def handle(self, **options) -> None:  # type: ignore[override]
         name: str = options["name"]
         if not name.isidentifier():
             raise CommandError(f"'{name}' is not a valid Python identifier.")

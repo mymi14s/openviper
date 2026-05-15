@@ -30,7 +30,7 @@ FROM base AS development
 
 EXPOSE 8000
 
-CMD ["python", "viperctl.py", "runserver", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "viperctl.py", "startserver", "--host", "0.0.0.0", "--port", "8000"]
 
 
 # ─── Production stage ─────────────────────────────────────────────────────────

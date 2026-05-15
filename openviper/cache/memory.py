@@ -28,7 +28,7 @@ class InMemoryCache(BaseCache):
         if ttl is None:
             ttl = settings.CACHE_TTL
 
-        expiry = time.time() + ttl if ttl is not None else None
+        expiry = time.time() + ttl
         self._data[key] = (value, expiry)
 
     async def delete(self, key: str) -> None:

@@ -57,10 +57,6 @@ class Scheduler:
     def __init__(self, registry: ScheduleRegistry | None = None) -> None:
         self._registry: ScheduleRegistry = registry if registry is not None else get_registry()
 
-    # ------------------------------------------------------------------
-    # Registration helpers
-    # ------------------------------------------------------------------
-
     def add(
         self,
         name: str,
@@ -101,10 +97,6 @@ class Scheduler:
         """Unregister the entry named *name*.  No-op if not found."""
         self._registry.unregister(name)
 
-    # ------------------------------------------------------------------
-    # Instant jobs
-    # ------------------------------------------------------------------
-
     def run_now(self, actor: Any, /, *args: Any, **kwargs: Any) -> None:
         """Enqueue *actor* immediately — a one-shot fire-and-forget job.
 
@@ -143,10 +135,6 @@ class Scheduler:
         )
         actor.send(*args, **kwargs)
 
-    # ------------------------------------------------------------------
-    # Tick
-    # ------------------------------------------------------------------
-
     def tick(self, now: datetime | None = None) -> list[str]:
         """Enqueue all tasks whose schedule is currently due.
 
@@ -182,10 +170,6 @@ class Scheduler:
                 )
 
         return sorted(enqueued)
-
-    # ------------------------------------------------------------------
-    # Introspection
-    # ------------------------------------------------------------------
 
     def get_registry(self) -> ScheduleRegistry:
         """Return the underlying :class:`~openviper.tasks.registry.ScheduleRegistry`."""

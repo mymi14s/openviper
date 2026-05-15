@@ -7,12 +7,28 @@ import zoneinfo
 
 from openviper.conf import settings
 
+__all__ = [
+    "utc",
+    "get_current_timezone",
+    "now",
+    "is_aware",
+    "is_naive",
+    "make_aware",
+    "make_naive",
+    "localtime",
+]
+
 utc: datetime.timezone = datetime.UTC
+
+
+def _get_settings() -> object:
+    """Return settings through a helper for backwards-compatible patching."""
+    return settings
 
 
 def get_current_timezone() -> zoneinfo.ZoneInfo:
     """Return a ZoneInfo instance for the configured TIME_ZONE."""
-    return zoneinfo.ZoneInfo(settings.TIME_ZONE)
+    return zoneinfo.ZoneInfo(_get_settings().TIME_ZONE)
 
 
 def now() -> datetime.datetime:
@@ -21,7 +37,7 @@ def now() -> datetime.datetime:
     If USE_TZ is True, returns an aware UTC datetime.
     Otherwise, returns a naive local datetime.
     """
-    if settings.USE_TZ:
+    if _get_settings().USE_TZ:
         return datetime.datetime.now(datetime.UTC)
     return datetime.datetime.now()
 
@@ -60,3 +76,19 @@ def make_naive(
         raise ValueError(f"make_naive expects an aware datetime, got {value}")
 
     return value.astimezone(timezone).replace(tzinfo=None)
+
+
+def localtime(
+    value: datetime.datetime | None = None, timezone: zoneinfo.ZoneInfo | None = None
+) -> datetime.datetime:
+    """Convert an aware datetime to the configured timezone.
+
+    If *value* is ``None``, returns the current time in the configured timezone.
+    If *value* is naive, it is assumed to be in the configured timezone.
+    """
+    tz = timezone or get_current_timezone()
+    if value is None:
+        return datetime.datetime.now(tz)
+    if is_aware(value):
+        return value.astimezone(tz)
+    return make_aware(value, tz)

@@ -144,7 +144,7 @@ Login to the admin panel
 
 .. code-block:: bash
 
-   python viperctl.py runserver --reload # optional --host [IP_ADDRESS] --port 8000 --reload
+   python viperctl.py startserver --reload # optional --host [IP_ADDRESS] --port 8000 --reload
 
 Navigate to http://localhost:8000/admin/ and login with the superuser credentials.
 
@@ -514,7 +514,7 @@ It should be started in a separate terminal from the server.
 
 .. code-block:: bash
 
-   python viperctl.py runworker
+   python viperctl.py startworker
 
 ----
 
@@ -571,7 +571,7 @@ Then enable the AI registry in ``myblog/settings.py``:
 Explore the Tools
 -----------------
 
-OpenViper provides several management tools via the shell.
+OpenViper provides several management tools via the console.
 The framework also provides a registry extension generator to add more AI providers.
 See: ``python viperctl.py create-provider --help``
 
@@ -581,7 +581,7 @@ See: ``python viperctl.py create-provider --help``
 
 .. code-block:: bash
 
-    python viperctl.py shell
+    python viperctl.py console
 
     In [9]: from openviper.ai.registry import provider_registry
 

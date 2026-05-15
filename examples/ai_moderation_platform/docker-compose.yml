@@ -30,7 +30,7 @@ services:
     build:
       context: .
       target: production
-    command: python viperctl.py runworker
+    command: python viperctl.py startworker
     environment:
       DEBUG: "0"
       SECRET_KEY: "CHANGE_ME_STRONG_SECRET_KEY"

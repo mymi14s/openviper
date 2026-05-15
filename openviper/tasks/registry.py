@@ -73,10 +73,6 @@ class ScheduleRegistry:
     def __init__(self) -> None:
         self._entries: dict[str, ScheduleEntry] = {}
 
-    # ------------------------------------------------------------------
-    # Registration
-    # ------------------------------------------------------------------
-
     def register(
         self,
         name: str,
@@ -129,10 +125,6 @@ class ScheduleRegistry:
         """Remove the entry named *name*.  No-op if not found."""
         self._entries.pop(name, None)
         logger.debug("Unregistered schedule entry %r", name)
-
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
 
     def get(self, name: str) -> ScheduleEntry | None:
         """Return the entry with *name*, or ``None``."""

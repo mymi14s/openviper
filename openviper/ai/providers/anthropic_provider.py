@@ -11,14 +11,6 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-try:
-    from anthropic import AsyncAnthropic
-except ImportError as _exc:
-    raise ImportError(
-        "The 'anthropic' package is required for AnthropicProvider. "
-        "Install it with: pip install openviper[ai]"
-    ) from _exc
-
 from openviper.ai.base import AIProvider
 
 _log = logging.getLogger("openviper.ai")
@@ -40,11 +32,18 @@ class AnthropicProvider(AIProvider):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self._client: AsyncAnthropic | None = None
+        self._client: Any = None
 
-    def _get_client(self) -> AsyncAnthropic:
+    def _get_client(self) -> Any:
         """Get or create a persistent Anthropic client."""
         if self._client is None:
+            try:
+                from anthropic import AsyncAnthropic
+            except ImportError as exc:
+                raise ImportError(
+                    "The 'anthropic' package is required for AnthropicProvider. "
+                    "Install it with: pip install openviper[ai]"
+                ) from exc
             self._client = AsyncAnthropic(api_key=self.config.get("api_key"))
         return self._client
 

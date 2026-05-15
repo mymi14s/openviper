@@ -36,7 +36,6 @@ class BaseCommand:
     """
 
     help: str = ""
-    requires_system_checks: bool = True
 
     def __init__(self) -> None:
         self._parser: argparse.ArgumentParser | None = None

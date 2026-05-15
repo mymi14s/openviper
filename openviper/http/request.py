@@ -3,22 +3,29 @@
 from __future__ import annotations
 
 import contextlib
+import importlib
 import json
 import re
 import urllib.parse
 from collections.abc import AsyncIterator
 from http.cookies import SimpleCookie
+from types import ModuleType
 from typing import Any, cast
 
 from openviper.http.uploads import UploadFile
 from openviper.utils.datastructures import Headers, ImmutableMultiDict, QueryParams
 
+_multipart_module: ModuleType | None
 try:
-    from multipart.multipart import FormParser
-    from multipart.multipart import parse_options_header as _parse_options_header
+    _multipart_module = importlib.import_module("python_multipart.multipart")
 except ImportError:
-    FormParser = None  # type: ignore[assignment,misc]
-    _parse_options_header = None  # type: ignore[assignment]
+    try:
+        _multipart_module = importlib.import_module("multipart.multipart")
+    except ImportError:
+        _multipart_module = None
+
+FormParser = getattr(_multipart_module, "FormParser", None)
+_parse_options_header = getattr(_multipart_module, "parse_options_header", None)
 
 # Maximum request body size (10 MB). Prevents unbounded memory allocation.
 MAX_BODY_SIZE: int = 10 * 1024 * 1024
@@ -291,7 +298,7 @@ class Request:
                     form_items.append((file.field_name.decode(), upload))
 
                 ctype, options = _parse_options_header(content_type)
-                boundary = options.get(b"boundary") or options.get("boundary")
+                boundary = options.get(b"boundary")
 
                 if not boundary:
                     self._form = ImmutableMultiDict([])

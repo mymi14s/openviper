@@ -95,9 +95,7 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
     config: dict[str, Any] = {}
     field_class_name = field.__class__.__name__
 
-    # Common config
     config["required"] = not getattr(field, "null", True) and not getattr(field, "blank", True)
-    # Fields that are intrinsically read-only (auto-managed by the system)
     config["readonly"] = (
         field.__class__.__name__ == "AutoField"
         or getattr(field, "auto_increment", False)
@@ -106,30 +104,19 @@ def get_field_widget_config(field: Field) -> dict[str, Any]:
     )
     config["help_text"] = getattr(field, "help_text", "")
 
-    # Choices
     if hasattr(field, "choices") and field.choices:
         config["choices"] = [{"value": c[0], "label": c[1]} for c in field.choices]
-        # Map back from Enum if labels are LazyStrings
         for choice in config["choices"]:
             if not isinstance(choice["label"], (str, int, float, bool)):
                 choice["label"] = str(choice["label"])
 
-    # Field-specific config
     if field_class_name == "PointField":
         config["srid"] = getattr(field, "srid", 4326)
 
     if field_class_name == "CharField":
         config["max_length"] = getattr(field, "max_length", 255)
 
-    if (
-        field_class_name
-        in (
-            "IntegerField",
-            "BigIntegerField",
-            "PositiveIntegerField",
-        )
-        and field_class_name == "PositiveIntegerField"
-    ):
+    if field_class_name == "PositiveIntegerField":
         config["min"] = 0
 
     if field_class_name == "FloatField":
@@ -274,7 +261,7 @@ def get_field_schema(field: Field) -> dict[str, Any]:
                         module = importlib.import_module(module_path)
                         resolved_model = getattr(module, model_name, None)
                     except ImportError, AttributeError:
-                        pass
+                        logger.debug("Could not import %s.models.%s", parts[0], model_name)
 
                     # Try full module path (e.g., "user.models" for "user.models.User")
                     if resolved_model is None and len(parts) >= 3:
@@ -283,7 +270,7 @@ def get_field_schema(field: Field) -> dict[str, Any]:
                             module = importlib.import_module(module_path)
                             resolved_model = getattr(module, model_name, None)
                         except ImportError, AttributeError:
-                            pass
+                            logger.debug("Could not import %s.%s", ".".join(parts[:-1]), model_name)
                     app_name = getattr(
                         resolved_model,
                         "_app_name",

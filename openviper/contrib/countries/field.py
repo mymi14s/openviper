@@ -18,10 +18,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from openviper.contrib.countries.cache import get_country_choices
+from openviper.contrib.countries.cache import get_countries, get_country, get_country_choices
 from openviper.contrib.countries.country import Country
 from openviper.contrib.countries.data import COUNTRY_CODES
-from openviper.contrib.countries.utils import validate_country
+from openviper.contrib.countries.utils import get_country_name, search_country, validate_country
 from openviper.db.fields import CharField
 
 _EXTRA_COUNTRIES_TYPE = tuple[tuple[str, str, str], ...]
@@ -114,6 +114,9 @@ class CountryField(CharField):
         if value is not None and len(str(value)) > 10:
             raise ValueError("Country code exceeds maximum safe length.")
 
+        if value is None and not self.null:
+            raise ValueError(f"Field '{self.name}' cannot be null.")
+
         super().validate(value)
         if value is None:
             return
@@ -129,8 +132,6 @@ class CountryField(CharField):
         """Return the English country name for *code*, or ``None``."""
         if code is None:
             return None
-        from openviper.contrib.countries.utils import get_country_name
-
         return get_country_name(code, extra=self.extra_countries)
 
     def search(self, query: str) -> list[dict[str, str]]:
@@ -138,8 +139,6 @@ class CountryField(CharField):
 
         Returns a list of ``{"code": ..., "name": ..., "dial_code": ...}`` dicts.
         """
-        from openviper.contrib.countries.utils import search_country
-
         return search_country(query, extra=self.extra_countries)
 
     def to_representation(self, value: str | None, *, full: bool = False) -> Any:
@@ -158,8 +157,6 @@ class CountryField(CharField):
         normalised = str(value).upper()
         if not full:
             return normalised
-        from openviper.contrib.countries.cache import get_countries, get_country
-
         info = get_country(normalised)
         if info is None and self.extra_countries:
             info = get_countries(self.extra_countries).get(normalised)

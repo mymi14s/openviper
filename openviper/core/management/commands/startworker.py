@@ -1,4 +1,4 @@
-"""runworker management command — start background task worker.
+"""startworker management command — start background task worker.
 
 Runs the task worker.  For database brokers the worker runs entirely
 in-process.  For Redis/RabbitMQ brokers, the standard ``dramatiq`` CLI
@@ -6,16 +6,15 @@ is invoked as a subprocess with auto-discovered task modules.
 
 Usage::
 
-    python viperctl.py runworker
-    python viperctl.py runworker myapp.tasks --threads 4 --queues default high
-    python viperctl.py runworker --processes 2 --threads 4
+    python viperctl.py startworker
+    python viperctl.py startworker myapp.tasks --threads 4 --queues default high
+    python viperctl.py startworker --processes 2 --threads 4
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib
-import importlib.util
 import logging
 import os
 import signal
@@ -28,8 +27,6 @@ from openviper.core.management.base import BaseCommand
 from openviper.tasks.worker import run_worker
 
 logger = logging.getLogger("openviper.tasks")
-
-_MISSING = object()  # Sentinel for sys.modules lookup when key is absent
 
 _SKIP_DIRS: frozenset[str] = frozenset(
     {"migrations", "tests", "__pycache__", ".git", "static", "templates"}
@@ -141,7 +138,7 @@ class Command(BaseCommand):
             if not os.environ.get("OPENVIPER_SETTINGS_MODULE"):
                 msg += (
                     " No settings module was configured"
-                    " — try: python viperctl.py --settings=<module> runworker"
+                    " — try: python viperctl.py --settings=<module> startworker"
                 )
             self.stdout(msg + " Exiting.")
             sys.exit(1)

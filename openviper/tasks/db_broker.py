@@ -18,9 +18,8 @@ from openviper.utils import timezone
 
 logger = logging.getLogger("openviper.tasks")
 
-# Exponential back-off bounds for the consumer poll loop (defaults).
-_DEFAULT_POLL_MIN_SLEEP: float = 0.1  # 100 ms
-_DEFAULT_POLL_MAX_SLEEP: float = 2.0  # 2 000 ms
+_DEFAULT_POLL_MIN_SLEEP: float = 0.1
+_DEFAULT_POLL_MAX_SLEEP: float = 2.0
 
 
 def require_dependency(package: str) -> None:
@@ -36,7 +35,7 @@ def require_dependency(package: str) -> None:
 class DatabaseBroker(Broker):
     """A Dramatiq broker that stores messages in a database table."""
 
-    def __init__(self, *, middleware: list | None = None):
+    def __init__(self, *, middleware: list[Any] | None = None):
         super().__init__(middleware=middleware)
         self._engine = self._get_sync_engine()
         self._supports_skip_locked = self._engine.dialect.name in ("postgresql", "mysql")

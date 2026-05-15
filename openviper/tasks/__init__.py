@@ -30,8 +30,8 @@ Query results::
 
 Start the worker::
 
-    python viperctl.py runworker
-    python viperctl.py runworker --threads 16 --queues emails notifications
+    python viperctl.py startworker
+    python viperctl.py startworker --threads 16 --queues emails notifications
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ from openviper.tasks.schedule import CronSchedule, IntervalSchedule, Schedule
 from openviper.tasks.scheduler import periodic, reset_scheduler
 
 # When this module is imported inside a worker process (``OPENVIPER_WORKER=1``
-# is set by ``runworker`` before anything else runs):
+# is set by ``startworker`` before anything else runs):
 #   1. Configure file logging immediately so every subsequent log statement
 #      lands in ``logs/worker.log``.
 #   2. Eagerly initialise the broker so middleware (SchedulerMiddleware,

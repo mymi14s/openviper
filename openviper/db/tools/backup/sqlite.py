@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import shutil
 from pathlib import Path
 
@@ -60,8 +59,7 @@ class SQLiteBackupEngine(BackupEngine):
         db_path = self._extract_db_path(database_url)
         dest = work_dir / "backup.sql"
 
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, shutil.copy2, str(db_path), str(dest))
+        shutil.copy2(str(db_path), str(dest))
         return dest
 
     async def restore(
@@ -89,5 +87,4 @@ class SQLiteBackupEngine(BackupEngine):
                 f"Database file already exists: {db_path}. " "Use --force to overwrite."
             )
 
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, shutil.copy2, str(sql_file), str(db_path))
+        shutil.copy2(str(sql_file), str(db_path))

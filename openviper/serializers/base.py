@@ -75,6 +75,12 @@ class Serializer(BaseModel):
     ``serialize_many()`` on top of standard Pydantic functionality.
     Raises :class:`~openviper.exceptions.ValidationError` instead of the
     Pydantic variant on validation failure.
+
+    Note:
+        Several methods accept ``Any`` for ORM object parameters because
+        Serializer is designed to work with arbitrary model classes.
+        Narrowing these types further would couple the serializer to a
+        specific ORM implementation and reduce flexibility.
     """
 
     model_config = ConfigDict(

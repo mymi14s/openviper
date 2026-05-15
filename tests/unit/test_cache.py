@@ -152,13 +152,17 @@ class TestRedisCacheImportGuard:
 
     def test_raises_import_error_when_redis_not_installed(self):
         """Instantiating RedisCache without the redis package raises ImportError."""
-        original = cache_module.redis_lib
-        cache_module.redis_lib = None
-        try:
+        with patch("openviper.cache.redis.redis_lib", None):
             with pytest.raises(ImportError, match="redis"):
                 cache_module.RedisCache()
-        finally:
-            cache_module.redis_lib = original
+
+    def test_raises_import_error_when_redis_not_installed_via_module(self):
+        """Instantiating RedisCache via redis module without redis package raises ImportError."""
+        from openviper.cache.redis import RedisCache as ModuleRedisCache
+
+        with patch("openviper.cache.redis.redis_lib", None):
+            with pytest.raises(ImportError, match="redis"):
+                ModuleRedisCache()
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +326,7 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.orjson") as mock_orjson:
+        with patch("openviper.cache.db_backend.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"data": "test"}
             result = await cache.get("test_key")
 
@@ -368,13 +372,13 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.timezone") as mock_tz:
+        with patch("openviper.cache.db_backend.timezone") as mock_tz:
             mock_tz.now.return_value = timezone.now()  # aware
             mock_tz.is_aware = timezone.is_aware
             mock_tz.is_naive = timezone.is_naive
             mock_tz.make_aware.return_value = fake_entry.expires_at.replace(tzinfo=timezone.utc)
 
-            with patch("openviper.cache.orjson") as mock_orjson:
+            with patch("openviper.cache.db_backend.orjson") as mock_orjson:
                 mock_orjson.loads.return_value = "test_value"
                 result = await cache.get("test_key")
 
@@ -396,7 +400,7 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.timezone") as mock_tz:
+        with patch("openviper.cache.db_backend.timezone") as mock_tz:
             mock_tz.now.return_value = datetime.now()  # naive
             mock_tz.is_aware = timezone.is_aware
             mock_tz.is_naive = timezone.is_naive
@@ -404,7 +408,7 @@ class TestDatabaseCacheOperations:
                 tzinfo=None
             )
 
-            with patch("openviper.cache.orjson") as mock_orjson:
+            with patch("openviper.cache.db_backend.orjson") as mock_orjson:
                 mock_orjson.loads.return_value = "test_value"
                 result = await cache.get("test_key")
 
@@ -423,7 +427,7 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.orjson") as mock_orjson:
+        with patch("openviper.cache.db_backend.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = Exception("Parse error")
             result = await cache.get("test_key")
 
@@ -438,9 +442,14 @@ class TestDatabaseCacheOperations:
         mock_conn = MagicMock()
         mock_conn.execute = AsyncMock()
 
-        with patch("openviper.cache.get_table") as _:
-            with patch("openviper.cache.get_engine", new_callable=AsyncMock) as mock_get_engine:
-                with patch("openviper.cache._get_begin") as mock_get_begin:
+        mock_table = MagicMock()
+        mock_table.name = "openviper_cache_entries"
+
+        with patch("openviper.cache.db_backend.get_table", return_value=mock_table):
+            with patch(
+                "openviper.cache.db_backend.get_engine", new_callable=AsyncMock
+            ) as mock_get_engine:
+                with patch("openviper.cache.db_backend._get_begin") as mock_get_begin:
                     mock_get_engine.return_value = mock_engine
                     mock_begin = MagicMock()
                     mock_begin.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -460,9 +469,14 @@ class TestDatabaseCacheOperations:
         mock_conn = MagicMock()
         mock_conn.execute = AsyncMock()
 
-        with patch("openviper.cache.get_table") as _:
-            with patch("openviper.cache.get_engine", new_callable=AsyncMock) as mock_get_engine:
-                with patch("openviper.cache._get_begin") as mock_get_begin:
+        mock_table = MagicMock()
+        mock_table.name = "openviper_cache_entries"
+
+        with patch("openviper.cache.db_backend.get_table", return_value=mock_table):
+            with patch(
+                "openviper.cache.db_backend.get_engine", new_callable=AsyncMock
+            ) as mock_get_engine:
+                with patch("openviper.cache.db_backend._get_begin") as mock_get_begin:
                     mock_get_engine.return_value = mock_engine
                     mock_begin = MagicMock()
                     mock_begin.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -489,7 +503,9 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.get_engine", new_callable=AsyncMock) as mock_get_engine:
+        with patch(
+            "openviper.cache.db_backend.get_engine", new_callable=AsyncMock
+        ) as mock_get_engine:
             mock_get_engine.return_value = mock_engine
             await cache.set("key", "new_value", ttl=60)
 
@@ -508,7 +524,9 @@ class TestDatabaseCacheOperations:
         fake_cls.objects.filter.return_value = fake_qs
         fake_cls.objects.create = AsyncMock()
 
-        with patch("openviper.cache.get_engine", new_callable=AsyncMock) as mock_get_engine:
+        with patch(
+            "openviper.cache.db_backend.get_engine", new_callable=AsyncMock
+        ) as mock_get_engine:
             mock_get_engine.return_value = mock_engine
             await cache.set("key", "value", ttl=60)
 
@@ -525,10 +543,15 @@ class TestDatabaseCacheOperations:
 
         complex_value = {"nested": [1, 2, {"deep": True}]}
 
-        with patch("openviper.cache.get_table") as _:
-            with patch("openviper.cache.get_engine", new_callable=AsyncMock) as mock_get_engine:
-                with patch("openviper.cache._get_begin") as mock_get_begin:
-                    with patch("openviper.cache.orjson") as mock_orjson:
+        mock_table = MagicMock()
+        mock_table.name = "openviper_cache_entries"
+
+        with patch("openviper.cache.db_backend.get_table", return_value=mock_table):
+            with patch(
+                "openviper.cache.db_backend.get_engine", new_callable=AsyncMock
+            ) as mock_get_engine:
+                with patch("openviper.cache.db_backend._get_begin") as mock_get_begin:
+                    with patch("openviper.cache.db_backend.orjson") as mock_orjson:
                         mock_get_engine.return_value = mock_engine
                         mock_begin = MagicMock()
                         mock_begin.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -549,9 +572,14 @@ class TestDatabaseCacheOperations:
         mock_conn = MagicMock()
         mock_conn.execute = AsyncMock()
 
-        with patch("openviper.cache.get_table") as _:
-            with patch("openviper.cache.get_engine", new_callable=AsyncMock) as mock_get_engine:
-                with patch("openviper.cache._get_begin") as mock_get_begin:
+        mock_table = MagicMock()
+        mock_table.name = "openviper_cache_entries"
+
+        with patch("openviper.cache.db_backend.get_table", return_value=mock_table):
+            with patch(
+                "openviper.cache.db_backend.get_engine", new_callable=AsyncMock
+            ) as mock_get_engine:
+                with patch("openviper.cache.db_backend._get_begin") as mock_get_begin:
                     mock_get_engine.return_value = mock_engine
                     mock_begin = MagicMock()
                     mock_begin.__aenter__ = AsyncMock(return_value=mock_conn)
@@ -574,7 +602,7 @@ class TestRedisCacheOperations:
     def _patched_redis_cache(self):
         """Return a RedisCache with mocked Redis client."""
         mock_client = MagicMock()
-        with patch("openviper.cache.redis_lib") as mock_redis_lib:
+        with patch("openviper.cache.redis.redis_lib") as mock_redis_lib:
             mock_redis_lib.Redis.return_value = mock_client
             cache = cache_module.RedisCache()
         return cache, mock_client
@@ -595,7 +623,7 @@ class TestRedisCacheOperations:
         json_bytes = b'{"key": "value"}'
         mock_client.get = AsyncMock(return_value=json_bytes)
 
-        with patch("openviper.cache.orjson") as mock_orjson:
+        with patch("openviper.cache.redis.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"key": "value"}
             result = await cache.get("test_key")
 
@@ -608,7 +636,7 @@ class TestRedisCacheOperations:
         raw_bytes = b"plain_text"
         mock_client.get = AsyncMock(return_value=raw_bytes)
 
-        with patch("openviper.cache.orjson") as mock_orjson:
+        with patch("openviper.cache.redis.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = Exception("Parse error")
             result = await cache.get("test_key")
 
@@ -629,7 +657,7 @@ class TestRedisCacheOperations:
         mock_client.set = AsyncMock()
         complex_value = {"nested": [1, 2, 3]}
 
-        with patch("openviper.cache.orjson") as mock_orjson:
+        with patch("openviper.cache.redis.orjson") as mock_orjson:
             mock_orjson.dumps.return_value = b'{"nested":[1,2,3]}'
             await cache.set("key", complex_value, ttl=60)
 
@@ -681,7 +709,7 @@ class TestGetCacheRedis:
                     "OPTIONS": {"host": "localhost", "port": 6379, "db": 1},
                 }
             }
-            with patch("openviper.cache.redis_lib") as mock_redis_lib:
+            with patch("openviper.cache.redis.redis_lib") as mock_redis_lib:
                 instance = get_cache("redis")
 
             assert isinstance(instance, cache_module.RedisCache)
@@ -703,23 +731,29 @@ def mock_redis_client():
 async def test_redis_cache_get_set(mock_redis_client):
     from openviper.cache.redis import RedisCache
 
-    with patch("openviper.cache.redis.redis") as mock_redis_module:
-        mock_redis_module.Redis.from_url.return_value = mock_redis_client
+    with patch("openviper.cache.redis.redis_lib") as mock_redis_lib:
+        mock_redis_lib.Redis.return_value = mock_redis_client
         cache = RedisCache()
 
-        # Test set
-        await cache.set("my_key", {"data": 123}, ttl=60)
-        mock_redis_client.set.assert_called_once_with("my_key", '{"data": 123}', ex=60)
+        # Test set (complex value serialized with orjson)
+        with patch("openviper.cache.redis.orjson") as mock_orjson:
+            mock_orjson.dumps.return_value = b'{"data": 123}'
+            await cache.set("my_key", {"data": 123}, ttl=60)
+        mock_redis_client.set.assert_called_once_with("my_key", b'{"data": 123}', ex=60)
 
         # Test get (JSON)
         mock_redis_client.get.return_value = b'{"data": 123}'
-        val = await cache.get("my_key")
+        with patch("openviper.cache.redis.orjson") as mock_orjson:
+            mock_orjson.loads.return_value = {"data": 123}
+            val = await cache.get("my_key")
         assert val == {"data": 123}
 
-        # Test get (Raw string / bytes fallback)
+        # Test get (Raw value on orjson error)
         mock_redis_client.get.return_value = b"raw string"
-        val = await cache.get("my_key")
-        assert val == "raw string"
+        with patch("openviper.cache.redis.orjson") as mock_orjson:
+            mock_orjson.loads.side_effect = Exception("parse error")
+            val = await cache.get("my_key")
+        assert val == b"raw string"
 
         # Test get (None)
         mock_redis_client.get.return_value = None
@@ -731,8 +765,8 @@ async def test_redis_cache_get_set(mock_redis_client):
 async def test_redis_cache_ops(mock_redis_client):
     from openviper.cache.redis import RedisCache
 
-    with patch("openviper.cache.redis.redis") as mock_redis_module:
-        mock_redis_module.Redis.from_url.return_value = mock_redis_client
+    with patch("openviper.cache.redis.redis_lib") as mock_redis_lib:
+        mock_redis_lib.Redis.return_value = mock_redis_client
         cache = RedisCache()
 
         # Delete
@@ -752,6 +786,6 @@ async def test_redis_cache_ops(mock_redis_client):
 async def test_redis_cache_import_error():
     from openviper.cache.redis import RedisCache
 
-    with patch("openviper.cache.redis.redis", None):
-        with pytest.raises(ImportError, match="The 'redis' Python package is required"):
+    with patch("openviper.cache.redis.redis_lib", None):
+        with pytest.raises(ImportError, match="The 'redis' package is required"):
             RedisCache()

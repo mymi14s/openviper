@@ -39,8 +39,9 @@ class TestAllowedCommands:
         [
             "makemigrations",
             "migrate",
-            "shell",
-            "runworker",
+            "console",
+            "startserver",
+            "startworker",
             "collectstatic",
             "test",
             "createsuperuser",
@@ -54,7 +55,7 @@ class TestAllowedCommands:
         assert isinstance(_ALLOWED_COMMANDS, frozenset)
 
     def test_len(self):
-        assert len(_ALLOWED_COMMANDS) == 8
+        assert len(_ALLOWED_COMMANDS) == 9
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +113,8 @@ class TestViperctlCommand:
             with runner.isolated_filesystem(temp_dir=tmp_path):
                 runner.invoke(viperctl, ["makemigrations", "."], catch_exceptions=True)
 
-    def test_shell_allowed(self, runner):
-        assert "shell" in _ALLOWED_COMMANDS
+    def test_console_allowed(self, runner):
+        assert "console" in _ALLOWED_COMMANDS
 
     def test_collectstatic_allowed(self, runner):
         assert "collectstatic" in _ALLOWED_COMMANDS

@@ -132,6 +132,8 @@ ignore = [
 "tests/factories/**" = ["F403", "F405", "TC002"]
 # Migration files: dynamic imports, non-standard patterns
 "openviper/**/migrations/**" = ["E402", "F401", "N806"]
+# DB fields: deferred class imports use PascalCase local names to avoid circular deps
+"openviper/db/fields.py" = ["N806"]
 # Country data file: inherently long lines for structured data records
 "openviper/contrib/countries/data.py" = ["E501"]
 
@@ -223,7 +225,7 @@ good-names = ["i", "j", "k", "v", "e", "f", "x", "T", "db", "pk", "qs", "mw", "f
 # Each skip is documented in openviper/SECURITY.md and inline where applied.
 skips = [
     "B101",  # assert_used — used as internal invariant checks
-    "B102",  # exec_used — exec() in shell management command (pre-compiled code)
+    "B102",  # exec_used — exec() in console management command (pre-compiled code)
     "B103",  # set_bad_file_permissions — chmod 0o755 on project scaffold executables
     "B104",  # hardcoded_bind_all_interfaces — appears in validation checks, not binds
     "B106",  # hardcoded_password_funcarg — token_type='access'/'refresh' are identifiers
@@ -231,7 +233,7 @@ skips = [
     "B110",  # try_except_pass — intentional resilience (never let X break Y)
     "B112",  # try_except_continue — intentional in static-file directory walk
     "B404",  # import_subprocess — subprocess used in CLI management commands
-    "B603",  # subprocess_without_shell — CLI args built internally with trusted input
+    "B603",  # subprocess_without_console — CLI args built internally with trusted input
     "B608",  # hardcoded_sql_expressions — identifiers quoted via _quote_identifier()
 ]
 exclude_dirs = ["tests", "examples", "docs", "admin_frontend"]

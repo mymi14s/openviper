@@ -1,8 +1,9 @@
 from importlib import import_module
 from typing import Any
 
-# Cache for imported classes/functions to avoid repeated imports
 _IMPORT_CACHE: dict[str, Any] = {}
+
+__all__ = ["import_string", "reset_import_cache"]
 
 
 def reset_import_cache() -> None:

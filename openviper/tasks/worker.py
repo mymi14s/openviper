@@ -1,6 +1,6 @@
 """In-process Dramatiq worker for openviper.
 
-:func:`run_worker` is the single entry-point called by the ``runworker``
+:func:`run_worker` is the single entry-point called by the ``startworker``
 management command.  It:
 
 1. Sets up file logging (``logs/worker.log``).
@@ -41,11 +41,11 @@ from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.tasks.broker import setup_broker
 from openviper.tasks.log import configure_worker_logging_from_settings
+from openviper.tasks.results import shutdown_async_executor
 from openviper.tasks.scheduler import start_scheduler, stop_scheduler
 
 logger = logging.getLogger("openviper.tasks")
 
-# Framework modules that register Dramatiq actors; always imported by the worker.
 _FRAMEWORK_TASK_MODULES: tuple[str, ...] = ("openviper.core.email.queue",)
 
 _SKIP_DIRS: frozenset[str] = frozenset(
@@ -53,13 +53,11 @@ _SKIP_DIRS: frozenset[str] = frozenset(
 )
 _SKIP_FILES: frozenset[str] = frozenset(
     {
-        # Project configuration
         "asgi.py",
         "wsgi.py",
         "settings.py",
         "routes.py",
         "urls.py",
-        # Framework layer files — rarely contain task definitions
         "models.py",
         "views.py",
         "admin.py",
@@ -257,4 +255,5 @@ def run_worker(
         logger.info("Stopping worker (timeout 30 s)…")
         with contextlib.suppress(Exception):
             worker.stop(timeout=30_000)
+        shutdown_async_executor(wait=False)
         logger.info("Worker exited.")

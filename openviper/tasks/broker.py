@@ -62,7 +62,6 @@ except ImportError:
 
 logger = logging.getLogger("openviper.tasks")
 
-# True when dramatiq[redis] results extras are importable.
 try:
     from dramatiq.results import Results
     from dramatiq.results.backends.redis import RedisBackend
@@ -101,7 +100,7 @@ def get_broker() -> Any:
         broker = _broker
         if broker is None:
             broker = _create_broker()
-            _broker = broker  # write inside the lock
+            _broker = broker
     return broker
 
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hmac
 import os
 import secrets
@@ -32,7 +31,7 @@ _ARGON2_DUMMY_HASH: str = "argon2$" + _ARGON2_HASHER_MAKE.hash(_DUMMY_PASSWORD_S
 
 
 async def make_password(raw_password: str, algorithm: str | None = None) -> str:
-    """Hash a raw password (CPU-intensive, runs in thread pool).
+    """Hash a raw password.
 
     Args:
         raw_password: The plaintext password.
@@ -55,21 +54,16 @@ async def make_password(raw_password: str, algorithm: str | None = None) -> str:
         return f"plain${raw_password}"
 
     if algorithm == "argon2":
-        # Offload CPU-intensive hashing to thread pool
-        hashed = await asyncio.to_thread(_ARGON2_HASHER_MAKE.hash, raw_password)
+        hashed = _ARGON2_HASHER_MAKE.hash(raw_password)
         return f"argon2${hashed}"
 
-    # Fallback to bcrypt (also offloaded to thread pool)
-    def _bcrypt_hash() -> str:
-        salt = bcrypt.gensalt(rounds=12)
-        hashed_bytes = bcrypt.hashpw(raw_password.encode("utf-8"), salt)
-        return f"bcrypt${hashed_bytes.decode('utf-8')}"
-
-    return await asyncio.to_thread(_bcrypt_hash)
+    salt = bcrypt.gensalt(rounds=12)
+    hashed_bytes = bcrypt.hashpw(raw_password.encode("utf-8"), salt)
+    return f"bcrypt${hashed_bytes.decode('utf-8')}"
 
 
 async def check_password(raw_password: str, hashed_password: str) -> bool:
-    """Verify a raw password against a stored hash (CPU-intensive, runs in thread pool).
+    """Verify a raw password against a stored hash.
 
     Args:
         raw_password: User-supplied password.
@@ -80,27 +74,17 @@ async def check_password(raw_password: str, hashed_password: str) -> bool:
     """
     if hashed_password.startswith("argon2$"):
         encoded = hashed_password[len("argon2$") :]
-
-        # Offload CPU-intensive verification to thread pool
-        def _verify_argon2() -> bool:
-            try:
-                return _ARGON2_HASHER_CHECK.verify(encoded, raw_password)
-            except VerifyMismatchError, VerificationError, InvalidHashError:
-                return False
-
-        return await asyncio.to_thread(_verify_argon2)
+        try:
+            return _ARGON2_HASHER_CHECK.verify(encoded, raw_password)
+        except VerifyMismatchError, VerificationError, InvalidHashError:
+            return False
 
     if hashed_password.startswith("bcrypt$"):
         encoded_b = hashed_password[len("bcrypt$") :].encode("utf-8")
-
-        # Offload CPU-intensive bcrypt check to thread pool
-        def _verify_bcrypt() -> bool:
-            try:
-                return bcrypt.checkpw(raw_password.encode("utf-8"), encoded_b)
-            except ValueError, Exception:
-                return False
-
-        return await asyncio.to_thread(_verify_bcrypt)
+        try:
+            return bcrypt.checkpw(raw_password.encode("utf-8"), encoded_b)
+        except ValueError, Exception:
+            return False
 
     # Testing hasher — plain prefix
     if hashed_password.startswith("plain$"):

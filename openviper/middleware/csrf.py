@@ -25,20 +25,20 @@ def _generate_csrf_token() -> str:
 
 def _mask_csrf_token(token: str, secret: str) -> str:
     """Create a per-request masked token for the HTML form."""
-    salt = secrets.token_hex(16)  # Increased from 8 to 16 bytes (128-bit)
+    salt = secrets.token_hex(16)
     signature = hmac.new(secret.encode(), f"{salt}{token}".encode(), hashlib.sha256).hexdigest()
     return f"{salt}{signature}"
 
 
 def _verify_csrf_token(cookie_token: str, submitted_token: str, secret: str) -> bool:
     """Constant-time verify that the submitted token matches the cookie."""
-    if len(submitted_token) < 96:  # Updated: 32 hex chars (16 bytes) + 64 hex chars (SHA256)
+    if len(submitted_token) < 96:
         return False
-    salt = submitted_token[:32]  # Updated: first 32 hex chars (16 bytes)
+    salt = submitted_token[:32]
     expected = hmac.new(
         secret.encode(), f"{salt}{cookie_token}".encode(), hashlib.sha256
     ).hexdigest()
-    return hmac.compare_digest(submitted_token[32:], expected)  # Updated: after first 32 chars
+    return hmac.compare_digest(submitted_token[32:], expected)
 
 
 def _extract_cookie_value(cookie_header: str, cookie_name: str) -> str:
@@ -147,7 +147,6 @@ class CSRFMiddleware(BaseMiddleware):
         method = scope.get("method", "GET").upper()
         path = scope.get("path", "/")
 
-        # Extraction logic
         cookie_raw = b""
         submitted_raw = b""
         header_name_lower = self._header_name.encode("latin-1")
@@ -161,7 +160,6 @@ class CSRFMiddleware(BaseMiddleware):
         cookie_header = cookie_raw.decode("latin-1") if cookie_raw else ""
         csrf_cookie = _extract_cookie_value(cookie_header, self._cookie_name)
 
-        # Validation for unsafe methods
         if path not in self._exempt_paths and method not in CSRF_SAFE_METHODS:
             # Requests from a CSRF_TRUSTED_ORIGINS entry skip token validation.
             origin_raw = b""

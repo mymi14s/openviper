@@ -33,8 +33,16 @@ async function handleLogin() {
       // Clean up localStorage after using it
       localStorage.removeItem('openviper_redirect_after_login')
 
-      // Ensure redirect stays within admin area
-      if (!redirect.startsWith('/admin')) {
+      // The router base is /admin, so stored paths from window.location.pathname
+      // include the /admin prefix. Strip it to avoid /admin/admin/... duplicates.
+      if (redirect.startsWith('/admin/')) {
+        redirect = redirect.slice('/admin'.length) || '/dashboard'
+      } else if (redirect === '/admin') {
+        redirect = '/dashboard'
+      }
+
+      // Ensure redirect is a valid absolute path within the admin area
+      if (!redirect.startsWith('/')) {
         redirect = '/dashboard'
       }
 

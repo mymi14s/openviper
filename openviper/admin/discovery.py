@@ -49,29 +49,29 @@ def import_admin_module(app_name: str) -> bool:
 
     # Check if already imported
     if admin_module_name in sys.modules:
-        logger.debug(f"Admin module {admin_module_name} already loaded")
+        logger.debug("Admin module %s already loaded", admin_module_name)
         return True
 
     # Try to find the module
     try:
         spec = importlib.util.find_spec(admin_module_name)
         if spec is None:
-            logger.debug(f"No admin.py found in {app_name}")
+            logger.debug("No admin.py found in %s", app_name)
             return False
     except (ModuleNotFoundError, ValueError) as e:
-        logger.debug(f"Could not find admin module for {app_name}: {e}")
+        logger.debug("Could not find admin module for %s: %s", app_name, e)
         return False
 
     # Import the module
     try:
         importlib.import_module(admin_module_name)
-        logger.debug(f"Imported admin.py from {app_name}")
+        logger.debug("Imported admin.py from %s", app_name)
         return True
     except ImportError as e:
-        logger.warning(f"Error importing admin.py from {app_name}: {e}")
+        logger.warning("Error importing admin.py from %s: %s", app_name, e)
         return False
     except Exception as e:
-        logger.error(f"Unexpected error importing {admin_module_name}: {e}")
+        logger.error("Unexpected error importing %s: %s", admin_module_name, e)
         return False
 
 
@@ -108,9 +108,11 @@ def discover_extensions() -> list[dict]:
                         "type": file_type,
                     }
                 )
-                logger.debug(f"Found admin extension: {app_name}/{ext_file.name} ({file_type})")
+                logger.debug(
+                    "Found admin extension: %s/%s (%s)", app_name, ext_file.name, file_type
+                )
         except Exception as e:
-            logger.debug(f"Error scanning extensions for {app_name}: {e}")
+            logger.debug("Error scanning extensions for %s: %s", app_name, e)
 
     return extensions
 

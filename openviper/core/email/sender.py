@@ -102,7 +102,7 @@ def _configure_email_log() -> None:
         log_format = str(email_cfg.get("log_format") or task_cfg.get("log_format") or "text")
         configure_email_logging(log_dir=log_dir, log_format=log_format)
     except Exception:
-        pass
+        logger.debug("Email log configuration failed", exc_info=True)
 
 
 async def _send_now(message_data: EmailMessageData) -> None:

@@ -516,9 +516,20 @@ class _LazySettings:
                                 "that subclasses openviper.conf.settings.Settings."
                             )
                     except ImportError as exc:
+                        if module_path == "settings":
+                            logger.debug(
+                                "OPENVIPER_SETTINGS_MODULE='settings' is not importable; "
+                                "falling back to default settings."
+                            )
+                            instance = None
+                        else:
+                            raise RuntimeError(
+                                f"Could not import OPENVIPER_SETTINGS_MODULE={module_path!r}: {exc}"
+                            ) from exc
+                    if module_path and instance is None and module_path != "settings":
                         raise RuntimeError(
-                            f"Could not import OPENVIPER_SETTINGS_MODULE={module_path!r}: {exc}"
-                        ) from exc
+                            f"OPENVIPER_SETTINGS_MODULE={module_path!r} did not produce settings."
+                        )
 
             if instance is None:
                 instance = Settings()

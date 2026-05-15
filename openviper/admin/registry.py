@@ -76,12 +76,12 @@ class AdminRegistry:
         # If admin_class is provided, register directly
         if admin_class is not None:
             self._registry[model_class] = admin_class(model_class)
-            logger.debug(f"Registered {model_class.__name__} with {admin_class.__name__}")
+            logger.debug("Registered %s with %s", model_class.__name__, admin_class.__name__)
             return None
 
         def decorator(admin_cls: type[ModelAdmin]) -> type[ModelAdmin]:
             self._registry[model_class] = admin_cls(model_class)
-            logger.debug(f"Registered {model_class.__name__} with {admin_cls.__name__}")
+            logger.debug("Registered %s with %s", model_class.__name__, admin_cls.__name__)
             return admin_cls
 
         # Register with DefaultModelAdmin immediately and return the decorator
@@ -101,7 +101,7 @@ class AdminRegistry:
         if model_class not in self._registry:
             raise NotRegistered(f"Model {model_class.__name__} is not registered with admin.")
         del self._registry[model_class]
-        logger.debug(f"Unregistered {model_class.__name__}")
+        logger.debug("Unregistered %s", model_class.__name__)
 
     def get_model_admin(self, model_class: type[Model]) -> ModelAdmin | None:
         """Get the ModelAdmin instance for a model.
@@ -181,9 +181,9 @@ class AdminRegistry:
         """
         try:
             importlib.import_module(f"{app_name}.admin")
-            logger.debug(f"Loaded admin module from {app_name}")
+            logger.debug("Loaded admin module from %s", app_name)
         except ImportError as e:
-            logger.debug(f"No admin.py found in {app_name}: {e}")
+            logger.debug("No admin.py found in %s: %s", app_name, e)
 
     def auto_discover_from_installed_apps(self) -> None:
         """Auto-discover admin.py modules from all INSTALLED_APPS.

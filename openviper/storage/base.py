@@ -15,7 +15,7 @@ import threading
 import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import IO, Protocol
+from typing import IO, Protocol, cast
 from urllib.parse import quote
 
 import aiofiles
@@ -261,7 +261,7 @@ class FileSystemStorage:
             stat_result = await aiofiles.os.stat(str(self._full_path(self._validate_name(name))))
         except FileNotFoundError:
             raise FileNotFoundError(f"File '{name}' does not exist in storage.") from None
-        return stat_result.st_size
+        return cast("int", stat_result.st_size)
 
     async def read(self, name: str) -> bytes:
         """Read and return the full content of the file at *name*.
@@ -277,7 +277,7 @@ class FileSystemStorage:
                 f"maximum read size of {MAX_READ_SIZE} bytes."
             )
         async with aiofiles.open(str(full_path), "rb") as f:
-            return await f.read()
+            return cast("bytes", await f.read())
 
     async def listdir(self, path: str = "") -> list[str]:
         """List entries under *path* in storage."""

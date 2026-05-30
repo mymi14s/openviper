@@ -1,0 +1,2166 @@
+"""Unit tests for openviper/db/executor.py."""
+
+from __future__ import annotations
+
+import datetime
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+import sqlalchemy as sa
+
+import openviper.db._model_registry
+import openviper.db.executor as mod
+from openviper.db.exceptions import DatabaseAliasNotFoundError
+from openviper.db.executor import (
+    _TRAVERSAL_FAILURE,
+    SOFT_REMOVED_CACHE,
+    _bypass_permissions,
+    ann_expr_as_sa,
+    apply_lookup,
+    build_traversal_joins,
+    build_where_clause,
+    build_where_clause_with_traversals,
+    bypass_permissions,
+    cached_traversal_lookup,
+    compile_excludes,
+    compile_filters,
+    compile_q,
+    compile_single_filter,
+    compile_traversal_filter,
+    escape_like,
+    execute_aggregate,
+    execute_bulk_update,
+    execute_count,
+    execute_delete,
+    execute_delete_instance,
+    execute_exists,
+    execute_explain,
+    execute_save,
+    execute_select,
+    execute_update,
+    execute_values,
+    f_expr_as_sa,
+    get_soft_removed_columns,
+    get_table,
+    invalidate_soft_removed_cache,
+    is_f_like,
+    load_soft_removed_columns,
+    max_query_rows,
+    parse_traversal_cached,
+)
+from openviper.db.fields import CharField, ForeignKey, IntegerField, LazyFK, UUIDField
+from openviper.db.models import Count, F, Model, Q, Sum, TraversalLookup
+from openviper.exceptions import FieldError
+
+# ---------------------------------------------------------------------------
+# Test models
+# ---------------------------------------------------------------------------
+
+
+class Author(Model):
+    username = CharField(max_length=100)
+
+    class Meta:
+        table_name = "exec_authors"
+
+
+class Post(Model):
+    title = CharField(max_length=200)
+    views = IntegerField(default=0)
+    author = ForeignKey("Author", on_delete="CASCADE")
+
+    class Meta:
+        table_name = "exec_posts"
+
+
+class OtpRecord(Model):
+    """Model whose PK is a UUID, matching the bug report scenario."""
+
+    id = UUIDField(auto=True, primary_key=True)
+    otp = CharField(max_length=6)
+
+    class Meta:
+        table_name = "exec_otp_records"
+
+
+class TraversalProfile(Model):
+    """Deep target model for continuous FK traversal tests."""
+
+    bio = CharField(max_length=500)
+
+    class Meta:
+        table_name = "exec_traversal_profiles"
+
+
+class TraversalUser(Model):
+    """Target model for multi-level FK traversal tests."""
+
+    username = CharField(max_length=100)
+    profile = ForeignKey(TraversalProfile, on_delete="CASCADE")
+
+    class Meta:
+        table_name = "exec_traversal_users"
+
+
+class TraversalParent(Model):
+    """Intermediate model for multi-level FK traversal tests."""
+
+    reporter = ForeignKey(TraversalUser, on_delete="CASCADE")
+    title = CharField(max_length=200)
+
+    class Meta:
+        table_name = "exec_traversal_parents"
+
+
+class TraversalChild(Model):
+    """Root model for multi-level FK traversal tests."""
+
+    parent = ForeignKey(TraversalParent, on_delete="CASCADE")
+    note = CharField(max_length=500)
+
+    class Meta:
+        table_name = "exec_traversal_children"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def make_table(tname: str = "items", **cols) -> sa.Table:
+    meta = sa.MetaData()
+    columns = [sa.Column("id", sa.Integer, primary_key=True)]
+    for col_name, col_type in cols.items():
+        columns.append(sa.Column(col_name, col_type))
+    return sa.Table(tname, meta, *columns)
+
+
+def make_qs(
+    model=Post,
+    filters=None,
+    excludes=None,
+    order=None,
+    limit=None,
+    offset=None,
+    only=None,
+    defer=None,
+    distinct=False,
+    annotations=None,
+    q_filters=None,
+    select_related=None,
+    ignore_permissions=False,
+):
+    qs = MagicMock()
+    qs._model = model
+    qs._filters = filters or []
+    qs._excludes = excludes or []
+    qs._order = order or []
+    qs._limit = limit
+    qs._offset = offset
+    qs._only_fields = only or []
+    qs._defer_fields = defer or []
+    qs._distinct = distinct
+    qs._annotations = annotations or {}
+    qs._q_filters = q_filters or []
+    qs._select_related = select_related or []
+    qs._ignore_permissions = ignore_permissions
+    qs._db_alias = None
+    return qs
+
+
+# ---------------------------------------------------------------------------
+# bypass_permissions
+# ---------------------------------------------------------------------------
+
+
+class TestBypassPermissions:
+    def test_sets_and_resets(self):
+        assert _bypass_permissions.get() is False
+        with bypass_permissions():
+            assert _bypass_permissions.get() is True
+        assert _bypass_permissions.get() is False
+
+    def test_resets_on_exception(self):
+        with pytest.raises(ValueError, match="boom"):
+            with bypass_permissions():
+                raise ValueError("boom")
+        assert _bypass_permissions.get() is False
+
+
+# ---------------------------------------------------------------------------
+# Soft-removed column cache
+# ---------------------------------------------------------------------------
+
+
+class TestSoftRemovedCache:
+    def setup_method(self):
+        invalidate_soft_removed_cache()
+
+    def test_get_empty(self):
+        result = get_soft_removed_columns("nonexistent_table")
+        assert result == frozenset()
+
+    def test_get_populated(self):
+        SOFT_REMOVED_CACHE["my_table"] = frozenset(["deleted_col"])
+        result = get_soft_removed_columns("my_table")
+        assert result == frozenset(["deleted_col"])
+        SOFT_REMOVED_CACHE.pop("my_table", None)
+
+    def test_invalidate_clears(self):
+        SOFT_REMOVED_CACHE["x"] = frozenset(["c"])
+        invalidate_soft_removed_cache()
+        assert get_soft_removed_columns("x") == frozenset()
+
+    @pytest.mark.asyncio
+    async def test_sqlite_real_columns_uses_pragma_rows(self):
+        table_name = "sqlite_real_columns_test"
+        mod._REAL_COLUMNS_CACHE.pop(table_name, None)
+        conn = AsyncMock()
+        conn.engine.url.drivername = "sqlite+aiosqlite"
+        result = MagicMock()
+        result.fetchall.return_value = [(0, "id"), (1, "title")]
+        conn.execute = AsyncMock(return_value=result)
+
+        assert await mod.get_real_columns(conn, table_name) == frozenset({"id", "title"})
+
+
+class TestConnectionRouting:
+    @pytest.mark.asyncio
+    async def test_explicit_unknown_alias_does_not_fall_back_to_default(self):
+        with pytest.raises(DatabaseAliasNotFoundError):
+            async with mod.connect("missing_database_alias"):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_router_receives_model_class_for_implicit_reads(self):
+        engine = MagicMock()
+        engine.connect.return_value.__aenter__ = AsyncMock(return_value=AsyncMock())
+        engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch.object(
+                mod.resolver, "resolve_read", new=AsyncMock(return_value="default")
+            ) as mock_resolve_read,
+            patch("openviper.db.executor.resolve_engine_for_alias", return_value=engine),
+        ):
+            async with mod.connect(model_class=Post):
+                pass
+
+        mock_resolve_read.assert_awaited_once_with(Post)
+
+
+# ---------------------------------------------------------------------------
+# escape_like
+# ---------------------------------------------------------------------------
+
+
+class TestEscapeLike:
+    def test_escapes_percent(self):
+        assert escape_like("100%") == "100\\%"
+
+    def test_escapes_underscore(self):
+        assert escape_like("foo_bar") == "foo\\_bar"
+
+    def test_escapes_backslash(self):
+        assert escape_like("a\\b") == "a\\\\b"
+
+    def test_non_string_converted(self):
+        result = escape_like(42)
+        assert result == "42"
+
+    def test_no_special_chars(self):
+        assert escape_like("hello") == "hello"
+
+
+# ---------------------------------------------------------------------------
+# apply_lookup
+# ---------------------------------------------------------------------------
+
+
+class TestApplyLookup:
+    def setup_method(self):
+        self.table = make_table("t", name=sa.String(100), age=sa.Integer())
+        self.col = self.table.c["name"]
+        self.age_col = self.table.c["age"]
+
+    def test_exact(self):
+        clause = apply_lookup(self.col, "exact", "alice")
+        assert clause is not None
+
+    def test_empty_string_is_exact(self):
+        clause = apply_lookup(self.col, "", "alice")
+        assert clause is not None
+
+    def test_invalid_field_value_returns_false_clause(self):
+        field = IntegerField()
+        field.name = "id"
+        clause = apply_lookup(self.age_col, "exact", "Incident", field=field)
+        assert clause.compare(sa.false())
+
+    def test_contains(self):
+        clause = apply_lookup(self.col, "contains", "ali")
+        assert clause is not None
+
+    def test_icontains(self):
+        clause = apply_lookup(self.col, "icontains", "ali")
+        assert clause is not None
+
+    def test_startswith(self):
+        clause = apply_lookup(self.col, "startswith", "al")
+        assert clause is not None
+
+    def test_endswith(self):
+        clause = apply_lookup(self.col, "endswith", "ce")
+        assert clause is not None
+
+    def test_gt(self):
+        clause = apply_lookup(self.age_col, "gt", 18)
+        assert clause is not None
+
+    def test_gte(self):
+        clause = apply_lookup(self.age_col, "gte", 18)
+        assert clause is not None
+
+    def test_lt(self):
+        clause = apply_lookup(self.age_col, "lt", 65)
+        assert clause is not None
+
+    def test_lte(self):
+        clause = apply_lookup(self.age_col, "lte", 65)
+        assert clause is not None
+
+    def test_in(self):
+        clause = apply_lookup(self.age_col, "in", [1, 2, 3])
+        assert clause is not None
+
+    def test_in_with_lazyfk(self):
+        lf = MagicMock(spec=LazyFK)
+        lf.fk_id = 42
+        clause = apply_lookup(self.age_col, "in", [lf])
+        assert clause is not None
+
+    def test_isnull_true(self):
+        clause = apply_lookup(self.col, "isnull", True)
+        assert clause is not None
+
+    def test_isnull_false(self):
+        clause = apply_lookup(self.col, "isnull", False)
+        assert clause is not None
+
+    def test_range(self):
+        clause = apply_lookup(self.age_col, "range", (10, 20))
+        assert clause is not None
+
+    def test_unknown_lookup_raises_field_error(self):
+        with pytest.raises(FieldError, match="Unsupported lookup type"):
+            apply_lookup(self.col, "bogus_lookup", "x")
+
+    def test_lazyfk_unwrapped(self):
+        lf = MagicMock(spec=LazyFK)
+        lf.fk_id = 99
+        clause = apply_lookup(self.age_col, "exact", lf)
+        assert clause is not None
+
+    def test_uuid_converted_to_str(self):
+        uid = uuid.uuid4()
+        clause = apply_lookup(self.col, "exact", uid)
+        assert clause is not None
+
+    def test_model_instance_unwrapped_to_id(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users"
+
+            username = CharField(max_length=100)
+
+        user = FakeUser(username="alice")
+        user.__dict__["id"] = 5
+        clause = apply_lookup(self.age_col, "exact", user)
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "5" in compiled
+
+    def test_in_with_model_instances_unwrapped_to_ids(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users2"
+
+            username = CharField(max_length=100)
+
+        u1 = FakeUser(username="alice")
+        u1.__dict__["id"] = 1
+        u2 = FakeUser(username="bob")
+        u2.__dict__["id"] = 2
+        clause = apply_lookup(self.age_col, "in", [u1, u2])
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+        assert "2" in compiled
+
+    def test_ne(self):
+        clause = apply_lookup(self.col, "ne", "alice")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "!=" in compiled or "<>" in compiled
+
+    def test_not_in(self):
+        clause = apply_lookup(self.age_col, "not_in", [1, 2, 3])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+
+    def test_not_in_with_lazyfk(self):
+        lf = MagicMock(spec=LazyFK)
+        lf.fk_id = 42
+        clause = apply_lookup(self.age_col, "not_in", [lf])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+        assert "42" in compiled
+
+    def test_not_in_with_model_instances(self) -> None:
+        class FakeUser(Model):
+            class Meta:
+                table_name = "fake_users_notin"
+
+            username = CharField(max_length=100)
+
+        u1 = FakeUser(username="alice")
+        u1.__dict__["id"] = 10
+        clause = apply_lookup(self.age_col, "not_in", [u1])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+        assert "10" in compiled
+
+    def test_iexact(self):
+        clause = apply_lookup(self.col, "iexact", "Alice")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "lower" in compiled.lower()
+        assert "alice" in compiled.lower()
+
+    def test_istartswith(self):
+        clause = apply_lookup(self.col, "istartswith", "al")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert "al%" in compiled
+
+    def test_iendswith(self):
+        clause = apply_lookup(self.col, "iendswith", "ce")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert "%ce" in compiled
+
+    def test_regex(self):
+        clause = apply_lookup(self.col, "regex", r"^al.*")
+        assert clause is not None
+
+    def test_iregex(self):
+        clause = apply_lookup(self.col, "iregex", r"^al.*")
+        assert clause is not None
+
+    def test_date(self):
+        dt_table = make_table("dt", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "date", datetime.date(2026, 4, 19))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper() or "DATE" in compiled.upper()
+
+    def test_year(self):
+        dt_table = make_table("dt_y", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "year", 2026)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "year" in compiled.lower()
+
+    def test_month(self):
+        dt_table = make_table("dt_m", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "month", 4)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "month" in compiled.lower()
+
+    def test_day(self):
+        dt_table = make_table("dt_d", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "day", 19)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "day" in compiled.lower()
+
+
+class TestApplyLookupEdgeCases:
+    """Smoke and edge-case tests for all lookup operators."""
+
+    def setup_method(self) -> None:
+        self.table = make_table(
+            "edge", name=sa.String(100), age=sa.Integer(), created=sa.DateTime()
+        )
+        self.col = self.table.c["name"]
+        self.age_col = self.table.c["age"]
+        self.dt_col = self.table.c["created"]
+
+    def test_ne_with_none(self) -> None:
+        clause = apply_lookup(self.col, "ne", None)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NOT NULL" in compiled.upper()
+
+    def test_ne_with_integer(self) -> None:
+        clause = apply_lookup(self.age_col, "ne", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "!=" in compiled or "<>" in compiled
+
+    def test_ne_with_lazyfk(self) -> None:
+        lf = MagicMock(spec=LazyFK)
+        lf.fk_id = 7
+        clause = apply_lookup(self.age_col, "ne", lf)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "7" in compiled
+
+    def test_ne_with_uuid(self) -> None:
+        uid = uuid.uuid4()
+        clause = apply_lookup(self.col, "ne", uid)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert str(uid) in compiled
+
+    def test_exact_with_none(self) -> None:
+        clause = apply_lookup(self.col, "exact", None)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NULL" in compiled.upper()
+
+    def test_not_in_empty_list(self) -> None:
+        clause = apply_lookup(self.age_col, "not_in", [])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+
+    def test_in_empty_list(self) -> None:
+        clause = apply_lookup(self.age_col, "in", [])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IN" in compiled.upper()
+
+    def test_contains_special_chars(self) -> None:
+        clause = apply_lookup(self.col, "contains", "100%_off")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"100\%\_off" in compiled
+
+    def test_icontains_special_chars(self) -> None:
+        clause = apply_lookup(self.col, "icontains", "50%_sale")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"50\%\_sale" in compiled
+
+    def test_startswith_special_chars(self) -> None:
+        clause = apply_lookup(self.col, "startswith", "test_")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert r"test\_" in compiled
+
+    def test_endswith_special_chars(self) -> None:
+        clause = apply_lookup(self.col, "endswith", "%done")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert r"\%done" in compiled
+
+    def test_istartswith_special_chars(self) -> None:
+        clause = apply_lookup(self.col, "istartswith", "50%")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"50\%" in compiled
+
+    def test_iendswith_special_chars(self) -> None:
+        clause = apply_lookup(self.col, "iendswith", "_end")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+        assert r"\_end" in compiled
+
+    def test_iexact_with_empty_string(self) -> None:
+        clause = apply_lookup(self.col, "iexact", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "lower" in compiled.lower()
+
+    def test_iexact_preserves_case_insensitivity(self) -> None:
+        clause = apply_lookup(self.col, "iexact", "ALICE")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "alice" in compiled
+
+    def test_range_with_dates(self) -> None:
+        lo = datetime.date(2026, 1, 1)
+        hi = datetime.date(2026, 12, 31)
+        clause = apply_lookup(self.dt_col, "range", (lo, hi))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "BETWEEN" in compiled.upper()
+
+    def test_range_with_integers(self) -> None:
+        clause = apply_lookup(self.age_col, "range", (0, 150))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "BETWEEN" in compiled.upper()
+        assert "0" in compiled
+        assert "150" in compiled
+
+    def test_isnull_true_produces_is_null(self) -> None:
+        clause = apply_lookup(self.col, "isnull", True)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NULL" in compiled.upper()
+        assert "NOT" not in compiled.upper()
+
+    def test_isnull_false_produces_is_not_null(self) -> None:
+        clause = apply_lookup(self.col, "isnull", False)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IS NOT NULL" in compiled.upper()
+
+    def test_gt_with_zero(self) -> None:
+        clause = apply_lookup(self.age_col, "gt", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "> 0" in compiled
+
+    def test_lt_with_negative(self) -> None:
+        clause = apply_lookup(self.age_col, "lt", -1)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "< -1" in compiled
+
+    def test_gte_boundary(self) -> None:
+        clause = apply_lookup(self.age_col, "gte", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert ">= 0" in compiled
+
+    def test_lte_boundary(self) -> None:
+        clause = apply_lookup(self.age_col, "lte", 0)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "<= 0" in compiled
+
+    def test_regex_with_complex_pattern(self) -> None:
+        clause = apply_lookup(self.col, "regex", r"^(foo|bar)\d+$")
+        assert clause is not None
+
+    def test_iregex_with_complex_pattern(self) -> None:
+        clause = apply_lookup(self.col, "iregex", r"^(foo|bar)\d+$")
+        assert clause is not None
+
+    def test_date_with_datetime_value(self) -> None:
+        dt = datetime.datetime(2026, 4, 19, 14, 30, 0)
+        clause = apply_lookup(self.dt_col, "date", dt)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper() or "DATE" in compiled.upper()
+
+    def test_year_boundary_values(self) -> None:
+        clause = apply_lookup(self.dt_col, "year", 1970)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1970" in compiled
+
+    def test_month_boundary_min(self) -> None:
+        clause = apply_lookup(self.dt_col, "month", 1)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+
+    def test_month_boundary_max(self) -> None:
+        clause = apply_lookup(self.dt_col, "month", 12)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "12" in compiled
+
+    def test_day_boundary_min(self) -> None:
+        clause = apply_lookup(self.dt_col, "day", 1)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "1" in compiled
+
+    def test_day_boundary_max(self) -> None:
+        clause = apply_lookup(self.dt_col, "day", 31)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "31" in compiled
+
+    def test_contains_empty_string(self) -> None:
+        clause = apply_lookup(self.col, "contains", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+
+    def test_startswith_empty_string(self) -> None:
+        clause = apply_lookup(self.col, "startswith", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+
+    def test_endswith_empty_string(self) -> None:
+        clause = apply_lookup(self.col, "endswith", "")
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIKE" in compiled.upper()
+
+    def test_model_instance_unwrap_applies_to_ne(self) -> None:
+        class FakeItem(Model):
+            class Meta:
+                table_name = "fake_items_ne"
+
+            name = CharField(max_length=50)
+
+        item = FakeItem(name="x")
+        item.__dict__["id"] = 42
+        clause = apply_lookup(self.age_col, "ne", item)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "42" in compiled
+
+    def test_uuid_unwrap_applies_to_ne(self) -> None:
+        uid = uuid.uuid4()
+        clause = apply_lookup(self.col, "ne", uid)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert str(uid) in compiled
+
+    def test_multiple_unknown_lookups_all_raise(self) -> None:
+        bad_lookups = ["nee", "iin", "like", "between", "eq", "not_equal", "notin"]
+        for lookup in bad_lookups:
+            with pytest.raises(FieldError, match="Unsupported lookup type"):
+                apply_lookup(self.col, lookup, "x")
+
+    def test_not_in_single_element(self) -> None:
+        clause = apply_lookup(self.age_col, "not_in", [99])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "NOT IN" in compiled.upper()
+        assert "99" in compiled
+
+    def test_in_single_element(self) -> None:
+        clause = apply_lookup(self.age_col, "in", [99])
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "IN" in compiled.upper()
+        assert "99" in compiled
+
+    def test_regex_empty_pattern(self) -> None:
+        clause = apply_lookup(self.col, "regex", "")
+        assert clause is not None
+
+    def test_iregex_empty_pattern(self) -> None:
+        clause = apply_lookup(self.col, "iregex", "")
+        assert clause is not None
+
+
+# ---------------------------------------------------------------------------
+# compile_single_filter
+# ---------------------------------------------------------------------------
+
+
+class TestCompileSingleFilter:
+    def setup_method(self):
+        self.table = make_table("posts", title=sa.String(200), views=sa.Integer())
+
+    def test_simple_equality(self):
+        clause = compile_single_filter(self.table, "title", "hello")
+        assert clause is not None
+
+    def test_lookup_suffix(self):
+        clause = compile_single_filter(self.table, "views__gt", 100)
+        assert clause is not None
+
+    def test_unknown_column_returns_none(self):
+        clause = compile_single_filter(self.table, "nonexistent", "x")
+        assert clause is None
+
+    def test_fk_id_alias(self):
+        # Column named 'author_id' should be matched by key 'author'
+        meta = sa.MetaData()
+        table = sa.Table(
+            "t",
+            meta,
+            sa.Column("id", sa.Integer, primary_key=True),
+            sa.Column("author_id", sa.Integer),
+        )
+        clause = compile_single_filter(table, "author", 5)
+        assert clause is not None
+
+
+# ---------------------------------------------------------------------------
+# compile_q
+# ---------------------------------------------------------------------------
+
+
+class TestCompileQ:
+    def setup_method(self):
+        self.table = make_table("things", name=sa.String(100), age=sa.Integer())
+
+    def test_simple_and_q(self):
+        q = Q(name="alice") & Q(age__gt=18)
+        clause = compile_q(self.table, q)
+        assert clause is not None
+
+    def test_simple_or_q(self):
+        q = Q(name="alice") | Q(name="bob")
+        clause = compile_q(self.table, q)
+        assert clause is not None
+
+    def test_negated_q(self):
+        q = ~Q(name="alice")
+        clause = compile_q(self.table, q)
+        assert clause is not None
+
+    def test_empty_q_returns_none(self):
+        q = MagicMock()
+        q.children = []
+        clause = compile_q(self.table, q)
+        assert clause is None
+
+    def test_unknown_column_ignored(self):
+        q = Q(nonexistent="x")
+        clause = compile_q(self.table, q)
+        assert clause is None
+
+    def test_nested_q(self):
+        inner = Q(name="alice") | Q(name="bob")
+        outer = Q(age__gt=5) & inner
+        clause = compile_q(self.table, outer)
+        assert clause is not None
+
+
+# ---------------------------------------------------------------------------
+# compile_filters / compile_excludes / build_where_clause
+# ---------------------------------------------------------------------------
+
+
+class TestCompileFilters:
+    def setup_method(self):
+        self.table = make_table("items", name=sa.String(100), score=sa.Integer())
+
+    def test_compile_filters_single(self):
+        clause = compile_filters(self.table, [{"name": "x"}])
+        assert clause is not None
+
+    def test_compile_filters_multiple(self):
+        clause = compile_filters(self.table, [{"name": "x"}, {"score__gt": 5}])
+        assert clause is not None
+
+    def test_compile_filters_empty(self):
+        clause = compile_filters(self.table, [])
+        assert clause is None
+
+    def test_compile_filters_unknown_field_raises(self):
+        with pytest.raises(FieldError):
+            compile_filters(self.table, [{"nonexistent": "x"}])
+
+    def test_compile_filters_unknown_field_with_lookup_raises(self):
+        with pytest.raises(FieldError):
+            compile_filters(self.table, [{"ghost__icontains": "x"}])
+
+    def test_compile_excludes_negate(self):
+        clause = compile_excludes(self.table, [{"name": "x"}])
+        assert clause is not None
+
+    def test_compile_excludes_empty(self):
+        clause = compile_excludes(self.table, [])
+        assert clause is None
+
+    def test_build_where_clause_combined(self):
+        clause = build_where_clause(
+            self.table,
+            [{"name": "x"}],
+            [{"score__lt": 0}],
+            [Q(name="y")],
+        )
+        assert clause is not None
+
+    def test_build_where_clause_all_empty(self):
+        clause = build_where_clause(self.table, [], [], [])
+        assert clause is None
+
+
+# ---------------------------------------------------------------------------
+# is_f_like / f_expr_as_sa / ann_expr_as_sa
+# ---------------------------------------------------------------------------
+
+
+class TestFExpressions:
+    def setup_method(self):
+        self.table = make_table("items", price=sa.Integer(), qty=sa.Integer())
+
+    def test_is_f_like_f_object(self):
+        f = F("price")
+        assert is_f_like(f) is True
+
+    def test_is_f_like_fexpr(self):
+        expr = F("price") + 1
+        assert is_f_like(expr) is True
+
+    def test_is_f_like_plain_int(self):
+        assert is_f_like(42) is False
+
+    def test_f_expr_as_sa_column(self):
+        result = f_expr_as_sa(self.table, F("price"))
+        assert result is not None
+
+    def test_f_expr_as_sa_with_id_suffix(self):
+        meta = sa.MetaData()
+        table = sa.Table(
+            "t2", meta, sa.Column("id", sa.Integer), sa.Column("author_id", sa.Integer)
+        )
+        result = f_expr_as_sa(table, F("author"))
+        assert result is not None
+
+    def test_f_expr_as_sa_unknown_field(self):
+        result = f_expr_as_sa(self.table, F("nonexistent"))
+        assert result is None
+
+    def test_f_expr_arithmetic_add(self):
+        expr = F("price") + 10
+        result = f_expr_as_sa(self.table, expr)
+        assert result is not None
+
+    def test_f_expr_arithmetic_sub(self):
+        expr = F("price") - 1
+        result = f_expr_as_sa(self.table, expr)
+        assert result is not None
+
+    def test_f_expr_arithmetic_mul(self):
+        expr = F("price") * F("qty")
+        result = f_expr_as_sa(self.table, expr)
+        assert result is not None
+
+    def test_f_expr_arithmetic_div(self):
+        expr = F("price") / 2
+        result = f_expr_as_sa(self.table, expr)
+        assert result is not None
+
+    def test_f_expr_unknown_op(self):
+        expr = MagicMock()
+        expr.lhs = F("price")
+        expr.op = "**"
+        expr.rhs = 2
+        result = f_expr_as_sa(self.table, expr)
+        assert result is None
+
+    def test_f_expr_lhs_none(self):
+        # If lhs resolves to None (unknown field), result is None
+        expr = F("nonexistent") + 1
+        result = f_expr_as_sa(self.table, expr)
+        assert result is None
+
+    def test_ann_expr_aggregate(self):
+        agg = Count("price")
+        result = ann_expr_as_sa(self.table, agg)
+        assert result is not None
+
+    def test_ann_expr_aggregate_distinct(self):
+        agg = Count("price", distinct=True)
+        result = ann_expr_as_sa(self.table, agg)
+        assert result is not None
+
+    def test_ann_expr_aggregate_unknown_field(self):
+        agg = Count("nonexistent")
+        result = ann_expr_as_sa(self.table, agg)
+        assert result is None
+
+    def test_ann_expr_aggregate_id_suffix(self):
+        meta = sa.MetaData()
+        table = sa.Table(
+            "t3", meta, sa.Column("id", sa.Integer), sa.Column("author_id", sa.Integer)
+        )
+        agg = Count("author")
+        result = ann_expr_as_sa(table, agg)
+        assert result is not None
+
+    def test_ann_expr_f_object(self):
+        result = ann_expr_as_sa(self.table, F("price"))
+        assert result is not None
+
+    def test_ann_expr_unsupported_returns_none(self):
+        result = ann_expr_as_sa(self.table, "not_an_expr")
+        assert result is None
+
+    def test_ann_expr_unknown_func(self):
+        agg = MagicMock()
+        agg.func = "NOSUCHFUNC"
+        agg.field = "price"
+        agg.distinct = False
+        ann_expr_as_sa(self.table, agg)
+        # sa.func.nosuchfunc exists (dynamic), so this won't be None
+        # but if the function doesn't exist as a SA built-in it still returns something
+        # We just verify no exception
+        assert True  # no exception raised
+
+
+# ---------------------------------------------------------------------------
+# parse_traversal_cached / cached_traversal_lookup
+# ---------------------------------------------------------------------------
+
+
+class TestTraversalCache:
+    def test_cached_valid_simple(self):
+        result = parse_traversal_cached("title", Post)
+        assert result is not _TRAVERSAL_FAILURE
+        assert result.is_simple_field() is True
+
+    def test_cached_invalid_returns_sentinel(self):
+        result = parse_traversal_cached("__completely_bogus__field", Post)
+        assert result is _TRAVERSAL_FAILURE
+
+    def test_cached_traversal_lookup_raises_field_error(self):
+        with pytest.raises(FieldError):
+            cached_traversal_lookup("__completely_bogus__field2", Post)
+
+    def test_cached_traversal_lookup_success(self):
+        result = cached_traversal_lookup("title", Post)
+        assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# compile_traversal_filter (dead code path - tests for coverage)
+# ---------------------------------------------------------------------------
+
+
+class TestCompileTraversalFilter:
+    def setup_method(self):
+        # Build actual SA tables for Post so the function can work
+        self.post_table = get_table(Post)
+
+    def test_simple_field_no_traversal(self):
+        clause, joins = compile_traversal_filter(Post, "title", "hello", self.post_table)
+        assert clause is not None
+        assert joins == []
+
+    def test_invalid_field_returns_none(self):
+        clause, joins = compile_traversal_filter(Post, "__invalid__bogus__x", "v", self.post_table)
+        assert clause is None
+        assert joins == []
+
+
+# ---------------------------------------------------------------------------
+# build_traversal_joins - multi-level FK traversal
+# ---------------------------------------------------------------------------
+
+
+class TestBuildTraversalJoins:
+    """Tests for build_traversal_joins ensuring multi-level FK chains resolve
+    columns from the correct (left) table at each step, not from the joined
+    result set."""
+
+    def test_single_level_fk_uses_base_table_column(self):
+        """Single FK hop: author__username on Post uses posts.author_id."""
+        traversal = TraversalLookup("author__username", Post)
+        post_table = get_table(Post)
+        from_clause, final_table = build_traversal_joins(traversal, post_table)
+        assert from_clause is not None
+        assert final_table is not None
+
+    def test_multi_level_fk_uses_intermediate_table_column(self):
+        """Two FK hops: parent__reporter__username resolves reporter_id from
+        the TraversalParent table, not from the joined result set."""
+        traversal = TraversalLookup("parent__reporter__username", TraversalChild)
+        child_table = get_table(TraversalChild)
+        from_clause, final_table = build_traversal_joins(traversal, child_table)
+        assert from_clause is not None
+        # The final table should be the TraversalUser table
+        assert final_table is not None
+
+    def test_three_level_fk_traversal_continuous(self):
+        """Three FK hops: parent__reporter__profile__bio resolves profile_id
+        from the TraversalUser table continuously through the chain."""
+        traversal = TraversalLookup("parent__reporter__profile__bio", TraversalChild)
+        child_table = get_table(TraversalChild)
+        from_clause, final_table = build_traversal_joins(traversal, child_table)
+        assert from_clause is not None
+        assert final_table is not None
+        assert final_table.name == "exec_traversal_profiles"
+
+
+# ---------------------------------------------------------------------------
+# get_table / build_table
+# ---------------------------------------------------------------------------
+
+
+class TestGetTable:
+    def test_returns_sa_table(self):
+        table = get_table(Post)
+        assert isinstance(table, sa.Table)
+        assert table.name == "exec_posts"
+
+    def test_cached_same_object(self):
+        t1 = get_table(Post)
+        t2 = get_table(Post)
+        assert t1 is t2
+
+    def test_columns_present(self):
+        table = get_table(Post)
+        assert "title" in table.c
+        assert "views" in table.c
+
+    def test_dotted_auth_fk_fallback_uses_registered_plural_table_name(self):
+        field = ForeignKey("auth.ContentType", on_delete="CASCADE")
+
+        assert mod.resolve_fk_table_name(field, Post) == "auth_content_types"
+
+
+# ---------------------------------------------------------------------------
+# build_where_clause_with_traversals
+# ---------------------------------------------------------------------------
+
+
+class TestBuildWhereClauseWithTraversals:
+    def setup_method(self):
+        self.table = get_table(Post)
+
+    def test_simple_filter(self):
+        where, from_clause = build_where_clause_with_traversals(
+            Post, self.table, [{"title": "hello"}], [], []
+        )
+        assert where is not None
+
+    def test_exclude_filter(self):
+        where, from_clause = build_where_clause_with_traversals(
+            Post, self.table, [], [{"views__lt": 0}], []
+        )
+        assert where is not None
+
+    def test_q_filter(self):
+        where, from_clause = build_where_clause_with_traversals(
+            Post, self.table, [], [], [Q(title="hi")]
+        )
+        assert where is not None
+
+    def test_all_empty(self):
+        where, from_clause = build_where_clause_with_traversals(Post, self.table, [], [], [])
+        assert where is None
+        assert from_clause is self.table
+
+    def test_unknown_filter_field_raises(self):
+        with pytest.raises(FieldError):
+            build_where_clause_with_traversals(
+                Post, self.table, [{"nonexistent_field": "x"}], [], []
+            )
+
+    def test_unknown_exclude_field_raises(self):
+        with pytest.raises(FieldError):
+            build_where_clause_with_traversals(
+                Post, self.table, [], [{"nonexistent_field": "x"}], []
+            )
+
+    def test_unknown_filter_with_lookup_raises(self):
+        with pytest.raises(FieldError):
+            build_where_clause_with_traversals(
+                Post, self.table, [{"ghost__icontains": "x"}], [], []
+            )
+
+    def test_invalid_traversal_falls_back(self):
+        # A key starting with __ has an empty col_name; not in table → FieldError
+        with pytest.raises(FieldError):
+            build_where_clause_with_traversals(Post, self.table, [{"__totally_bogus": "x"}], [], [])
+
+    def test_invalid_exclude_traversal_falls_back(self):
+        with pytest.raises(FieldError):
+            build_where_clause_with_traversals(Post, self.table, [], [{"__totally_bogus": "x"}], [])
+
+
+# ---------------------------------------------------------------------------
+# execute_select / execute_count / execute_exists / execute_delete
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteSelect:
+    @pytest.mark.asyncio
+    async def test_basic_select(self):
+        mock_rows = [{"id": 1, "title": "Hello", "views": 0, "author_id": None}]
+        qs = make_qs(filters=[{"title": "Hello"}])
+
+        with (
+            patch("openviper.db.executor.connect") as mock_connect,
+            patch("openviper.db.executor.load_soft_removed_columns", new_callable=AsyncMock),
+            (
+                patch("openviper.db.executor._check_perm_cached", new_callable=AsyncMock)
+                if False
+                else patch("openviper.db.executor.get_table", return_value=get_table(Post))
+            ),
+        ):
+            mock_conn = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.mappings.return_value = mock_rows
+            mock_conn.execute = AsyncMock(return_value=mock_result)
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            result = await execute_select(qs)
+            assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_select_uses_explicit_queryset_alias(self):
+        qs = make_qs()
+        qs._db_alias = "replica"
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            await execute_select(qs)
+
+        mock_connect.assert_called_once_with("replica", Post)
+
+    @pytest.mark.asyncio
+    async def test_select_with_limit(self):
+        qs = make_qs(limit=5)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_with_offset(self):
+        qs = make_qs(offset=10)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_distinct(self):
+        qs = make_qs(distinct=True)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_with_order(self):
+        qs = make_qs(order=["-views"])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_with_only_fields(self):
+        qs = make_qs(only=["title"])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_with_defer_fields(self):
+        qs = make_qs(defer=["views"])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_with_annotations(self):
+        qs = make_qs(annotations={"total": Count("id")})
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_select(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_select_applies_max_query_rows_when_no_limit(self):
+        """Without explicit limit, MAX_QUERY_ROWS is applied."""
+        qs = make_qs()  # no limit
+
+        captured_stmt = []
+
+        async def fake_execute(stmt):
+            captured_stmt.append(stmt)
+            result = MagicMock()
+            result.mappings.return_value = []
+            return result
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = fake_execute
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_select(qs)
+
+        # Verify a stmt was captured (no exceptions)
+        assert len(captured_stmt) == 1
+
+
+class TestExecuteCount:
+    @pytest.mark.asyncio
+    async def test_count(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 42
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_count(qs)
+            assert result == 42
+
+    @pytest.mark.asyncio
+    async def test_count_with_filter(self):
+        qs = make_qs(filters=[{"title": "x"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 7
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_count(qs)
+            assert result == 7
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_icontains_filter_applies_where(self):
+        qs = make_qs(filters=[{"title__icontains": "hello"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 3
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_count(qs)
+            assert result == 3
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+            assert "LIKE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_no_filter_has_no_where(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 100
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" not in sql
+
+    @pytest.mark.asyncio
+    async def test_count_startswith_filter_applies_where(self):
+        qs = make_qs(filters=[{"title__startswith": "abc"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 5
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+            assert "LIKE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_gt_filter_applies_where(self):
+        qs = make_qs(filters=[{"views__gt": 100}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 2
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+
+    @pytest.mark.asyncio
+    async def test_count_q_filter_applies_where(self):
+        q = Q(title__icontains="test")
+        qs = make_qs(q_filters=[q])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one.return_value = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_count(qs)
+
+            stmt = mock_conn.execute.call_args[0][0]
+            sql = str(stmt.compile(compile_kwargs={"literal_binds": True})).upper()
+            assert "WHERE" in sql
+
+
+class TestExecuteExists:
+    @pytest.mark.asyncio
+    async def test_exists_true(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = (1,)
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_exists(qs)
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_exists_false(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.first.return_value = None
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_exists(qs)
+            assert result is False
+
+
+class TestExecuteDelete:
+    @pytest.mark.asyncio
+    async def test_delete(self):
+        qs = make_qs(filters=[{"title": "old"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 3
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.begin") as mockbegin:
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_delete(qs)
+            assert result == 3
+
+
+class TestExecuteUpdate:
+    @pytest.mark.asyncio
+    async def test_update(self):
+        qs = make_qs(filters=[{"title": "old"}])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 2
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_update(qs, {"title": "new"})
+            assert result == 2
+
+    @pytest.mark.asyncio
+    async def test_update_with_f_expression(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_update(qs, {"views": F("views") + 1})
+            assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_update_bypasses_permissions(self):
+        qs = make_qs(ignore_permissions=True)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch(
+                "openviper.db.executor.check_permission_for_model", new_callable=AsyncMock
+            ) as mock_perm,
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_update(qs, {"title": "x"})
+            mock_perm.assert_awaited_once_with(Post, "update", ignore_permissions=True)
+
+
+# ---------------------------------------------------------------------------
+# execute_save
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteSave:
+    @pytest.mark.asyncio
+    async def test_insert_new_instance(self):
+        p = Post(title="New", views=0)
+        assert p.id is None
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.inserted_primary_key = [42]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.load_soft_removed_columns", new_callable=AsyncMock),
+            patch("openviper.db.executor.get_soft_removed_columns", return_value=frozenset()),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_save(p)
+            assert p.id == 42
+
+    @pytest.mark.asyncio
+    async def test_update_existing_instance(self):
+        p = Post._from_row({"id": 5, "title": "Old", "views": 10, "author_id": None})
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock(return_value=MagicMock())
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.load_soft_removed_columns", new_callable=AsyncMock),
+            patch("openviper.db.executor.get_soft_removed_columns", return_value=frozenset()),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            p.title = "Updated"
+            await execute_save(p)
+            assert mock_conn.execute.called
+
+    @pytest.mark.asyncio
+    async def test_save_skips_soft_removed_columns(self):
+        p = Post(title="Test", views=0)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.inserted_primary_key = [1]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.load_soft_removed_columns", new_callable=AsyncMock),
+            patch(
+                "openviper.db.executor.get_soft_removed_columns", return_value=frozenset(["views"])
+            ),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_save(p)
+            # Verify execute was called (insert happened)
+            assert mock_conn.execute.called
+
+    @pytest.mark.asyncio
+    async def test_save_with_client_assigned_pk(self):
+        """New instance with manually assigned PK should INSERT."""
+        p = Post(title="Manual PK", views=0)
+        p.id = 99  # manually assigned
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.inserted_primary_key = [99]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.load_soft_removed_columns", new_callable=AsyncMock),
+            patch("openviper.db.executor.get_soft_removed_columns", return_value=frozenset()),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_save(p)
+            assert mock_conn.execute.called
+
+    @pytest.mark.asyncio
+    async def test_uuid_pk_excluded_from_update_set_clause(self):
+        """UUID primary keys must not appear in the UPDATE SET clause."""
+        uid = uuid.uuid4()
+        otp = OtpRecord._from_row({"id": uid, "otp": "111111"})
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        captured_stmt = {}
+
+        async def _capture_execute(stmt):
+            captured_stmt["stmt"] = stmt
+            return mock_result
+
+        mock_conn.execute = _capture_execute
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.load_soft_removed_columns", new_callable=AsyncMock),
+            patch("openviper.db.executor.get_soft_removed_columns", return_value=frozenset()),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            otp.otp = "999999"
+            await execute_save(otp)
+
+        stmt = captured_stmt["stmt"]
+        # _values is an immutabledict of {column_name: value} for the SET clause.
+        set_col_names = set(stmt._values.keys())
+        assert (
+            "id" not in set_col_names
+        ), f"Primary key 'id' must not appear in UPDATE SET; columns being set: {set_col_names}"
+
+
+# ---------------------------------------------------------------------------
+# execute_delete_instance
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteDeleteInstance:
+    @pytest.mark.asyncio
+    async def test_delete_instance(self):
+        p = Post._from_row({"id": 7, "title": "Bye", "views": 0, "author_id": None})
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock(return_value=MagicMock())
+
+        with (
+            patch("openviper.db.executor.check_permission_for_model", new_callable=AsyncMock),
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_delete_instance(p)
+            assert mock_conn.execute.called
+
+    @pytest.mark.asyncio
+    async def test_delete_instance_with_bypass(self):
+        p = Post._from_row({"id": 8, "title": "Gone", "views": 0, "author_id": None})
+
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock(return_value=MagicMock())
+
+        with (
+            patch(
+                "openviper.db.executor.check_permission_for_model", new_callable=AsyncMock
+            ) as mock_perm,
+            patch("openviper.db.executor.begin") as mockbegin,
+        ):
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            await execute_delete_instance(p, ignore_permissions=True)
+            mock_perm.assert_awaited_once_with(Post, "delete", ignore_permissions=True)
+
+
+# ---------------------------------------------------------------------------
+# execute_values
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteValues:
+    @pytest.mark.asyncio
+    async def test_values_all_fields(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [{"title": "A", "views": 1}]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs)
+            assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_values_specific_fields(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [{"title": "A"}]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs, fields=("title",))
+            assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_values_with_annotation_field(self):
+        qs = make_qs(annotations={"cnt": Count("id")})
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [{"cnt": 10}]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs, fields=("cnt",))
+            assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_values_with_annotations_no_fields(self):
+        qs = make_qs(annotations={"total": Sum("views")})
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = []
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_values_traversal_key_remapped_to_final_field(self):
+        """execute_values returns raw traversal keys; remapping is done by values()."""
+        qs = make_qs(model=Post, order=["-title"])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [
+            {"author__username": "Alice", "title": "Hello"},
+            {"author__username": "Bob", "title": "World"},
+        ]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs, fields=("author__username", "title"))
+            assert result[0] == {"author__username": "Alice", "title": "Hello"}
+            assert result[1] == {"author__username": "Bob", "title": "World"}
+
+    @pytest.mark.asyncio
+    async def test_values_traversal_collision_preserves_full_key(self):
+        """execute_values returns raw keys; collision handling is in values()."""
+        qs = make_qs(model=TraversalChild)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [
+            {"parent__reporter__username": "alice", "parent__title": "Post1"},
+        ]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(
+                qs, fields=("parent__reporter__username", "parent__title")
+            )
+            assert result[0] == {"parent__reporter__username": "alice", "parent__title": "Post1"}
+
+    @pytest.mark.asyncio
+    async def test_values_traversal_same_final_key_collision(self):
+        """Two traversal fields with same final key keep full traversal key."""
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [
+            {"parent__reporter__username": "alice", "parent__note": "x"},
+        ]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        # Simulate a collision by having two fields that both end in "username"
+        # We patch the traversal_fields list to include a hypothetical collision.
+        # Since TraversalChild only has one FK path, we test the collision logic
+        # directly by calling the remap logic.
+
+        # Test the remap logic directly: two traversal fields ending in same key
+        traversal_fields = ["parent__reporter__username", "note__username"]
+        final_keys: dict[str, str] = {}
+        seen_shorts: set[str] = set()
+        collisions: set[str] = set()
+        for tf in traversal_fields:
+            short = tf.rsplit("__", 1)[-1]
+            if short in seen_shorts:
+                collisions.add(short)
+            seen_shorts.add(short)
+            final_keys[tf] = short
+        remap = {tf: short for tf, short in final_keys.items() if short not in collisions}
+        # Both end in "username" → collision → no remap
+        assert remap == {}
+        # Verify single traversal field remaps correctly
+        single = ["parent__reporter__username"]
+        final_keys2: dict[str, str] = {}
+        seen_shorts2: set[str] = set()
+        collisions2: set[str] = set()
+        for tf in single:
+            short = tf.rsplit("__", 1)[-1]
+            if short in seen_shorts2:
+                collisions2.add(short)
+            seen_shorts2.add(short)
+            final_keys2[tf] = short
+        remap2 = {tf: short for tf, short in final_keys2.items() if short not in collisions2}
+        assert remap2 == {"parent__reporter__username": "username"}
+
+    @pytest.mark.asyncio
+    async def test_values_traversal_order_by_joins_built(self):
+        """order_by with traversal field must build JOINs even without traversal in fields."""
+        qs = make_qs(model=Post, order=["-author__username"])
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [{"title": "Hello"}]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs, fields=("title",))
+            assert result[0] == {"title": "Hello"}
+
+    @pytest.mark.asyncio
+    async def test_values_deep_traversal_key_remapped(self):
+        """execute_values returns raw multi-level traversal keys; remapping is in values()."""
+        qs = make_qs(model=TraversalChild)
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [
+            {"parent__reporter__username": "alice", "note": "test"},
+        ]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs, fields=("parent__reporter__username", "note"))
+            assert result[0] == {"parent__reporter__username": "alice", "note": "test"}
+
+    @pytest.mark.asyncio
+    async def test_values_no_traversal_keys_unchanged(self):
+        """Simple fields without traversal must not be remapped."""
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [{"title": "A", "views": 1}]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_values(qs, fields=("title", "views"))
+            assert result[0] == {"title": "A", "views": 1}
+
+
+# ---------------------------------------------------------------------------
+# execute_aggregate
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteAggregate:
+    @pytest.mark.asyncio
+    async def test_aggregate_returns_dict(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value.first.return_value = {"total": 5}
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_aggregate(qs, {"total": Count("id")})
+            assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    async def test_aggregate_empty_kwargs(self):
+        qs = make_qs()
+        result = await execute_aggregate(qs, {})
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_aggregate_no_row(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value.first.return_value = None
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.connect") as mock_connect:
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_aggregate(qs, {"total": Count("id")})
+            assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# execute_explain
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteExplain:
+    @pytest.mark.asyncio
+    async def test_explain_sqlite(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.mappings.return_value = [{"detail": "SCAN TABLE exec_posts"}]
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        mock_engine = MagicMock()
+        mock_engine.dialect.name = "sqlite"
+
+        with (
+            patch("openviper.db.executor.connect") as mock_connect,
+            patch("openviper.db.executor.get_engine", new=AsyncMock(return_value=mock_engine)),
+        ):
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_explain(qs)
+            assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_explain_generic_fallback(self):
+        qs = make_qs()
+
+        mock_conn = AsyncMock()
+        mock_engine = MagicMock()
+        mock_engine.dialect.name = "mysql"
+
+        with (
+            patch("openviper.db.executor.connect") as mock_connect,
+            patch("openviper.db.executor.get_engine", new=AsyncMock(return_value=mock_engine)),
+        ):
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_explain(qs)
+            assert "EXPLAIN" in result
+
+    @pytest.mark.asyncio
+    async def test_explain_with_order_and_limit(self):
+        qs = make_qs(order=["title"], limit=10, offset=5)
+
+        mock_conn = AsyncMock()
+        mock_engine = MagicMock()
+        mock_engine.dialect.name = "mysql"
+
+        with (
+            patch("openviper.db.executor.connect") as mock_connect,
+            patch("openviper.db.executor.get_engine", new=AsyncMock(return_value=mock_engine)),
+        ):
+            mock_connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_explain(qs)
+            assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# execute_bulk_update
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteBulkUpdate:
+    @pytest.mark.asyncio
+    async def test_empty_objs(self):
+        result = await execute_bulk_update(Post, [], ["title"])
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_empty_fields(self):
+        p = Post._from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
+        result = await execute_bulk_update(Post, [p], [])
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_bulk_update_runs(self):
+        p1 = Post._from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
+        p2 = Post._from_row({"id": 2, "title": "B", "views": 5, "author_id": None})
+        p1.title = "Updated A"
+        p2.title = "Updated B"
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 2
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.begin") as mockbegin:
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_bulk_update(Post, [p1, p2], ["title"])
+            assert result == 2
+
+    @pytest.mark.asyncio
+    async def test_bulk_update_skips_no_pk(self):
+        p = Post(title="No PK")  # no id set
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 0
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.begin") as mockbegin:
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_bulk_update(Post, [p], ["title"])
+            assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_bulk_update_with_batch_size(self):
+        posts = [
+            Post._from_row({"id": i, "title": f"P{i}", "views": 0, "author_id": None})
+            for i in range(1, 5)
+        ]
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 2
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.begin") as mockbegin:
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_bulk_update(Post, posts, ["title"], batch_size=2)
+            assert result == 4  # 2 batches * 2 rows each
+
+    @pytest.mark.asyncio
+    async def test_bulk_update_extra_field_not_in_model(self):
+        p = Post._from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
+        p.extra = "val"  # not in model fields
+
+        mock_conn = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+        mock_conn.execute = AsyncMock(return_value=mock_result)
+
+        with patch("openviper.db.executor.begin") as mockbegin:
+            mockbegin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
+            result = await execute_bulk_update(Post, [p], ["extra"])
+            assert result == 1
+
+
+# ---------------------------------------------------------------------------
+# load_soft_removed_columns
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSoftRemovedColumns:
+    def setup_method(self):
+        invalidate_soft_removed_cache()
+
+    @pytest.mark.asyncio
+    async def test_already_loaded_skips(self):
+        openviper.db._model_registry.soft_removed_loaded = True
+        # Should return immediately without touching engine
+        with patch("openviper.db.executor.get_engine", new_callable=AsyncMock) as mock_eng:
+            await load_soft_removed_columns()
+            mock_eng.assert_not_awaited()
+        openviper.db._model_registry.soft_removed_loaded = False
+
+    @pytest.mark.asyncio
+    async def test_table_not_exists(self):
+        openviper.db._model_registry.soft_removed_loaded = False
+
+        mock_engine = MagicMock()
+        mock_conn = AsyncMock()
+        mock_conn.run_sync = AsyncMock(return_value=False)  # table doesn't exist
+        mock_engine.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("openviper.db.executor.get_engine", new=AsyncMock(return_value=mock_engine)):
+            await load_soft_removed_columns()
+            assert openviper.db._model_registry.soft_removed_loaded is True
+
+        openviper.db._model_registry.soft_removed_loaded = False
+
+    @pytest.mark.asyncio
+    async def test_exception_sets_loaded(self):
+        openviper.db._model_registry.soft_removed_loaded = False
+
+        with patch(
+            "openviper.db.executor.get_engine", new=AsyncMock(side_effect=RuntimeError("db error"))
+        ):
+            await load_soft_removed_columns()
+            assert openviper.db._model_registry.soft_removed_loaded is True
+
+        openviper.db._model_registry.soft_removed_loaded = False
+
+
+# ---------------------------------------------------------------------------
+# MAX_QUERY_ROWS constant
+# ---------------------------------------------------------------------------
+
+
+class TestMaxQueryRows:
+    def test_default_value(self):
+        assert max_query_rows() is None

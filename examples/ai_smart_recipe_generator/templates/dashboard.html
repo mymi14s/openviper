@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Welcome back, {{ user.first_name or user.username }}! 👋</h1>
+<p style="color:#555; margin-bottom:2rem;">Here's your recipe activity at a glance.</p>
+
+<div class="grid-2" style="margin-bottom:2rem;">
+    <div class="stat-box">
+        <div class="num">{{ recipe_count }}</div>
+        <div class="label">Saved Recipes</div>
+    </div>
+    <div class="stat-box">
+        <div class="num">{{ meal_plan_count }}</div>
+        <div class="label">Meal Plans</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>🥕 Manage Ingredients</h2>
+        <p>Update your pantry ingredients to get the best AI recipe suggestions.</p>
+        <a href="/ingredients" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">Manage Ingredients</a>
+    </div>
+    <div class="card">
+        <h2>🤖 Generate Recipes</h2>
+        <p>Use AI to generate new recipe ideas based on your available ingredients.</p>
+        <a href="/ingredients/generate" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">Generate Recipes</a>
+    </div>
+    <div class="card">
+        <h2>📅 Create Meal Plan</h2>
+        <p>Let AI plan your week with balanced and delicious meal suggestions.</p>
+        <a href="/mealplan" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">Create Meal Plan</a>
+    </div>
+    <div class="card">
+        <h2>🛒 Shopping Lists</h2>
+        <p>View your auto-generated shopping lists from your meal plans.</p>
+        <a href="/shopping" class="btn btn-primary btn-sm" style="margin-top:0.75rem;">View Shopping Lists</a>
+    </div>
+</div>
+
+{% if recipes %}
+<div class="card" style="margin-top:1.5rem;">
+    <h2>Recent Recipes</h2>
+    {% for recipe in recipes[:5] %}
+    <div class="recipe-card">
+        <h3><a href="/recipes/{{ recipe.pk }}" style="color:#2d6a4f; text-decoration:none;">{{ recipe.title }}</a></h3>
+        <small style="color:#888;">
+            {% if recipe.prep_time %}Prep: {{ recipe.prep_time }}{% endif %}
+            {% if recipe.cook_time %} · Cook: {{ recipe.cook_time }}{% endif %}
+            {% if recipe.servings %} · Serves: {{ recipe.servings }}{% endif %}
+        </small>
+    </div>
+    {% endfor %}
+    {% if recipe_count > 5 %}
+    <a href="/recipes" class="btn btn-secondary btn-sm">View All {{ recipe_count }} Recipes</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

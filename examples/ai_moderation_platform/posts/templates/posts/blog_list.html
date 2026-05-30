@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Latest Posts - {{ site_name() }}{% endblock %}
+
+{% block content %}
+<div class="blog-header">
+    <h2 style="margin-bottom: 2rem;">Latest Posts</h2>
+
+    <!-- Search Form -->
+    <form method="get" style="margin-bottom: 2rem;">
+        <div style="display: flex; gap: 0.5rem;">
+            <input
+                type="text"
+                name="search"
+                placeholder="Search posts..."
+                value="{{ search_query or '' }}"
+                style="flex: 1; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+            />
+            <button type="submit" style="padding: 0.5rem 1rem; background-color: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                Search
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if search_query %}
+<p style="margin-bottom: 1rem; color: #666;">Search results for: <strong>{{ search_query }}</strong></p>
+{% endif %}
+
+{% for post in posts %}
+<div class="card">
+    <h2><a href="/blog/{{ post.id }}">{{ post.title }}</a></h2>
+    <div class="meta">
+        By User #{{ post.author_id }} &bull; {{ post.created_at|timeago }} &bull;
+        <span class="badge">{{ post.likes_count }} likes</span>
+    </div>
+    <div class="content">
+        {{ post.content|truncate(300) }}
+    </div>
+    <a href="/blog/{{ post.id }}" style="color: var(--primary); font-weight: 600; text-decoration: none;">Read more &rarr;</a>
+</div>
+{% else %}
+<p>{% if search_query %}No posts match your search.{% else %}No posts found.{% endif %}</p>
+{% endfor %}
+
+<!-- Pagination Info -->
+{% if total > 0 %}
+<div style="text-align: center; margin: 2rem 0; padding: 1rem; background-color: #f5f5f5; border-radius: 4px;">
+    <p style="margin: 0; color: #666;">
+        Showing <strong>{{ page }}</strong> of <strong>{{ total_pages }}</strong> pages
+        ({{ total }} total posts)
+    </p>
+</div>
+{% endif %}
+
+<!-- Pagination Controls -->
+{% if total_pages > 1 %}
+<div style="display: flex; justify-content: center; align-items: center; gap: 0.75rem; margin: 2rem 0; flex-wrap: wrap;">
+    <!-- First Page -->
+    {% if page > 1 %}
+        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}"
+           style="padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; background-color: #fff; color: #333; cursor: pointer;">
+            ⟨⟨ First
+        </a>
+    {% else %}
+        <span style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5; color: #999;">
+            ⟨⟨ First
+        </span>
+    {% endif %}
+
+    <!-- Previous Page -->
+    {% if page > 1 %}
+        <a href="?page={{ page - 1 }}{% if search_query %}&search={{ search_query }}{% endif %}"
+           style="padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; background-color: #fff; color: #333; cursor: pointer;">
+            ⟨ Previous
+        </a>
+    {% else %}
+        <span style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5; color: #999;">
+            ⟨ Previous
+        </span>
+    {% endif %}
+
+    <!-- Current Page Display -->
+    <span style="padding: 0.5rem 1rem; font-weight: bold; color: #333;">
+        Page {{ page }} of {{ total_pages }}
+    </span>
+
+    <!-- Next Page -->
+    {% if page < total_pages %}
+        <a href="?page={{ page + 1 }}{% if search_query %}&search={{ search_query }}{% endif %}"
+           style="padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; background-color: #fff; color: #333; cursor: pointer;">
+            Next ⟩
+        </a>
+    {% else %}
+        <span style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5; color: #999;">
+            Next ⟩
+        </span>
+    {% endif %}
+
+    <!-- Last Page -->
+    {% if page < total_pages %}
+        <a href="?page={{ total_pages }}{% if search_query %}&search={{ search_query }}{% endif %}"
+           style="padding: 0.5rem 1rem; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; background-color: #fff; color: #333; cursor: pointer;">
+            Last ⟩⟩
+        </a>
+    {% else %}
+        <span style="padding: 0.5rem 1rem; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5; color: #999;">
+            Last ⟩⟩
+        </span>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

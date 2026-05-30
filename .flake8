@@ -1,0 +1,27 @@
+[flake8]
+max-line-length = 100
+extend-ignore =
+    # Handled by black
+    E203,
+    W503,
+    # Too opinionated
+    E501,
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    build,
+    dist,
+    *.egg-info,
+    migrations,
+    docs,
+    node_modules,
+per-file-ignores =
+    examples/fx/app.py:E402
+    examples/todoapp/app.py:E402
+    examples/todoapp/create_admin.py:E402
+    tests/*:S101
+    tests/**:F401,S101
+    openviper/ai/providers/*:E722
+    openviper/**/__init__.py:F401
+    openviper/db/migrations/__init__.py:F401

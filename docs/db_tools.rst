@@ -3,17 +3,9 @@
 db_tools - Database Backup & Restore
 =====================================
 
-The ``db_tools`` plugin adds ``backup-db`` and ``restore-db`` management
-commands to any OpenViper project.  Commands are auto-registered via Python
-entry-points - no changes to ``INSTALLED_APPS`` or ``settings.py`` are
-required.
-
-Installation
-------------
-
-.. code-block:: bash
-
-   pip install openviper[db-tools]
+The ``backup-db`` and ``restore-db`` management commands are included in the
+core OpenViper package.  They are auto-registered via Python entry-points - no
+changes to ``INSTALLED_APPS`` or ``settings.py`` are required.
 
 System Requirements
 -------------------

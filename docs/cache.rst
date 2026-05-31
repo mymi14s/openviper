@@ -58,7 +58,7 @@ RedisCache
 ~~~~~~~~~~
 A production-ready asynchronous Redis backend.
 
-**Requirements**: You must install the `redis` library (e.g., ``pip install openviper[redis]`` or ``pip install redis``).
+**Requirements**: You must install the ``redis`` library (e.g., ``pip install openviper[tasks]`` or ``pip install redis``).
 
 .. code-block:: python
 

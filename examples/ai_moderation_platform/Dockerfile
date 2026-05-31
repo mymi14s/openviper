@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies
 
-RUN pip install --no-cache-dir "openviper[postgres,redis,tasks]==0.0.9"
+RUN pip install --no-cache-dir "openviper[postgres,tasks]"
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

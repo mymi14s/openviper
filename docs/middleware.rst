@@ -142,7 +142,7 @@ Key Classes
    - ``"memory"`` (default) - in-process ``SlidingWindowCounter`` with
      per-stripe locking and lazy bucket eviction.
    - ``"redis"`` - ``RedisWindowCounter`` backed by a Redis sorted set.
-     Requires ``redis>=7.4.0`` (install with ``pip install 'openviper[redis]'``).
+     Requires ``redis>=7.4.0`` (install with ``pip install 'openviper[tasks]'``).
      Uses ``settings.CACHE_URL`` as the Redis connection URL.
 
 .. py:function:: openviper.middleware.ratelimit.rate_limit(max_requests=60, window_seconds=60.0)

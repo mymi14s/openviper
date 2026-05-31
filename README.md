@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.14%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.0.9-orange)](pyproject.toml)
+[![Version](https://img.shields.io/pypi/v/openviper?color=orange&label=version)](pyproject.toml)
 
 </div>
 
@@ -16,7 +16,7 @@
 
 **OpenViper** is a production-ready, high-performance, async-first Python web framework designed to be both flexible and batteries-included. It gives you the freedom of a minimal, unopinionated core when you want control, while also providing a rich, fully integrated stack when you want to move fast.
 
-Out of the box it includes a powerful ORM with model lifecycle and events, built-in authentication and authorization, an Admin UI, background task processing, a pluggable AI provider registry, and automatic OpenAPI documentation.
+Out of the box it includes a powerful ORM with model lifecycle and events, built-in authentication and authorization, an Admin UI, background task processing, a pluggable AI provider registry, automatic OpenAPI documentation, async email, caching, file storage, database routing, and a full testing toolkit.
 
 Whether you're building lean APIs or full-scale platforms, OpenViper scales with you - without forcing you into rigid architectural constraints.
 
@@ -26,16 +26,28 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 
 | | |
 |---|---|
-| 🔀 **Routing** | function-based and class-based (`View`) routes, path params, route groups |
-| 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events |
-| 🔐 **Auth** | Session + JWT, password hashing, roles, permissions, `@login_required` |
-| 🖥️ **Admin UI** | Auto-discovered SPA - CRUD, bulk actions, change history, inlines |
-| 🔧 **Middleware** | Auth, CORS, CSRF, rate-limiting, security headers |
-| ⚙️ **Background Tasks** | Task queue with retry, priorities, model-event hooks |
+| 🔀 **Routing** | function-based and class-based (`View`) routes, path params, sub-routers, per-route middleware |
+| 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events, protected queries |
+| 🔐 **Auth** | Session + JWT + token auth, Argon2id/bcrypt hashing, roles, permissions, `@login_required`, lifecycle hooks |
+| 🖥️ **Admin UI** | Auto-discovered Vue 3 SPA - CRUD, bulk actions, change history, inlines, role-based visibility |
+| 🔧 **Middleware** | Auth, CORS, CSRF, rate-limiting, security headers, DB connection pinning |
+| ⚙️ **Background Tasks** | Dramatiq-backed task queue with retry, priorities, model-event hooks |
 | 🕐 **Scheduler** | Cron and interval periodic jobs built into the framework |
-| 🤖 **AI Registry** | Unified async API - OpenAI, Anthropic, Gemini, Ollama, Grok, custom |
-| 📦 **Serializers** | Pydantic-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware |
-| 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes |
+| 🤖 **AI Registry** | Unified async API - OpenAI, Anthropic, Gemini, Ollama, Grok, custom providers, streaming, moderation |
+| 📦 **Serializers** | Pydantic v2-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware, readonly/writeonly fields |
+| 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes and type hints |
+| 📧 **Email** | Async email delivery with Jinja2 templates, Markdown rendering, SMTP/Console backends, attachments |
+| 💾 **Cache** | In-memory, Redis, and database cache backends with async API |
+| 📁 **Storage** | Pluggable file storage API - FileSystemStorage, async uploads, media serving |
+| 🌐 **Static Files** | Development static serving, `collectstatic` for production, ETag/range support |
+| 🗺️ **Geolocation** | PostGIS-compatible `PointField` with haversine distance, WKT/EWKT/GeoJSON serialization |
+| 🏳️ **Country Field** | ISO 3166-1 alpha-2 `CountryField` with O(1) validation, OpenAPI enum |
+| 🛡️ **Database Routing** | Read/write replicas, multi-database routing, pluggable backends |
+| 🧪 **Testing** | pytest-based TestKit with async HTTP client, model factories, auth helpers, assertion utilities |
+| 🖥️ **Templates** | Jinja2 sandboxed environment with auto-escape, plugin auto-loader, path traversal protection |
+| 🔌 **Plugins** | `ready()`/`startup()`/`shutdown()` lifecycle hooks, third-party extension API |
+| 🐛 **Debug Page** | Rich HTML traceback with credential redaction in DEBUG mode |
+| ⚙️ **CLI** | `openviper` for scaffolding, `viperctl` for migrations, superuser, worker, backup, and more |
 
 ---
 
@@ -45,6 +57,26 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 
 ```bash
 pip install openviper
+```
+
+Optional extras:
+
+```bash
+pip install openviper[postgres]      # PostgreSQL (asyncpg + psycopg2-binary)
+pip install openviper[mariadb]      # MariaDB / MySQL (aiomysql)
+pip install openviper[mssql]       # MS SQL Server (aioodbc)
+pip install openviper[oracle]      # Oracle (oracledb)
+pip install openviper[tasks]       # Dramatiq task queue + Redis
+pip install openviper[ai]           # OpenAI, Anthropic, Google GenAI SDKs
+pip install openviper[geolocation]  # PostGIS + shapely
+pip install openviper[all]          # Everything
+```
+
+Development extras:
+
+```bash
+pip install openviper[dev]          # pytest, black, ruff, mypy, pylint, pre-commit, ...
+pip install openviper[docs]         # sphinx, sphinx-rtd-theme, sphinxcontrib-httpdomain
 ```
 
 ### Minimal - single file
@@ -199,27 +231,29 @@ Visit `http://localhost:8000/admin`
 # blog/tasks.py
 from openviper.tasks import task
 
-@task()
-async def send_welcome_email(post_id: int):
-    """
-    Do something
-    """
-```
+@task(queue_name="default", max_retries=3, priority=0)
+async def send_welcome_email(user_id: int):
+    """Send a welcome email to a new user."""
+    ...
 
+# Enqueue: fire-and-forget
+send_welcome_email.send(user_id=42)
+
+# Enqueue: with delay (milliseconds)
+send_welcome_email.send_with_options(args=(42,), delay=5_000)
+```
 
 ### Periodic Scheduler
 
 ```python
 from openviper.tasks.scheduler import periodic
-from openviper.tasks.schedule import CronSchedule, IntervalSchedule
-from datetime import timedelta
 
-@periodic(every=60)
+@periodic(every=60)          # every 60 seconds
 async def morning_digest():
     ...
 
-@periodic(every=300)
-async def refresh_cache():
+@periodic(cron="0 8 * * 1-5")  # weekdays at 08:00
+async def weekday_report():
     ...
 ```
 
@@ -251,11 +285,29 @@ Full reference documentation lives in [`https://mymi14s.github.io/openviper/`](h
 
 ---
 
+## 🛠️ Management Commands
+
+| Command | Description |
+|---|---|
+| `makemigrations` | Generate migration files for changed models |
+| `migrate` | Apply pending migrations |
+| `createsuperuser` | Interactively create an admin superuser |
+| `changepassword` | Change a user's password |
+| `console` | Open a Python REPL with models and settings pre-loaded |
+| `start-worker` | Start the background task worker |
+| `collectstatic` | Collect static assets into `STATIC_ROOT` |
+| `create-app` | Scaffold a new app package |
+| `create-provider` | Scaffold a new AI provider package |
+| `backup-db` | Create a compressed database backup |
+| `restore-db` | Restore a database from backup |
+| `test` | Run the project test suite via pytest |
+
+---
+
 ## ⚙️ Requirements
 
 - **Python** ≥ 3.14
-- **Supported DB driver**   - PostgreSQL, MySQL/MariaDB, SQLite
-
+- **Supported databases** - PostgreSQL, MySQL/MariaDB, SQLite, Oracle, MS SQL
 
 ---
 

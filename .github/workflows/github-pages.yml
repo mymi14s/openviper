@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[docs,ai,redis,postgres,geolocation,tasks]"
+          python -m pip install -e ".[docs,ai,postgres,geolocation,tasks]"
 
       - name: Build documentation
         run: make docs

@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from openviper.contrib.geolocation.geometry import Point
-from openviper.contrib.geolocation.utils import point_from_wkb_hex
+from openviper.contrib.fields.geolocation.geometry import Point
+from openviper.contrib.fields.geolocation.utils import point_from_wkb_hex
 
 if TYPE_CHECKING:
-    from openviper.contrib.geolocation.fields import PointField
+    from openviper.contrib.fields.geolocation.fields import PointField
 
 
 class BaseGeoBackend:

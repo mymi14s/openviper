@@ -1,4 +1,4 @@
-"""Unit tests for openviper.contrib.geolocation."""
+"""Unit tests for openviper.contrib.fields.geolocation."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from openviper.contrib.geolocation import (
+from openviper.contrib.fields.geolocation import (
     GeoLocationError,
     InvalidPointError,
     Point,
@@ -15,13 +15,11 @@ from openviper.contrib.geolocation import (
     haversine_distance,
     parse_point,
 )
-from openviper.contrib.geolocation.backends import (
+from openviper.contrib.fields.geolocation.backends import (
     FallbackTextBackend,
     PostGISBackend,
 )
-from openviper.contrib.geolocation.exceptions import (
-    DependencyMissingError as DependencyMissingError,
-)
+from openviper.contrib.fields.geolocation.exceptions import DependencyMissingError
 
 # ---------------------------------------------------------------------------
 # Point geometry

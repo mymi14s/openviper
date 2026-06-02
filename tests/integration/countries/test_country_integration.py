@@ -8,13 +8,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from openviper.conf import settings
-from openviper.contrib.countries import CountryField
-from openviper.contrib.countries.cache import get_countries, invalidate_cache
-from openviper.contrib.countries.data import COUNTRIES
+from openviper.contrib.fields.countries import CountryField
+from openviper.contrib.fields.countries.cache import get_countries, invalidate_cache
+from openviper.contrib.fields.countries.data import COUNTRIES
 from openviper.db.fields import CharField
 
 if TYPE_CHECKING:
-    from openviper.contrib.countries.types import ExtraCountries
+    from openviper.contrib.fields.countries.types import ExtraCountries
 
 
 class TestCountryFieldInheritance:

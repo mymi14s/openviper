@@ -5,15 +5,15 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from openviper.contrib.countries.cache import (
+from openviper.contrib.fields.countries.cache import (
     get_countries,
     get_country,
     get_country_meta,
 )
 
 if TYPE_CHECKING:
-    from openviper.contrib.countries.data import CountryInfo, CountryMeta
-    from openviper.contrib.countries.types import ExtraCountries
+    from openviper.contrib.fields.countries.data import CountryInfo, CountryMeta
+    from openviper.contrib.fields.countries.types import ExtraCountries
 
 
 class Country(str):

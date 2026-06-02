@@ -1,7 +1,7 @@
 Country Field
 =============
 
-The ``openviper.contrib.countries`` package provides a lightweight,
+The ``openviper.contrib.fields.countries`` package provides a lightweight,
 zero-overhead **CountryField** for OpenViper models.  It stores
 `ISO 3166-1 alpha-2 <https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2>`_
 two-letter country codes in a ``CHAR(2)`` column.
@@ -28,10 +28,10 @@ Overview
 Installation
 ------------
 
-``openviper.contrib.countries`` is part of the core distribution.  No extra
+``openviper.contrib.fields.countries`` is part of the core distribution.  No extra
 packages are required.  Simply import ``CountryField``::
 
-    from openviper.contrib.countries import CountryField
+    from openviper.contrib.fields.countries import CountryField
 
 Usage
 -----
@@ -39,7 +39,7 @@ Usage
 Basic model field::
 
     from openviper.db import Model
-    from openviper.contrib.countries import CountryField
+    from openviper.contrib.fields.countries import CountryField
 
     class UserProfile(Model):
         country = CountryField(null=True, db_index=True)
@@ -115,7 +115,7 @@ Return the raw ISO code (default)::
 
 Return the full country object::
 
-    from openviper.contrib.countries import CountryField
+    from openviper.contrib.fields.countries import CountryField
 
     class ProfileSerializer(ModelSerializer):
         class Meta:
@@ -156,7 +156,7 @@ receive a ready-made JSON Schema fragment::
 Utility helpers
 ---------------
 
-The following helpers are exported directly from ``openviper.contrib.countries``:
+The following helpers are exported directly from ``openviper.contrib.fields.countries``:
 
 .. py:function:: validate_country(code, extra=(), strict=True) -> bool
 
@@ -198,7 +198,7 @@ Performance
 -------------------------
 
 When accessed on a model instance, ``CountryField`` returns a
-:class:`~openviper.contrib.countries.country.Country` object that subclasses
+:class:`~openviper.contrib.fields.countries.country.Country` object that subclasses
 :class:`str`.  This means all existing string comparisons, serialisers, and
 ORM filters continue to work without changes, while also providing rich
 metadata properties:
@@ -321,7 +321,7 @@ metadata properties:
 Cache management
 ----------------
 
-The ``openviper.contrib.countries.cache`` module provides LRU-cached
+The ``openviper.contrib.fields.countries.cache`` module provides LRU-cached
 accessors and cache control:
 
 .. py:function:: invalidate_cache() -> None

@@ -22,11 +22,11 @@ Currently ``openviper.contrib`` contains three sub-packages:
     The default landing page and its ASGI middleware, shown in ``DEBUG`` mode
     when no custom route is registered for ``/``.
 
-``openviper.contrib.countries``
+``openviper.contrib.fields.countries``
     Lightweight ISO 3166-1 alpha-2 ``CountryField`` for ORM models.  See
     :doc:`country_field` for full documentation.
 
-``openviper.contrib.geolocation``
+``openviper.contrib.fields.geolocation``
     PostGIS-compatible ``PointField`` and ``Point`` geometry class.
     Requires ``shapely`` (installed via ``pip install openviper[Geolocation]``).
     See :doc:`geolocation` for full documentation.

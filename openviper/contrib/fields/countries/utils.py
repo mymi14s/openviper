@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from openviper.contrib.countries.cache import get_countries, get_country
-from openviper.contrib.countries.data import COUNTRY_CODES, CountryInfo
+from openviper.contrib.fields.countries.cache import get_countries, get_country
+from openviper.contrib.fields.countries.data import COUNTRY_CODES, CountryInfo
 
 ALPHA2_PATTERN: re.Pattern[str] = re.compile(r"^[A-Z]{2}$")
 

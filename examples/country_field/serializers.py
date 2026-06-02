@@ -5,7 +5,7 @@ Demonstrates ModelSerializer with CountryField representation.
 
 from __future__ import annotations
 
-from openviper.contrib.countries import CountryField
+from openviper.contrib.fields.countries import CountryField
 from openviper.serializers import ModelSerializer
 
 from .models import UserProfile

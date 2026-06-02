@@ -1,1 +1,1 @@
-"""Integration tests for openviper.contrib.countries."""
+"""Integration tests for openviper.contrib.fields.countries."""

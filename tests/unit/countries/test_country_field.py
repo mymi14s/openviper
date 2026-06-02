@@ -1,10 +1,10 @@
-"""Unit tests for openviper.contrib.countries."""
+"""Unit tests for openviper.contrib.fields.countries."""
 
 from __future__ import annotations
 
 import pytest
 
-from openviper.contrib.countries import (
+from openviper.contrib.fields.countries import (
     CountryField,
     get_country_choices,
     get_country_name,
@@ -12,8 +12,8 @@ from openviper.contrib.countries import (
     search_country,
     validate_country,
 )
-from openviper.contrib.countries.cache import get_countries, get_country, invalidate_cache
-from openviper.contrib.countries.data import COUNTRIES, COUNTRY_CODES
+from openviper.contrib.fields.countries.cache import get_countries, get_country, invalidate_cache
+from openviper.contrib.fields.countries.data import COUNTRIES, COUNTRY_CODES
 
 
 class TestCountryData:

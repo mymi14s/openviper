@@ -1,10 +1,10 @@
 Geolocation
 ===========
 
-The ``openviper.contrib.geolocation`` package provides
+The ``openviper.contrib.fields.geolocation`` package provides
 PostGIS-compatible geolocation support for OpenViper models.  It adds
-a :class:`~openviper.contrib.geolocation.geometry.Point` geometry class
-and a :class:`~openviper.contrib.geolocation.fields.PointField` ORM field
+a :class:`~openviper.contrib.fields.geolocation.geometry.Point` geometry class
+and a :class:`~openviper.contrib.fields.geolocation.fields.PointField` ORM field
 that maps to ``GEOMETRY(Point, 4326)`` on PostgreSQL/PostGIS and falls
 back to a WKT ``TEXT`` column on other databases.
 
@@ -22,7 +22,7 @@ Overview
 * **shapely interop** - convert to/from ``shapely.geometry.Point``;
   ``shapely`` is imported at module level and required for WKB decoding.
 * **Clear error messages** - missing ``shapely`` raises
-  :class:`~openviper.contrib.geolocation.exceptions.DependencyMissingError`
+  :class:`~openviper.contrib.fields.geolocation.exceptions.DependencyMissingError`
   with the install command.
 
 Installation
@@ -46,7 +46,7 @@ Define a model with a geographic location:
 .. code-block:: python
 
     from openviper.db import Model
-    from openviper.contrib.geolocation import Point, PointField
+    from openviper.contrib.fields.geolocation import Point, PointField
     from openviper.db.fields import AutoField, CharField
 
 
@@ -60,7 +60,7 @@ Create and query records - ORM operations are ``async``:
 
     import asyncio
 
-    from openviper.contrib.geolocation import Point, PointField
+    from openviper.contrib.fields.geolocation import Point, PointField
     from openviper.db import Model
     from openviper.db.fields import AutoField, CharField
 
@@ -95,7 +95,7 @@ Point Geometry
 
 .. code-block:: python
 
-    from openviper.contrib.geolocation import Point
+    from openviper.contrib.fields.geolocation import Point
 
     # Construct from longitude, latitude (both are floats)
     london: Point = Point(-0.1276, 51.5074)
@@ -122,14 +122,14 @@ Coordinate validation:
 
 * Longitude must be in **[-180, 180]**.
 * Latitude must be in **[-90, 90]**.
-* ``NaN`` and ``inf`` values are rejected with :class:`~openviper.contrib.geolocation.exceptions.InvalidPointError`.
+* ``NaN`` and ``inf`` values are rejected with :class:`~openviper.contrib.fields.geolocation.exceptions.InvalidPointError`.
 
 PointField
 ----------
 
 .. code-block:: python
 
-    from openviper.contrib.geolocation import Point, PointField
+    from openviper.contrib.fields.geolocation import Point, PointField
     from openviper.db import Model
     from openviper.db.fields import AutoField, CharField
 
@@ -175,11 +175,11 @@ Backends
 --------
 
 The backend layer handles database-specific serialisation.  It is
-selected automatically via :func:`~openviper.contrib.geolocation.backends.get_backend`:
+selected automatically via :func:`~openviper.contrib.fields.geolocation.backends.get_backend`:
 
 .. code-block:: python
 
-    from openviper.contrib.geolocation.backends import BaseGeoBackend, get_backend
+    from openviper.contrib.fields.geolocation.backends import BaseGeoBackend, get_backend
 
     backend: BaseGeoBackend = get_backend("postgresql")   # PostGISBackend
     backend = get_backend("sqlite")                       # FallbackTextBackend
@@ -193,10 +193,10 @@ Supported dialects:
      - Backend class
      - Column type
    * - ``postgresql``, ``postgres``, ``postgis``
-     - :class:`~openviper.contrib.geolocation.backends.PostGISBackend`
+     - :class:`~openviper.contrib.fields.geolocation.backends.PostGISBackend`
      - ``GEOMETRY(Point,<srid>)``
    * - ``sqlite``, ``mysql``, ``mariadb``, ``mssql``, ``oracle``, ``generic``
-     - :class:`~openviper.contrib.geolocation.backends.FallbackTextBackend`
+     - :class:`~openviper.contrib.fields.geolocation.backends.FallbackTextBackend`
      - ``TEXT``
 
 The backend registry is a module-level dict:
@@ -210,7 +210,7 @@ The backend registry is a module-level dict:
 SQLAlchemy type helpers
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``openviper.contrib.geolocation.fields`` module registers PostGIS
+The ``openviper.contrib.fields.geolocation.fields`` module registers PostGIS
 types with SQLAlchemy's PostgreSQL dialect at import time and provides
 adaptive column types:
 
@@ -248,8 +248,8 @@ Utilities
 
 .. code-block:: python
 
-    from openviper.contrib.geolocation import Point
-    from openviper.contrib.geolocation.utils import (
+    from openviper.contrib.fields.geolocation import Point
+    from openviper.contrib.fields.geolocation.utils import (
         haversine_distance,
         parse_point,
         point_from_shapely,
@@ -290,11 +290,11 @@ Errors
 
    * - Exception
      - When raised
-   * - :class:`~openviper.contrib.geolocation.exceptions.GeoLocationError`
+   * - :class:`~openviper.contrib.fields.geolocation.exceptions.GeoLocationError`
      - Base class for all geolocation errors.
-   * - :class:`~openviper.contrib.geolocation.exceptions.InvalidPointError`
+   * - :class:`~openviper.contrib.fields.geolocation.exceptions.InvalidPointError`
      - Coordinate out of range, NaN/Inf, or malformed WKT/GeoJSON input.
-   * - :class:`~openviper.contrib.geolocation.exceptions.DependencyMissingError`
+   * - :class:`~openviper.contrib.fields.geolocation.exceptions.DependencyMissingError`
      - Optional dependency not installed.  Subclass of both :class:`GeoLocationError` and :class:`ImportError`.
 
 ``DependencyMissingError`` is a subclass of both
@@ -305,9 +305,9 @@ Example:
 
 .. code-block:: python
 
-    from openviper.contrib.geolocation import Point
-    from openviper.contrib.geolocation.exceptions import DependencyMissingError
-    from openviper.contrib.geolocation.utils import point_to_shapely
+    from openviper.contrib.fields.geolocation import Point
+    from openviper.contrib.fields.geolocation.exceptions import DependencyMissingError
+    from openviper.contrib.fields.geolocation.utils import point_to_shapely
 
     my_point: Point = Point(-0.1276, 51.5074)
     try:
@@ -353,7 +353,7 @@ Per-field configuration example on a model:
 
 .. code-block:: python
 
-    from openviper.contrib.geolocation import Point, PointField
+    from openviper.contrib.fields.geolocation import Point, PointField
     from openviper.db import Model
     from openviper.db.fields import AutoField, CharField
 
@@ -383,20 +383,20 @@ Per-field configuration example on a model:
 API Reference
 -------------
 
-.. automodule:: openviper.contrib.geolocation
+.. automodule:: openviper.contrib.fields.geolocation
    :members:
 
-.. autoclass:: openviper.contrib.geolocation.geometry.Point
+.. autoclass:: openviper.contrib.fields.geolocation.geometry.Point
    :members:
 
-.. autoclass:: openviper.contrib.geolocation.fields.PointField
+.. autoclass:: openviper.contrib.fields.geolocation.fields.PointField
    :members:
 
-.. automodule:: openviper.contrib.geolocation.backends
+.. automodule:: openviper.contrib.fields.geolocation.backends
    :members:
 
-.. automodule:: openviper.contrib.geolocation.utils
+.. automodule:: openviper.contrib.fields.geolocation.utils
    :members:
 
-.. automodule:: openviper.contrib.geolocation.exceptions
+.. automodule:: openviper.contrib.fields.geolocation.exceptions
    :members:

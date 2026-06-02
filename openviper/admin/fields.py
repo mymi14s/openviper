@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 try:
-    from openviper.contrib.countries.cache import get_country_choices as country_choices_fn
+    from openviper.contrib.fields.countries.cache import get_country_choices as country_choices_fn
 except ImportError:
     country_choices_fn: t.Callable | None = None
 

@@ -1,8 +1,7 @@
 """PostGIS-compatible geolocation support.
 
-.. deprecated::
-   Import from ``openviper.contrib.fields.geolocation`` instead.
-   This module will be removed in a future release.
+Provides PointField ORM field and Point geometry class.
+Shapely integration available via the Geolocation extras.
 """
 
 from __future__ import annotations

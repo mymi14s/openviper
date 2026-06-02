@@ -5,7 +5,7 @@ from __future__ import annotations
 import functools
 from typing import TYPE_CHECKING
 
-from openviper.contrib.countries.data import (
+from openviper.contrib.fields.countries.data import (
     COUNTRIES,
     COUNTRY_META,
     CountryInfo,
@@ -13,7 +13,7 @@ from openviper.contrib.countries.data import (
 )
 
 if TYPE_CHECKING:
-    from openviper.contrib.countries.types import CacheInfoMap, ExtraCountries
+    from openviper.contrib.fields.countries.types import CacheInfoMap, ExtraCountries
 
 
 @functools.lru_cache(maxsize=1)

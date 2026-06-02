@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, cast
 import shapely.geometry as shapely_geometry_module
 import shapely.wkb as shapely_wkb_module
 
-from openviper.contrib.geolocation.geometry import Point
+from openviper.contrib.fields.geolocation.geometry import Point
 
 if TYPE_CHECKING:
-    from openviper.contrib.geolocation.types import (
+    from openviper.contrib.fields.geolocation.types import (
         GeoJSONObject,
         PointInput,
         ShapelyGeometryModule,

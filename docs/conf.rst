@@ -501,7 +501,7 @@ Key Classes & Functions
       * - ``COUNTRY_FIELD``
         - ``ConfigMap``
         - ``{"EXTRA_COUNTRIES": {}, "ENABLE_CACHE": True, "STRICT": True}``
-          - configuration for :class:`~openviper.contrib.countries.CountryField`
+          - configuration for :class:`~openviper.contrib.fields.countries.CountryField`
 
    .. py:method:: as_dict(mask_sensitive=True) -> ConfigMap
 

@@ -520,19 +520,19 @@ All fields accept a common set of base arguments: ``primary_key``,
    * - ``CountryField(max_length=2, extra_countries=None)``
      - ISO 3166-1 alpha-2 country code stored as a 2-character ``VARCHAR``.
        Values are validated against the built-in country registry.
-       Returns a :class:`~openviper.contrib.countries.Country` instance on
+       Returns a :class:`~openviper.contrib.fields.countries.Country` instance on
        access, giving rich metadata properties: ``.iso``, ``.name``,
        ``.dial_code``, ``.alpha3``, ``.numeric``, ``.continent``,
        ``.region``, ``.capital``, ``.currency_code``, ``.currency_name``,
        ``.currency_symbol``, ``.languages``, ``.tld``, ``.flag``,
        ``.is_eu``, ``.is_eea``, ``.timezone``, ``.is_valid``.
        Pass ``extra_countries`` to register non-standard codes.
-       Available from ``openviper.contrib.countries``.
+       Available from ``openviper.contrib.fields.countries``.
 
        .. code-block:: python
 
           from openviper.db import Model
-          from openviper.contrib.countries import CountryField
+          from openviper.contrib.fields.countries import CountryField
 
           class UserProfile(Model):
               country = CountryField(null=True, db_index=True)

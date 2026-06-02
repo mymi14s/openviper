@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from openviper.contrib.countries.cache import (
+from openviper.contrib.fields.countries.cache import (
     get_countries,
     get_country,
     get_country_choices,
 )
-from openviper.contrib.countries.country import Country
-from openviper.contrib.countries.data import COUNTRY_CODES
-from openviper.contrib.countries.utils import (
+from openviper.contrib.fields.countries.country import Country
+from openviper.contrib.fields.countries.data import COUNTRY_CODES
+from openviper.contrib.fields.countries.utils import (
     get_country_name,
     search_country,
     validate_country,
@@ -19,7 +19,7 @@ from openviper.contrib.countries.utils import (
 from openviper.db.fields import CharField
 
 if TYPE_CHECKING:
-    from openviper.contrib.countries.types import (
+    from openviper.contrib.fields.countries.types import (
         CountryOwner,
         CountryRepresentation,
         CountrySchema,

@@ -8,10 +8,10 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from openviper.contrib.geolocation.exceptions import InvalidPointError
+from openviper.contrib.fields.geolocation.exceptions import InvalidPointError
 
 if TYPE_CHECKING:
-    from openviper.contrib.geolocation.types import GeoJSONObject, GeoJSONOutput
+    from openviper.contrib.fields.geolocation.types import GeoJSONObject, GeoJSONOutput
 
 LON_MIN = -180.0
 LON_MAX = 180.0

@@ -13,12 +13,12 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql.base import PGDialect
 
 from openviper.conf import settings
-from openviper.contrib.geolocation.geometry import Point
+from openviper.contrib.fields.geolocation.geometry import Point
 from openviper.db import connection as db_connection
 from openviper.db.fields import Field
 
 if TYPE_CHECKING:
-    from openviper.contrib.geolocation.types import GeoJSONObject, PointOwner
+    from openviper.contrib.fields.geolocation.types import GeoJSONObject, PointOwner
 
 
 class GeoType(sa.types.UserDefinedType[object]):

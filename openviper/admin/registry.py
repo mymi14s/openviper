@@ -7,6 +7,7 @@ all registered models and their corresponding ModelAdmin configurations.
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import logging
 from typing import TYPE_CHECKING
 
@@ -167,11 +168,26 @@ class AdminRegistry:
         Args:
             app_name: Dotted path to the app (e.g., 'blog' or 'apps.blog').
         """
+        admin_module_name = f"{app_name}.admin"
         try:
-            importlib.import_module(f"{app_name}.admin")
+            importlib.import_module(admin_module_name)
             logger.debug("Loaded admin module from %s", app_name)
         except ImportError as e:
+            # Check if the admin module itself exists but failed to import
+            # vs. simply not being present at all.
+            spec = importlib.util.find_spec(admin_module_name)
+            if spec is not None:
+                # admin.py exists but something inside it failed to import.
+                logger.critical("Failed to import admin.py from %s: %s", app_name, e)
+                raise
+            # No admin.py for this app - that is fine, skip silently.
             logger.debug("No admin.py found in %s: %s", app_name, e)
+        except SyntaxError as e:
+            logger.critical("Syntax error in admin.py from %s: %s", app_name, e)
+            raise
+        except Exception as e:
+            logger.critical("Unexpected error importing admin module from %s: %s", app_name, e)
+            raise
 
     def auto_discover_from_installed_apps(self) -> None:
         """Auto-discover admin.py modules from all INSTALLED_APPS.

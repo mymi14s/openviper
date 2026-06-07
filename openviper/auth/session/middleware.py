@@ -69,7 +69,7 @@ class SessionMiddleware:
         cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
         session_key = request.cookies.get(cookie_name)
 
-        # Intent: CR/LF in session keys enables HTTP header injection attacks.
+        # CR/LF in session keys enables HTTP header injection attacks.
         if session_key and not is_safe_cookie_value(session_key):
             logger.warning("Session cookie rejected: invalid characters in key")
             session_key = None
@@ -99,7 +99,7 @@ class SessionMiddleware:
 
             async def send_wrapper(message: ASGIMessage) -> None:
                 if message["type"] == "http.response.start":
-                    # Intent: Use the session produced by login during handling.
+                    # Use the session produced by login during handling.
                     active_session = cast("Session", scope.get("session", session))
                     await active_session.save()
 

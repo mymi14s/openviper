@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import io
 import json
+import logging
 import re
 import urllib.parse
 from http.cookies import SimpleCookie
@@ -46,13 +48,13 @@ except ImportError:
 FormParser: Any = getattr(multipart_module, "FormParser", None)
 parse_options_header: Any = getattr(multipart_module, "parse_options_header", None)
 
-# Intent: Prevent unbounded memory allocation by capping request body size.
+# Prevent unbounded memory allocation by capping request body size.
 MAX_BODY_SIZE: int = 10 * 1024 * 1024
 
-# Intent: Prevent DoS via excessive multipart file uploads.
+# Prevent DoS via excessive multipart file uploads.
 MAX_FILES_PER_REQUEST: int = 100
 
-# Intent: Reject Host header injection by validating hostname and port format.
+# Reject Host header injection by validating hostname and port format.
 VALID_HOST_RE = re.compile(
     r"^[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?:(\d{1,5})$|^[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?$"
 )
@@ -161,7 +163,7 @@ class Request:
             self._cookies = {}
             cookie_header = self.headers.get("cookie", "")
             if cookie_header:
-                # Intent: Use stdlib SimpleCookie for efficient, standards-compliant parsing.
+                # Use stdlib SimpleCookie for efficient, standards-compliant parsing.
                 cookie = SimpleCookie()
                 cookie.load(cookie_header)
                 self._cookies = {key: morsel.value for key, morsel in cookie.items()}
@@ -203,7 +205,7 @@ class Request:
             The raw header value, or ``None`` if the header is absent.
         """
         if self._headers_map is None:
-            # Intent: ASGI spec guarantees headers are already lowercase.
+            # ASGI spec guarantees headers are already lowercase.
             raw_headers = cast("list[tuple[bytes, bytes]]", self._scope.get("headers", []))
             self._headers_map = dict(raw_headers)
         return self._headers_map.get(name)
@@ -226,13 +228,13 @@ class Request:
                     content_length = int(content_length_header.decode("latin-1"))
 
             if content_length is not None:
-                # Intent: Reject oversized declared Content-Length before allocating.
+                # Reject oversized declared Content-Length before allocating.
                 if content_length > MAX_BODY_SIZE:
                     raise ValueError(
                         f"Request body too large: Content-Length {content_length} "
                         f"exceeds limit of {MAX_BODY_SIZE} bytes"
                     )
-                # Intent: Pre-allocate for known size to avoid list growth/joins.
+                # Pre-allocate for known size to avoid list growth/joins.
                 buffer = bytearray(content_length)
                 offset = 0
                 while True:
@@ -251,7 +253,7 @@ class Request:
                         break
                 self._body = bytes(buffer[:offset])
             else:
-                # Intent: Dynamic collection with size cap for unknown Content-Length.
+                # Dynamic collection with size cap for unknown Content-Length.
                 chunks: list[bytes] = []
                 total = 0
                 while True:
@@ -295,7 +297,9 @@ class Request:
             if "application/x-www-form-urlencoded" in content_type:
                 raw = await self.body()
                 parsed = urllib.parse.parse_qs(raw.decode("utf-8"), keep_blank_values=True)
-                items = [(k, v) for k, vals in parsed.items() for v in vals]
+                items: list[tuple[str, str | UploadFile]] = [
+                    (k, v) for k, vals in parsed.items() for v in vals
+                ]
                 self._form = ImmutableMultiDict(items)
             elif "multipart/form-data" in content_type:
                 if FormParser is None or parse_options_header is None:
@@ -306,16 +310,67 @@ class Request:
                 form_parser = FormParser
                 parse_opts = parse_options_header
                 form_items: list[tuple[str, str | UploadFile]] = []
-                file_count = 0  # Track file uploads
+                file_count = 0
+                form_logger = logging.getLogger("openviper.form")
 
                 def on_field(field: MultipartField) -> None:
-                    form_items.append((field.field_name.decode(), field.value.decode()))
+                    if field.field_name is None:
+                        return
+                    # python-multipart routes file uploads without a
+                    # Content-Disposition filename through on_field; detect
+                    # binary data and treat as UploadFile.
+                    raw_value = field.value
+                    if raw_value is None:
+                        form_items.append((field.field_name.decode(), ""))
+                        return
+                    try:
+                        decoded = raw_value.decode("utf-8")
+                        form_items.append((field.field_name.decode(), decoded))
+                    except UnicodeDecodeError:
+                        # Binary data without a filename header is still a file upload.
+                        form_logger.warning(
+                            "on_field binary fallback: name=%r len=%d",
+                            field.field_name,
+                            len(raw_value),
+                        )
+                        nonlocal file_count
+                        file_count += 1
+                        if file_count > MAX_FILES_PER_REQUEST:
+                            raise ValueError(
+                                f"Too many files in request. "
+                                f"Maximum {MAX_FILES_PER_REQUEST} files allowed."
+                            ) from None
+                        # Infer MIME type from magic bytes when no header is present.
+                        inferred_ct = "application/octet-stream"
+                        if raw_value[:8] == b"\x89PNG\r\n\x1a\n":
+                            inferred_ct = "image/png"
+                        elif raw_value[:2] == b"\xff\xd8":
+                            inferred_ct = "image/jpeg"
+                        elif raw_value[:4] == b"RIFF" and raw_value[8:12] == b"WEBP":
+                            inferred_ct = "image/webp"
+                        elif raw_value[:6] in (b"GIF87a", b"GIF89a"):
+                            inferred_ct = "image/gif"
+                        # Map inferred MIME type to a safe file extension.
+                        ext_map = {
+                            "image/png": ".png",
+                            "image/jpeg": ".jpg",
+                            "image/webp": ".webp",
+                            "image/gif": ".gif",
+                        }
+                        ext = ext_map.get(inferred_ct, ".bin")
+                        file_obj = io.BytesIO(raw_value)
+                        upload = UploadFile(
+                            filename=f"upload{ext}",
+                            content_type=inferred_ct,
+                            file=cast("IO[bytes]", file_obj),
+                        )
+                        form_items.append((field.field_name.decode(), upload))
 
                 def on_file(file: MultipartFile) -> None:
                     nonlocal file_count
                     file_count += 1
 
-                    # Intent: Enforce file count limit to prevent multipart DoS.
+                    # Enforce file count limit to prevent multipart DoS.
                     if file_count > MAX_FILES_PER_REQUEST:
                         raise ValueError(
                             f"Too many files in request. "
@@ -324,7 +379,7 @@ class Request:
 
                     filename = file.file_name.decode() if file.file_name else "unknown"
 
-                    # Intent: Capture actual Content-Type from multipart headers.
+                    # Capture actual Content-Type from multipart headers.
                     content_type_header = getattr(file, "content_type", None)
                     if content_type_header:
                         if isinstance(content_type_header, bytes):
@@ -334,7 +389,7 @@ class Request:
                     else:
                         file_content_type = "application/octet-stream"
 
-                    # Intent: Seek to beginning so the application can read the file.
+                    # Seek to beginning so the application can read the file.
                     if hasattr(file.file_object, "seek"):
                         file.file_object.seek(0)
                     upload = UploadFile(
@@ -342,13 +397,15 @@ class Request:
                         content_type=file_content_type,
                         file=cast("IO[bytes]", file.file_object),
                     )
-                    form_items.append((file.field_name.decode(), upload))
+                    # python-multipart may yield None field_name for some parts.
+                    field_name = file.field_name.decode() if file.field_name else "file"
+                    form_items.append((field_name, upload))
 
                 ctype, options = parse_opts(content_type)
                 boundary = options.get(b"boundary")
 
                 if not boundary:
-                    # Intent: Multipart without a boundary is malformed; return empty form.
+                    # Multipart without a boundary is malformed; return empty form.
                     self._form = ImmutableMultiDict([])
                     return self._form
 
@@ -363,7 +420,7 @@ class Request:
                         parser.write(chunk)
                 parser.finalize()
 
-                self._form = ImmutableMultiDict(cast("list[tuple[str, str]]", form_items))
+                self._form = ImmutableMultiDict(form_items)
             else:
                 self._form = ImmutableMultiDict([])
         return self._form
@@ -428,13 +485,12 @@ class URL:
             if (self.scheme == "https" and port == 443) or (self.scheme == "http" and port == 80):
                 return host_val
             return f"{host_val}:{port}"
-        # Fall back to Host header - validate to prevent host header injection.
+        # Host header is untrusted; validate before use to prevent injection.
         for name, value in cast("list[tuple[bytes, bytes]]", self._scope.get("headers", [])):
             if name == b"host":
                 raw = value.decode("latin-1")
                 if validate_host_port(raw):
                     return raw
-                # Reject malformed/injected Host header.
                 return "localhost"
         return "localhost"
 

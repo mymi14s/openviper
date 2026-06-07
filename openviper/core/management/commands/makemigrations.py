@@ -41,7 +41,7 @@ def auto_migration_name(ops: list) -> str:
     """Derive a meaningful migration name from a list of operations.
 
     Produces names like ``add_bio_remove_profile_image``,
-    ``alter_email_add_avatar``, ``create_post``, etc.
+    ``alter_users_email_add_avatar``, ``create_post``, etc.
     """
 
     parts: list[str] = []
@@ -55,7 +55,7 @@ def auto_migration_name(ops: list) -> str:
         elif isinstance(op, RemoveColumn):
             parts.append(f"remove_{op.column_name}")
         elif isinstance(op, AlterColumn):
-            parts.append(f"alter_{op.column_name}")
+            parts.append(f"alter_{op.table_name}_{op.column_name}")
         elif isinstance(op, RenameColumn):
             parts.append(f"rename_{op.old_name}_to_{op.new_name}")
         elif isinstance(op, RestoreColumn):
@@ -64,7 +64,14 @@ def auto_migration_name(ops: list) -> str:
     if not parts:
         return "auto"
 
-    name = "_".join(parts)
+    # Deduplicate consecutive identical name parts to prevent redundant
+    # repetition when multiple operations target the same column.
+    deduped: list[str] = []
+    for part in parts:
+        if not deduped or deduped[-1] != part:
+            deduped.append(part)
+
+    name = "_".join(deduped)
     if len(name) > _MAX_NAME_LENGTH:
         name = name[:_MAX_NAME_LENGTH].rsplit("_", 1)[0]
     return name

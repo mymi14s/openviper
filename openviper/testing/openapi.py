@@ -1,6 +1,7 @@
 """OpenAPI assertion helpers for tests."""
 
 from collections.abc import Mapping
+from typing import Any
 
 
 def assert_openapi_path(schema: Mapping[str, object], path: str) -> None:
@@ -14,9 +15,8 @@ def assert_openapi_operation(schema: Mapping[str, object], path: str, method: st
     assert isinstance(paths, dict), "OpenAPI schema does not contain a paths object."
     path_item = paths.get(path)
     assert isinstance(path_item, dict), f"Expected OpenAPI path {path!r} to be present."
-    assert (
-        method.lower() in path_item
-    ), f"Expected OpenAPI operation {method.upper()} {path} to be present."
+    has_op = method.lower() in path_item
+    assert has_op, f"Expected {method.upper()} {path} to be present."
 
 
 def assert_response_schema(
@@ -27,12 +27,9 @@ def assert_response_schema(
 ) -> None:
     operation = get_operation(schema, path, method)
     responses = operation.get("responses")
-    assert isinstance(
-        responses, dict
-    ), f"OpenAPI operation {method.upper()} {path} has no responses."
-    assert (
-        str(status_code) in responses
-    ), f"Expected response schema for {method.upper()} {path} {status_code}."
+    assert isinstance(responses, dict), f"{method.upper()} {path} has no responses."
+    has_status = str(status_code) in responses
+    assert has_status, f"Expected response for {method.upper()} {path} {status_code}."
 
 
 def assert_request_schema(schema: Mapping[str, object], path: str, method: str) -> None:
@@ -40,13 +37,11 @@ def assert_request_schema(schema: Mapping[str, object], path: str, method: str) 
     assert "requestBody" in operation, f"Expected request schema for {method.upper()} {path}."
 
 
-def get_operation(schema: Mapping[str, object], path: str, method: str) -> dict[str, object]:
+def get_operation(schema: Mapping[str, object], path: str, method: str) -> dict[str, Any]:
     paths = schema.get("paths")
     assert isinstance(paths, dict), "OpenAPI schema does not contain a paths object."
     path_item = paths.get(path)
     assert isinstance(path_item, dict), f"Expected OpenAPI path {path!r} to be present."
     operation = path_item.get(method.lower())
-    assert isinstance(
-        operation, dict
-    ), f"Expected OpenAPI operation {method.upper()} {path} to be present."
+    assert isinstance(operation, dict), f"Expected {method.upper()} {path} to be present."
     return operation

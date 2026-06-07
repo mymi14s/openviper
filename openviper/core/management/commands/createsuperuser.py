@@ -130,6 +130,16 @@ class Command(BaseCommand):
     def handle(self, **options) -> None:  # type: ignore[override]
 
         User = get_user_model()  # noqa: N806
+
+        if not hasattr(User, "objects"):
+            raise CommandError(
+                f"The User model '{User.__module__}.{User.__qualname__}' has no "
+                f"'objects' manager. This usually means the model has not been "
+                f"properly initialised by the ORM metaclass. Ensure the model "
+                f"subclass inherits from openviper.db.models.Model and is not "
+                f"abstract, and that the app containing it is listed in INSTALLED_APPS."
+            )
+
         field_names = model_field_names(User)
 
         no_input = options.get("no_input", False)

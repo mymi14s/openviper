@@ -82,7 +82,7 @@ class JWTBackend:
                 return auth_str[7:]
             return None
 
-        # Intent: Support direct ASGI scope callers that bypass the Request abstraction.
+        # Support direct ASGI scope callers that bypass the Request abstraction.
         if isinstance(scope, dict):
             headers = cast("list[tuple[bytes, bytes]]", scope.get("headers", []))
             auth_header = b""

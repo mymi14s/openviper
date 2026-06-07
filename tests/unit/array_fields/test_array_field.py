@@ -20,20 +20,29 @@ from openviper.db.fields import BooleanField, CharField, FloatField, IntegerFiel
 class TestArrayFieldConstruction:
     """ArrayField initialisation and type enforcement."""
 
-    def test_requires_field_instance(self) -> None:
-        """base_field must be a Field instance, not a class or other type."""
-        with pytest.raises(TypeError, match="base_field must be an instance"):
-            ArrayField(IntegerField)
+    def test_accepts_field_class_and_auto_instantiates(self) -> None:
+        """Passing a Field class auto-instantiates it with defaults."""
+        field = ArrayField(IntegerField)
+        assert isinstance(field.base_field, IntegerField)
 
-    def test_requires_field_instance_not_string(self) -> None:
-        with pytest.raises(TypeError, match="base_field must be an instance"):
-            ArrayField("not_a_field")  # type: ignore[arg-type]
-
-    def test_accepts_integer_field(self) -> None:
+    def test_accepts_field_instance(self) -> None:
+        """Passing a Field instance uses it directly."""
         field = ArrayField(IntegerField())
         assert isinstance(field.base_field, IntegerField)
 
-    def test_accepts_char_field(self) -> None:
+    def test_rejects_non_field_type(self) -> None:
+        with pytest.raises(
+            TypeError, match="base_field must be a Field instance or Field subclass"
+        ):
+            ArrayField("not_a_field")  # type: ignore[arg-type]
+
+    def test_rejects_plain_type(self) -> None:
+        with pytest.raises(
+            TypeError, match="base_field must be a Field instance or Field subclass"
+        ):
+            ArrayField(int)  # type: ignore[arg-type]
+
+    def test_accepts_char_field_instance(self) -> None:
         field = ArrayField(CharField(max_length=50))
         assert isinstance(field.base_field, CharField)
 

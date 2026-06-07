@@ -576,6 +576,7 @@ class ModelAdmin:
                 self.model, "_verbose_name_plural", f"{self._model_name}s"
             ),
             "is_virtual": bool(getattr(getattr(self.model, "_meta", None), "virtual", False)),
+            "is_single": bool(getattr(getattr(self.model, "_meta", None), "single", False)),
             "fields": fields_info,
             "fieldsets": filtered_fieldsets if filtered_fieldsets else None,
             "list_display": self.get_list_display(),

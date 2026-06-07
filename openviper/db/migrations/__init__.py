@@ -15,10 +15,10 @@ from openviper.db.migrations.executor import (
     RenameColumn,
     RestoreColumn,
     RunSQL,
-    column_exists,  # noqa: F401
+    column_exists,
     discover_migrations,
-    should_skip_backward,  # noqa: F401
-    should_skip_forward,  # noqa: F401
+    should_skip_backward,
+    should_skip_forward,
 )
 from openviper.db.migrations.writer import (
     diff_states,

@@ -10,17 +10,23 @@ extended or replaced by application code.
 .. toctree::
    :maxdepth: 2
 
+   array_fields
    country_field
    geolocation
 
 Overview
 --------
 
-Currently ``openviper.contrib`` contains three sub-packages:
+Currently ``openviper.contrib`` contains four sub-packages:
 
 ``openviper.contrib.default``
     The default landing page and its ASGI middleware, shown in ``DEBUG`` mode
     when no custom route is registered for ``/``.
+
+``openviper.contrib.fields.array_fields``
+    PostgreSQL-native ``ArrayField`` for storing homogeneous lists.
+    Falls back to JSON text on other databases.
+    See :doc:`array_fields` for full documentation.
 
 ``openviper.contrib.fields.countries``
     Lightweight ISO 3166-1 alpha-2 ``CountryField`` for ORM models.  See

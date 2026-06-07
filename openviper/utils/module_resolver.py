@@ -96,7 +96,7 @@ def resolve_module(target: str, cwd: Path) -> ResolvedModule:
 
     app_path = cwd.joinpath(*target_parts)
 
-    # Verify the resolved path is still within cwd (defense-in-depth).
+    # Prevent path-traversal outside the project directory.
     try:
         app_path.resolve().relative_to(cwd.resolve())
     except ValueError:

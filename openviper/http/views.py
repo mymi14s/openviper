@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from openviper.conf import settings
 from openviper.exceptions import MethodNotAllowed, PermissionDenied, TooManyRequests
@@ -57,7 +57,29 @@ if TYPE_CHECKING:
 type HandlerCallable = Callable[..., Awaitable[object]]
 type RouteCallable = Callable[..., Awaitable[Response]]
 
-# HTTP methods that View can dispatch to.
+
+def resolve_component_list(
+    sources: list[Any] | None,
+    settings_attr: str,
+) -> list[Any]:
+    """Resolve a list of component sources to instantiated objects.
+
+    Handles class types (instantiated), already-instantiated objects
+    (passed through), and dotted-path strings (resolved via import_string).
+    """
+    if sources is None:
+        sources = getattr(settings, settings_attr, [])
+    resolved: list[Any] = []
+    for entry in sources:
+        if isinstance(entry, str):
+            entry = import_string(entry)
+        if isinstance(entry, type):
+            resolved.append(entry())
+        else:
+            resolved.append(entry)
+    return resolved
+
+
 HTTP_METHODS = frozenset({"get", "post", "put", "patch", "delete", "head", "options"})
 
 
@@ -144,7 +166,7 @@ class View:
                 raise TypeError(f"Invalid keyword argument {key!r}")
             setattr(self, key, value)
 
-    # Intent: Core dispatch - authenticate, authorise, then delegate to handler.
+    # Core dispatch - authenticate, authorise, then delegate to handler.
 
     async def dispatch(self, request: Request, **kwargs: str) -> Response:
         """Route *request* to the appropriate handler method.
@@ -156,12 +178,12 @@ class View:
         if method not in self.http_method_names:
             return cast("Response", self.http_method_not_allowed(request))
 
-        # Intent: Authenticate, then check permissions, then check throttles.
+        # Authenticate, then check permissions, then check throttles.
         await self.perform_authentication(request)
         await self.check_permissions(request)
         await self.check_throttles(request)
 
-        # Intent: Delegate HEAD to get() when no explicit head() handler is defined.
+        # Delegate HEAD to get() when no explicit head() handler is defined.
         if method == "head" and not hasattr(type(self), "head"):
             method = "get"
 
@@ -171,7 +193,7 @@ class View:
             return JSONResponse(result)
         response = cast("Response", result)
 
-        # Intent: Strip body for HEAD responses while preserving all headers.
+        # Strip body for HEAD responses while preserving all headers.
         if request.method == "HEAD":
             response.body = b""
         return response
@@ -188,25 +210,16 @@ class View:
                     request.user, request.auth = result
                     return
             except ValueError, KeyError, TypeError:
-                # Intent: Per-view auth failures are ignored unless
+                # Per-view auth failures are ignored unless
                 # a permission class requires them.
                 logger.debug("Authentication failed for %s", authenticator, exc_info=True)
 
     def get_authenticators(self) -> list[AuthenticatorProtocol]:
         """Load and instantiate the authentication classes."""
-        authenticators = []
-        auth_classes = self.authentication_classes
-        if auth_classes is None:
-            auth_classes = getattr(settings, "DEFAULT_AUTHENTICATION_CLASSES", [])
-
-        for auth_class in auth_classes:
-            if isinstance(auth_class, str):
-                auth_class = import_string(auth_class)
-            if isinstance(auth_class, type):
-                authenticators.append(auth_class())
-            else:
-                authenticators.append(cast("AuthenticatorProtocol", auth_class))
-        return authenticators
+        return cast(
+            "list[AuthenticatorProtocol]",
+            resolve_component_list(self.authentication_classes, "DEFAULT_AUTHENTICATION_CLASSES"),
+        )
 
     async def check_permissions(self, request: Request) -> None:
         """Check if the request should be permitted.
@@ -220,7 +233,7 @@ class View:
         Raises:
             PermissionDenied: If any permission check fails.
         """
-        # Intent: Superusers bypass all view-level permission checks.
+        # Superusers bypass all view-level permission checks.
         if getattr(request.user, "is_superuser", False):
             return
 
@@ -233,7 +246,7 @@ class View:
         Check if the request should be permitted to access the given object.
         Raises PermissionDenied if any permission check fails.
         """
-        # Intent: Superusers bypass all object-level permission checks.
+        # Superusers bypass all object-level permission checks.
         if getattr(request.user, "is_superuser", False):
             return
 
@@ -242,41 +255,18 @@ class View:
                 self.permission_denied(request)
 
     def get_permissions(self) -> list[PermissionProtocol]:
-        """Instantiate and return the list of permissions that this view requires.
-
-        Handles permission classes (types), already-instantiated permissions,
-        dotted-path strings (from settings), and ``OperandHolder`` composites.
-        """
-        perm_sources = self.permission_classes
-        if perm_sources is None:
-            perm_sources = getattr(settings, "DEFAULT_PERMISSION_CLASSES", [])
-
-        permissions: list[PermissionProtocol] = []
-        for entry in perm_sources:
-            if isinstance(entry, str):
-                entry = import_string(entry)
-            if isinstance(entry, type) or callable(entry) and not hasattr(entry, "has_permission"):
-                permissions.append(cast("PermissionProtocol", entry()))
-            else:
-                permissions.append(cast("PermissionProtocol", entry))
-        return permissions
+        """Instantiate and return the list of permissions that this view requires."""
+        return cast(
+            "list[PermissionProtocol]",
+            resolve_component_list(self.permission_classes, "DEFAULT_PERMISSION_CLASSES"),
+        )
 
     def get_throttles(self) -> list[ThrottleProtocol]:
         """Instantiate and return the list of throttles that this view uses."""
-        throttle_sources = self.throttle_classes
-        if throttle_sources is None:
-            throttle_sources = getattr(settings, "DEFAULT_THROTTLE_CLASSES", [])
-
-        throttles: list[ThrottleProtocol] = []
-        for entry in throttle_sources:
-            if isinstance(entry, str):
-                entry = import_string(entry)
-            throttles.append(
-                cast("ThrottleProtocol", entry())
-                if isinstance(entry, type)
-                else cast("ThrottleProtocol", entry)
-            )
-        return throttles
+        return cast(
+            "list[ThrottleProtocol]",
+            resolve_component_list(self.throttle_classes, "DEFAULT_THROTTLE_CLASSES"),
+        )
 
     async def check_throttles(self, request: Request) -> None:
         """Check request against each configured throttle.
@@ -342,7 +332,7 @@ class View:
 
             router.get("/items")(ItemView.as_view())
         """
-        # Intent: Validate that initkwargs don't clash with HTTP methods.
+        # Validate that initkwargs don't clash with HTTP methods.
         for key in initkwargs:
             if key in HTTP_METHODS:
                 raise TypeError(
@@ -353,7 +343,7 @@ class View:
 
         async def view(request: Request, **kwargs: str) -> Response:
             self = cls(**initkwargs)
-            # Intent: When an explicit action name is provided, skip dispatch
+            # When an explicit action name is provided, skip dispatch
             # and call that specific method directly.
             if _action_name:
                 await self.perform_authentication(request)

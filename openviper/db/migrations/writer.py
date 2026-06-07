@@ -339,7 +339,7 @@ def next_migration_number(migrations_dir: str) -> str:
     return str(max(numbers, default=0) + 1).zfill(4)
 
 
-# ── Model state helpers ──────────────────────────────────────────────────
+# -- Model state helpers --------------------------------------------------
 
 
 def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str, Any]]:
@@ -467,7 +467,8 @@ def get_keyword_str(node: ast.Call, key: str) -> str | None:
     """Extract a string keyword argument from an AST Call node."""
     for kw in node.keywords:
         if kw.arg == key and isinstance(kw.value, ast.Constant):
-            return kw.value.value  # type: ignore[return-value]
+            value = kw.value.value
+            return value if isinstance(value, str) else None
     return None
 
 
@@ -668,6 +669,10 @@ def parse_alter_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> None
                     col["nullable"] = bool(kw.value.value)
                 if kw.arg == "default" and isinstance(kw.value, ast.Constant):
                     col["default"] = kw.value.value
+                if kw.arg == "autoincrement" and isinstance(kw.value, ast.Constant):
+                    col["autoincrement"] = bool(kw.value.value)
+                if kw.arg == "primary_key" and isinstance(kw.value, ast.Constant):
+                    col["primary_key"] = bool(kw.value.value)
             break
 
 
@@ -747,7 +752,7 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
     return current != existing
 
 
-# ── Diff-based migration generation ──────────────────────────────────────
+# -- Diff-based migration generation --------------------------------------
 
 # Global dict to track columns that have been soft-removed across migrations.
 # Populated by read_migrated_state; maps (table_name, column_name) to col info.
@@ -941,7 +946,16 @@ def diff_states(
                 and old.get("field_class")
                 and cur.get("field_class") != old.get("field_class")
             )
-            if type_changed or nullable_changed or default_changed or field_class_changed:
+            autoincrement_changed = cur.get("autoincrement") != old.get("autoincrement")
+            primary_key_changed = cur.get("primary_key") != old.get("primary_key")
+            if (
+                type_changed
+                or nullable_changed
+                or default_changed
+                or field_class_changed
+                or autoincrement_changed
+                or primary_key_changed
+            ):
                 ops.append(
                     AlterColumn(
                         table_name=table_name,
@@ -952,6 +966,10 @@ def diff_states(
                         old_type=old.get("type"),
                         old_nullable=old.get("nullable"),
                         old_default=old.get("default"),
+                        autoincrement=cur.get("autoincrement"),
+                        old_autoincrement=old.get("autoincrement"),
+                        primary_key=cur.get("primary_key"),
+                        old_primary_key=old.get("primary_key"),
                     )
                 )
 
@@ -1064,6 +1082,14 @@ def format_operation(op: Operation) -> str:
             parts.append(f"        old_nullable={op.old_nullable!r}")
         if op.old_default is not None:
             parts.append(f"        old_default={op.old_default!r}")
+        if op.autoincrement is not None:
+            parts.append(f"        autoincrement={op.autoincrement!r}")
+        if op.old_autoincrement is not None:
+            parts.append(f"        old_autoincrement={op.old_autoincrement!r}")
+        if op.primary_key is not None:
+            parts.append(f"        primary_key={op.primary_key!r}")
+        if op.old_primary_key is not None:
+            parts.append(f"        old_primary_key={op.old_primary_key!r}")
         inner = ",\n".join(parts)
         return f"    migrations.AlterColumn(\n{inner},\n    ),"
     if isinstance(op, RenameColumn):

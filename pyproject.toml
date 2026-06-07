@@ -144,6 +144,8 @@ ignore = [
 "examples/fx/app.py" = ["E402"]
 "examples/todoapp/app.py" = ["E402"]
 "examples/todoapp/create_admin.py" = ["E402"]
+# DB models: re-exports TraversalLookup/TraversalStep for backward compatibility
+"openviper/db/models.py" = ["F401"]
 # DB fields: deferred class imports use PascalCase local names to avoid circular deps
 "openviper/db/fields.py" = ["N806", "ASYNC240"]
 # Country data file: inherently long lines for structured data records

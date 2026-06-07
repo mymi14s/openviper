@@ -9,7 +9,7 @@ from openviper.core.management.base import BaseCommand
 
 def get_banner(cmd_obj: BaseCommand, host: str, port: int) -> None:
     """Display the startup banner."""
-    cmd_obj.stdout(cmd_obj.style_success(rf"""
+    banner = rf"""
 
             OOOOO  PPPPP   EEEEE  N   N  V   V  III  PPPPP  EEEEE  RRRR
            O     O P    P  E      NN  N  V   V   I   P    P E      R   R
@@ -19,7 +19,8 @@ def get_banner(cmd_obj: BaseCommand, host: str, port: int) -> None:
 
             OpenViper development server running at http://{host}:{port}/
             Use Ctrl+C to stop.
-            """))
+            """
+    cmd_obj.stdout(cmd_obj.style_success(banner))
 
 
 def print_banner(host: str, port: int, cmd_obj: BaseCommand | None = None) -> None:

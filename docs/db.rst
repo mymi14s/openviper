@@ -587,6 +587,16 @@ All fields accept a common set of base arguments: ``primary_key``,
        is ``True``, IPv4-mapped IPv6 addresses (e.g. ``::ffff:192.0.2.1``)
        are unpacked to plain IPv4.
 
+   * - ``ArrayField(base_field, size=None)``
+     - Homogeneous list of a scalar field type.  On PostgreSQL the column
+       uses the native ``ARRAY`` type (e.g. ``INTEGER[]``, ``VARCHAR[]``);
+       on other databases values are stored as JSON text.
+       *base_field* accepts a Field instance (``IntegerField()``) or class
+       (``IntegerField``, auto-instantiated with defaults).
+       *size* caps the maximum number of elements at validation time.
+       Available from ``openviper.contrib.fields.array_fields``.
+       See :doc:`array_fields` for full documentation.
+
 ``openviper.db.models.Index``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

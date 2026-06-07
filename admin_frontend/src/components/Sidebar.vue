@@ -147,7 +147,7 @@ const currentYear = new Date().getFullYear()
           <ul class="space-y-1 mb-4">
             <li v-for="model in filteredModelsByApp[appLabel]" :key="model.name">
               <RouterLink
-                :to="`/${appLabel}/${model.name}`"
+                :to="model.is_single ? `/${appLabel}/${model.name}/single` : `/${appLabel}/${model.name}`"
                 class="sidebar-link"
                 :class="{ active: isActiveModel(appLabel, model.name) }"
               >

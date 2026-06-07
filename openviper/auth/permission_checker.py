@@ -48,7 +48,7 @@ class ContentTypePermissionChecker:
                 ).count()
                 CT_PERMISSION_CACHE[model_label] = ct_perms_count > 0
             else:
-                # Intent: Missing content type means no protected object exists.
+                # Missing content type means no protected object exists.
                 CT_PERMISSION_CACHE[model_label] = False
             evict_permission_cache_if_full()
 

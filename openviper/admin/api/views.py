@@ -681,6 +681,139 @@ def get_admin_router() -> Router:
 
         return JSONResponse(model_admin.get_model_info(request))
 
+    @router.get("/models/{app_label}/{model_name}/single/")
+    async def get_single_instance(
+        request: Request, app_label: str, model_name: str
+    ) -> JSONResponse:
+        """Get the single instance for a singleton model."""
+        if not check_admin_access(request):
+            raise PermissionDenied("Admin access required.")
+
+        try:
+            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
+            model_class = admin.get_model_by_app_and_name(app_label, model_name)
+        except NotRegistered as exc:
+            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+
+        if not getattr(model_class, "_meta", None) or not model_class._meta.single:
+            raise NotFound(f"Model '{app_label}/{model_name}' is not a singleton model.")
+
+        if not check_model_permission(request, model_class, "view"):
+            raise PermissionDenied(f"No permission to view {model_name}.")
+
+        instance = await model_class.objects.filter(ignore_permissions=True).first()
+        if not instance:
+            raise NotFound(f"No {model_name} instance found.")
+
+        if not model_admin.has_view_permission(request, instance):
+            raise PermissionDenied(f"No permission to view this {model_name}.")
+
+        response_data = await serialize_instance_with_children(
+            request, model_admin, model_class, instance
+        )
+        model_info = model_admin.get_model_info(request)
+
+        return JSONResponse(
+            {
+                "instance": response_data,
+                "model_info": model_info,
+                "readonly_fields": model_admin.get_readonly_fields(request, instance),
+                "fieldsets": model_admin.get_fieldsets(request, instance),
+            }
+        )
+
+    @router.put("/models/{app_label}/{model_name}/single/")
+    async def update_single_instance(
+        request: Request, app_label: str, model_name: str
+    ) -> JSONResponse:
+        """Update the single instance for a singleton model."""
+        if not check_admin_access(request):
+            raise PermissionDenied("Admin access required.")
+
+        try:
+            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
+            model_class = admin.get_model_by_app_and_name(app_label, model_name)
+        except NotRegistered as exc:
+            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+
+        if not getattr(model_class, "_meta", None) or not model_class._meta.single:
+            raise NotFound(f"Model '{app_label}/{model_name}' is not a singleton model.")
+
+        instance = await model_class.objects.filter(ignore_permissions=True).first()
+        if not instance:
+            raise NotFound(f"No {model_name} instance found.")
+
+        if not model_admin.has_change_permission(request, instance):
+            raise PermissionDenied(f"No permission to change {model_name}.")
+
+        if "multipart/form-data" in request.headers.get("content-type", ""):
+            form = await request.form()
+            data: dict[str, t.Any] = {}
+            for k, v in form.items():
+                if isinstance(v, str) and (v.startswith("[") or v.startswith("{")):
+                    try:
+                        data[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        data[k] = v
+                else:
+                    data[k] = v
+        else:
+            data = await request.json()
+
+        fields = getattr(model_class, "_fields", {})
+        old_data: dict[str, t.Any] = {}
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
+            old_data[field_name] = getattr(instance, field_name, None)
+
+        readonly_fields = model_admin.get_readonly_fields(request, instance)
+        excluded_fields = set(model_admin.get_exclude(request, instance))
+        sensitive_fields = set(model_admin.get_sensitive_fields(request, instance))
+        new_data: dict[str, t.Any] = {}
+        field_errors: dict[str, str] = {}
+
+        for field_name, value in data.items():
+            if field_name in readonly_fields:
+                continue
+            if field_name in excluded_fields or field_name in sensitive_fields:
+                continue
+            try:
+                if field_name in fields:
+                    if isinstance(fields[field_name], ManyToManyField):
+                        continue
+                    coerced_value = coerce_field_value(fields[field_name], value)
+                    setattr(instance, field_name, coerced_value)
+                    new_data[field_name] = coerced_value
+                else:
+                    continue
+            except ValueError as exc:
+                field_errors[field_name] = str(exc)
+
+        if field_errors:
+            return JSONResponse({"errors": field_errors}, status_code=422)
+
+        await instance.save(ignore_permissions=True)
+
+        changes = compute_changes(old_data, new_data)
+        if changes:
+            asyncio.create_task(
+                log_change(
+                    model_name=f"{app_label}.{model_name}",
+                    object_id=instance.id,
+                    action=ChangeAction.CHANGE,
+                    changes=changes,
+                    user=request.user,
+                    object_repr=str(instance),
+                )
+            )
+
+        response_data = await serialize_instance_with_children(
+            request, model_admin, model_class, instance
+        )
+
+        return JSONResponse({"instance": response_data})
+
     @router.get("/models/{app_label}/{model_name}/list/")
     async def list_instances_by_app(
         request: Request, app_label: str, model_name: str

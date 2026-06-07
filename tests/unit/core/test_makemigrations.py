@@ -53,7 +53,7 @@ class TestAutoMigrationName:
     def test_alter_column(self):
         """Test AlterColumn operation naming."""
         ops = [AlterColumn("users", "email", nullable=False)]
-        assert auto_migration_name(ops) == "alter_email"
+        assert auto_migration_name(ops) == "alter_users_email"
 
     def test_rename_column(self):
         """Test RenameColumn operation naming."""

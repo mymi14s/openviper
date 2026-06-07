@@ -25,6 +25,7 @@ export interface ModelField {
   related_model?: string
   component?: string
   srid?: number
+  auto?: boolean
 }
 
 export interface ChildTableConfig {
@@ -47,6 +48,8 @@ export interface ModelConfig {
   search_fields: string[]
   ordering: string[]
   list_per_page: number
+  is_virtual: boolean
+  is_single: boolean
   fields: ModelField[]
   fieldsets?: Array<{
     name: string | null

@@ -1,4 +1,5 @@
-"""OpenViper contrib packages - optional, batteries-included features.
+"""
+OpenViper contrib packages - optional, batteries-included features.
 
 Field packages have moved to ``openviper.contrib.fields``:
 

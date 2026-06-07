@@ -20,7 +20,7 @@ from openviper.db.connections import connections
 from openviper.db.exceptions import DatabaseReadOnlyError
 from openviper.db.routing.context import current_db_alias, reset_current_alias, set_current_alias
 from openviper.db.shared_metadata import metadata
-from openviper.db.utils import BoundedDict, _cleanup_stale_locks, get_per_loop_lock
+from openviper.db.utils import BoundedDict, cleanup_stale_locks_for_cache, get_per_loop_lock
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def cleanup_stale_locks() -> None:
     Called during engine disposal to prevent unbounded growth of the
     per-loop lock dict in processes that create and destroy event loops.
     """
-    _cleanup_stale_locks(_engine_lock_per_loop)
+    cleanup_stale_locks_for_cache(_engine_lock_per_loop)
 
 
 def get_engine_lock() -> asyncio.Lock:
@@ -114,13 +114,13 @@ async def get_engine() -> AsyncEngine:
     """
     global _engine
 
-    # Fast path - no lock required once the engine is initialised.
+    # Avoid lock acquisition on the hot path once the engine exists.
     if _engine is not None:
         return _engine
 
     lock = get_engine_lock()
     async with lock:
-        # Re-check: another coroutine may have initialised while we waited.
+        # Double-checked locking - another coroutine may have initialised while we waited.
         if _engine is not None:
             return _engine
 
@@ -137,6 +137,14 @@ _operations = DatabaseOperations()
 
 def create_engine(url: str, echo: bool = False) -> AsyncEngine:
     """Create an async SQLAlchemy engine from a database URL."""
+    if not url or not url.strip():
+        raise ValueError(
+            "DATABASE_URL is empty or not set. "
+            "Configure it in your project settings (e.g. settings.py) "
+            "or environment variable. "
+            "Example: DATABASE_URL = 'postgresql+asyncpg://user:password@localhost/dbname'"
+        )
+
     async_url = _operations.normalize_url(url)
 
     kwargs: dict[str, Any] = {"echo": echo}
@@ -197,6 +205,17 @@ def create_engine(url: str, echo: bool = False) -> AsyncEngine:
         if "asyncpg" in async_url or "aiomysql" in async_url:
             return cast("AsyncEngine", MissingDriverAsyncEngine(async_url, echo, exc.name or ""))
         raise
+    except Exception as exc:
+        if "Could not parse" in str(exc) or "ArgumentError" in type(exc).__name__:
+            raise ValueError(
+                f"DATABASE_URL is not a valid SQLAlchemy connection string: {url!r}\n"
+                f"Expected format: driver+async_driver://user:password@host:port/dbname\n"
+                f"Examples:\n"
+                f"  PostgreSQL: postgresql+asyncpg://user:password@localhost:5432/dbname\n"
+                f"  SQLite:     sqlite+aiosqlite:///db.sqlite3\n"
+                f"  MySQL:      mysql+aiomysql://user:password@localhost:3306/dbname"
+            ) from exc
+        raise
 
     if "sqlite" in async_url:
 
@@ -256,7 +275,7 @@ async def init_db(drop_first: bool = False) -> None:
     engine = await get_engine()
 
     if drop_first:
-        # SQLite cannot drop tables with active FK constraints in the wrong order.
+        # SQLite requires FK checks disabled before dropping tables with cross-references.
         if "sqlite" in str(engine.url):
             async with engine.begin() as conn:
                 await conn.execute(sa.text("PRAGMA foreign_keys=OFF"))

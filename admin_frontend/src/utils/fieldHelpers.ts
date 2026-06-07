@@ -96,7 +96,9 @@ export function getInputAttributes(field: ModelField): Record<string, string | n
     attrs.placeholder = 'lowercase-with-hyphens'
   } else if (field.type === 'UUIDField') {
     attrs.pattern = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    attrs.readonly = true
+    if (field.auto) {
+      attrs.readonly = true
+    }
   }
 
   return attrs

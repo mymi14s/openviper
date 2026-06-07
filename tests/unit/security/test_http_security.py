@@ -322,13 +322,11 @@ class TestOpenRedirects:
         assert response.status_code == 302
 
     def test_http008_redirect_to_external_url_uses_provided_url(self):
-        """RedirectResponse uses the URL as-is; callers must validate."""
-        # RedirectResponse does not validate the URL itself - that's the
-        # responsibility of the calling code. The framework provides
-        # SecurityMiddleware.is_host_allowed for host validation.
-        response = RedirectResponse(url="https://evil.com", status_code=302)
-        # The response is created; security enforcement is at the middleware level.
-        assert response.status_code == 302
+        """RedirectResponse validates redirect hosts against ALLOWED_HOSTS."""
+        # RedirectResponse now validates external redirect URLs at construction
+        # time, raising ValueError for disallowed hosts.
+        with pytest.raises(ValueError, match="not allowed"):
+            RedirectResponse(url="https://evil.com", status_code=302)
 
     def test_http008_security_middleware_blocks_disallowed_host(self):
         """SecurityMiddleware must reject requests with disallowed Host headers."""

@@ -162,6 +162,11 @@ function handleFilterChange(filters: Record<string, any>) {
 onMounted(async () => {
   activeFilters.value = loadSavedFilters(props.appLabel, props.modelName)
   initializeFromUrl()
+  await adminStore.fetchModel(props.appLabel, props.modelName)
+  if (adminStore.currentModel?.is_single) {
+    router.replace(`/${props.appLabel}/${props.modelName}/single`)
+    return
+  }
   const urlPage = route.query.page as string | undefined
   const page = urlPage ? parseInt(urlPage, 10) : 1
   await Promise.all([loadData(page), loadFilterOptions()])

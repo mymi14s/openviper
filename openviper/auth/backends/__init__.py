@@ -114,7 +114,7 @@ async def authenticate(
     ).first()
 
     if user is None:
-        # Intent: Verify against a dummy hash so the response time is
+        # Verify against a dummy hash so the response time is
         # indistinguishable from a real password check, preventing user
         # enumeration via timing side-channel.
         await check_password(password, ARGON2_DUMMY_HASH)
@@ -136,7 +136,7 @@ async def authenticate(
         )
         return None
 
-    # Intent: Fire-and-forget last_login update to keep response latency low.
+    # Fire-and-forget last_login update to keep response latency low.
     update_coro = update_last_login(user)
     task = asyncio.create_task(update_coro)
     if not isinstance(task, asyncio.Task) and inspect.iscoroutine(update_coro):
@@ -173,13 +173,13 @@ def get_client_ip(request: AuthRequest) -> str:
     if trusted_proxies and direct_ip in trusted_proxies and hasattr(request, "headers"):
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            # Intent: Walk right-to-left to find the first non-trusted IP,
+            # Walk right-to-left to find the first non-trusted IP,
             # matching the de-facto X-Forwarded-For security convention.
             ips = [ip.strip() for ip in forwarded.split(",")]
             for ip in reversed(ips):
                 if ip not in trusted_proxies:
                     return str(ip)
-            # Intent: Avoid trusting a chain made entirely of configured proxies.
+            # Avoid trusting a chain made entirely of configured proxies.
         real_ip = request.headers.get("x-real-ip")
         if real_ip:
             return str(real_ip.strip())
@@ -225,7 +225,7 @@ async def login(request: object, user: Authenticable, response: object | None = 
     )
     await auth_hooks.run_before_login(context)
 
-    # Intent: Rotate existing sessions to prevent fixation.
+    # Rotate existing sessions to prevent fixation.
     existing_session = getattr(auth_request, "_session", None)
     existing_key = existing_session.key if existing_session and existing_session.key else None
     if not existing_key:

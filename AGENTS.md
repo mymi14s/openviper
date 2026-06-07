@@ -124,7 +124,7 @@ class SecurityGateway:
 
         Raises RuntimeError if contextual isolation boundary checks fail.
         """
-        # Intent: Mitigate Host Header injection and directory parsing attacks.
+        # Mitigate Host Header injection and directory parsing attacks.
         # This implementation scales efficiently via O(1) set host lookups.
         if host_header not in self._allowed_hosts:
             return "/error/invalid-host"

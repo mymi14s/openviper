@@ -225,3 +225,147 @@ async def test_migrate_verbose_triggers_cache_invalidation_and_sync_warning(caps
     out = capsys.readouterr().out
     assert "Starting migrations" in out
     assert "Applying myapp - 0001_init" in out
+
+
+class TestAlterColumnAutoincrement:
+    """Tests for AlterColumn autoincrement and primary_key handling.
+
+    Autoincrement is an inherent property of the field type, not an
+    independent toggle.  When the type changes (e.g. UUID -> INTEGER),
+    autoincrement is folded into the type-change SQL for MySQL and
+    handled via sequences for PostgreSQL.
+    """
+
+    def test_alter_column_type_change_with_autoincrement_mysql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="VARCHAR(32)",
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="mysql"):
+            stmts = op.forward_sql()
+        # MySQL folds autoincrement into MODIFY COLUMN with the type change.
+        assert any("MODIFY COLUMN" in s and "AUTO_INCREMENT" in s for s in stmts)
+
+    def test_alter_column_type_change_with_autoincrement_postgresql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="VARCHAR(32)",
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="postgresql"):
+            stmts = op.forward_sql()
+        # PostgreSQL uses ALTER COLUMN TYPE + CREATE SEQUENCE + SET DEFAULT.
+        assert any("ALTER COLUMN" in s and "TYPE" in s for s in stmts)
+        assert any("CREATE SEQUENCE" in s for s in stmts)
+        assert any("nextval" in s for s in stmts)
+
+    def test_alter_column_type_change_with_autoincrement_sqlite_warns(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="VARCHAR(32)",
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="sqlite"):
+            with patch("openviper.db.migrations.executor.logger") as mock_logger:
+                stmts = op.forward_sql()
+        mock_logger.warning.assert_called()
+        assert len(stmts) == 0
+
+    def test_alter_column_backward_type_change_removes_autoincrement_mysql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="VARCHAR(32)",
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="mysql"):
+            stmts = op.backward_sql()
+        # Backward reverts to VARCHAR(32) without AUTO_INCREMENT.
+        assert any("MODIFY COLUMN" in s and "VARCHAR" in s for s in stmts)
+        assert not any("AUTO_INCREMENT" in s for s in stmts)
+
+    def test_alter_column_backward_type_change_removes_autoincrement_postgresql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="VARCHAR(32)",
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="postgresql"):
+            stmts = op.backward_sql()
+        # Backward reverts type and drops the sequence default.
+        assert any("ALTER COLUMN" in s and "TYPE" in s for s in stmts)
+        assert any("DROP DEFAULT" in s for s in stmts)
+
+    def test_alter_column_no_autoincrement_change_skips_sql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=True,
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="mysql"):
+            stmts = op.forward_sql()
+        assert not any("AUTO_INCREMENT" in s for s in stmts)
+
+    def test_alter_column_autoincrement_only_no_type_change_mysql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="INTEGER",
+            primary_key=True,
+            old_primary_key=True,
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="mysql"):
+            stmts = op.forward_sql()
+        # No type change, but autoincrement changed: separate MODIFY COLUMN.
+        assert any("MODIFY COLUMN" in s and "AUTO_INCREMENT" in s for s in stmts)
+
+    def test_alter_column_autoincrement_only_no_type_change_postgresql(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="journal_dailyquestion",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+            old_type="INTEGER",
+        )
+        with patch("openviper.db.migrations.executor.get_dialect", return_value="postgresql"):
+            stmts = op.forward_sql()
+        # No type change, but autoincrement changed: CREATE SEQUENCE + SET DEFAULT.
+        assert any("CREATE SEQUENCE" in s for s in stmts)
+        assert any("nextval" in s for s in stmts)

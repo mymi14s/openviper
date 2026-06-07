@@ -187,3 +187,161 @@ def testformat_operation_fallback_for_unknown_operation() -> None:
 
     formatted = format_operation(Unknown())
     assert "Unsupported operation" in formatted
+
+
+class TestDiffStatesAutoincrement:
+    """Tests for diff_states detecting autoincrement and primary_key changes."""
+
+    def test_diff_states_detects_autoincrement_change(self) -> None:
+        from openviper.db.migrations.writer import diff_states
+
+        old_state = {
+            "my_table": {
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "INTEGER",
+                        "field_class": "IntegerField",
+                        "nullable": False,
+                        "primary_key": True,
+                    },
+                    {"name": "title", "type": "TEXT", "nullable": True},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        new_state = {
+            "my_table": {
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "INTEGER",
+                        "field_class": "IntegerField",
+                        "nullable": False,
+                        "primary_key": True,
+                        "autoincrement": True,
+                    },
+                    {"name": "title", "type": "TEXT", "nullable": True},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(new_state, old_state)
+        alter_ops = [op for op in ops if op.__class__.__name__ == "AlterColumn"]
+        assert len(alter_ops) == 1
+        assert alter_ops[0].column_name == "id"
+        assert alter_ops[0].autoincrement is True
+        assert alter_ops[0].old_autoincrement is None
+
+    def test_diff_states_detects_autoincrement_added(self) -> None:
+        from openviper.db.migrations.writer import diff_states
+
+        old_state = {
+            "my_table": {
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "INTEGER",
+                        "field_class": "IntegerField",
+                        "nullable": False,
+                        "primary_key": True,
+                    },
+                    {"name": "name", "type": "TEXT", "nullable": True},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        new_state = {
+            "my_table": {
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "INTEGER",
+                        "field_class": "IntegerField",
+                        "nullable": False,
+                        "primary_key": True,
+                        "autoincrement": True,
+                    },
+                    {"name": "name", "type": "TEXT", "nullable": True},
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(new_state, old_state)
+        alter_ops = [op for op in ops if op.__class__.__name__ == "AlterColumn"]
+        assert len(alter_ops) == 1
+        assert alter_ops[0].autoincrement is True
+        assert alter_ops[0].old_autoincrement is None
+
+    def test_diff_states_detects_primary_key_change(self) -> None:
+        from openviper.db.migrations.writer import diff_states
+
+        old_state = {
+            "my_table": {
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "INTEGER",
+                        "field_class": "IntegerField",
+                        "nullable": False,
+                        "primary_key": True,
+                        "autoincrement": True,
+                    },
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        new_state = {
+            "my_table": {
+                "columns": [
+                    {
+                        "name": "id",
+                        "type": "INTEGER",
+                        "field_class": "IntegerField",
+                        "nullable": False,
+                        "primary_key": False,
+                        "autoincrement": True,
+                    },
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(new_state, old_state)
+        alter_ops = [op for op in ops if op.__class__.__name__ == "AlterColumn"]
+        assert len(alter_ops) == 1
+        assert alter_ops[0].primary_key is False
+        assert alter_ops[0].old_primary_key is True
+
+    def test_format_operation_alter_column_includes_autoincrement(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="my_table",
+            column_name="id",
+            column_type="INTEGER",
+            autoincrement=True,
+            old_autoincrement=False,
+        )
+        formatted = format_operation(op)
+        assert "autoincrement=True" in formatted
+        assert "old_autoincrement=False" in formatted
+
+    def test_format_operation_alter_column_includes_primary_key(self) -> None:
+        from openviper.db.migrations.executor import AlterColumn
+
+        op = AlterColumn(
+            table_name="my_table",
+            column_name="id",
+            column_type="INTEGER",
+            primary_key=True,
+            old_primary_key=False,
+        )
+        formatted = format_operation(op)
+        assert "primary_key=True" in formatted
+        assert "old_primary_key=False" in formatted

@@ -6,7 +6,7 @@ import os
 import re
 from typing import IO
 
-# Intent: Characters and patterns that are unsafe in filenames.
+# Characters and patterns that are unsafe in filenames.
 UNSAFE_FILENAME_RE = re.compile(r"[\\/\x00-\x1f\x7f]|(\.\.)")
 MAX_COMPONENT_LEN = 255
 
@@ -16,14 +16,14 @@ def sanitize_filename(filename: str) -> str:
 
     Returns a safe basename suitable for storage on the filesystem.
     """
-    # Intent: Extract basename to discard any directory components supplied by the client.
+    # Extract basename to discard any directory components supplied by the client.
     name = os.path.basename(filename.replace("\\", "/"))
-    # Intent: Remove null bytes and control characters.
+    # Remove null bytes and control characters.
     name = UNSAFE_FILENAME_RE.sub("", name)
-    # Intent: Truncate excessively long filenames.
+    # Truncate excessively long filenames.
     if len(name) > MAX_COMPONENT_LEN:
         name = name[:MAX_COMPONENT_LEN]
-    # Intent: Fall back to a default if sanitisation emptied the name.
+    # Fall back to a default if sanitisation emptied the name.
     if not name or name.startswith("."):
         name = "upload"
     return name

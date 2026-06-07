@@ -8,8 +8,20 @@ import threading
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Final
 
+from openviper.db.exceptions import SingleModelAlreadyExistsError
+
 if TYPE_CHECKING:
     from openviper.db.models import Model
+
+
+async def enforce_single_model_constraint(model_cls: type[Model]) -> None:
+    """Raise SingleModelAlreadyExistsError if a record already exists for a singleton model.
+
+    Args:
+        model_cls: The model class to check.
+    """
+    if await model_cls.objects.filter(ignore_permissions=True).exists():
+        raise SingleModelAlreadyExistsError(f"{model_cls.__name__} allows only one logical record.")
 
 
 class BoundedDict(OrderedDict):
@@ -44,7 +56,7 @@ class BoundedDict(OrderedDict):
             return super().__getitem__(key)
 
 
-# ── SQL injection prevention patterns ─────────────────────────────────────────
+# -- SQL injection prevention patterns -----------------------------------------
 
 # Dangerous SQL patterns that could enable statement injection in constraint
 # expressions, partial-index conditions, and other developer-supplied SQL
@@ -129,7 +141,7 @@ def sql_literal(value: object) -> str:
     return f"'{escaped}'"
 
 
-# ── Per-event-loop lock factory ──────────────────────────────────────────────
+# -- Per-event-loop lock factory ----------------------------------------------
 # asyncio.Lock is bound to the event loop that created it.  Using a lock
 # created on one loop from another raises "Task got Future attached to a
 # different loop".  The helper below lazily creates one lock per running loop.
@@ -175,7 +187,7 @@ def get_per_loop_lock(
     return store[loop_id]
 
 
-def _cleanup_stale_locks(cache: dict[int, asyncio.Lock]) -> None:
+def cleanup_stale_locks_for_cache(cache: dict[int, asyncio.Lock]) -> None:
     """Remove lock entries for event loops that are no longer running.
 
     Shared by ``connection.cleanup_stale_locks`` and
@@ -198,7 +210,7 @@ def _cleanup_stale_locks(cache: dict[int, asyncio.Lock]) -> None:
         cache.pop(key, None)
 
 
-# ── PK type casting ──────────────────────────────────────────────────────────
+# -- PK type casting ----------------------------------------------------------
 
 
 def cast_to_pk_type(model_class: type[Model], value: object) -> object:

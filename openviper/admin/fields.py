@@ -135,7 +135,9 @@ def get_field_widget_config(field: Field) -> dict[str, t.Any]:
             config["readonly"] = True
 
     if field_class_name == "UUIDField":
-        config["readonly"] = True
+        if getattr(field, "auto", False):
+            config["readonly"] = True
+        config["auto"] = getattr(field, "auto", False)
 
     if field_class_name in ("FileField", "ImageField"):
         config["upload_to"] = getattr(field, "upload_to", "uploads/")

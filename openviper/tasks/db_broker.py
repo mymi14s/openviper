@@ -96,9 +96,8 @@ class DatabaseBroker(Broker):
             db_query_timeout = int(task_cfg.get("db_query_timeout", 30))
             kwargs["connect_args"] = kwargs.get("connect_args", {})
             if sync_url.startswith("postgresql"):
-                kwargs["connect_args"][
-                    "options"
-                ] = f"-c statement_timeout={db_query_timeout * 1000}"
+                timeout_ms = db_query_timeout * 1000
+                kwargs["connect_args"]["options"] = f"-c statement_timeout={timeout_ms}"
             elif sync_url.startswith("mysql"):
                 kwargs["connect_args"]["read_timeout"] = db_query_timeout
                 kwargs["connect_args"]["write_timeout"] = db_query_timeout

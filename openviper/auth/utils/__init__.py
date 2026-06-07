@@ -95,7 +95,7 @@ async def sync_content_types() -> None:
             await ContentType.objects.create(app_label=app_label, model=model_name)
             newly_created += 1
 
-    # Intent: Remove content types whose models no longer exist in the schema.
+    # Remove content types whose models no longer exist in the schema.
     for key, ct in existing_map.items():
         if key not in current_keys:
             await ct.delete()

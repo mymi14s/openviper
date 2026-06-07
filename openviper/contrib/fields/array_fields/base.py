@@ -23,30 +23,32 @@ class ArrayField(Field):
     or JSON on other database backends.
 
     Args:
-        base_field: An instance of a scalar :class:`~openviper.db.fields.Field`
-            describing the element type.  Must be a concrete Field subclass
-            (e.g. ``IntegerField()``, ``CharField()``).
+        base_field: A :class:`~openviper.db.fields.Field` **instance** describing
+            the element type (e.g. ``IntegerField()``, ``CharField(max_length=50)``).
+            A Field **class** may also be passed and will be instantiated with
+            default arguments (e.g. ``IntegerField`` becomes ``IntegerField()``).
         size: Optional maximum number of elements.  Enforced at the
             application level via :meth:`validate`.
 
     Raises:
-        TypeError: If *base_field* is not a :class:`~openviper.db.fields.Field`
-            instance.
+        TypeError: If *base_field* is neither a Field instance nor a Field
+            subclass.
     """
 
     _column_type = "TEXT"
 
     def __init__(
         self,
-        base_field: Field,
+        base_field: type[Field] | Field,
         size: int | None = None,
         **kwargs: Any,
     ) -> None:
+        if isinstance(base_field, type) and issubclass(base_field, Field):
+            base_field = base_field()
+
         if not isinstance(base_field, Field):
-            msg = (
-                f"base_field must be an instance of openviper.db.fields.Field, "
-                f"got {type(base_field).__name__!r}"
-            )
+            received = getattr(base_field, "__name__", type(base_field).__name__)
+            msg = f"base_field must be a Field instance or Field subclass, got {received!r}."
             raise TypeError(msg)
 
         self.base_field = base_field

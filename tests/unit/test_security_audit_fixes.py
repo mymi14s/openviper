@@ -26,6 +26,7 @@ from openviper.middleware.csrf import (
     mask_csrf_token,
 )
 from openviper.middleware.security import SecurityMiddleware
+from openviper.testing.settings import override_settings
 
 
 async def ok_app(scope: dict, receive: object, send: object) -> None:
@@ -175,6 +176,7 @@ class TestRedirectResponseOpenRedirect:
         r = RedirectResponse("/dashboard")
         assert r.status_code == 307
 
+    @override_settings(ALLOWED_HOSTS=["example.com"])
     def test_absolute_http_url_allowed(self) -> None:
         r = RedirectResponse("https://example.com/callback")
         assert r.status_code == 307

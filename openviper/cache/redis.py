@@ -32,9 +32,7 @@ class RedisCache(BaseCache):
     ``FLUSHDB``.
     """
 
-    def __init__(
-        self, *, key_prefix: str = DEFAULT_KEY_PREFIX, **kwargs: Any
-    ) -> None:  # noqa: ANN401
+    def __init__(self, *, key_prefix: str = DEFAULT_KEY_PREFIX, **kwargs: Any) -> None:
         """Initialise the Redis cache with an optional key prefix."""
         if redis_lib is None:
             msg = (

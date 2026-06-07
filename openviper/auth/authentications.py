@@ -156,7 +156,7 @@ class SessionAuthentication(BaseAuthentication):
         session = request.session
         session_key = session.key if session and not session.is_empty else None
 
-        # Intent: Fall back to direct cookie parsing so SessionAuthentication
+        # Fall back to direct cookie parsing so SessionAuthentication
         # works without SessionMiddleware having run first.
         if not session_key:
             cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
@@ -591,7 +591,7 @@ class TokenAuthentication(BaseAuthentication):
         key_hash = hash_token(raw)
         now_mono = time.monotonic()
 
-        # Intent: Release the lock before async I/O to avoid blocking concurrent cache reads.
+        # Release the lock before async I/O to avoid blocking concurrent cache reads.
         cached_user_id: int | None = None
         lock = get_token_cache_lock()
         async with lock:
@@ -608,7 +608,7 @@ class TokenAuthentication(BaseAuthentication):
             if user and getattr(user, "is_active", True):
                 return user, {"type": "token"}
 
-        # Intent: Cache miss requires a database round-trip.
+        # Cache miss requires a database round-trip.
         try:
             await ensure_auth_tokens_table()
             table = get_auth_tokens_table()
@@ -636,7 +636,7 @@ class TokenAuthentication(BaseAuthentication):
             if row.expires_at is not None:
                 now_utc = timezone.now()
                 exp = row.expires_at
-                # Intent: Compare naive-to-naive when the DB stores offset-naive datetimes.
+                # Compare naive-to-naive when the DB stores offset-naive datetimes.
                 if hasattr(exp, "tzinfo") and exp.tzinfo is None and hasattr(now_utc, "tzinfo"):
                     now_compare = now_utc.replace(tzinfo=None)
                 else:
@@ -664,7 +664,7 @@ class TokenAuthentication(BaseAuthentication):
         return "Token"
 
 
-# Intent: Reject event names outside the configured lifecycle hooks.
+# Reject event names outside the configured lifecycle hooks.
 _OAUTH2_EVENT_NAMES: frozenset[str] = frozenset({"on_success", "on_fail", "on_error", "on_initial"})
 
 _DOTTED_PATH_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)+$")

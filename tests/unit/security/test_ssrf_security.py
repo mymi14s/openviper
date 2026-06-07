@@ -274,7 +274,8 @@ class TestSSRF002RedirectBypass:
 
     def test_ssrf002_https_redirect_accepted(self) -> None:
         """HTTPS redirects to trusted hosts must be accepted."""
-        response = RedirectResponse(url="https://trusted.example.com/path", status_code=301)
+        with override_settings(ALLOWED_HOSTS=["trusted.example.com"]):
+            response = RedirectResponse(url="https://trusted.example.com/path", status_code=301)
         assert response.status_code == 301
         assert "trusted.example.com" in response.headers.get("location", "")
 
@@ -458,12 +459,14 @@ class TestSSRF003DangerousProtocols:
 
     def test_ssrf003_http_protocol_accepted(self) -> None:
         """http:// protocol must be accepted by RedirectResponse."""
-        response = RedirectResponse(url="http://example.com/path")
+        with override_settings(ALLOWED_HOSTS=["example.com"]):
+            response = RedirectResponse(url="http://example.com/path")
         assert response.status_code == 307
 
     def test_ssrf003_https_protocol_accepted(self) -> None:
         """https:// protocol must be accepted by RedirectResponse."""
-        response = RedirectResponse(url="https://example.com/path")
+        with override_settings(ALLOWED_HOSTS=["example.com"]):
+            response = RedirectResponse(url="https://example.com/path")
         assert response.status_code == 307
 
     def test_ssrf003_relative_path_accepted(self) -> None:

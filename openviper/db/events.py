@@ -130,20 +130,20 @@ _dec_registry_lock = threading.Lock()
 # All Model lifecycle hook names that the dispatcher understands.
 SUPPORTED_EVENTS: frozenset[str] = frozenset(
     {
-        # save() - validation (create + update)
+        # Validation phase (before any DB write).
         "before_validate",
         "validate",
-        # save() - pre-write (create + update)
-        "before_insert",  # create only
+        # Pre-write phase - modify instance before INSERT/UPDATE.
+        "before_insert",
         "before_save",
-        # save() - post-write (create + update)
-        "after_insert",  # create only
-        "on_update",  # update only
-        "on_change",  # create (all fields) or update (changed fields only)
-        # delete()
+        # Post-write phase - side effects after DB persist.
+        "after_insert",
+        "on_update",
+        "on_change",
+        # Delete phase.
         "on_delete",
         "after_delete",
-        # bulk operations (Manager.bulk_create / Manager.bulk_update)
+        # Bulk operation phases (Manager.bulk_create / Manager.bulk_update).
         "pre_bulk_create",
         "post_bulk_create",
         "pre_bulk_update",
@@ -203,7 +203,7 @@ class ModelEventDispatcher:
             if resolved:
                 handlers[model_path] = resolved
 
-        # Freeze into a plain dict for minimal attribute-access overhead.
+        # Freeze handlers dict to avoid per-lookup attribute overhead.
         self._handlers: dict[str, dict[str, list[Any]]] = handlers
 
     # ------------------------------------------------------------------
@@ -246,7 +246,7 @@ class ModelEventDispatcher:
                             exc,
                         )
 
-        # Dispatch decorator-registered handlers (from @model_event.trigger).
+        # Dispatch decorator-registered handlers (@model_event.trigger).
         dispatch_decorator_handlers(model_path, event_name, instance, **kwargs)
 
     def __bool__(self) -> bool:
@@ -272,12 +272,12 @@ def get_dispatcher() -> ModelEventDispatcher | None:
         is empty or no handlers can be resolved.
     """
     global _dispatcher_cache
-    # Fast path (lock-free): already built (None or a dispatcher).
+    # Avoid lock on the hot path once the dispatcher is built.
     if _dispatcher_cache is not _UNSET:
         return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
     with _init_lock:
-        # Double-check after acquiring the lock.
+        # Double-checked locking - another thread may have built while we waited.
         if _dispatcher_cache is not _UNSET:
             return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
@@ -330,11 +330,11 @@ def is_safe_module_path(module_path: str) -> bool:
     """
     root_module = module_path.split(".")[0]
 
-    # Always allow openviper internals
+    # Framework internals are always trusted.
     if root_module in _ALLOWED_MODULE_PREFIXES:
         return True
 
-    # Allow project apps registered in INSTALLED_APPS
+    # Project apps registered in INSTALLED_APPS are trusted.
     installed = getattr(settings, "INSTALLED_APPS", ())
     for app in installed:
         app_root = app.split(".")[0]
@@ -369,7 +369,7 @@ def resolve_dotted(path: str | Callable[..., Any]) -> Any | None:
 
     module_path, _, attr = path.rpartition(".")
 
-    # prevent importing dangerous system modules
+    # Block dangerous system modules to prevent arbitrary code execution.
     if not is_safe_module_path(module_path):
         logger.error(
             "MODEL_EVENTS: blocked attempt to import dangerous module %r. "
@@ -414,9 +414,9 @@ def call_handler(handler: Any, instance: Any, event_name: str, **kwargs: Any) ->
         try:
             loop = asyncio.get_running_loop()
             task = loop.create_task(handler(instance, event=event_name, **kwargs))
-            # Track task to prevent garbage collection
+            # Prevent GC from collecting the task before it completes.
             _background_tasks.add(task)
-            # Clean up when done and log any exceptions
+            # Clean up and log exceptions when the task finishes.
             task.add_done_callback(task_done_callback)
         except RuntimeError:
             logger.warning(
@@ -431,7 +431,7 @@ def task_done_callback(task: asyncio.Task[Any]) -> None:
     """Clean up completed background task and log exceptions."""
     _background_tasks.discard(task)
     try:
-        # Retrieve exception if any (prevents "Task exception was never retrieved" warnings)
+        # Retrieve exception to prevent "Task exception was never retrieved" warnings.
         exc = task.exception()
         if exc is not None:
             logger.exception(

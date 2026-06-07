@@ -40,7 +40,7 @@ def discover_settings_module(
 
     cwd = cwd or Path.cwd()
 
-    # Module-level settings: <cwd>/<target>/settings module
+    # Check for a settings module nested inside the target app package.
     if target != ".":
         target_parts = target.split(".")
         if (
@@ -61,7 +61,7 @@ def discover_settings_module(
         if module_settings_package.is_file():
             return f"{target}.settings"
 
-    # Root-level settings: <cwd>/settings module
+    # Fall back to a root-level settings module at the project base.
     root_settings = cwd / "settings.py"
     if root_settings.is_file():
         return "settings"

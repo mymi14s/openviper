@@ -9,7 +9,7 @@ import pytest
 
 from openviper.auth import permission_checker, permission_core
 from openviper.auth.permissions import checker_registered
-from openviper.db.fields import CharField, DateTimeField, ForeignKey, LazyFK
+from openviper.db.fields import CharField, DateTimeField, ForeignKey, LazyFK, UUIDField
 from openviper.db.models import Model, QuerySet, TraversalLookup
 from openviper.exceptions import FieldError
 
@@ -429,6 +429,36 @@ def test_apply_auto_fields_auto_now_add_skips_if_set():
     obj.created_at = existing_time
     obj._apply_auto_fields()
     assert obj.created_at == existing_time
+
+
+def test_apply_auto_fields_uuid_auto_generates():
+    class UUIDModel(Model):
+        id = UUIDField(primary_key=True, auto=True)
+        name = CharField()
+
+        class Meta:
+            table_name = "uuid_auto_model"
+
+    obj = UUIDModel(name="test")
+    obj.id = None
+    obj._apply_auto_fields()
+    assert obj.id is not None
+
+
+def test_apply_auto_fields_uuid_auto_preserves_existing():
+    class UUIDModel2(Model):
+        id = UUIDField(primary_key=True, auto=True)
+        name = CharField()
+
+        class Meta:
+            table_name = "uuid_auto_model2"
+
+    import uuid as uuid_mod
+
+    existing_uuid = uuid_mod.uuid4()
+    obj = UUIDModel2(id=existing_uuid, name="test")
+    obj._apply_auto_fields()
+    assert obj.id == existing_uuid
 
 
 # ── _to_dict FK path ──────────────────────────────────────────────────────────

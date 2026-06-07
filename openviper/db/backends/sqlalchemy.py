@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from openviper.db.backends.database import DatabaseBackend
 from openviper.db.backends.features import DatabaseFeatures
 from openviper.db.backends.introspection import DatabaseIntrospection
-from openviper.db.utils import BoundedDict, _cleanup_stale_locks, get_per_loop_lock
+from openviper.db.utils import BoundedDict, cleanup_stale_locks_for_cache, get_per_loop_lock
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ class DefaultDatabaseBackend(DatabaseBackend):
         if self.engine is not None:
             await self.engine.dispose()
             self.engine = None
-        _cleanup_stale_locks(self.engine_lock_per_loop)
+        cleanup_stale_locks_for_cache(self.engine_lock_per_loop)
 
     async def execute(
         self,

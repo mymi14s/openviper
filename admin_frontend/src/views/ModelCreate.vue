@@ -34,6 +34,10 @@ onMounted(async () => {
   adminStore.clearCurrent()
   try {
     await adminStore.fetchModel(props.appLabel, props.modelName)
+    if (adminStore.currentModel?.is_single) {
+      router.replace(`/${props.appLabel}/${props.modelName}/single`)
+      return
+    }
   } finally {
     loading.value = false
   }

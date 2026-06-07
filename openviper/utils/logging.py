@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import logging.config
+import typing as t
+from importlib import import_module
 from types import ModuleType
 
-_uvicorn_config: ModuleType | None = None
-_uvicorn_available: bool = False
+uvicorn_config_module: ModuleType | None = None
+uvicorn_available: bool = False
 
 try:
-    import uvicorn.config as _uvicorn_config_mod
-
-    _uvicorn_config = _uvicorn_config_mod
-    _uvicorn_available = True
+    uvicorn_config_module = t.cast("ModuleType", import_module("uvicorn.config"))
+    uvicorn_available = True
 except ImportError:
     pass
 
@@ -60,11 +60,11 @@ def get_uvicorn_log_config() -> dict[str, object]:
 
 
 # Automatically patch uvicorn in-place on import to support direct uvicorn execution
-if _uvicorn_available and _uvicorn_config is not None:
+if uvicorn_available and uvicorn_config_module is not None:
     try:
-        # Update uvicorn's global default configuration
-        _uvicorn_config.LOGGING_CONFIG = get_uvicorn_log_config()
-        # Re-apply configuration in case uvicorn has already started configuring loggers
-        logging.config.dictConfig(_uvicorn_config.LOGGING_CONFIG)
+        # Patch uvicorn's default config before any worker spawns.
+        uvicorn_config_module.LOGGING_CONFIG = get_uvicorn_log_config()
+        # Re-apply in case uvicorn already configured loggers at import time.
+        logging.config.dictConfig(uvicorn_config_module.LOGGING_CONFIG)
     except Exception:
         pass

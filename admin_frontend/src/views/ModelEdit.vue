@@ -62,6 +62,12 @@ async function loadData() {
 
   try {
     await adminStore.fetchModel(props.appLabel, props.modelName)
+
+    if (adminStore.currentModel?.is_single) {
+      router.replace(`/${props.appLabel}/${props.modelName}/single`)
+      return
+    }
+
     await adminStore.fetchInstance(props.appLabel, props.modelName, props.id)
 
     if (instance.value) {

@@ -214,15 +214,17 @@ class TestDiscovery:
                 assert import_admin_module("myapp") is True
                 mock_import.assert_called_once_with("myapp.admin")
 
-    def test_import_admin_module_import_error(self):
+    def test_import_admin_module_import_error_raises(self):
         with patch("importlib.util.find_spec", return_value=MagicMock()):
-            with patch("importlib.import_module", side_effect=ImportError()):
-                assert import_admin_module("myapp") is False
+            with patch("importlib.import_module", side_effect=ImportError("dep missing")):
+                with pytest.raises(ImportError, match="dep missing"):
+                    import_admin_module("myapp")
 
     def test_import_admin_module_unexpected_exception(self):
         with patch("importlib.util.find_spec", return_value=MagicMock()):
-            with patch("importlib.import_module", side_effect=Exception()):
-                assert import_admin_module("myapp") is False
+            with patch("importlib.import_module", side_effect=RuntimeError("unexpected")):
+                with pytest.raises(RuntimeError, match="unexpected"):
+                    import_admin_module("myapp")
 
     def test_discover_extensions_no_apps(self):
         with patch("openviper.admin.discovery.settings") as mock_settings:

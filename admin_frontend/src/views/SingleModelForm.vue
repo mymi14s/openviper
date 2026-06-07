@@ -30,6 +30,7 @@ const canChange = computed(
   () => model.value?.capabilities?.can_update_single ?? model.value?.permissions?.change ?? true
 )
 const isDirty = computed(() => Object.keys(getChangedFields(formData.value, originalData.value)).length > 0)
+const isExistingRecord = computed(() => instance.value !== null && instance.value !== undefined)
 
 function scrollToFormTop(): void {
   formTopRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -41,10 +42,23 @@ async function loadData(): Promise<void> {
   adminStore.clearCurrent()
   try {
     await adminStore.fetchModel(props.appLabel, props.modelName)
-    await adminStore.fetchSingleInstance(props.appLabel, props.modelName)
+    try {
+      await adminStore.fetchSingleInstance(props.appLabel, props.modelName)
+    } catch {
+      // No instance exists yet - this is valid for initial creation.
+    }
     if (instance.value) {
       originalData.value = JSON.parse(JSON.stringify(instance.value))
       formData.value = { ...instance.value }
+    } else {
+      // Initialize form with default values from field definitions.
+      const defaults: Record<string, any> = {}
+      for (const field of model.value?.fields ?? []) {
+        if (field.default !== undefined && field.default !== null) {
+          defaults[field.name] = field.default
+        }
+      }
+      formData.value = { ...defaults }
     }
   } finally {
     loading.value = false
@@ -60,23 +74,41 @@ async function handleSubmit(): Promise<void> {
     return
   }
 
-  const changedFields = getChangedFields(formData.value, originalData.value)
-  if (Object.keys(changedFields).length === 0) return
-
   saving.value = true
   try {
-    const updated = await adminStore.updateSingleInstance(
-      props.appLabel,
-      props.modelName,
-      changedFields
-    )
-    if (updated) {
-      await loadData()
-      showSuccess.value = true
-      successTimer = window.setTimeout(() => (showSuccess.value = false), 3000)
-      scrollToFormTop()
-    } else if (adminStore.error) {
-      alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
+    if (instance.value) {
+      const changedFields = getChangedFields(formData.value, originalData.value)
+      if (Object.keys(changedFields).length === 0) {
+        saving.value = false
+        return
+      }
+      const updated = await adminStore.updateSingleInstance(
+        props.appLabel,
+        props.modelName,
+        changedFields
+      )
+      if (updated) {
+        await loadData()
+        showSuccess.value = true
+        successTimer = window.setTimeout(() => (showSuccess.value = false), 3000)
+        scrollToFormTop()
+      } else if (adminStore.error) {
+        alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
+      }
+    } else {
+      const created = await adminStore.createInstance(
+        props.appLabel,
+        props.modelName,
+        formData.value
+      )
+      if (created) {
+        await loadData()
+        showSuccess.value = true
+        successTimer = window.setTimeout(() => (showSuccess.value = false), 3000)
+        scrollToFormTop()
+      } else if (adminStore.error) {
+        alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
+      }
     }
   } catch (err: any) {
     const responseErrors = err.response?.data?.errors
@@ -168,15 +200,15 @@ onUnmounted(() => {
         >
           <button
             type="submit"
-            :disabled="saving || !isDirty"
+            :disabled="saving || (isExistingRecord && !isDirty)"
             class="btn btn-primary flex items-center gap-2"
-            :class="{ 'opacity-50 cursor-not-allowed': !isDirty && !saving }"
+            :class="{ 'opacity-50 cursor-not-allowed': isExistingRecord && !isDirty && !saving }"
           >
             <svg v-if="saving" class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            {{ saving ? 'Saving...' : 'Save Changes' }}
+            {{ saving ? 'Saving...' : (isExistingRecord ? 'Save Changes' : 'Create') }}
           </button>
         </div>
       </form>

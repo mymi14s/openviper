@@ -126,6 +126,7 @@ function transformField(name: string, field: Record<string, unknown>): ModelFiel
     max_value: (config.max as number) || (field.max_value as number),
     related_model: field.related_model as string | undefined,
     component: (field.component as string) || 'text',
+    auto: (config.auto as boolean) || false,
   }
 }
 

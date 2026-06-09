@@ -5,27 +5,25 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 
+from dramatiq.brokers.stub import StubBroker
+
 from openviper.conf import settings  # noqa: F401 - kept for test patches on queue.settings
 from openviper.core.email.attachments import attachment_from_payload, attachment_to_payload
 from openviper.core.email.delivery import configure_email_log, send_now
 from openviper.core.email.message import EmailMessageData
-from openviper.tasks import task
+from openviper.tasks import actor
 from openviper.tasks.broker import get_broker
 
 logger = logging.getLogger("openviper.email")
 
-StubBrokerClass: type[object] | None
-try:
-    from dramatiq.brokers.stub import StubBroker as ImportedStubBroker
-except ImportError:
-    StubBrokerClass = None
-else:
-    StubBrokerClass = ImportedStubBroker
 
+@actor(queue_name="emails", actor_name="openviper.core.email.deliver_email")
+async def deliver_email(payload: dict[str, object]) -> None:
+    """Deserialise and deliver a queued email message.
 
-@task(queue_name="emails", actor_name="openviper.core.email.deliver_email")
-async def deliver_email_job(payload: dict[str, object]) -> None:
-    """Dramatiq actor - deserialises and delivers a queued email message."""
+    Enqueued by :func:`enqueue_email_job` when background delivery
+    is active.  Runs on the ``emails`` queue inside a task worker.
+    """
     configure_email_log()
     try:
         await send_now(payload_to_message(payload))
@@ -38,24 +36,31 @@ async def deliver_email_job(payload: dict[str, object]) -> None:
         raise
 
 
-async def enqueue_email_job(data: EmailMessageData) -> object:
-    """Queue an email delivery job for the background worker."""
-    return deliver_email_job.send(message_to_payload(data))
+async def enqueue_email_job(data: EmailMessageData) -> str | None:
+    """Enqueue an email message for background delivery.
+
+    When the task worker is available, the message is dispatched via
+    the ``deliver_email`` actor.  Otherwise it falls back to direct
+    synchronous delivery.
+    """
+    if worker_available():
+        try:
+            proxy = deliver_email.send(message_to_payload(data))
+            return str(proxy.message_id)
+        except Exception:
+            logger.warning("Task enqueue failed, falling back to direct delivery")
+
+    await deliver_email(message_to_payload(data))
+    return None
 
 
 @lru_cache(maxsize=1)
 def worker_available() -> bool:
-    """Return ``True`` when a real message-queue broker (Redis/RabbitMQ) is active.
-
-    A StubBroker (used in tests) is never considered a real worker.
-    Result is cached after the first call.
-    """
+    """Return ``True`` when a Dramatiq task worker is reachable."""
     try:
-        if StubBrokerClass is None:
-            return False
-        return not isinstance(get_broker(), StubBrokerClass)
+        broker = get_broker()
+        return not isinstance(broker, StubBroker)
     except Exception:
-        logger.debug("Worker availability check failed; assuming no worker", exc_info=True)
         return False
 
 

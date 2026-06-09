@@ -21,10 +21,6 @@ from openviper.auth.views.session_login import SessionLoginView
 from openviper.auth.views.token_login import TokenLoginView
 from openviper.exceptions import Unauthorized
 
-# ---------------------------------------------------------------------------
-# Shared request stub
-# ---------------------------------------------------------------------------
-
 
 def make_request(
     json_body: dict | None = None,
@@ -58,11 +54,6 @@ def make_user(pk: int = 1, username: str = "alice") -> MagicMock:
     user.is_superuser = False
     user.is_authenticated = True
     return user
-
-
-# ---------------------------------------------------------------------------
-# BaseLoginView.authenticate_user
-# ---------------------------------------------------------------------------
 
 
 class TestBaseLoginViewAuthenticateUser:
@@ -144,11 +135,6 @@ class TestBaseLoginViewAuthenticateUser:
         assert result is user
 
 
-# ---------------------------------------------------------------------------
-# JWTLoginView
-# ---------------------------------------------------------------------------
-
-
 class TestJWTLoginView:
     """Tests for JWTLoginView.post."""
 
@@ -184,11 +170,6 @@ class TestJWTLoginView:
         ):
             with pytest.raises(Unauthorized):
                 await view.post(req)
-
-
-# ---------------------------------------------------------------------------
-# TokenLoginView
-# ---------------------------------------------------------------------------
 
 
 class TestTokenLoginView:
@@ -227,11 +208,6 @@ class TestTokenLoginView:
                 await view.post(req)
 
 
-# ---------------------------------------------------------------------------
-# SessionLoginView
-# ---------------------------------------------------------------------------
-
-
 class TestSessionLoginView:
     """Tests for SessionLoginView.post."""
 
@@ -266,11 +242,6 @@ class TestSessionLoginView:
         ):
             with pytest.raises(Unauthorized):
                 await view.post(req)
-
-
-# ---------------------------------------------------------------------------
-# LogoutView
-# ---------------------------------------------------------------------------
 
 
 class TestLogoutViewAuthTypeNone:
@@ -422,11 +393,6 @@ class TestLogoutViewUnknownAuthType:
         assert result == {"detail": "Logged out."}
 
 
-# ---------------------------------------------------------------------------
-# MeView
-# ---------------------------------------------------------------------------
-
-
 class TestMeView:
     """Tests for MeView.get."""
 
@@ -482,11 +448,6 @@ class TestMeView:
         result = await view.get(req)
         assert result["id"] is None
         assert result["username"] is None
-
-
-# ---------------------------------------------------------------------------
-# Routes structure
-# ---------------------------------------------------------------------------
 
 
 class TestJwtRoutes:
@@ -587,11 +548,6 @@ class TestAllAuthRoutes:
         all_paths = [path for path, _, _ in all_auth_routes]
         for path, _, _ in session_routes:
             assert path in all_paths
-
-
-# ---------------------------------------------------------------------------
-# Single-import check (openviper.auth)
-# ---------------------------------------------------------------------------
 
 
 class TestImportFromAuthPackage:

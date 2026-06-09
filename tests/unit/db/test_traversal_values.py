@@ -28,10 +28,6 @@ from openviper.db.fields import CharField, ForeignKey, IntegerField
 from openviper.db.models import Count, Manager, Model, QuerySet, TraversalLookup
 from openviper.exceptions import FieldError
 
-# ---------------------------------------------------------------------------
-# Test models
-# ---------------------------------------------------------------------------
-
 
 class TVUser(Model):
     """Target model for FK traversal - represents a User with a username."""
@@ -101,11 +97,6 @@ class TVDeepScore(Model):
         table_name = "tv_deep_scores"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def make_qs(
     model,
     filters=None,
@@ -134,11 +125,6 @@ def make_qs(
     qs._select_related = select_related or []
     qs._ignore_permissions = ignore_permissions
     return qs
-
-
-# ---------------------------------------------------------------------------
-# TraversalLookup validation for values() fields
-# ---------------------------------------------------------------------------
 
 
 class TestTraversalLookupForValues:
@@ -184,11 +170,6 @@ class TestTraversalLookupForValues:
             TraversalLookup("nonexistent__username", TVScore)
 
 
-# ---------------------------------------------------------------------------
-# JOIN building for traversal fields
-# ---------------------------------------------------------------------------
-
-
 class TestTraversalJoinsForValues:
     """Test that build_traversal_joins builds correct JOINs for values() fields."""
 
@@ -214,11 +195,6 @@ class TestTraversalJoinsForValues:
         from_clause, final_table = build_traversal_joins(lookup, score_table)
         assert from_clause is not None
         assert final_table.name == "tv_profiles"
-
-
-# ---------------------------------------------------------------------------
-# execute_values with traversal fields (mocked DB connection)
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteValuesTraversal:
@@ -501,11 +477,6 @@ class TestExecuteValuesTraversal:
         assert result == []
 
 
-# ---------------------------------------------------------------------------
-# values_list with traversal fields
-# ---------------------------------------------------------------------------
-
-
 class TestValuesListTraversal:
     """Test that values_list works with traversal fields via the QuerySet layer."""
 
@@ -539,11 +510,6 @@ class TestValuesListTraversal:
         ):
             result = await QuerySet(TVScore).values_list("user__username", "score")
             assert result == [("alice", 100), ("bob", 90)]
-
-
-# ---------------------------------------------------------------------------
-# Manager.values() with traversal fields
-# ---------------------------------------------------------------------------
 
 
 class TestManagerValuesTraversal:
@@ -583,11 +549,6 @@ class TestManagerValuesTraversal:
             result = await Manager(TVScore).values("user__username", "score", "mode")
             assert len(result) == 5
             assert result[0]["username"] == "top0"
-
-
-# ---------------------------------------------------------------------------
-# Edge cases
-# ---------------------------------------------------------------------------
 
 
 class TestTraversalEdgeCases:

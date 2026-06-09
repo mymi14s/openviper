@@ -25,9 +25,6 @@ def reset_permission_state() -> None:
     permission_checker.CT_PERMISSION_CACHE.clear()
 
 
-# --- Metadata Parsing Tests ---
-
-
 def test_model_meta_validation():
     with patch("openviper.db.executor.get_table"):
         # Test Index field validation
@@ -65,9 +62,6 @@ def test_extract_app_name_edge_cases():
     assert ModelMeta._extract_app_name("openviper.auth.models", "User") == "auth"
 
 
-# --- F Expression Tests ---
-
-
 def test_f_expression_arithmetic():
     f = F("views")
     assert repr(f - 10) == "_FExpr(F('views') - 10)"
@@ -75,9 +69,6 @@ def test_f_expression_arithmetic():
     assert repr(f * 2) == "_FExpr(F('views') * 2)"
     assert repr(3 * f) == "_FExpr(3 * F('views'))"
     assert repr(f / 2) == "_FExpr(F('views') / 2)"
-
-
-# --- QuerySet Pagination Tests ---
 
 
 @pytest.mark.asyncio
@@ -103,9 +94,6 @@ async def test_queryset_pagination():
             assert page.num_pages == 3
             assert page.has_next is True
             assert page.has_previous is True
-
-
-# --- Permission & Bulk Operations Tests ---
 
 
 @pytest.mark.asyncio
@@ -140,9 +128,6 @@ async def test_bulk_operations():
             await BulkModel.objects.bulk_update(objs, fields=["name"])
 
 
-# --- Traversal Lookup Tests ---
-
-
 def test_traversal_errors():
     with patch("openviper.db.executor.get_table"):
 
@@ -161,9 +146,6 @@ def test_traversal_errors():
 
     with pytest.raises(FieldError, match=r"Field 'missing' not found on TargetModel"):
         TraversalLookup("target__missing", SourceModel)
-
-
-# --- Iterator & Batching Tests ---
 
 
 @pytest.mark.asyncio
@@ -217,7 +199,7 @@ async def test_select_related_hydration():
         "title": "Viper Guide",
         "author_id": 10,
         "author__id": 10,
-        "author__name": "Anthony",
+        "author__name": "Mark",
     }
 
     with patch("openviper.db.models.check_perm_cached", new_callable=AsyncMock):
@@ -232,10 +214,7 @@ async def test_select_related_hydration():
             assert book.title == "Viper Guide"
             assert isinstance(book.author, Author)
             assert book.author.id == 10
-            assert book.author.name == "Anthony"
-
-
-# --- New Extended Tests for Full Branch Coverage ---
+            assert book.author.name == "Mark"
 
 
 def test_model_meta_parsing_extended():

@@ -18,10 +18,6 @@ from openviper.middleware.security import SecurityMiddleware
 
 from .conftest import override_settings
 
-# ---------------------------------------------------------------------------
-# CONF-001: Debug mode is disabled in production
-# ---------------------------------------------------------------------------
-
 
 class TestDebugModeProduction:
     """Debug mode must be disabled in production environments."""
@@ -40,11 +36,6 @@ class TestDebugModeProduction:
         settings = Settings()
         # Default is True for development; production must override.
         assert settings.DEBUG is True
-
-
-# ---------------------------------------------------------------------------
-# CONF-002: Missing secret key fails closed
-# ---------------------------------------------------------------------------
 
 
 class TestMissingSecretKey:
@@ -70,11 +61,6 @@ class TestMissingSecretKey:
                 middleware.get_secret()
 
 
-# ---------------------------------------------------------------------------
-# CONF-003: Default secret key is not allowed
-# ---------------------------------------------------------------------------
-
-
 class TestDefaultSecretKey:
     """Default or sample secret keys must not be allowed in production."""
 
@@ -88,11 +74,6 @@ class TestDefaultSecretKey:
         assert "none" not in ALLOWED_JWT_ALGORITHMS
         assert "None" not in ALLOWED_JWT_ALGORITHMS
         assert "NONE" not in ALLOWED_JWT_ALGORITHMS
-
-
-# ---------------------------------------------------------------------------
-# CONF-004: Allowed hosts are enforced
-# ---------------------------------------------------------------------------
 
 
 class TestAllowedHosts:
@@ -132,11 +113,6 @@ class TestAllowedHosts:
             # The base domain also matches the wildcard suffix pattern
             assert middleware.is_host_allowed("example.com")
             assert not middleware.is_host_allowed("evil.com")
-
-
-# ---------------------------------------------------------------------------
-# CONF-005: CORS defaults are restrictive
-# ---------------------------------------------------------------------------
 
 
 class TestCORSDefaults:

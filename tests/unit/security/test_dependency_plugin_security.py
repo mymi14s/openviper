@@ -33,10 +33,6 @@ from openviper.template.plugin_loader import (
 )
 from openviper.utils.importlib import IMPORT_CACHE, import_string, reset_import_cache
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(autouse=True)
 def reset_plugin_state():

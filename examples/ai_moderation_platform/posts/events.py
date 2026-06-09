@@ -30,7 +30,7 @@ from moderation.ai_service import get_moderator
 from moderation.models import ModerationLog
 
 from openviper.db.events import model_event
-from openviper.tasks import task
+from openviper.tasks import actor
 from posts.models import Post
 
 logger = logging.getLogger("posts.events")
@@ -41,11 +41,6 @@ class EventModel(Protocol):
 
     id: int
     pk: int
-
-
-# ---------------------------------------------------------------------------
-# Post handlers
-# ---------------------------------------------------------------------------
 
 
 def create_likes(post: EventModel, event: str | None = None) -> None:
@@ -82,11 +77,6 @@ def cleanup_comments(post: EventModel, event: str | None = None) -> None:
     # bulk_delete_comments.send(post_id=post.pk)
 
 
-# ---------------------------------------------------------------------------
-# Comment handlers
-# ---------------------------------------------------------------------------
-
-
 def notify_post_author(comment: EventModel, event: str | None = None) -> None:
     """Notify the post author when a new Comment is created.
 
@@ -121,7 +111,7 @@ def moderate_post(post: EventModel, event: str | None = None) -> None:
     moderate.send_with_options(args=(post.id,), options={"priority": "high"})
 
 
-@task()
+@actor()
 async def moderate(post_id: int) -> None:
     """AI-moderate a post.  Hides the post and logs the result when unsafe."""
     logger.info("Starting moderate task for post_id=%s", post_id)

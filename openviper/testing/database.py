@@ -1,6 +1,7 @@
 """Database setup and isolation helpers for OpenViper pytest fixtures."""
 
 import dataclasses
+import os
 import warnings
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -21,6 +22,16 @@ from openviper.db.routing.context import reset_routing_context
 from openviper.testing.settings import DatabaseIsolation, OpenViperTestingConfigError
 
 
+def should_create_db() -> bool:
+    """Return True when OPENVIPER_TEST_CREATE_DB is set in the environment."""
+    return os.environ.get("OPENVIPER_TEST_CREATE_DB", "") == "1"
+
+
+def should_reuse_db() -> bool:
+    """Return True when OPENVIPER_TEST_REUSE_DB is set in the environment."""
+    return os.environ.get("OPENVIPER_TEST_REUSE_DB", "") == "1"
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class SessionDatabase:
     """Session-scoped database handle: migrate once, isolate per test."""
@@ -34,14 +45,16 @@ class SessionDatabase:
         """Configure the engine and run migrations exactly once."""
         assert_safe_database_url(self.url)
         await configure_db(self.url)
-        await init_db(drop_first=True)
+        if should_create_db() or not should_reuse_db():
+            await init_db(drop_first=True)
 
     async def reset(self) -> None:
         """Clean test data between tests without re-running migrations."""
+        if should_reuse_db():
+            return
         if self.isolation == "truncate":
             await truncate_database()
         else:
-            # Cheaper than full migration; schema is already known.
             await init_db(drop_first=True)
 
     async def teardown(self) -> None:
@@ -62,10 +75,12 @@ class TestDatabase:
     async def setup(self) -> None:
         assert_safe_database_url(self.url)
         await configure_db(self.url)
-        if self.migrate:
+        if self.migrate and (not should_reuse_db() or should_create_db()):
             await init_db(drop_first=True)
 
     async def reset(self) -> None:
+        if should_reuse_db():
+            return
         if self.isolation in {"recreate", "in_memory"}:
             await init_db(drop_first=True)
         elif self.isolation == "truncate":

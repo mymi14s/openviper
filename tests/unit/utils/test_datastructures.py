@@ -15,10 +15,6 @@ from openviper.utils.datastructures import (
     unique_keys,
 )
 
-# ---------------------------------------------------------------------------
-# check_no_crlf
-# ---------------------------------------------------------------------------
-
 
 class TestCheckNoCRLF:
     def test_raises_on_cr(self):
@@ -56,11 +52,6 @@ class TestCheckNoCRLF:
             check_no_crlf("bad\rvalue")
 
 
-# ---------------------------------------------------------------------------
-# unique_keys
-# ---------------------------------------------------------------------------
-
-
 class TestUniqueKeys:
     def test_deduplicates_consecutive(self):
         assert list(unique_keys(["a", "a", "b"])) == ["a", "b"]
@@ -84,11 +75,6 @@ class TestUniqueKeys:
         assert list(unique_keys(["z", "z", "z"])) == ["z"]
 
 
-# ---------------------------------------------------------------------------
-# unique_items
-# ---------------------------------------------------------------------------
-
-
 class TestUniqueItems:
     def test_deduplicates_by_key(self):
         result = list(unique_items([("a", 1), ("a", 2), ("b", 3)]))
@@ -108,11 +94,6 @@ class TestUniqueItems:
     def test_preserves_order(self):
         result = list(unique_items([("c", 3), ("a", 1), ("b", 2), ("a", 99)]))
         assert result == [("c", 3), ("a", 1), ("b", 2)]
-
-
-# ---------------------------------------------------------------------------
-# Headers
-# ---------------------------------------------------------------------------
 
 
 class TestHeaders:
@@ -266,11 +247,6 @@ class TestHeaders:
         assert h.raw[0][0] == b"content-type"
 
 
-# ---------------------------------------------------------------------------
-# MutableHeaders
-# ---------------------------------------------------------------------------
-
-
 class TestMutableHeaders:
     # -- construction --
 
@@ -394,11 +370,6 @@ class TestMutableHeaders:
         assert len(h.raw) == 0
 
 
-# ---------------------------------------------------------------------------
-# QueryParams
-# ---------------------------------------------------------------------------
-
-
 class TestQueryParams:
     # -- basic parsing --
 
@@ -504,11 +475,6 @@ class TestQueryParams:
     def test_repr(self):
         q = QueryParams("a=1")
         assert "QueryParams" in repr(q)
-
-
-# ---------------------------------------------------------------------------
-# ImmutableMultiDict
-# ---------------------------------------------------------------------------
 
 
 class TestImmutableMultiDict:

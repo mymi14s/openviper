@@ -20,10 +20,6 @@ from .conftest import (
     override_settings,
 )
 
-# ---------------------------------------------------------------------------
-# HTTP-001: Reject conflicting Content-Length headers
-# ---------------------------------------------------------------------------
-
 
 class TestConflictingContentLength:
     """ASGI servers typically deduplicate headers, but the framework must
@@ -61,11 +57,6 @@ class TestConflictingContentLength:
         assert len(set(lengths)) <= 1, "Identical Content-Length values should not conflict"
 
 
-# ---------------------------------------------------------------------------
-# HTTP-002: Reject Content-Length and Transfer-Encoding ambiguity
-# ---------------------------------------------------------------------------
-
-
 class TestContentLengthTransferEncodingAmbiguity:
     """Requests with both Content-Length and Transfer-Encoding: chunked
     create parsing ambiguity and must be rejected."""
@@ -89,11 +80,6 @@ class TestContentLengthTransferEncodingAmbiguity:
             # Per RFC 7230 §3.3.3, Transfer-Encoding takes precedence,
             # but for security, the framework should reject the ambiguity.
             pass  # Implementation should raise or reject
-
-
-# ---------------------------------------------------------------------------
-# HTTP-003: Prevent response header injection
-# ---------------------------------------------------------------------------
 
 
 class TestResponseHeaderInjection:
@@ -135,8 +121,6 @@ class TestResponseHeaderInjection:
         """Null bytes in header values must be detectable for validation."""
         # The Response class stores headers as-is; ASGI servers and
         # middleware are responsible for rejecting null bytes.
-        # Verify that null bytes are preserved in the header value
-        # so downstream validation can detect them.
         response = Response(
             content=b"ok",
             status_code=200,
@@ -172,11 +156,6 @@ class TestResponseHeaderInjection:
             Headers(raw=[(b"x-custom", b"value\nX-Injected: yes")])
 
 
-# ---------------------------------------------------------------------------
-# HTTP-004: Reject oversized headers
-# ---------------------------------------------------------------------------
-
-
 class TestOversizedHeaders:
     """Headers exceeding configured maximum size must be rejected."""
 
@@ -198,11 +177,6 @@ class TestOversizedHeaders:
         scope = make_scope(headers=headers)
         request = Request(scope, None)
         assert len(list(request.headers.items())) >= 20
-
-
-# ---------------------------------------------------------------------------
-# HTTP-005: Reject oversized request body
-# ---------------------------------------------------------------------------
 
 
 class TestOversizedRequestBody:
@@ -229,11 +203,6 @@ class TestOversizedRequestBody:
         request = Request(scope, BodyReceive(b"x" * 100))
         body = await request.body()
         assert len(body) == 100
-
-
-# ---------------------------------------------------------------------------
-# HTTP-006: Normalize and validate URL paths safely
-# ---------------------------------------------------------------------------
 
 
 class TestURLPathNormalization:
@@ -264,11 +233,6 @@ class TestURLPathNormalization:
         result = normalize_path("/admin/../secret")
         # Router should not resolve ../ during normalization
         assert result == "/admin/../secret"
-
-
-# ---------------------------------------------------------------------------
-# HTTP-007: Prevent Host header abuse
-# ---------------------------------------------------------------------------
 
 
 class TestHostHeaderAbuse:
@@ -303,14 +267,8 @@ class TestHostHeaderAbuse:
 
         with override_settings(ALLOWED_HOSTS=["trusted.example.com"]):
             middleware = SecurityMiddleware(dummy_app)
-            # Verify that allowed hosts are configured
             assert middleware._exact_hosts == frozenset(["trusted.example.com"])
             assert not middleware._allow_all_hosts
-
-
-# ---------------------------------------------------------------------------
-# HTTP-008: Prevent open redirects
-# ---------------------------------------------------------------------------
 
 
 class TestOpenRedirects:
@@ -323,8 +281,6 @@ class TestOpenRedirects:
 
     def test_http008_redirect_to_external_url_uses_provided_url(self):
         """RedirectResponse validates redirect hosts against ALLOWED_HOSTS."""
-        # RedirectResponse now validates external redirect URLs at construction
-        # time, raising ValueError for disallowed hosts.
         with pytest.raises(ValueError, match="not allowed"):
             RedirectResponse(url="https://evil.com", status_code=302)
 

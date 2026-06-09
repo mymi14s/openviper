@@ -8,10 +8,6 @@ import pytest
 
 from openviper.auth.authentications import OAuth2Authentication
 
-# ---------------------------------------------------------------------------
-# Fixtures / helpers
-# ---------------------------------------------------------------------------
-
 VALID_PATH = "myapp.events.oauth_success"
 VALID_PATH_FAIL = "myapp.events.oauth_fail"
 VALID_PATH_ERROR = "myapp.events.oauth_error"
@@ -47,11 +43,6 @@ class FakeRequest:
         self._scope: dict[str, object] = {}
         self.cookies: dict[str, str] = {}
         self.session = None
-
-
-# ---------------------------------------------------------------------------
-# load_oauth2_events
-# ---------------------------------------------------------------------------
 
 
 class TestLoadOAuth2Events:
@@ -91,11 +82,6 @@ class TestLoadOAuth2Events:
             with patch.object(auth, "load_oauth2_events", return_value={}):
                 result = auth.load_oauth2_events()
         assert result == {}
-
-
-# ---------------------------------------------------------------------------
-# resolve_event_handler
-# ---------------------------------------------------------------------------
 
 
 class TestResolveEventHandler:
@@ -142,11 +128,6 @@ class TestResolveEventHandler:
         auth = OAuth2Authentication()
         with pytest.raises(ValueError, match="Invalid event handler path"):
             auth.resolve_event_handler("1app.events.fn")
-
-
-# ---------------------------------------------------------------------------
-# trigger_event
-# ---------------------------------------------------------------------------
 
 
 class TestTriggerEventOnSuccess:

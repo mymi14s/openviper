@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 import sys
@@ -60,8 +61,8 @@ def resolve_google_genai_modules() -> tuple[ModuleType, ModuleType]:
     global google_genai, google_genai_types
     if google_genai is None or google_genai_types is None:
         try:
-            from google import genai as loaded_genai
-            from google.genai import types as loaded_types
+            loaded_genai = importlib.import_module("google.genai")
+            loaded_types = importlib.import_module("google.genai.types")
         except ImportError as exc:
             raise ImportError(
                 "The 'google-genai' package is required for GeminiProvider. "

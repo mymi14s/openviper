@@ -48,6 +48,7 @@ export interface ModelConfig {
   search_fields: string[]
   ordering: string[]
   list_per_page: number
+  list_per_page_options: number[]
   is_virtual: boolean
   is_single: boolean
   fields: ModelField[]
@@ -58,7 +59,7 @@ export interface ModelConfig {
     description?: string
   }>
   readonly_fields: string[]
-  actions: string[]
+  actions: Array<{ name: string; description: string }>
   permissions?: {
     add: boolean
     change: boolean

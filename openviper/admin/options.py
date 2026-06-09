@@ -13,6 +13,7 @@ import typing as t
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from openviper.admin.actions import AdminAction
 from openviper.admin.fields import get_field_schema
 from openviper.db.backends.registry import backend_registry
 
@@ -33,6 +34,7 @@ class ModelAdmin:
     search_fields: list[str] | None = None
     ordering: str | list[str] | None = None
     list_per_page: int = 25
+    list_per_page_options: list[int] = [25, 50, 100, 500, 1000]
     list_max_show_all: int = 200
     date_hierarchy: str | None = None
     list_select_related: list[str] | bool | None = None
@@ -504,9 +506,30 @@ class ModelAdmin:
                         self.__class__.__name__,
                     )
             else:
-                name = getattr(action_name_or_func, "__name__", str(action_name_or_func))
+                if isinstance(action_name_or_func, type) and issubclass(
+                    action_name_or_func, AdminAction
+                ):
+                    name = action_name_or_func.name or action_name_or_func.__name__.lower()
+                else:
+                    name = getattr(action_name_or_func, "__name__", str(action_name_or_func))
                 actions[name] = action_name_or_func
         return actions
+
+    def serialize_actions(self) -> list[dict[str, str]]:
+        """Build action metadata for the model info API response.
+
+        Returns a list of dicts with ``name`` and ``description`` keys so
+        the frontend can display human-readable labels while sending the
+        internal ``name`` to the bulk-action endpoint.
+        """
+        result: list[dict[str, str]] = []
+        for name, action in self.get_actions().items():
+            if isinstance(action, type) and issubclass(action, AdminAction):
+                instance = action()
+                result.append({"name": name, "description": instance.description or name})
+            else:
+                result.append({"name": name, "description": name.replace("_", " ").title()})
+        return result
 
     async def action_delete_selected(self, request: Request, queryset: t.Any) -> int:
         """Built-in action: delete selected objects.
@@ -584,8 +607,9 @@ class ModelAdmin:
             "search_fields": self.get_search_fields(),
             "ordering": self.get_ordering(),
             "list_per_page": self.list_per_page,
+            "list_per_page_options": self.list_per_page_options,
             "readonly_fields": list(self.readonly_fields),
-            "actions": list(self.get_actions().keys()),
+            "actions": self.serialize_actions(),
             "child_tables": self.get_child_tables_info(),
             "list_display_styles": self.list_display_styles,
         }

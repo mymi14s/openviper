@@ -618,11 +618,6 @@ class TestPermissionChecks:
         assert error is not None
 
 
-# ---------------------------------------------------------------------------
-# Additional tests to cover remaining uncovered lines
-# ---------------------------------------------------------------------------
-
-
 class TestLegacyEndpointsUncovered:
     """Tests for legacy endpoint uncovered branches."""
 

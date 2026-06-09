@@ -19,10 +19,6 @@ from openviper.db.models import Model, Q
 from openviper.exceptions import FieldError
 from openviper.serializers.base import Serializer
 
-# ---------------------------------------------------------------------------
-# DB-001: SQL injection is prevented
-# ---------------------------------------------------------------------------
-
 
 class TestSQLInjectionPrevention:
     """SQL injection payloads must be parameterized, not interpolated."""
@@ -56,11 +52,6 @@ class TestSQLInjectionPrevention:
         assert q is not None
 
 
-# ---------------------------------------------------------------------------
-# DB-002: Unsafe raw SQL requires explicit opt-in
-# ---------------------------------------------------------------------------
-
-
 class TestUnsafeRawSQL:
     """Raw SQL execution must require explicit opt-in."""
 
@@ -76,11 +67,6 @@ class TestUnsafeRawSQL:
 
         with pytest.raises(ValueError, match="[Uu]nsafe"):
             assert_safe_table_name("'; DROP TABLE users;--")
-
-
-# ---------------------------------------------------------------------------
-# DB-003: Dynamic ordering and filtering are allowlisted
-# ---------------------------------------------------------------------------
 
 
 class TestDynamicOrderingFiltering:
@@ -110,11 +96,6 @@ class TestDynamicOrderingFiltering:
             validate_regex_pattern(123)
 
 
-# ---------------------------------------------------------------------------
-# DB-004: NoSQL-style operator injection is blocked
-# ---------------------------------------------------------------------------
-
-
 class TestNoSQLOperatorInjection:
     """NoSQL-style operator keys must be treated as data, not operators."""
 
@@ -131,11 +112,6 @@ class TestNoSQLOperatorInjection:
         # The ORM should store these as regular field values, not interpret them
         assert "__proto__" in data
         assert "constructor" in data
-
-
-# ---------------------------------------------------------------------------
-# DB-005: Pagination limits are enforced
-# ---------------------------------------------------------------------------
 
 
 class TestPaginationLimits:
@@ -155,11 +131,6 @@ class TestPaginationLimits:
         """ModelAdmin must enforce a maximum show-all limit."""
         assert ModelAdmin.list_max_show_all > 0
         assert ModelAdmin.list_max_show_all <= 1000
-
-
-# ---------------------------------------------------------------------------
-# DB-006: Transactions roll back on exceptions
-# ---------------------------------------------------------------------------
 
 
 class TestTransactionRollback:

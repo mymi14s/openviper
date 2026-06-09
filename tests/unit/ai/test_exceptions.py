@@ -12,19 +12,10 @@ from openviper.ai.exceptions import (
 )
 from openviper.exceptions import ModelCollisionError, ModelNotFoundError
 
-# ---------------------------------------------------------------------------
-# AIException alias
-# ---------------------------------------------------------------------------
-
 
 class TestAIExceptionAlias:
     def test_ai_error_is_ai_exception(self):
         assert AIException is AIException
-
-
-# ---------------------------------------------------------------------------
-# ProviderNotConfiguredError
-# ---------------------------------------------------------------------------
 
 
 class TestProviderNotConfiguredError:
@@ -46,11 +37,6 @@ class TestProviderNotConfiguredError:
     def test_is_ai_exception(self):
         err = ProviderNotConfiguredError("test")
         assert isinstance(err, AIException)
-
-
-# ---------------------------------------------------------------------------
-# ProviderNotAvailableError
-# ---------------------------------------------------------------------------
 
 
 class TestProviderNotAvailableError:
@@ -78,11 +64,6 @@ class TestProviderNotAvailableError:
     def test_is_ai_exception(self):
         err = ProviderNotAvailableError("test")
         assert isinstance(err, AIException)
-
-
-# ---------------------------------------------------------------------------
-# ModelUnavailableError
-# ---------------------------------------------------------------------------
 
 
 class TestModelUnavailableError:
@@ -113,11 +94,6 @@ class TestModelUnavailableError:
     def test_is_ai_exception(self):
         err = ModelUnavailableError("m", "p")
         assert isinstance(err, AIException)
-
-
-# ---------------------------------------------------------------------------
-# Re-exported exceptions from openviper.exceptions
-# ---------------------------------------------------------------------------
 
 
 class TestReExports:

@@ -37,31 +37,47 @@ class Command(BaseCommand):
         parser.add_argument(
             "--keepdb",
             action="store_true",
-            help="Preserve test database across runs",
+            help="Preserve test database across runs (alias for --reuse-db)",
+        )
+        parser.add_argument(
+            "--create-db",
+            action="store_true",
+            help="Force creation of the test database even if it already exists",
+        )
+        parser.add_argument(
+            "--reuse-db",
+            action="store_true",
+            help="Reuse the existing test database instead of recreating it",
         )
 
-    def handle(self, **options) -> None:  # type: ignore[override]
+    def handle(self, **options: object) -> None:  # type: ignore[override]
+        env = {**os.environ, "OPENVIPER_ENV": "testing"}
+
+        if options.get("create_db"):
+            env["OPENVIPER_TEST_CREATE_DB"] = "1"
+        if options.get("reuse_db") or options.get("keepdb"):
+            env["OPENVIPER_TEST_REUSE_DB"] = "1"
 
         args = [sys.executable, "-m", "pytest"]
 
         verbose_count = options.get("verbose", 0)
-        if verbose_count > 0:
+        if isinstance(verbose_count, int) and verbose_count > 0:
             args.append("-" + "v" * verbose_count)
 
         if options.get("failfast"):
             args.append("-x")
 
         test_labels = options.get("test_labels") or []
-        processed_labels = []
+        processed_labels: list[str] = []
         for label in test_labels:
-            if ".py:" in label and ".py::" not in label:
+            if isinstance(label, str) and ".py:" in label and ".py::" not in label:
                 label = label.replace(".py:", ".py::", 1)
-            processed_labels.append(label)
+            processed_labels.append(str(label))
 
         args += processed_labels if processed_labels else ["tests/"]
 
         self.stdout(f"Running: {' '.join(args)}")
-        result = subprocess.run(args, env={**os.environ, "OPENVIPER_ENV": "testing"}, check=False)
+        result = subprocess.run(args, env=env, check=False)
         sys.exit(result.returncode)
 
     def initialize_testing_files(self) -> None:

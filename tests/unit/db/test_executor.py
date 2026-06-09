@@ -53,10 +53,6 @@ from openviper.db.fields import CharField, ForeignKey, IntegerField, LazyFK, UUI
 from openviper.db.models import Count, F, Model, Q, Sum, TraversalLookup
 from openviper.exceptions import FieldError
 
-# ---------------------------------------------------------------------------
-# Test models
-# ---------------------------------------------------------------------------
-
 
 class Author(Model):
     username = CharField(max_length=100)
@@ -123,11 +119,6 @@ class TraversalChild(Model):
         table_name = "exec_traversal_children"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def make_table(tname: str = "items", **cols) -> sa.Table:
     meta = sa.MetaData()
     columns = [sa.Column("id", sa.Integer, primary_key=True)]
@@ -169,11 +160,6 @@ def make_qs(
     return qs
 
 
-# ---------------------------------------------------------------------------
-# bypass_permissions
-# ---------------------------------------------------------------------------
-
-
 class TestBypassPermissions:
     def test_sets_and_resets(self):
         assert _bypass_permissions.get() is False
@@ -186,11 +172,6 @@ class TestBypassPermissions:
             with bypass_permissions():
                 raise ValueError("boom")
         assert _bypass_permissions.get() is False
-
-
-# ---------------------------------------------------------------------------
-# Soft-removed column cache
-# ---------------------------------------------------------------------------
 
 
 class TestSoftRemovedCache:
@@ -250,11 +231,6 @@ class TestConnectionRouting:
         mock_resolve_read.assert_awaited_once_with(Post)
 
 
-# ---------------------------------------------------------------------------
-# escape_like
-# ---------------------------------------------------------------------------
-
-
 class TestEscapeLike:
     def test_escapes_percent(self):
         assert escape_like("100%") == "100\\%"
@@ -271,11 +247,6 @@ class TestEscapeLike:
 
     def test_no_special_chars(self):
         assert escape_like("hello") == "hello"
-
-
-# ---------------------------------------------------------------------------
-# apply_lookup
-# ---------------------------------------------------------------------------
 
 
 class TestApplyLookup:
@@ -723,11 +694,6 @@ class TestApplyLookupEdgeCases:
         assert clause is not None
 
 
-# ---------------------------------------------------------------------------
-# compile_single_filter
-# ---------------------------------------------------------------------------
-
-
 class TestCompileSingleFilter:
     def setup_method(self):
         self.table = make_table("posts", title=sa.String(200), views=sa.Integer())
@@ -755,11 +721,6 @@ class TestCompileSingleFilter:
         )
         clause = compile_single_filter(table, "author", 5)
         assert clause is not None
-
-
-# ---------------------------------------------------------------------------
-# compile_q
-# ---------------------------------------------------------------------------
 
 
 class TestCompileQ:
@@ -797,11 +758,6 @@ class TestCompileQ:
         outer = Q(age__gt=5) & inner
         clause = compile_q(self.table, outer)
         assert clause is not None
-
-
-# ---------------------------------------------------------------------------
-# compile_filters / compile_excludes / build_where_clause
-# ---------------------------------------------------------------------------
 
 
 class TestCompileFilters:
@@ -848,11 +804,6 @@ class TestCompileFilters:
     def test_build_where_clause_all_empty(self):
         clause = build_where_clause(self.table, [], [], [])
         assert clause is None
-
-
-# ---------------------------------------------------------------------------
-# is_f_like / f_expr_as_sa / ann_expr_as_sa
-# ---------------------------------------------------------------------------
 
 
 class TestFExpressions:
@@ -964,11 +915,6 @@ class TestFExpressions:
         assert True  # no exception raised
 
 
-# ---------------------------------------------------------------------------
-# parse_traversal_cached / cached_traversal_lookup
-# ---------------------------------------------------------------------------
-
-
 class TestTraversalCache:
     def test_cached_valid_simple(self):
         result = parse_traversal_cached("title", Post)
@@ -988,11 +934,6 @@ class TestTraversalCache:
         assert result is not None
 
 
-# ---------------------------------------------------------------------------
-# compile_traversal_filter (dead code path - tests for coverage)
-# ---------------------------------------------------------------------------
-
-
 class TestCompileTraversalFilter:
     def setup_method(self):
         # Build actual SA tables for Post so the function can work
@@ -1007,11 +948,6 @@ class TestCompileTraversalFilter:
         clause, joins = compile_traversal_filter(Post, "__invalid__bogus__x", "v", self.post_table)
         assert clause is None
         assert joins == []
-
-
-# ---------------------------------------------------------------------------
-# build_traversal_joins - multi-level FK traversal
-# ---------------------------------------------------------------------------
 
 
 class TestBuildTraversalJoins:
@@ -1048,11 +984,6 @@ class TestBuildTraversalJoins:
         assert final_table.name == "exec_traversal_profiles"
 
 
-# ---------------------------------------------------------------------------
-# get_table / build_table
-# ---------------------------------------------------------------------------
-
-
 class TestGetTable:
     def test_returns_sa_table(self):
         table = get_table(Post)
@@ -1073,11 +1004,6 @@ class TestGetTable:
         field = ForeignKey("auth.ContentType", on_delete="CASCADE")
 
         assert mod.resolve_fk_table_name(field, Post) == "auth_content_types"
-
-
-# ---------------------------------------------------------------------------
-# build_where_clause_with_traversals
-# ---------------------------------------------------------------------------
 
 
 class TestBuildWhereClauseWithTraversals:
@@ -1133,11 +1059,6 @@ class TestBuildWhereClauseWithTraversals:
     def test_invalid_exclude_traversal_falls_back(self):
         with pytest.raises(FieldError):
             build_where_clause_with_traversals(Post, self.table, [], [{"__totally_bogus": "x"}], [])
-
-
-# ---------------------------------------------------------------------------
-# execute_select / execute_count / execute_exists / execute_delete
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteSelect:
@@ -1549,11 +1470,6 @@ class TestExecuteUpdate:
             mock_perm.assert_awaited_once_with(Post, "update", ignore_permissions=True)
 
 
-# ---------------------------------------------------------------------------
-# execute_save
-# ---------------------------------------------------------------------------
-
-
 class TestExecuteSave:
     @pytest.mark.asyncio
     async def test_insert_new_instance(self):
@@ -1678,11 +1594,6 @@ class TestExecuteSave:
         ), f"Primary key 'id' must not appear in UPDATE SET; columns being set: {set_col_names}"
 
 
-# ---------------------------------------------------------------------------
-# execute_delete_instance
-# ---------------------------------------------------------------------------
-
-
 class TestExecuteDeleteInstance:
     @pytest.mark.asyncio
     async def test_delete_instance(self):
@@ -1717,11 +1628,6 @@ class TestExecuteDeleteInstance:
             mockbegin.return_value.__aexit__ = AsyncMock(return_value=None)
             await execute_delete_instance(p, ignore_permissions=True)
             mock_perm.assert_awaited_once_with(Post, "delete", ignore_permissions=True)
-
-
-# ---------------------------------------------------------------------------
-# execute_values
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteValues:
@@ -1919,11 +1825,6 @@ class TestExecuteValues:
             assert result[0] == {"title": "A", "views": 1}
 
 
-# ---------------------------------------------------------------------------
-# execute_aggregate
-# ---------------------------------------------------------------------------
-
-
 class TestExecuteAggregate:
     @pytest.mark.asyncio
     async def test_aggregate_returns_dict(self):
@@ -1960,11 +1861,6 @@ class TestExecuteAggregate:
             mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
             result = await execute_aggregate(qs, {"total": Count("id")})
             assert result == {}
-
-
-# ---------------------------------------------------------------------------
-# execute_explain
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteExplain:
@@ -2022,11 +1918,6 @@ class TestExecuteExplain:
             mock_connect.return_value.__aexit__ = AsyncMock(return_value=None)
             result = await execute_explain(qs)
             assert isinstance(result, str)
-
-
-# ---------------------------------------------------------------------------
-# execute_bulk_update
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteBulkUpdate:
@@ -2109,11 +2000,6 @@ class TestExecuteBulkUpdate:
             assert result == 1
 
 
-# ---------------------------------------------------------------------------
-# load_soft_removed_columns
-# ---------------------------------------------------------------------------
-
-
 class TestLoadSoftRemovedColumns:
     def setup_method(self):
         invalidate_soft_removed_cache()
@@ -2154,11 +2040,6 @@ class TestLoadSoftRemovedColumns:
             assert openviper.db._model_registry.soft_removed_loaded is True
 
         openviper.db._model_registry.soft_removed_loaded = False
-
-
-# ---------------------------------------------------------------------------
-# MAX_QUERY_ROWS constant
-# ---------------------------------------------------------------------------
 
 
 class TestMaxQueryRows:

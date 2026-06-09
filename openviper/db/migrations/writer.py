@@ -339,9 +339,6 @@ def next_migration_number(migrations_dir: str) -> str:
     return str(max(numbers, default=0) + 1).zfill(4)
 
 
-# -- Model state helpers --------------------------------------------------
-
-
 def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str, Any]]:
     """Build a deterministic snapshot of the current model state.
 
@@ -422,7 +419,6 @@ def read_migrated_state(migrations_dir: str) -> dict[str, dict[str, Any]]:
 
     Returns the same structure as :func:`model_state_snapshot`.
     """
-    # Reset soft-removed tracking for a clean parse
     _soft_removed_columns.clear()
 
     state: dict[str, dict[str, Any]] = {}
@@ -639,7 +635,6 @@ def parse_remove_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> Non
     elif column_type:
         removed_col["type"] = column_type
 
-    # Track this column as soft-removed
     _soft_removed_columns[(table_name, column_name)] = removed_col
 
     table_data["columns"] = [c for c in cols if c.get("name") != column_name]
@@ -707,7 +702,6 @@ def parse_restore_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> No
     if not table_name or not column_name:
         return
 
-    # Remove from soft-removed tracking
     key = (table_name, column_name)
     soft_info = _soft_removed_columns.pop(key, None)
 
@@ -752,10 +746,6 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
     return current != existing
 
 
-# -- Diff-based migration generation --------------------------------------
-
-# Global dict to track columns that have been soft-removed across migrations.
-# Populated by read_migrated_state; maps (table_name, column_name) to col info.
 _soft_removed_columns: dict[tuple[str, str], dict[str, Any]] = {}
 
 
@@ -858,7 +848,6 @@ def diff_states(
         restored: set[str] = set()
         restored_old_names: set[str] = set()
 
-        # Handle restored/legacy column names
         for col_name in sorted(added_col_names):
             removed_name = f"_removed_{col_name}"
             if removed_name in old_cols:
@@ -1135,7 +1124,6 @@ def format_operation(op: Operation) -> str:
         if op.reverse_sql:
             return f"    migrations.RunSQL(sql={op.sql!r}, reverse_sql={op.reverse_sql!r}),"
         return f"    migrations.RunSQL({op.sql!r}),"
-    # Fallback for other ops
     return f"    # Unsupported operation: {op!r}"
 
 

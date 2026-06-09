@@ -6,12 +6,34 @@ import asyncio
 import re
 import threading
 from collections import OrderedDict
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Final
 
 from openviper.db.exceptions import SingleModelAlreadyExistsError
 
 if TYPE_CHECKING:
     from openviper.db.models import Model
+
+
+def get_default_database_url(settings_obj: object) -> str:
+    """Return the configured default database URL.
+
+    Resolution order:
+      1. ``DATABASES['default']['URL']`` (nested config format)
+      2. ``DATABASE_URL`` (top-level setting)
+    """
+    databases = getattr(settings_obj, "DATABASES", {})
+    if isinstance(databases, Mapping):
+        default_config = databases.get("default")
+        if isinstance(default_config, Mapping):
+            url = default_config.get("URL")
+            if isinstance(url, str):
+                return url
+
+    database_url = getattr(settings_obj, "DATABASE_URL", "")
+    if isinstance(database_url, str):
+        return database_url
+    return ""
 
 
 async def enforce_single_model_constraint(model_cls: type[Model]) -> None:
@@ -55,8 +77,6 @@ class BoundedDict(OrderedDict):
         with self._lock:
             return super().__getitem__(key)
 
-
-# -- SQL injection prevention patterns -----------------------------------------
 
 # Dangerous SQL patterns that could enable statement injection in constraint
 # expressions, partial-index conditions, and other developer-supplied SQL
@@ -141,7 +161,6 @@ def sql_literal(value: object) -> str:
     return f"'{escaped}'"
 
 
-# -- Per-event-loop lock factory ----------------------------------------------
 # asyncio.Lock is bound to the event loop that created it.  Using a lock
 # created on one loop from another raises "Task got Future attached to a
 # different loop".  The helper below lazily creates one lock per running loop.
@@ -208,9 +227,6 @@ def cleanup_stale_locks_for_cache(cache: dict[int, asyncio.Lock]) -> None:
         stale_keys.append(loop_id)
     for key in stale_keys:
         cache.pop(key, None)
-
-
-# -- PK type casting ----------------------------------------------------------
 
 
 def cast_to_pk_type(model_class: type[Model], value: object) -> object:

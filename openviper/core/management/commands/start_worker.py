@@ -1,162 +1,103 @@
-"""start-worker management command - start background task worker.
+"""start-worker management command - unified task worker and scheduler runtime.
 
-Runs the task worker.  For database brokers the worker runs entirely
-in-process.  For Redis/RabbitMQ brokers, the standard ``dramatiq`` CLI
-is invoked as a subprocess with auto-discovered task modules.
-
-Usage::
-
-    python viperctl.py start-worker
-    python viperctl.py start-worker myapp.tasks --threads 4 --queues default high
-    python viperctl.py start-worker --processes 2 --threads 4
+Validates ``settings.TASKS``, initialises logging, discovers app task
+modules, synchronises periodic schedules, and starts the worker process.
 """
 
 from __future__ import annotations
 
-import argparse
 import importlib
-import logging
-import os
-import signal
-import subprocess
 import sys
+import typing as t
 
-from openviper.conf import settings
-from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
-from openviper.tasks.worker import run_worker
-
-logger = logging.getLogger("openviper.tasks")
-
-_SKIP_DIRS: frozenset[str] = frozenset(
-    {"migrations", "tests", "__pycache__", ".git", "static", "templates"}
-)
-_SKIP_FILES: frozenset[str] = frozenset(
-    {
-        "asgi.py",
-        "wsgi.py",
-        "settings.py",
-        "routes.py",
-        "urls.py",
-        "models.py",
-        "views.py",
-        "admin.py",
-        "serializers.py",
-        "decorators.py",
-        "forms.py",
-        "filters.py",
-        "permissions.py",
-        "pagination.py",
-        "signals.py",
-        "apps.py",
-        "validators.py",
-    }
-)
 
 
 class Command(BaseCommand):
-    help = "Start a Dramatiq task worker."
+    """Start the OpenViper background task worker.
 
-    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+    Consolidates both the Cron Scheduler engine and the Async Task
+    Worker pool into a single command process architecture.
+    """
+
+    help = "Start the OpenViper background task worker and scheduler"
+
+    aliases = ["start-worker"]
+
+    def add_arguments(self, parser: t.Any) -> None:
         parser.add_argument(
-            "modules",
+            "--modules",
             nargs="*",
-            help=(
-                "Extra Python module paths containing task definitions "
-                "(e.g. myapp.tasks).  Auto-discovery runs regardless."
-            ),
+            default=[],
+            help="Additional Python modules to import before starting",
         )
         parser.add_argument(
             "--queues",
-            "-Q",
             nargs="*",
             default=None,
-            help="Only process messages from these queues.",
+            help="Specific queues to consume (default: all)",
         )
         parser.add_argument(
             "--threads",
-            "-t",
             type=int,
             default=8,
-            help="Number of worker threads per process (default: 8).",
+            help="Number of threads per worker process (default: 8)",
         )
         parser.add_argument(
             "--processes",
-            "-p",
             type=int,
             default=1,
-            help="Number of worker processes (default: 1).",
+            help="Number of worker processes (default: 1)",
+        )
+        parser.add_argument(
+            "--no-scheduler",
+            action="store_true",
+            default=False,
+            help="Disable the periodic scheduler (run on only one worker)",
         )
 
-    def handle(self, **options) -> None:  # type: ignore[override]
+    def handle(self, **options: t.Any) -> None:
+        modules = options.get("modules", [])
+        queues = options.get("queues")
+        threads = options.get("threads", 8)
+        processes = options.get("processes", 1)
+        no_scheduler = options.get("no_scheduler", False)
+
         try:
-            importlib.import_module("dramatiq")
+            import dramatiq  # noqa: F401
         except ImportError:
-            self.stderr(self.style_error("dramatiq is required: pip install 'openviper[tasks]'"))
-            sys.exit(1)
-
-        task_cfg: dict = dict(getattr(settings, "TASKS", {}) or {})
-        broker_type: str = task_cfg.get("broker", "redis").lower()
-
-        if broker_type == "database":
-            self.stdout("Starting in-process database worker...")
-            run_worker(
-                processes=options["processes"],
-                threads=options["threads"],
-                queues=options["queues"],
+            sys.stderr.write(
+                "Error: dramatiq is required to run the worker.\n"
+                "Install it with: pip install 'openviper[tasks]'\n"
             )
-            return
-
-        modules: list[str] = list(options.get("modules") or [])
-
-        resolver = AppResolver()
-        for app_name in getattr(settings, "INSTALLED_APPS", []):
-            if app_name.startswith("openviper."):
-                continue
-            app_path, found = resolver.resolve_app(app_name)
-            if not (found and app_path):
-                continue
-            for root, dirs, files in os.walk(app_path):
-                dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
-                for filename in files:
-                    if (
-                        not filename.endswith(".py")
-                        or filename in _SKIP_FILES
-                        or filename == "__init__.py"
-                    ):
-                        continue
-                    rel = os.path.relpath(os.path.join(root, filename), app_path)
-                    modules.append(f"{app_name}.{rel[:-3].replace(os.sep, '.')}")
-
-        if not modules:
-            msg = "No task modules found."
-            if not os.environ.get("OPENVIPER_SETTINGS_MODULE"):
-                msg += (
-                    " No settings module was configured"
-                    " - try: python viperctl.py --settings=<module> start-worker"
-                )
-            self.stdout(msg + " Exiting.")
             sys.exit(1)
 
-        cmd: list[str] = ["dramatiq"] + ["openviper.tasks", "openviper.core.email.queue"] + modules
-        cmd += ["--processes", str(options["processes"])]
-        cmd += ["--threads", str(options["threads"])]
-        if options.get("queues"):
-            cmd += ["--queues"] + list(options["queues"])
+        from openviper.conf import settings
 
-        self.stdout(f"Starting Dramatiq worker: {' '.join(cmd)}")
-        # OPENVIPER_WORKER=1 enables worker-specific logging and
-        # SchedulerMiddleware for @periodic tasks in the subprocess.
-        env = {**os.environ, "OPENVIPER_WORKER": "1"}
-        proc = subprocess.Popen(cmd, env=env)  # pylint: disable=consider-using-with
+        cfg = settings.TASKS
+        if not isinstance(cfg, dict):
+            cfg = {}
+
+        from openviper.tasks.conf import validate_tasks_config
+
         try:
-            proc.wait()
-        except KeyboardInterrupt:
-            proc.send_signal(signal.SIGTERM)
+            validate_tasks_config(cfg)
+        except Exception as exc:
+            sys.stderr.write(f"Error: {exc}\n")
+            sys.exit(1)
+
+        for module_name in modules:
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-        if proc.returncode:
-            sys.exit(proc.returncode)
+                importlib.import_module(module_name)
+            except ImportError:
+                sys.stderr.write(f"Error: Could not import module '{module_name}'\n")
+                sys.exit(1)
+
+        from openviper.tasks.runner import run
+
+        run(
+            processes=processes,
+            threads=threads,
+            queues=queues,
+            no_scheduler=no_scheduler,
+        )

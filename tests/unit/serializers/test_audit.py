@@ -26,10 +26,6 @@ from openviper.serializers.base import (
 )
 from tests.factories import MockQuerySet, SimpleModel
 
-# ---------------------------------------------------------------------------
-# Helpers / fixtures
-# ---------------------------------------------------------------------------
-
 
 class Field:
     """Minimal ORM field stub."""
@@ -67,11 +63,6 @@ class WriteOnlyS(Serializer):
     username: str
     password: str
     writeonly_fields = ("password",)
-
-
-# ---------------------------------------------------------------------------
-# B1 - field_is_optional: falsy defaults
-# ---------------------------------------------------------------------------
 
 
 class TestFieldIsOptional:
@@ -118,11 +109,6 @@ class TestFieldIsOptional:
         assert field_is_optional(field) is False
 
 
-# ---------------------------------------------------------------------------
-# P1 - compute_excluded
-# ---------------------------------------------------------------------------
-
-
 class TestComputeExcluded:
     def test_no_write_only_no_extra_returns_none(self):
         s = SimpleS(id=1, name="x", score=1.0)
@@ -147,11 +133,6 @@ class TestComputeExcluded:
         s = SimpleS(id=1, name="x")
         # Empty set should not change result - no write_only, no extras
         assert s.compute_excluded(set()) is None
-
-
-# ---------------------------------------------------------------------------
-# B2 - create() uses exclude_none=True
-# ---------------------------------------------------------------------------
 
 
 class TestModelSerializerCreate:
@@ -281,11 +262,6 @@ class TestModelSerializerCreate:
         ]
 
 
-# ---------------------------------------------------------------------------
-# B3 - update() uses exclude_unset=True
-# ---------------------------------------------------------------------------
-
-
 class TestModelSerializerUpdate:
     @pytest.mark.asyncio
     async def test_update_only_applies_set_fields(self):
@@ -336,11 +312,6 @@ class TestModelSerializerUpdate:
         # PK must never change
         assert instance.id == 5
         assert instance.name == "changed"
-
-
-# ---------------------------------------------------------------------------
-# S1 - path traversal prevention
-# ---------------------------------------------------------------------------
 
 
 class TestPersistFilesPathTraversal:
@@ -424,11 +395,6 @@ class TestPersistFilesPathTraversal:
         assert "../" not in saved_paths[0]
 
 
-# ---------------------------------------------------------------------------
-# S2 - unsafe bytes() fallback rejected
-# ---------------------------------------------------------------------------
-
-
 class TestPersistFilesUnsafeBytes:
     @pytest.mark.asyncio
     async def test_integer_value_raises_type_error(self):
@@ -486,11 +452,6 @@ class TestPersistFilesUnsafeBytes:
                 await FakeSerializer.persist_files(data)
 
         assert saved[0][1] == b"hello"
-
-
-# ---------------------------------------------------------------------------
-# serialize / serialize_many / serialize_many_json - excluded fields
-# ---------------------------------------------------------------------------
 
 
 class TestSerializeExcluded:

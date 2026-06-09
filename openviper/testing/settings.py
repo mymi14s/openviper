@@ -35,8 +35,8 @@ class OpenViperTestConfig:
     migrate: bool = True
     use_test_settings: bool = True
     disable_real_email: bool = True
-    disable_real_tasks: bool = True
     disable_real_cache: bool = False
+    disable_real_tasks: bool = True
 
 
 class OpenViperTestingConfigError(RuntimeError):
@@ -146,8 +146,8 @@ def load_testing_config(pytest_config: PytestConfigProtocol) -> OpenViperTestCon
         migrate=as_bool(project_config.get("migrate"), True),
         use_test_settings=as_bool(project_config.get("use_test_settings"), True),
         disable_real_email=as_bool(project_config.get("disable_real_email"), True),
-        disable_real_tasks=as_bool(project_config.get("disable_real_tasks"), True),
         disable_real_cache=as_bool(project_config.get("disable_real_cache"), False),
+        disable_real_tasks=as_bool(project_config.get("disable_real_tasks"), True),
     )
 
 

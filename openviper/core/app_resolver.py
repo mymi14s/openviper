@@ -319,7 +319,7 @@ class AppResolver:
         print("\nTo use this app, add it to INSTALLED_APPS in settings.py:\n")
         print("INSTALLED_APPS = [")
         print('    "openviper.contrib.auth",')
-        print(f'    "{app_name}",  # Add this line')
+        print(f'    "{app_name}",')
         print("]")
         print("\nFor more help, visit: https://openviper.dev/docs/apps")
         print(f"{_ANSI_END}\n")

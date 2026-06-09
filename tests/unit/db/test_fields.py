@@ -64,11 +64,6 @@ def reset_registry():
     ModelMeta.name_index = old_index
 
 
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
-
-
 def make_char(max_length: int = 100, **kwargs) -> CharField:
     return CharField(max_length=max_length, **kwargs)
 
@@ -83,11 +78,6 @@ def make_datetime(**kwargs) -> DateTimeField:
 
 def make_fk(to="OtherModel", **kwargs) -> ForeignKey:
     return ForeignKey(to=to, **kwargs)
-
-
-# ---------------------------------------------------------------------------
-# Field base
-# ---------------------------------------------------------------------------
 
 
 class TestFieldBase:
@@ -160,11 +150,6 @@ class TestFieldBase:
         assert f.to_db(42) == 42
 
 
-# ---------------------------------------------------------------------------
-# AutoField
-# ---------------------------------------------------------------------------
-
-
 class TestAutoField:
     def test_is_primary_key(self):
         f = AutoField()
@@ -178,11 +163,6 @@ class TestAutoField:
     def test_to_python_none(self):
         f = AutoField()
         assert f.to_python(None) is None
-
-
-# ---------------------------------------------------------------------------
-# IntegerField / BigIntegerField / FloatField
-# ---------------------------------------------------------------------------
 
 
 class TestIntegerField:
@@ -213,11 +193,6 @@ class TestFloatField:
         assert FloatField().to_python(None) is None
 
 
-# ---------------------------------------------------------------------------
-# DecimalField
-# ---------------------------------------------------------------------------
-
-
 class TestDecimalField:
     def test_to_python_string(self):
         f = DecimalField()
@@ -230,11 +205,6 @@ class TestDecimalField:
         f = DecimalField(max_digits=8, decimal_places=3)
         assert f.max_digits == 8
         assert f.decimal_places == 3
-
-
-# ---------------------------------------------------------------------------
-# CharField
-# ---------------------------------------------------------------------------
 
 
 class TestCharField:
@@ -257,22 +227,12 @@ class TestCharField:
             f.validate("toolong")
 
 
-# ---------------------------------------------------------------------------
-# TextField
-# ---------------------------------------------------------------------------
-
-
 class TestTextField:
     def test_to_python(self):
         assert TextField().to_python(123) == "123"
 
     def test_to_python_none(self):
         assert TextField().to_python(None) is None
-
-
-# ---------------------------------------------------------------------------
-# PositiveIntegerField
-# ---------------------------------------------------------------------------
 
 
 class TestPositiveIntegerField:
@@ -286,11 +246,6 @@ class TestPositiveIntegerField:
         f.name = "pos"
         with pytest.raises(ValueError, match="must be >= 0"):
             f.validate(-1)
-
-
-# ---------------------------------------------------------------------------
-# BooleanField
-# ---------------------------------------------------------------------------
 
 
 class TestBooleanField:
@@ -321,11 +276,6 @@ class TestBooleanField:
 
     def test_to_db_none(self):
         assert BooleanField().to_db(None) is None
-
-
-# ---------------------------------------------------------------------------
-# DateTimeField
-# ---------------------------------------------------------------------------
 
 
 class TestDateTimeField:
@@ -409,11 +359,6 @@ class TestDateTimeField:
         assert dt.year == 2023
 
 
-# ---------------------------------------------------------------------------
-# DateField
-# ---------------------------------------------------------------------------
-
-
 class TestDateField:
     def test_to_python_none(self):
         assert DateField().to_python(None) is None
@@ -426,11 +371,6 @@ class TestDateField:
         assert DateField().to_python("2024-01-01") == datetime.date(2024, 1, 1)
 
 
-# ---------------------------------------------------------------------------
-# TimeField
-# ---------------------------------------------------------------------------
-
-
 class TestTimeField:
     def test_to_python_none(self):
         assert TimeField().to_python(None) is None
@@ -441,11 +381,6 @@ class TestTimeField:
 
     def test_to_python_string(self):
         assert TimeField().to_python("12:30:00") == datetime.time(12, 30, 0)
-
-
-# ---------------------------------------------------------------------------
-# BinaryField
-# ---------------------------------------------------------------------------
 
 
 class TestBinaryField:
@@ -463,11 +398,6 @@ class TestBinaryField:
 
     def test_to_db(self):
         assert BinaryField().to_db(b"x") == b"x"
-
-
-# ---------------------------------------------------------------------------
-# UUIDField
-# ---------------------------------------------------------------------------
 
 
 class TestUUIDField:
@@ -498,11 +428,6 @@ class TestUUIDField:
         assert callable(f.default)
 
 
-# ---------------------------------------------------------------------------
-# JSONField
-# ---------------------------------------------------------------------------
-
-
 class TestJSONField:
     def test_to_python_string(self):
         assert JSONField().to_python('{"a": 1}') == {"a": 1}
@@ -523,11 +448,6 @@ class TestJSONField:
 
     def test_to_db_none(self):
         assert JSONField().to_db(None) is None
-
-
-# ---------------------------------------------------------------------------
-# ForeignKey
-# ---------------------------------------------------------------------------
 
 
 class TestForeignKey:
@@ -619,11 +539,6 @@ class TestForeignKey:
         assert f.resolve_target() is None
 
 
-# ---------------------------------------------------------------------------
-# EmailField / SlugField / ManyToManyField
-# ---------------------------------------------------------------------------
-
-
 class TestEmailField:
     def test_is_char_field(self):
         assert issubclass(EmailField, CharField)
@@ -667,11 +582,6 @@ class TestManyToManyField:
     def test_related_name(self):
         f = ManyToManyField(to="Tag", related_name="tagged_items")
         assert f.related_name == "tagged_items"
-
-
-# ---------------------------------------------------------------------------
-# FileField
-# ---------------------------------------------------------------------------
 
 
 class TestFileField:
@@ -786,11 +696,6 @@ class TestFileField:
             f.validate("too-long")
 
 
-# ---------------------------------------------------------------------------
-# LazyFK
-# ---------------------------------------------------------------------------
-
-
 class TestLazyFK:
     async def test_lazy_fk_basics(self):
         field = MagicMock()
@@ -835,11 +740,6 @@ class TestOneToOneField:
         assert f.db_index is False
 
 
-# ---------------------------------------------------------------------------
-# Field.validate - DEBUG=False branches
-# ---------------------------------------------------------------------------
-
-
 class TestFieldValidateDebugFalse:
     def test_null_not_allowed_debug_false(self):
         f = Field(null=False)
@@ -858,22 +758,12 @@ class TestFieldValidateDebugFalse:
                 f.validate("z")
 
 
-# ---------------------------------------------------------------------------
-# AutoField overflow
-# ---------------------------------------------------------------------------
-
-
 class TestAutoFieldOverflow:
     def test_to_python_overflow(self):
         f = AutoField()
         f.name = "id"
         with pytest.raises(ValueError, match="exceeds"):
             f.to_python(2**31)
-
-
-# ---------------------------------------------------------------------------
-# IntegerField overflow / to_db
-# ---------------------------------------------------------------------------
 
 
 class TestIntegerFieldOverflow:
@@ -891,11 +781,6 @@ class TestIntegerFieldOverflow:
         f.name = "num"
         with pytest.raises(ValueError, match="exceeds"):
             f.to_db(2**31)
-
-
-# ---------------------------------------------------------------------------
-# FloatField inf / NaN
-# ---------------------------------------------------------------------------
 
 
 class TestFloatFieldValidation:
@@ -920,11 +805,6 @@ class TestFloatFieldValidation:
         assert math.isnan(f.to_python(float("nan")))
 
 
-# ---------------------------------------------------------------------------
-# DecimalField precision
-# ---------------------------------------------------------------------------
-
-
 class TestDecimalFieldPrecision:
     def test_too_many_digits(self):
         f = DecimalField(max_digits=3, decimal_places=2)
@@ -939,11 +819,6 @@ class TestDecimalFieldPrecision:
             f.to_python("1.12345")
 
 
-# ---------------------------------------------------------------------------
-# CharField.validate - DEBUG=False
-# ---------------------------------------------------------------------------
-
-
 class TestCharFieldValidateDebugFalse:
     def test_max_length_exceeded_debug_false(self):
         f = CharField(max_length=3)
@@ -952,11 +827,6 @@ class TestCharFieldValidateDebugFalse:
             m.DEBUG = False
             with pytest.raises(ValueError, match="exceeds maximum length"):
                 f.validate("toolong")
-
-
-# ---------------------------------------------------------------------------
-# JSONField max_size
-# ---------------------------------------------------------------------------
 
 
 class TestJSONFieldMaxSize:
@@ -976,11 +846,6 @@ class TestJSONFieldMaxSize:
         f.name = "data"
         with pytest.raises(ValueError, match="exceeds maximum"):
             f.to_db({"key": "a very long value that is big"})
-
-
-# ---------------------------------------------------------------------------
-# ForeignKey descriptor (__get__, __set__, to_db)
-# ---------------------------------------------------------------------------
 
 
 class TestForeignKeyDescriptor:
@@ -1054,11 +919,6 @@ class TestForeignKeyDescriptor:
         assert f.to_db(fake) == 42
 
 
-# ---------------------------------------------------------------------------
-# LazyFK extra methods
-# ---------------------------------------------------------------------------
-
-
 class TestLazyFKExtra:
     def test_await(self):
         field = MagicMock()
@@ -1093,11 +953,6 @@ class TestLazyFKExtra:
         assert repr(obj) == "'LoadedUser'"
 
 
-# ---------------------------------------------------------------------------
-# EmailField control characters
-# ---------------------------------------------------------------------------
-
-
 class TestEmailFieldControlChars:
     @pytest.mark.parametrize("bad_char", ["\n", "\r", "\0"])
     def test_control_characters_rejected(self, bad_char):
@@ -1105,11 +960,6 @@ class TestEmailFieldControlChars:
         f.name = "email"
         with pytest.raises(ValueError, match="forbidden control characters"):
             f.validate(f"user{bad_char}@example.com")
-
-
-# ---------------------------------------------------------------------------
-# FileField additional coverage
-# ---------------------------------------------------------------------------
 
 
 class TestFileFieldExtra:
@@ -1224,11 +1074,6 @@ class TestFileFieldExtra:
                     mock_open.return_value.__aenter__.return_value = mock_f
                     await f.pre_save(instance, upload)
                     mock_f.write.assert_called_once_with(b"upload data")
-
-
-# ---------------------------------------------------------------------------
-# ImageField
-# ---------------------------------------------------------------------------
 
 
 class TestImageField:

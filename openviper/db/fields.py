@@ -1647,9 +1647,6 @@ class GenericIPAddressField(CharField):
             raise ValueError(f"Field '{self.name}': {raw!r} is not a valid IPv6 address.")
 
 
-# -- Constraint classes --------------------------------------------------------
-
-
 class Constraint:
     """Base class for database constraints declared in ``Meta.constraints``."""
 

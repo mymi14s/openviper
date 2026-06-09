@@ -73,11 +73,6 @@ PLACEHOLDER_SECRET_KEYS: frozenset[str] = frozenset(
 )
 
 
-# ---------------------------------------------------------------------------
-# DOC-001: Generated starter app uses secure defaults
-# ---------------------------------------------------------------------------
-
-
 class TestDoc001SecureDefaults:
     """Generated starter apps must ship with secure defaults."""
 
@@ -335,11 +330,6 @@ class TestDoc001SecureDefaults:
         validate_settings(settings, env="production")
 
 
-# ---------------------------------------------------------------------------
-# DOC-002: Example configs do not contain real secrets
-# ---------------------------------------------------------------------------
-
-
 class TestDoc002NoRealSecrets:
     """Example configurations must not contain real secrets."""
 
@@ -457,11 +447,6 @@ class TestDoc002NoRealSecrets:
                 continue
             matches = password_pattern.findall(content)
             assert not matches, f"{path}: found hardcoded password pattern(s): {matches}"
-
-
-# ---------------------------------------------------------------------------
-# DOC-003: Unsafe examples are clearly marked
-# ---------------------------------------------------------------------------
 
 
 class TestDoc003UnsafeExamplesMarked:

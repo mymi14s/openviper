@@ -20,10 +20,6 @@ from openviper.admin.middleware import (
     check_object_permission,
 )
 
-# ---------------------------------------------------------------------------
-# Decorators
-# ---------------------------------------------------------------------------
-
 
 class TestDecorators:
     def test_register_decorator(self):
@@ -47,11 +43,6 @@ class TestDecorators:
             assert mock_admin.register.call_count == 2
             mock_admin.register.assert_any_call(m1, MultiAdmin)
             mock_admin.register.assert_any_call(m2, MultiAdmin)
-
-
-# ---------------------------------------------------------------------------
-# Middleware
-# ---------------------------------------------------------------------------
 
 
 class TestAdminMiddleware:
@@ -178,11 +169,6 @@ class TestPermissionHelpers:
 
         req.user = MagicMock(is_superuser=False, is_staff=True)
         assert check_object_permission(req, None, "view") is True
-
-
-# ---------------------------------------------------------------------------
-# Discovery
-# ---------------------------------------------------------------------------
 
 
 class TestDiscovery:

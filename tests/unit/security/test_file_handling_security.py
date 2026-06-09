@@ -22,10 +22,6 @@ from openviper.storage.base import (
 
 from .conftest import PATH_TRAVERSAL_PAYLOADS
 
-# ---------------------------------------------------------------------------
-# FILE-001: Upload filenames are sanitized
-# ---------------------------------------------------------------------------
-
 
 class TestUploadFilenameSanitization:
     """Uploaded filenames must be sanitized to prevent path traversal."""
@@ -44,8 +40,6 @@ class TestUploadFilenameSanitization:
         for payload in PATH_TRAVERSAL_PAYLOADS:
             # _validate_name must sanitize path traversal sequences
             result = storage._validate_name(payload)
-            # The result must not allow escaping the storage root
-            # _full_path resolves and verifies the path stays within root
             full = storage._full_path(result)
             assert str(full).startswith(str(root))
 
@@ -79,11 +73,6 @@ class TestUploadFilenameSanitization:
         assert not HIDDEN_FILENAME_RE.match("normal.txt")
 
 
-# ---------------------------------------------------------------------------
-# FILE-002: Uploaded files cannot overwrite existing files
-# ---------------------------------------------------------------------------
-
-
 class TestFileOverwritePrevention:
     """Uploaded files must not overwrite existing files."""
 
@@ -92,16 +81,9 @@ class TestFileOverwritePrevention:
         name1 = generate_unique_name("document.pdf")
         name2 = generate_unique_name("document.pdf")
 
-        # Names must be different (UUID suffix)
         assert name1 != name2
-        # Extensions must be preserved
         assert name1.endswith(".pdf")
         assert name2.endswith(".pdf")
-
-
-# ---------------------------------------------------------------------------
-# FILE-003: Executable uploads are blocked or stored non-executable
-# ---------------------------------------------------------------------------
 
 
 class TestExecutableUploadBlocking:
@@ -119,11 +101,6 @@ class TestExecutableUploadBlocking:
         """UploadFile must store the original filename for validation."""
         upload = UploadFile(filename="test.txt", content_type="text/plain", file=None)
         assert upload.filename == "test.txt"
-
-
-# ---------------------------------------------------------------------------
-# FILE-004: Archive extraction prevents zip slip
-# ---------------------------------------------------------------------------
 
 
 class TestZipSlipPrevention:
@@ -146,11 +123,6 @@ class TestZipSlipPrevention:
         assert "startswith" in source or "resolve" in source
 
 
-# ---------------------------------------------------------------------------
-# FILE-005: Decompression bombs are limited
-# ---------------------------------------------------------------------------
-
-
 class TestDecompressionBombLimit:
     """Decompression bombs must be detected and limited."""
 
@@ -163,11 +135,6 @@ class TestDecompressionBombLimit:
         """The number of files per multipart request must be limited."""
         assert MAX_FILES_PER_REQUEST > 0
         assert MAX_FILES_PER_REQUEST <= 1000  # Reasonable upper bound
-
-
-# ---------------------------------------------------------------------------
-# FILE-006: Private uploads are not served as public static files
-# ---------------------------------------------------------------------------
 
 
 class TestPrivateUploadIsolation:

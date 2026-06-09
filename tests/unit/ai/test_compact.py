@@ -21,10 +21,6 @@ from openviper.ai.providers.gemini_provider import (
 from openviper.ai.providers.grok_provider import GrokError, GrokProvider
 from openviper.ai.registry import ProviderRegistry, resolve_provider_class
 
-# ---------------------------------------------------------------------------
-# Stub provider for testing
-# ---------------------------------------------------------------------------
-
 
 class StubProvider(AIProvider):
     name = "stub"
@@ -34,11 +30,6 @@ class StubProvider(AIProvider):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         return "stub response"
-
-
-# ---------------------------------------------------------------------------
-# AIProvider.moderate()(generic ``` code fence)
-# ---------------------------------------------------------------------------
 
 
 class TestModerateGenericCodeFence:
@@ -57,11 +48,6 @@ class TestModerateGenericCodeFence:
         result = await p.moderate("hello")
         assert result["classification"] == "safe"
         assert result["confidence"] == 0.9
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - load_plugins
-# ---------------------------------------------------------------------------
 
 
 class TestRegistryLoadPlugins:
@@ -124,11 +110,6 @@ class TestRegistryLoadPlugins:
         assert parent not in sys.path or len(sys.path) == original_path_len
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - discover_entrypoints
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryDiscoverEntrypoints:
     """Test ProviderRegistry.discover_entrypoints() branches."""
 
@@ -181,11 +162,6 @@ class TestRegistryDiscoverEntrypoints:
             count = registry.discover_entrypoints(group="test.group")
 
         assert count == 0
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - _load_from_settings
-# ---------------------------------------------------------------------------
 
 
 class TestRegistryLoadFromSettings:
@@ -273,11 +249,6 @@ class TestRegistryLoadFromSettings:
             registry._load_from_settings()
 
 
-# ---------------------------------------------------------------------------
-# resolve_provider_class
-# ---------------------------------------------------------------------------
-
-
 class TestResolveProviderClass:
     """Test resolve_provider_class() function branches."""
 
@@ -312,11 +283,6 @@ class TestResolveProviderClass:
                     assert result is None
         finally:
             registry.PROVIDER_CLASS_CACHE.update(original_cache)
-
-
-# ---------------------------------------------------------------------------
-# GeminiProvider - uncovered branches
-# ---------------------------------------------------------------------------
 
 
 class TestGeminiProviderBranches:
@@ -433,11 +399,6 @@ class TestGeminiProviderBranches:
         assert rates == {"input": 1.25, "output": 5.0}
 
 
-# ---------------------------------------------------------------------------
-# GrokProvider - uncovered branches
-# ---------------------------------------------------------------------------
-
-
 class TestGrokProviderBranches:
     """Test uncovered branches in GrokProvider."""
 
@@ -549,11 +510,6 @@ class TestGrokProviderBranches:
         assert results == ["ok"]
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - _ensure_loaded
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryEnsureLoaded:
     """Test _ensure_loaded() double-checked locking."""
 
@@ -590,11 +546,6 @@ class TestRegistryEnsureLoaded:
         finally:
             # Restore
             ProviderRegistry._load_from_settings = original_method
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - register_provider default model fallback
-# ---------------------------------------------------------------------------
 
 
 class TestRegistryDefaultModelFallback:

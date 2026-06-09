@@ -12,10 +12,6 @@ from openviper.serializers.base import (
 )
 from tests.factories import MockQuerySet, SimpleModel
 
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
-
 
 class UserSerializer(Serializer):
     id: int
@@ -56,11 +52,6 @@ def make_user_obj(**overrides) -> SimpleModel:
     return SimpleModel(**make_user_data(**overrides))
 
 
-# ---------------------------------------------------------------------------
-# Serializer.validate
-# ---------------------------------------------------------------------------
-
-
 class TestSerializerValidate:
     def test_valid_data(self):
         s = UserSerializer.validate(make_user_data())
@@ -93,11 +84,6 @@ class TestSerializerValidate:
             UserSerializer.validate_json_string('{"id": "not_int"}')
 
 
-# ---------------------------------------------------------------------------
-# from_orm / from_orm_many
-# ---------------------------------------------------------------------------
-
-
 class TestFromORM:
     def test_from_orm(self):
         obj = make_user_obj()
@@ -110,11 +96,6 @@ class TestFromORM:
         instances = UserSerializer.from_orm_many(objs)
         assert len(instances) == 3
         assert instances[0].id == 0
-
-
-# ---------------------------------------------------------------------------
-# serialize / serialize_json
-# ---------------------------------------------------------------------------
 
 
 class TestSerialize:
@@ -142,11 +123,6 @@ class TestSerialize:
         assert b"alice" in data
 
 
-# ---------------------------------------------------------------------------
-# serialize_many (async)
-# ---------------------------------------------------------------------------
-
-
 class TestSerializeMany:
     @pytest.mark.asyncio
     async def test_list_of_objects(self):
@@ -167,11 +143,6 @@ class TestSerializeMany:
         result = await UserSerializer.serialize_many_json(objs)
         assert isinstance(result, bytes)
         assert result.startswith(b"[")
-
-
-# ---------------------------------------------------------------------------
-# paginate (async)
-# ---------------------------------------------------------------------------
 
 
 class TestPaginate:
@@ -207,22 +178,12 @@ class TestPaginate:
         assert page.next is None
 
 
-# ---------------------------------------------------------------------------
-# PaginatedSerializer
-# ---------------------------------------------------------------------------
-
-
 class TestPaginatedSerializer:
     def test_fields(self):
         p = PaginatedSerializer(count=100, next="/page=2", previous=None, results=[])
         assert p.count == 100
         assert p.next == "/page=2"
         assert p.previous is None
-
-
-# ---------------------------------------------------------------------------
-# build_partial_class caching
-# ---------------------------------------------------------------------------
 
 
 class TestPartialClassCache:

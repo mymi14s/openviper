@@ -40,7 +40,6 @@ def discover_settings_module(
 
     cwd = cwd or Path.cwd()
 
-    # Check for a settings module nested inside the target app package.
     if target != ".":
         target_parts = target.split(".")
         if (
@@ -69,5 +68,25 @@ def discover_settings_module(
     root_settings_package = cwd / "settings" / "__init__.py"
     if root_settings_package.is_file():
         return "settings"
+
+    # When target is "." and no root settings exist, look for a single
+    # package subdirectory containing settings.py.  This handles
+    # module-organized projects where the CWD holds viperctl.py and a
+    # package like "dayqurio/" with "dayqurio/settings.py".
+    if target == ".":
+        candidates: list[tuple[str, Path]] = []
+        for child in sorted(cwd.iterdir()):
+            if not child.is_dir():
+                continue
+            if child.name.startswith(".") or child.name.startswith("_"):
+                continue
+            if child.name in ("migrations", "static", "templates", "media", "logs", "tests"):
+                continue
+            if not (child / "__init__.py").is_file():
+                continue
+            if (child / "settings.py").is_file():
+                candidates.append((child.name, child))
+        if len(candidates) == 1:
+            return f"{candidates[0][0]}.settings"
 
     return None

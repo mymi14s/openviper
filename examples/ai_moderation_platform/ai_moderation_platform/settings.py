@@ -5,10 +5,12 @@ from __future__ import annotations
 import dataclasses
 import os
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from openviper.conf.settings import Settings
 
-type SettingsValue = object
+if TYPE_CHECKING:
+    from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)
@@ -19,7 +21,7 @@ class ProjectSettings(Settings):
     ADMIN_TITLE: str = "Moderation Admin"
     ADMIN_HEADER_TITLE: str = "ModPlatform"
     ADMIN_FOOTER_TITLE: str = "AI Moderation v1.0"
-    OPENAPI: dict[str, SettingsValue] = dataclasses.field(
+    OPENAPI: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "title": "AI Moderation API",
             "version": "1.0.0",
@@ -28,14 +30,20 @@ class ProjectSettings(Settings):
     )
 
     TEMPLATES_DIR: str = "templates/"
-    JINJA_PLUGINS: dict[str, SettingsValue] = dataclasses.field(
+    JINJA_PLUGINS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "enable": True,
             "path": "jinja_plugins",
         }
     )
 
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3")
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "URL": os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3"),
+            },
+        },
+    )
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
     INSTALLED_APPS: tuple[str, ...] = (
@@ -75,7 +83,7 @@ class ProjectSettings(Settings):
     # The "models" / "model" dict values are the model IDs that get registered
     # for O(1) routing, e.g. model_router.set_model("granite-code:3b") will
     # automatically route to the Ollama provider.
-    AI_PROVIDERS: dict[str, SettingsValue] = dataclasses.field(
+    AI_PROVIDERS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "ollama": {
                 "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -112,21 +120,31 @@ class ProjectSettings(Settings):
     MODERATION_THRESHOLD: float = 0.7
 
     # Background Tasks
-    TASKS: dict[str, SettingsValue] = dataclasses.field(
+    TASKS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
+            "enabled": 1,
             "broker": "redis",
-            "url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-            "result_backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
-            "log_to_file": True,
-            "log_level": "DEBUG",
-            "log_format": "json",
-            "log_dir": "logs",
+            "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+            "backend_url": os.environ.get("REDIS_BACKEND_URL", ""),
+            "logging": {
+                "level": "DEBUG",
+                "file": {
+                    "log_dir": "logs",
+                    "file_name": "tasks.log",
+                    "log_format": "json",
+                    "max_size": 10,
+                },
+                "database": {
+                    "task": 1,
+                    "periodic": 1,
+                },
+            },
         }
     )
 
     # Model events configuration: maps "app.model" to event hooks
     # to lists of "app.events.func" paths.
-    MODEL_EVENTS: dict[str, SettingsValue] = dataclasses.field(
+    MODEL_EVENTS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "posts.models.Post": {
                 "after_insert": ["posts.events.create_likes"],

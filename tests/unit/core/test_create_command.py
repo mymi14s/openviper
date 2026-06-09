@@ -94,7 +94,6 @@ class TestCommandCreation:
 
         command.handle(command_name="test", app_name="testapp", directory=temp_dir)
 
-        # Content should be preserved
         assert init_file.read_text() == "# existing content"
 
 

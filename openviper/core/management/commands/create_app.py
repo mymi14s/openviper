@@ -55,8 +55,9 @@ from openviper.serializers import Serializer
 ''',
     "tasks.py": '''"""{{ app_label }} background tasks."""
 
-from openviper.tasks import task
+from openviper.tasks import actor
 
+# Define your background tasks here.
 ''',
     "events.py": '''"""{{ app_label }} model events."""
 

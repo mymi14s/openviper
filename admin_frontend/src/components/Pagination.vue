@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   currentPage: number
   totalPages: number
   totalItems: number
   perPage: number
-}>()
+  perPageOptions?: number[]
+}>(), {
+  perPageOptions: () => [25, 50, 100, 500, 1000],
+})
 
 const emit = defineEmits<{
   'page-change': [page: number]
+  'per-page-change': [perPage: number]
 }>()
 
 const pages = computed(() => {
@@ -53,14 +57,37 @@ function goToPage(page: number) {
     emit('page-change', page)
   }
 }
+
+function changePerPage(event: Event) {
+  const target = event.target as HTMLSelectElement
+  const value = Number(target.value)
+  if (value !== props.perPage) {
+    emit('per-page-change', value)
+  }
+}
 </script>
 
 <template>
   <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
-    <!-- Info -->
-    <p class="text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left">
-      Showing {{ startItem }} to {{ endItem }} of {{ totalItems }} results
-    </p>
+    <!-- Info and per-page selector -->
+    <div class="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+      <p>
+        Showing {{ startItem }} to {{ endItem }} of {{ totalItems }} results
+      </p>
+      <div class="flex items-center gap-1.5">
+        <label for="per-page-select" class="sr-only">Items per page</label>
+        <select
+          id="per-page-select"
+          :value="perPage"
+          class="px-2 py-1 text-sm border rounded-lg bg-white dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+          @change="changePerPage"
+        >
+          <option v-for="option in perPageOptions" :key="option" :value="option">
+            {{ option }} / page
+          </option>
+        </select>
+      </div>
+    </div>
 
     <!-- Pagination controls -->
     <nav class="flex items-center gap-1">

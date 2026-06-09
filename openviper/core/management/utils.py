@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 from openviper.core.management.base import BaseCommand
 
 
@@ -35,19 +33,3 @@ def print_banner(host: str, port: int, cmd_obj: BaseCommand | None = None) -> No
         cmd_obj = BaseCommand()
 
     get_banner(cmd_obj, host, port)
-
-
-def get_default_database_url(settings_obj: object) -> str:
-    """Return the configured default database URL."""
-    databases = getattr(settings_obj, "DATABASES", {})
-    if isinstance(databases, Mapping):
-        default_config = databases.get("default")
-        if isinstance(default_config, Mapping):
-            url = default_config.get("URL")
-            if isinstance(url, str):
-                return url
-
-    database_url = getattr(settings_obj, "DATABASE_URL", "")
-    if isinstance(database_url, str):
-        return database_url
-    return ""

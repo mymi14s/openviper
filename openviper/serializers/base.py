@@ -70,9 +70,6 @@ model_validator = pydantic_model_validator
 computed_field = pydantic_computed_field
 
 
-# ── Structural protocols for ORM integration ──────────────
-
-
 @runtime_checkable
 class OrmModelProtocol(Protocol):
     """Minimal interface that OpenViper ORM models satisfy."""
@@ -643,7 +640,6 @@ class Serializer(BaseModel):
                 {f.lstrip("-"): getattr(last, f.lstrip("-"), None) for f in order_fields_offset}
             )
 
-        # Generate page-number URLs for backward compat.
         next_url = None
         prev_url = None
         if base_url:
@@ -665,8 +661,6 @@ class Serializer(BaseModel):
             next_cursor=next_cur_offset,
         )
 
-
-# ── Field-type mapping ─────────────────────────────────────
 
 FIELD_TYPE_MAP: dict[str, type] = {
     "AutoField": int,

@@ -417,75 +417,8 @@ Start the server and navigate to admin, see the left sidebar. create Post record
 ----------------------------------------------------------------------------------
 
 
-Step 7 - Task and Events
+Step 7 - Events
 ---------------------------------------
-Ensure redis is installed.
-.. code-block:: bash
-
-    sudo apt install redis # Linux
-    brew install redis # Mac
-
-Next, setup the broker in ``myblog/settings.py``:
-
-.. code-block:: python
-
-    INSTALLED_APPS: tuple[str, ...] = (
-        "openviper.auth",
-        "openviper.admin",
-        "openviper.tasks", # add tasks app before custom apps
-        "users",
-        "blog",
-    )
-
-    # Background Tasks
-    TASKS: dict[str, Any] = dataclasses.field(
-        default_factory=lambda: {
-            "log_to_file": True, # log to file
-            "log_level": "DEBUG", # log level
-            "log_format": "json", # log format
-            "log_dir": "logs", # log directory
-            "broker": "redis", # broker type
-            "url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-            "result_backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
-        }
-    )
-
-Create ``blog/tasks.py``:
-
-.. code-block:: python
-
-    import logging, os
-
-    from openviper.tasks import periodic, task
-    from openviper.auth import get_user_model
-    from .models import Post
-
-
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-
-    User = get_user_model()  # get the active user model
-
-    @task() # will be run in a background worker, later in events.py
-    async def notify_new_post(post_id: int) -> None:
-        """Send a notification to all staff users when a new post is created."""
-
-        post = await Post.objects.get_or_none(id=post_id)
-        if post is None:
-            return
-
-        staff_users = await User.objects.filter(is_staff=True).all()
-        for user in staff_users:
-            # Replace with your real notification mechanism
-            print(f"Notifying {user.email}: new post '{post.title}'")
-            logger.info("Notifying about wew blog to {user.name}".format(user=user))
-
-
-    @periodic(every=60) # 60 seconds
-    async def check_something() -> None:
-        """Demo periodic task - every 60 s."""
-        logger.info("Periodic working next 1 minute")
-
 
 Create ``blog/events.py``:
 
@@ -493,25 +426,14 @@ Create ``blog/events.py``:
 .. code-block:: python
 
     from openviper.db.events import model_event
-    from blog.tasks import notify_new_post
 
 
-    @model_event.trigger("blog.models.Post.after_insert") # same as defining events in the Model to can be used else where
+    @model_event.trigger("blog.models.Post.after_insert")
     async def blog_after_insert(obj, event) -> None:
-        """Event handler for when a new post is updated."""
+        """Event handler for when a new post is created."""
         print(f"Post insert event: {event}")
         print("Post title", obj.title)
-        # queue tasks
-        notify_new_post.send_with_options(args=(obj.id,), delay=5_000) # 5 seconds delay
 
-
-Start the background worker:
-
-It should be started in a separate terminal from the server.
-
-.. code-block:: bash
-
-   python viperctl.py start-worker
 
 ----
 
@@ -670,5 +592,4 @@ Well Done!
    * :doc:`db` - Model fields, queries, transactions, and lifecycle events.
    * :doc:`auth` - Securing views with decorators.
    * :doc:`tasks` - Background task configuration and worker startup.
-   * :doc:`tasks` - Periodic task scheduling.
    * :doc:`ai` - AI provider configuration and custom providers.

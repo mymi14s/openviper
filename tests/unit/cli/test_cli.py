@@ -9,10 +9,6 @@ from click.testing import CliRunner
 
 from openviper.cli import cli
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def runner():
@@ -24,11 +20,6 @@ def isolated_runner(tmp_path):
     """Runner that creates files in tmp_path."""
     runner = CliRunner()
     return runner, tmp_path
-
-
-# ---------------------------------------------------------------------------
-# create-project
-# ---------------------------------------------------------------------------
 
 
 class TestCreateProject:
@@ -62,11 +53,6 @@ class TestCreateProject:
         assert (tmp_path / "testapp" / ".gitignore").exists()
 
 
-# ---------------------------------------------------------------------------
-# version command
-# ---------------------------------------------------------------------------
-
-
 class TestVersionCommand:
     def test_version_output(self, runner):
         result = runner.invoke(cli, ["version"])
@@ -77,11 +63,6 @@ class TestVersionCommand:
         result = runner.invoke(cli, ["version"])
         # Should have some version string
         assert any(c.isdigit() for c in result.output)
-
-
-# ---------------------------------------------------------------------------
-# run command
-# ---------------------------------------------------------------------------
 
 
 class TestRunCommand:
@@ -104,11 +85,6 @@ class TestRunCommand:
         with patch("uvicorn.run") as mock_run:
             mock_run.return_value = None
             runner.invoke(cli, ["run", "myapp:application", "--no-reload"])
-
-
-# ---------------------------------------------------------------------------
-# CLI group structure
-# ---------------------------------------------------------------------------
 
 
 class TestCLIGroup:

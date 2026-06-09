@@ -4,6 +4,6 @@ The single source of truth is ``pyproject.toml``; at runtime the version is
 read from the installed package metadata via :mod:`importlib.metadata`.
 """
 
-from importlib.metadata import version as _version
+from importlib.metadata import version
 
-__version__: str = _version("openviper")
+__version__: str = version("openviper")

@@ -8,9 +8,15 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
-import dramatiq
 import pytest
 import pytest_asyncio
+
+try:
+    import dramatiq
+except ImportError:
+    dramatiq = None  # type: ignore[assignment]
+
+from openviper.testing.tasks import TaskQueue
 
 if t.TYPE_CHECKING:
     import httpx
@@ -47,7 +53,6 @@ from openviper.testing.settings import (
 )
 from openviper.testing.snapshot import Snapshot
 from openviper.testing.storage import uploaded_file as build_uploaded_file
-from openviper.testing.tasks import EagerTaskRunner, TaskQueue
 
 
 @dataclasses.dataclass(slots=True)
@@ -221,40 +226,6 @@ def create_event_recorder() -> tuple[EventRecorder, contextlib.ExitStack]:
 
 
 @pytest.fixture
-def task_queue() -> Iterator[TaskQueue]:
-    """Capture Dramatiq tasks into a queue without enqueuing to the broker."""
-    queue, patches = create_task_queue()
-    with patches:
-        yield queue
-    queue.clear()
-
-
-def create_task_queue() -> tuple[TaskQueue, contextlib.ExitStack]:
-    """Return ``(queue, patches)``. Patches ``Actor.send_with_options`` to capture tasks."""
-    queue = TaskQueue()
-
-    def capturing_send(self: dramatiq.Actor, *, args: tuple, kwargs: dict, **opts: object) -> None:
-        queue.add(self.actor_name, *args, **kwargs)
-
-    patches = contextlib.ExitStack()
-    patches.enter_context(patch.object(dramatiq.Actor, "send_with_options", capturing_send))
-    return queue, patches
-
-
-@pytest.fixture
-def task_runner() -> EagerTaskRunner:
-    return EagerTaskRunner()
-
-
-@pytest.fixture
-def disable_tasks() -> Iterator[TaskQueue]:
-    """Prevent any Dramatiq task from being enqueued during the test."""
-    queue, patches = create_task_queue()
-    with patches:
-        yield queue
-
-
-@pytest.fixture
 def cache() -> Iterator[InMemoryCache]:
     """Isolated in-memory cache replacing the global default backend for the test."""
     instance, restore = setup_test_cache()
@@ -276,6 +247,38 @@ def setup_test_cache() -> tuple[InMemoryCache, Callable[[], None]]:
         cache_module.cache_instances.update(previous)
 
     return instance, restore
+
+
+def create_task_queue() -> tuple[TaskQueue, contextlib.ExitStack]:
+    """Return ``(queue, patches)``. Intercepts ``dramatiq.Actor.send_with_options``.
+
+    Use as a context manager::
+
+        queue, patches = create_task_queue()
+        with patches:
+            my_task.send(1, 2)
+        assert_task_queued(queue, "my_task")
+    """
+    if dramatiq is None:
+        raise RuntimeError(
+            "dramatiq is required for create_task_queue(). "
+            "Install it with: pip install openviper[tasks]"
+        )
+
+    queue = TaskQueue()
+    patches = contextlib.ExitStack()
+
+    def capturing_send(
+        self_actor: dramatiq.Actor,
+        *,
+        args: tuple[t.Any, ...] = (),
+        kwargs: dict[str, t.Any] | None = None,
+        **opts: t.Any,
+    ) -> t.Any:
+        queue.add(self_actor.actor_name, *args, **(kwargs or {}))
+
+    patches.enter_context(patch.object(dramatiq.Actor, "send_with_options", capturing_send))
+    return queue, patches
 
 
 @pytest.fixture

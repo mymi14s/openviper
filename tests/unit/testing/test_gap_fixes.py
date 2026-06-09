@@ -264,7 +264,7 @@ def test_task_queue_captures_actor_send() -> None:
         demo_task.send(99)
 
     assert_task_queued(queue, "demo_task")
-    assert queue.tasks[0].args == (99,)
+    assert queue.tasks[0]["args"] == (99,)
 
 
 def test_task_queue_does_not_execute_actor_body() -> None:

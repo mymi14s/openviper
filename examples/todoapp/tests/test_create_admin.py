@@ -11,8 +11,6 @@ from create_admin import main
 from openviper.auth import get_user_model
 from tests.conftest import TODOAPP_DIR
 
-# ── main() branches ──────────────────────────────────────────────────────────
-
 
 async def test_create_new_superuser(capsys):
     """main() creates a new superuser when the username does not exist."""
@@ -75,9 +73,6 @@ async def test_existing_user_update_no(capsys):
 
     unchanged = await user_model.objects.get_or_none(username="keepadmin")
     assert unchanged.is_superuser is False
-
-
-# ── __main__ entrypoint ───────────────────────────────────────────────────────
 
 
 def test_main_entrypoint_calls_asyncio_run():

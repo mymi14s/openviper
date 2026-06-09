@@ -38,14 +38,15 @@ from openviper.db._model_registry import invalidate_soft_removed_cache
 from openviper.db.connection import get_engine, get_metadata
 from openviper.db.connections import connections
 from openviper.db.utils import (
+    get_default_database_url,
+    validate_on_delete,
+    validate_sql_expression,
+)
+from openviper.db.utils import (
     quote_identifier as quote_identifier,
 )
 from openviper.db.utils import (
     sql_literal as sql_literal,
-)
-from openviper.db.utils import (
-    validate_on_delete,
-    validate_sql_expression,
 )
 from openviper.utils import timezone
 
@@ -72,9 +73,6 @@ def is_unconfigured_mock(value: object) -> bool:
         and execute.side_effect is None
         and isinstance(execute.return_value, unittest.mock.AsyncMock)
     )
-
-
-# -- Enhanced Terminal Logging -------------------------------------------------
 
 
 class MigrationStatus(Enum):
@@ -173,8 +171,6 @@ class _MigrationLogger:
 MIGRATION_TABLE_NAME = "openviper_migrations"
 SOFT_REMOVED_TABLE_NAME = "openviper_soft_removed_columns"
 
-# -- Migration record ORM (raw SA, no model dependency) ------------------------
-
 
 def get_migration_table() -> sa.Table:
     meta = get_metadata()
@@ -216,9 +212,6 @@ def get_soft_removed_table() -> sa.Table:
     )
 
 
-# -- Dialect helpers -----------------------------------------------------------
-
-
 @functools.lru_cache(maxsize=1)
 def get_dialect() -> str:
     """Return the database dialect string from settings.
@@ -229,9 +222,9 @@ def get_dialect() -> str:
     Cached to avoid repeated URL parsing during migration operations.
     """
     try:
-        url: str = getattr(settings, "DATABASE_URL", "").lower()
+        url: str = get_default_database_url(settings).lower()
     except Exception:
-        logger.debug("Failed to read DATABASE_URL from settings", exc_info=True)
+        logger.debug("Failed to read database URL from settings", exc_info=True)
         url = ""
     if "postgresql" in url or "postgres" in url:
         return "postgresql"
@@ -346,9 +339,6 @@ def pg_auto_using(column_name: str, pg_type: str) -> str:
             return ""
         return f' USING "{column_name}"::{pg_type}'
     return ""
-
-
-# -- Operation primitives ------------------------------------------------------
 
 
 @dataclass
@@ -659,8 +649,6 @@ class RemoveColumn(Operation):
         quoted_column = quote_identifier(self.column_name, dialect)
         if self.drop:
             return [f"ALTER TABLE {quoted_table} DROP COLUMN {quoted_column}"]
-        # Only track in soft-removed table; do not alter the column in DB.
-        # We also quote the soft-removed table name just in case.
         quoted_soft_table = quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         return [
             sa.text(
@@ -682,7 +670,6 @@ class RemoveColumn(Operation):
             if dialect == "mssql":
                 return [f"ALTER TABLE {quoted_table} ADD {quoted_column} {self.column_type}"]
             return [f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {self.column_type}"]
-        # Remove from soft-removed tracking (re-enable the column)
         quoted_soft_table = quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         stmts: list[Any] = [
             sa.text(
@@ -1204,9 +1191,6 @@ class RunSQL(Operation):
         return [self.reverse_sql] if self.reverse_sql else []
 
 
-# -- Migration file loader -----------------------------------------------------
-
-
 @dataclass
 class MigrationRecord:
     app: str
@@ -1362,9 +1346,6 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
             sorted_nodes.append(node)
 
     return [lookup[node] for node in sorted_nodes]
-
-
-# -- Database introspection helpers --------------------------------------------
 
 
 def get_existing_columns_sync(connection: Any, table_name: str) -> set[str]:
@@ -1537,7 +1518,7 @@ async def validate_restore_column(
     """
     soft_info = await get_soft_removed_info(conn, op.table_name, op.column_name)
     if not soft_info:
-        return None  # Not a soft-removed column; nothing to validate
+        return None
 
     old_type = soft_info["column_type"]
 
@@ -1593,9 +1574,6 @@ async def should_skip_backward(conn: Any, op: Operation) -> bool:
         )
         return True
     return False
-
-
-# -- Executor ------------------------------------------------------------------
 
 
 class MigrationExecutor:
@@ -1760,7 +1738,6 @@ class MigrationExecutor:
         if verbose and migration_log:
             _MigrationLogger.log_summary(migration_log)
 
-        # Invalidate soft-removed column cache after applying migrations
         if newly_applied:
             invalidate_soft_removed_cache()
 

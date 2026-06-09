@@ -28,10 +28,6 @@ from openviper.db.fields import CharField, ForeignKey, IntegerField
 from openviper.db.models import Count, Model, TraversalLookup
 from openviper.exceptions import FieldError
 
-# ---------------------------------------------------------------------------
-# Test models - mirror the Score / User use-case from the feature request
-# ---------------------------------------------------------------------------
-
 
 class ValUser(Model):
     username = CharField(max_length=100)
@@ -73,11 +69,6 @@ class ValPost(Model):
         table_name = "tfs_posts"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def make_qs(
     model=ValScore,
     filters=None,
@@ -103,11 +94,6 @@ def make_qs(
     qs._select_related = []
     qs._ignore_permissions = False
     return qs
-
-
-# ---------------------------------------------------------------------------
-# Single-level FK traversal
-# ---------------------------------------------------------------------------
 
 
 class TestValuesSingleTraversal:
@@ -202,11 +188,6 @@ class TestValuesSingleTraversal:
         assert sql.count("JOIN") >= 1
 
 
-# ---------------------------------------------------------------------------
-# Multi-level FK traversal
-# ---------------------------------------------------------------------------
-
-
 class TestValuesMultiLevelTraversal:
     """Multi-level FK: Post → Author → Profile."""
 
@@ -262,11 +243,6 @@ class TestValuesMultiLevelTraversal:
         assert sql.count("JOIN") >= 2
 
 
-# ---------------------------------------------------------------------------
-# Error handling
-# ---------------------------------------------------------------------------
-
-
 class TestValuesTraversalErrors:
     """Invalid traversal field names should raise FieldError."""
 
@@ -299,11 +275,6 @@ class TestValuesTraversalErrors:
         qs = make_qs()
         with pytest.raises(FieldError, match="Invalid field"):
             await execute_values(qs, fields=("nonexistent_local",))
-
-
-# ---------------------------------------------------------------------------
-# Traversal with filters and ordering
-# ---------------------------------------------------------------------------
 
 
 class TestValuesTraversalWithFilters:
@@ -371,11 +342,6 @@ class TestValuesTraversalWithFilters:
         assert "LIMIT" in sql
 
 
-# ---------------------------------------------------------------------------
-# values_list with traversal
-# ---------------------------------------------------------------------------
-
-
 class TestValuesListTraversal:
     """values_list() delegates to values() so traversal should work there too."""
 
@@ -417,11 +383,6 @@ class TestValuesListTraversal:
         ):
             result = await ValScore.objects.values_list("user__username", flat=True)
             assert result == ["alice", "bob"]
-
-
-# ---------------------------------------------------------------------------
-# SQL statement structure verification
-# ---------------------------------------------------------------------------
 
 
 class TestValuesTraversalSQLStructure:
@@ -481,11 +442,6 @@ class TestValuesTraversalSQLStructure:
         assert "username" in sql.lower()
 
 
-# ---------------------------------------------------------------------------
-# TraversalLookup validation for values fields
-# ---------------------------------------------------------------------------
-
-
 class TestTraversalLookupForValues:
     """Verify TraversalLookup correctly identifies field types for values()."""
 
@@ -517,11 +473,6 @@ class TestTraversalLookupForValues:
         assert len(lookup.get_joins_needed()) == 2  # Post→Author, Author→Profile
         assert lookup.final_field.name == "bio"
         assert lookup.final_model == ValProfile
-
-
-# ---------------------------------------------------------------------------
-# Backward compatibility
-# ---------------------------------------------------------------------------
 
 
 class TestValuesBackwardCompat:
@@ -586,11 +537,6 @@ class TestValuesBackwardCompat:
             await execute_values(qs, fields=("nonexistent",))
 
 
-# ---------------------------------------------------------------------------
-# Integration-style: Manager.values() with traversal
-# ---------------------------------------------------------------------------
-
-
 class TestManagerValuesTraversal:
     """Test the high-level Manager.values() API with traversal fields."""
 
@@ -651,11 +597,6 @@ class TestManagerValuesTraversal:
         ):
             result = await ValScore.objects.values("user__username", "score")
             assert result == []
-
-
-# ---------------------------------------------------------------------------
-# Key remapping through values() API
-# ---------------------------------------------------------------------------
 
 
 class TestValuesKeyRemapping:

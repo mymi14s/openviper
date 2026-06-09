@@ -41,10 +41,6 @@ from openviper.middleware.csrf import (
 
 from .conftest import override_settings
 
-# ---------------------------------------------------------------------------
-# CRYPTO-001: Tokens use cryptographically secure randomness
-# ---------------------------------------------------------------------------
-
 
 class TestCryptographicRandomness:
     """CRYPTO-001: All security tokens must use cryptographically secure randomness."""
@@ -147,11 +143,6 @@ class TestCryptographicRandomness:
             payload1 = decode_access_token(token1)
             payload2 = decode_access_token(token2)
             assert payload1["jti"] != payload2["jti"], "JWT jti claims must be unique"
-
-
-# ---------------------------------------------------------------------------
-# CRYPTO-002: Signed values reject tampering
-# ---------------------------------------------------------------------------
 
 
 class TestSignedValueTampering:
@@ -279,11 +270,6 @@ class TestSignedValueTampering:
         assert not await check_password("any-password", "unknown$hashvalue")
 
 
-# ---------------------------------------------------------------------------
-# CRYPTO-003: Expired signed values are rejected
-# ---------------------------------------------------------------------------
-
-
 class TestExpiredSignedValues:
     """CRYPTO-003: Expired signed values must be rejected."""
 
@@ -347,11 +333,6 @@ class TestExpiredSignedValues:
             )
             with pytest.raises(TokenExpired):
                 decode_access_token(token)
-
-
-# ---------------------------------------------------------------------------
-# CRYPTO-004: Key rotation is supported
-# ---------------------------------------------------------------------------
 
 
 class TestKeyRotation:
@@ -437,11 +418,6 @@ class TestKeyRotation:
         new_token = generate_csrf_token()
         masked_with_new = mask_csrf_token(new_token, new_secret)
         assert verify_csrf_token(new_token, masked_with_new, new_secret)
-
-
-# ---------------------------------------------------------------------------
-# SECRET-001: Secrets are not exposed to frontend or logs
-# ---------------------------------------------------------------------------
 
 
 class TestSecretExposure:

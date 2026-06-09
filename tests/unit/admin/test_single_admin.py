@@ -149,7 +149,7 @@ def test_single_admin_metadata_disables_list_create_delete(
 
     info = model_admin.get_model_info()
 
-    assert "delete_selected" in info["actions"]
+    assert any(a["name"] == "delete_selected" for a in info["actions"])
 
 
 @pytest.mark.asyncio
@@ -168,3 +168,45 @@ async def test_admin_single_bulk_action_rejects(
 
         with pytest.raises(PermissionDenied):
             await handler(admin_request, app_label="admin", model_name="AdminSingleSettings")
+
+
+@pytest.mark.asyncio
+async def test_get_single_instance_returns_null_when_no_instance_exists(
+    single_admin_backend: AdminSingleMemoryBackend,
+    admin_request: MagicMock,
+) -> None:
+    handler = find_handler("/models/{app_label}/{model_name}/single/", "GET")
+    model_admin = ModelAdmin(AdminSingleSettings)
+
+    with patch("openviper.admin.api.views.admin") as admin_mock:
+        admin_mock.get_model_admin_by_app_and_name.return_value = model_admin
+        admin_mock.get_model_by_app_and_name.return_value = AdminSingleSettings
+
+        response = await handler(admin_request, app_label="admin", model_name="AdminSingleSettings")
+
+    data = json.loads(response.body.decode())
+    assert data["instance"] is None
+    assert "model_info" in data
+    assert "readonly_fields" in data
+    assert "fieldsets" in data
+
+
+@pytest.mark.asyncio
+async def test_get_single_instance_returns_instance_when_exists(
+    single_admin_backend: AdminSingleMemoryBackend,
+    admin_request: MagicMock,
+) -> None:
+    single_admin_backend.rows.append({"id": 1, "site_name": "TestSite"})
+
+    handler = find_handler("/models/{app_label}/{model_name}/single/", "GET")
+    model_admin = ModelAdmin(AdminSingleSettings)
+
+    with patch("openviper.admin.api.views.admin") as admin_mock:
+        admin_mock.get_model_admin_by_app_and_name.return_value = model_admin
+        admin_mock.get_model_by_app_and_name.return_value = AdminSingleSettings
+
+        response = await handler(admin_request, app_label="admin", model_name="AdminSingleSettings")
+
+    data = json.loads(response.body.decode())
+    assert data["instance"] is not None
+    assert data["instance"]["site_name"] == "TestSite"

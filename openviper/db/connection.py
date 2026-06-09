@@ -20,7 +20,12 @@ from openviper.db.connections import connections
 from openviper.db.exceptions import DatabaseReadOnlyError
 from openviper.db.routing.context import current_db_alias, reset_current_alias, set_current_alias
 from openviper.db.shared_metadata import metadata
-from openviper.db.utils import BoundedDict, cleanup_stale_locks_for_cache, get_per_loop_lock
+from openviper.db.utils import (
+    BoundedDict,
+    cleanup_stale_locks_for_cache,
+    get_default_database_url,
+    get_per_loop_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +130,7 @@ async def get_engine() -> AsyncEngine:
             return _engine
 
         _engine = create_engine(
-            cast("str", settings.DATABASE_URL),
+            get_default_database_url(settings),
             cast("bool", settings.DATABASE_ECHO),
         )
 

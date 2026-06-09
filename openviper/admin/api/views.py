@@ -78,6 +78,31 @@ def sanitize_filename(name: str) -> str:
     return sanitized or "export"
 
 
+def resolve_per_page(
+    raw_per_page: str | None,
+    raw_page_size: str | None,
+    model_admin: ModelAdmin,
+) -> int:
+    """Resolve per_page from query params, clamped to allowed options.
+
+    If the requested value matches an allowed option it is used directly.
+    Otherwise the closest allowed option that does not exceed the request
+    is selected, falling back to the default ``list_per_page``.
+    """
+    allowed = model_admin.list_per_page_options
+    default = model_admin.list_per_page
+    raw = raw_per_page or raw_page_size
+    if raw is None:
+        return default
+    with contextlib.suppress(ValueError, TypeError):
+        requested = int(raw)
+        if requested in allowed:
+            return requested
+        candidates = [o for o in allowed if o <= requested]
+        return max(candidates) if candidates else min(allowed)
+    return default
+
+
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -703,7 +728,15 @@ def get_admin_router() -> Router:
 
         instance = await model_class.objects.filter(ignore_permissions=True).first()
         if not instance:
-            raise NotFound(f"No {model_name} instance found.")
+            model_info = model_admin.get_model_info(request)
+            return JSONResponse(
+                {
+                    "instance": None,
+                    "model_info": model_info,
+                    "readonly_fields": [],
+                    "fieldsets": model_admin.get_fieldsets(request, None),
+                }
+            )
 
         if not model_admin.has_view_permission(request, instance):
             raise PermissionDenied(f"No permission to view this {model_name}.")
@@ -833,18 +866,11 @@ def get_admin_router() -> Router:
                 page = max(1, int(request.query_params.get("page", 1)))
             except ValueError, TypeError:
                 page = 1
-            try:
-                per_page = max(
-                    1,
-                    int(
-                        request.query_params.get(
-                            "per_page",
-                            request.query_params.get("page_size", model_admin.list_per_page),
-                        )
-                    ),
-                )
-            except ValueError, TypeError:
-                per_page = model_admin.list_per_page
+            per_page = resolve_per_page(
+                request.query_params.get("per_page"),
+                request.query_params.get("page_size"),
+                model_admin,
+            )
             return JSONResponse(
                 {
                     "items": [],
@@ -902,21 +928,11 @@ def get_admin_router() -> Router:
                 page = max(1, int(request.query_params.get("page", 1)))
             except ValueError, TypeError:
                 page = 1
-            try:
-                page_size = min(
-                    1000,
-                    max(
-                        1,
-                        int(
-                            request.query_params.get(
-                                "per_page",
-                                request.query_params.get("page_size", model_admin.list_per_page),
-                            )
-                        ),
-                    ),
-                )
-            except ValueError, TypeError:
-                page_size = model_admin.list_per_page
+            page_size = resolve_per_page(
+                request.query_params.get("per_page"),
+                request.query_params.get("page_size"),
+                model_admin,
+            )
             offset = (page - 1) * page_size
 
             spec = QuerySpec(
@@ -1024,21 +1040,11 @@ def get_admin_router() -> Router:
             page = max(1, int(request.query_params.get("page", 1)))
         except ValueError, TypeError:
             page = 1
-        try:
-            page_size = min(
-                1000,
-                max(
-                    1,
-                    int(
-                        request.query_params.get(
-                            "per_page",
-                            request.query_params.get("page_size", model_admin.list_per_page),
-                        )
-                    ),
-                ),
-            )
-        except ValueError, TypeError:
-            page_size = model_admin.list_per_page
+        page_size = resolve_per_page(
+            request.query_params.get("per_page"),
+            request.query_params.get("page_size"),
+            model_admin,
+        )
         offset = (page - 1) * page_size
 
         qs = qs.offset(offset).limit(page_size)
@@ -1812,18 +1818,11 @@ def get_admin_router() -> Router:
                 page = max(1, int(request.query_params.get("page", 1)))
             except ValueError, TypeError:
                 page = 1
-            try:
-                per_page = max(
-                    1,
-                    int(
-                        request.query_params.get(
-                            "per_page",
-                            request.query_params.get("page_size", model_admin.list_per_page),
-                        )
-                    ),
-                )
-            except ValueError, TypeError:
-                per_page = model_admin.list_per_page
+            per_page = resolve_per_page(
+                request.query_params.get("per_page"),
+                request.query_params.get("page_size"),
+                model_admin,
+            )
             return JSONResponse(
                 {
                     "items": [],
@@ -1852,7 +1851,7 @@ def get_admin_router() -> Router:
         filters = {}
         for key, value in request.query_params.items():
             if key.startswith("filter_"):
-                field_name = key[7:]  # Remove "filter_" prefix
+                field_name = key[7:]
                 if field_name in allowed_fields:
                     filters[field_name] = value
 
@@ -1875,13 +1874,11 @@ def get_admin_router() -> Router:
             page = max(1, int(request.query_params.get("page", 1)))
         except ValueError, TypeError:
             page = 1
-        try:
-            page_size = min(
-                1000,
-                max(1, int(request.query_params.get("page_size", model_admin.list_per_page))),
-            )
-        except ValueError, TypeError:
-            page_size = model_admin.list_per_page
+        page_size = resolve_per_page(
+            request.query_params.get("per_page"),
+            request.query_params.get("page_size"),
+            model_admin,
+        )
         offset = (page - 1) * page_size
 
         qs = qs.offset(offset).limit(page_size)

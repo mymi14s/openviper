@@ -211,6 +211,19 @@ class TestGetAction:
         action = get_action("nonexistent")
         assert action is None
 
+    def test_get_action_by_instance_name_not_class_name(self):
+        """get_action must resolve by .name attribute, not __name__.
+
+        This is the core fix for the bulk action failure where
+        get_actions() keyed by __name__ but action_registry used .name.
+        """
+        action = get_action("delete_selected")
+        assert action is not None
+        assert isinstance(action, DeleteSelectedAction)
+
+        action_by_class_name = get_action("DeleteSelectedAction")
+        assert action_by_class_name is None
+
 
 class TestGetAvailableActions:
     """Test get_available_actions function."""

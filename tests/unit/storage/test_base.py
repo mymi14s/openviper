@@ -26,18 +26,9 @@ from openviper.storage.base import (
     generate_unique_name,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_fs(tmp_path: Path, **kwargs) -> FileSystemStorage:
     return FileSystemStorage(location=str(tmp_path), base_url="/media/", **kwargs)
-
-
-# ---------------------------------------------------------------------------
-# Storage abstract base
-# ---------------------------------------------------------------------------
 
 
 class TestStorageAbstract:
@@ -86,11 +77,6 @@ class TestStorageAbstract:
         result = generate_unique_name("Makefile")
         assert "Makefile_" in result
         assert result != "Makefile"
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage._validate_name (security)
-# ---------------------------------------------------------------------------
 
 
 class TestValidateName:
@@ -159,11 +145,6 @@ class TestValidateName:
         assert "/." not in result
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage._full_path (path-escape guard)
-# ---------------------------------------------------------------------------
-
-
 class TestFullPath:
     def test_path_inside_root_ok(self, tmp_path):
         fs = make_fs(tmp_path)
@@ -178,11 +159,6 @@ class TestFullPath:
         with pytest.raises(ValueError, match="escapes the storage root"):
             # pylint: disable=protected-access
             fs._full_path("../outside/secret.txt")
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage.save - content types
-# ---------------------------------------------------------------------------
 
 
 class TestSaveContentTypes:
@@ -253,11 +229,6 @@ class TestSaveContentTypes:
         assert "photo" in name
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage.save - path traversal rejected end-to-end
-# ---------------------------------------------------------------------------
-
-
 class TestSavePathTraversal:
     @pytest.mark.asyncio
     async def test_traversal_name_sanitised_to_root(self, tmp_path):
@@ -280,11 +251,6 @@ class TestSavePathTraversal:
         fs = make_fs(tmp_path)
         with pytest.raises(ValueError, match="must not be empty"):
             await fs.save("", b"data")
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage.save - collision avoidance
-# ---------------------------------------------------------------------------
 
 
 class TestSaveCollision:
@@ -311,11 +277,6 @@ class TestSaveCollision:
         n2 = await fs.save("b.txt", b"b")
         assert n1 == "a.txt"
         assert n2 == "b.txt"
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage - exists / delete / size
-# ---------------------------------------------------------------------------
 
 
 class TestExistsDeleteSize:
@@ -356,11 +317,6 @@ class TestExistsDeleteSize:
         assert not await fs.exists(name)
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage - read size limit
-# ---------------------------------------------------------------------------
-
-
 class TestReadSizeLimit:
     @pytest.mark.asyncio
     async def test_read_small_file(self, tmp_path):
@@ -378,11 +334,6 @@ class TestReadSizeLimit:
         big_path.write_bytes(b"x" * (MAX_READ_SIZE + 1))
         with pytest.raises(ValueError, match="exceeding the maximum read size"):
             await fs.read("big.bin")
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage.url - percent-encoding
-# ---------------------------------------------------------------------------
 
 
 class TestUrl:
@@ -408,11 +359,6 @@ class TestUrl:
         assert make_fs(tmp_path).url("a/b/c/d.jpg") == "/media/a/b/c/d.jpg"
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage - settings fallback
-# ---------------------------------------------------------------------------
-
-
 class TestSettingsFallback:
     def test_location_falls_back_to_settings(self):
         loc = FileSystemStorage().location
@@ -431,11 +377,6 @@ class TestSettingsFallback:
     def test_explicit_base_url_overrides_settings(self):
         fs = FileSystemStorage(base_url="/files/")
         assert fs.base_url == "/files/"
-
-
-# ---------------------------------------------------------------------------
-# DefaultStorage lazy proxy
-# ---------------------------------------------------------------------------
 
 
 class TestDefaultStorage:
@@ -481,11 +422,6 @@ class TestDefaultStorage:
         a = ds._get_storage()
         b = ds._get_storage()
         assert a is b
-
-
-# ---------------------------------------------------------------------------
-# Additional branch coverage
-# ---------------------------------------------------------------------------
 
 
 class TestMkdirAsyncRaceCondition:

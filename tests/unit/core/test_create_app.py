@@ -72,7 +72,6 @@ class TestAppCreation:
         assert (app_dir / "routes.py").exists()
         assert (app_dir / "views.py").exists()
         assert (app_dir / "serializers.py").exists()
-        assert (app_dir / "tasks.py").exists()
         assert (app_dir / "events.py").exists()
         assert (app_dir / "tests.py").exists()
 
@@ -197,12 +196,6 @@ class TestFileContents:
         serializers_content = (Path(temp_dir) / "testapp" / "serializers.py").read_text()
         assert "from openviper.serializers import Serializer" in serializers_content
 
-    def test_tasks_py_has_imports(self, command, temp_dir):
-        command.handle(name="testapp", directory=temp_dir)
-
-        tasks_content = (Path(temp_dir) / "testapp" / "tasks.py").read_text()
-        assert "from openviper.tasks import task" in tasks_content
-
     def test_events_py_has_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
 
@@ -244,7 +237,6 @@ class TestAppTemplateStructure:
         assert "routes.py" in _APP_TEMPLATE
         assert "views.py" in _APP_TEMPLATE
         assert "serializers.py" in _APP_TEMPLATE
-        assert "tasks.py" in _APP_TEMPLATE
         assert "events.py" in _APP_TEMPLATE
         assert "tests.py" in _APP_TEMPLATE
         assert os.path.join("migrations", "__init__.py") in _APP_TEMPLATE

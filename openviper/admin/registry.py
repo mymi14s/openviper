@@ -177,10 +177,10 @@ class AdminRegistry:
             # vs. simply not being present at all.
             spec = importlib.util.find_spec(admin_module_name)
             if spec is not None:
-                # admin.py exists but something inside it failed to import.
+                # The module exists but a transitive dependency failed.
                 logger.critical("Failed to import admin.py from %s: %s", app_name, e)
                 raise
-            # No admin.py for this app - that is fine, skip silently.
+            # No admin module for this app - skip silently.
             logger.debug("No admin.py found in %s: %s", app_name, e)
         except SyntaxError as e:
             logger.critical("Syntax error in admin.py from %s: %s", app_name, e)

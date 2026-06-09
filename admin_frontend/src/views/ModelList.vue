@@ -198,6 +198,11 @@ function handlePageChange(page: number) {
   loadData(page)
 }
 
+function handlePerPageChange(perPage: number) {
+  adminStore.pagination.perPage = perPage
+  loadData(1)
+}
+
 function handleRowClick(instance: any) {
   if (canChange.value) {
     router.push(`/${props.appLabel}/${props.modelName}/${instance.id}`)
@@ -304,7 +309,7 @@ async function handleExport(format: 'csv' | 'json') {
           <div v-if="selectedIds.length > 0 && model?.actions?.length" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <select v-model="selectedAction" class="px-3 py-2">
               <option value="">Select action...</option>
-              <option v-for="action in model.actions" :key="action" :value="action">{{ action }}</option>
+              <option v-for="action in model.actions" :key="action.name" :value="action.name">{{ action.description }}</option>
             </select>
             <button :disabled="!selectedAction" class="btn btn-secondary" @click="showBulkConfirm = true">
               Apply to {{ selectedIds.length }} selected
@@ -343,13 +348,15 @@ async function handleExport(format: 'csv' | 'json') {
         />
       </div>
 
-      <div v-if="pagination.totalPages > 1" class="mt-6">
+      <div v-if="pagination.total > 0" class="mt-6">
         <Pagination
           :current-page="pagination.page"
           :total-pages="pagination.totalPages"
           :total-items="pagination.total"
           :per-page="pagination.perPage"
+          :per-page-options="model?.list_per_page_options"
           @page-change="handlePageChange"
+          @per-page-change="handlePerPageChange"
         />
       </div>
     </div>

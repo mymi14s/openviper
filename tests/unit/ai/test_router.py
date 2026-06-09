@@ -9,10 +9,6 @@ import pytest
 from openviper.ai.registry import ProviderRegistry
 from openviper.ai.router import ModelRouter
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_registry_with_provider(model_id: str = "test-model") -> tuple:
     """Return (registry, mock_provider) with model registered."""
@@ -28,11 +24,6 @@ def make_registry_with_provider(model_id: str = "test-model") -> tuple:
     registry._loaded = True
     registry.register_provider(provider)
     return registry, provider
-
-
-# ---------------------------------------------------------------------------
-# Model selection
-# ---------------------------------------------------------------------------
 
 
 class TestModelSelection:
@@ -51,11 +42,6 @@ class TestModelSelection:
         registry, _ = make_registry_with_provider()
         router = ModelRouter(registry=registry)
         assert router.get_model() is None
-
-
-# ---------------------------------------------------------------------------
-# Provider resolution
-# ---------------------------------------------------------------------------
 
 
 class TestProviderResolution:
@@ -77,11 +63,6 @@ class TestProviderResolution:
         router.set_model("test-model")
         result = router._get_provider()
         assert result is provider
-
-
-# ---------------------------------------------------------------------------
-# Inference delegation
-# ---------------------------------------------------------------------------
 
 
 class TestInferenceDelegation:
@@ -138,11 +119,6 @@ class TestInferenceDelegation:
         router = ModelRouter(registry=registry2, default_model="stream-model")
         chunks = [c async for c in router.stream("hello")]
         assert chunks == ["chunk1", "chunk2"]
-
-
-# ---------------------------------------------------------------------------
-# Convenience
-# ---------------------------------------------------------------------------
 
 
 class TestConvenience:

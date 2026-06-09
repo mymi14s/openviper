@@ -5,17 +5,25 @@ from __future__ import annotations
 import dataclasses
 import os
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from openviper.conf.settings import Settings
 
-type SettingsValue = object
+if TYPE_CHECKING:
+    from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)
 class ProjectSettings(Settings):
     PROJECT_NAME: str = "AI Smart Recipe Generator"
     DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///db.sqlite3")
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "URL": "sqlite+aiosqlite:///db.sqlite3",
+            },
+        },
+    )
     SECRET_KEY: str = os.environ.get(
         "SECRET_KEY",
         "dev-secret-key-change-in-production",
@@ -60,7 +68,7 @@ class ProjectSettings(Settings):
     SESSION_COOKIE_DOMAIN: str | None = None  # Let browser set domain (works for localhost)
 
     # AI Configuration
-    AI_PROVIDERS: dict[str, SettingsValue] = dataclasses.field(
+    AI_PROVIDERS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "ollama": {
                 "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -96,23 +104,31 @@ class ProjectSettings(Settings):
     AI_DEFAULT_MODEL: str = os.environ.get("AI_DEFAULT_MODEL", "llama3")
 
     # # Background Tasks
-    # TASKS: dict[str, SettingsValue] = dataclasses.field(
+    # TASKS: ConfigMap = dataclasses.field(
     #     default_factory=lambda: {
-    #         "scheduler": False,
-    #         "tracking": True,
-    #         "log_to_file": True,
-    #         "log_level": "DEBUG",
-    #         "log_format": "json",
-    #         "log_dir": "logs",
+    #         "enabled": 1,
     #         "broker": "redis",
-    #         "url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-    #         "result_backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
+    #         "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+    #         "backend_url": os.environ.get("REDIS_BACKEND_URL", ""),
+    #         "logging": {
+    #             "level": "DEBUG",
+    #             "file": {
+    #                 "log_dir": "logs",
+    #                 "file_name": "tasks.log",
+    #                 "log_format": "json",
+    #                 "max_size": 10,
+    #             },
+    #             "database": {
+    #                 "task": 1,
+    #                 "periodic": 1,
+    #             },
+    #         },
     #     }
     # )
 
     # # Model events configuration: maps "app.model" to event hooks to lists of
     # # "app.events.func" paths.
-    # MODEL_EVENTS: dict[str, SettingsValue] = dataclasses.field(
+    # MODEL_EVENTS: ConfigMap = dataclasses.field(
     #     default_factory=lambda: {
     #         "posts.models.Post": {
     #             "after_insert": ["posts.events.create_likes"],

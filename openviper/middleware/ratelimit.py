@@ -84,7 +84,7 @@ class RedisWindowCounter:
     and whose scores are Unix timestamps.  Stale entries (outside the
     current window) are pruned atomically via ZREMRANGEBYSCORE.
 
-    Requires ``redis>=7.4.0`` (``openviper[tasks]``).
+    Requires ``redis>=7.4.0`` (``pip install redis``).
     """
 
     __slots__ = ("max_requests", "window", "_client")
@@ -93,7 +93,7 @@ class RedisWindowCounter:
         if not REDIS_AVAILABLE or redis_asyncio_module is None:
             raise ImportError(
                 "redis package is required for RATE_LIMIT_BACKEND='redis'. "
-                "Install it with: pip install 'openviper[tasks]'"
+                "Install it with: pip install redis"
             )
         self.max_requests = max_requests
         self.window = window_seconds

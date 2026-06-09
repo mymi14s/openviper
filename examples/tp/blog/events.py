@@ -35,11 +35,6 @@ class EventModel(Protocol):
     pk: int
 
 
-# ---------------------------------------------------------------------------
-# Post handlers
-# ---------------------------------------------------------------------------
-
-
 def create_likes(post: EventModel, event: str | None = None) -> None:
     """Initialise a like-counter record when a new Post is created.
 
@@ -71,11 +66,6 @@ def cleanup_comments(post: EventModel, event: str | None = None) -> None:
     )
     # Placeholder - replace with your actual task .send() call:
     # bulk_delete_comments.send(post_id=post.pk)
-
-
-# ---------------------------------------------------------------------------
-# Comment handlers
-# ---------------------------------------------------------------------------
 
 
 def notify_post_author(comment: EventModel, event: str | None = None) -> None:

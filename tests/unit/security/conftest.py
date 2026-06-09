@@ -8,10 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from openviper.conf import settings as settings_mod
 
-# ---------------------------------------------------------------------------
-# ASGI scope / request helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(
     method: str = "GET",
@@ -102,11 +98,6 @@ class SendCollector:
         return b"".join(chunks)
 
 
-# ---------------------------------------------------------------------------
-# Settings helpers
-# ---------------------------------------------------------------------------
-
-
 @contextlib.contextmanager
 def override_settings(**overrides: object):
     """Temporarily override settings attributes for testing.
@@ -138,11 +129,6 @@ def override_settings(**overrides: object):
 
 
 MISSING = object()
-
-
-# ---------------------------------------------------------------------------
-# Assertion helpers
-# ---------------------------------------------------------------------------
 
 
 def assert_rejected(status_code: int, *, min_code: int = 400, max_code: int = 499) -> None:
@@ -194,11 +180,6 @@ def assert_header_contains(headers: dict[str, str], name: str, substring: str) -
 def assert_header_absent(headers: dict[str, str], name: str) -> None:
     """Assert that a header is absent from the response."""
     assert name not in headers, f"Header {name!r} should not be present, got {headers[name]!r}"
-
-
-# ---------------------------------------------------------------------------
-# Async test helpers
-# ---------------------------------------------------------------------------
 
 
 def run_concurrently(*coros):
@@ -259,21 +240,12 @@ class AnonymousMockUser(MockUser):
         )
 
 
-# ---------------------------------------------------------------------------
-# Time helpers
-# ---------------------------------------------------------------------------
-
-
 @contextlib.contextmanager
 def freeze_time(frozen_time: float):
     """Freeze time.time() to a fixed timestamp for testing expiry."""
     with patch("time.time", return_value=frozen_time):
         yield
 
-
-# ---------------------------------------------------------------------------
-# Malicious payload constants
-# ---------------------------------------------------------------------------
 
 XSS_PAYLOADS = [
     "<script>alert(1)</script>",

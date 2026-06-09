@@ -2,24 +2,24 @@
 
 from __future__ import annotations
 
-# Model registry: populated by ModelMeta in models.py.
+# Model registry: populated by ModelMeta.
 # Maps "app.ModelName" -> model class.
 registry: dict[str, type] = {}
 
 # Secondary name index: simple class name -> list of model classes.
 name_index: dict[str, list[type]] = {}
 
-# Soft-removed column cache: populated by load_soft_removed_columns in executor.py.
+# Soft-removed column cache: populated by load_soft_removed_columns.
 soft_removed_cache: dict[str, frozenset[str]] = {}
 soft_removed_loaded: bool = False
 
-# Set by models.py after ModelMeta is defined; used by fields.py for M2M auto-through creation.
+# Set after ModelMeta is defined; used for M2M auto-through creation.
 model_meta_cls: type | None = None
 
-# Set by models.py after Model is defined; used by fields.py as the base for auto-through models.
+# Set after Model is defined; used as the base for auto-through models.
 model_cls: type | None = None
 
-# Set by models.py after QuerySet is defined; used by fields.py for ReverseRelationDescriptor.
+# Set after QuerySet is defined; used for ReverseRelationDescriptor.
 queryset_cls: type | None = None
 
 

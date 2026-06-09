@@ -12,10 +12,6 @@ from openviper.middleware.security import SecurityMiddleware
 
 from .conftest import SendCollector, make_scope, override_settings
 
-# ---------------------------------------------------------------------------
-# HDR-001: Default security headers are present
-# ---------------------------------------------------------------------------
-
 
 class TestDefaultSecurityHeaders:
     """Default security headers must be present on all responses."""
@@ -78,11 +74,6 @@ class TestDefaultSecurityHeaders:
         assert headers["referrer-policy"] == "strict-origin-when-cross-origin"
 
 
-# ---------------------------------------------------------------------------
-# HDR-002: HSTS only enabled over HTTPS
-# ---------------------------------------------------------------------------
-
-
 class TestHSTS:
     """HSTS must only be enabled when configured for HTTPS."""
 
@@ -125,11 +116,6 @@ class TestHSTS:
         assert "max-age=31536000" in headers["strict-transport-security"]
 
 
-# ---------------------------------------------------------------------------
-# HDR-003: Content-Type is explicit
-# ---------------------------------------------------------------------------
-
-
 class TestContentTypeHeaders:
     """Content-Type must be explicit and include nosniff."""
 
@@ -156,11 +142,6 @@ class TestContentTypeHeaders:
 
         headers = collector.headers_dict
         assert headers.get("x-content-type-options") == "nosniff"
-
-
-# ---------------------------------------------------------------------------
-# HDR-004: CSP can be configured safely
-# ---------------------------------------------------------------------------
 
 
 class TestContentSecurityPolicy:

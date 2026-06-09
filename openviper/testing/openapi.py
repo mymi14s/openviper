@@ -1,7 +1,6 @@
 """OpenAPI assertion helpers for tests."""
 
 from collections.abc import Mapping
-from typing import Any
 
 
 def assert_openapi_path(schema: Mapping[str, object], path: str) -> None:
@@ -37,7 +36,7 @@ def assert_request_schema(schema: Mapping[str, object], path: str, method: str) 
     assert "requestBody" in operation, f"Expected request schema for {method.upper()} {path}."
 
 
-def get_operation(schema: Mapping[str, object], path: str, method: str) -> dict[str, Any]:
+def get_operation(schema: Mapping[str, object], path: str, method: str) -> dict[str, object]:
     paths = schema.get("paths")
     assert isinstance(paths, dict), "OpenAPI schema does not contain a paths object."
     path_item = paths.get(path)

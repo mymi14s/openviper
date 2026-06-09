@@ -13,10 +13,6 @@ from openviper.cache import BaseCache, DatabaseCache, InMemoryCache, get_cache, 
 from openviper.cache.redis import RedisCache
 from openviper.utils import timezone
 
-# ---------------------------------------------------------------------------
-# Fixture: reset global cache registry between tests
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(autouse=True)
 def reset_cache_registry():
@@ -25,11 +21,6 @@ def reset_cache_registry():
     yield
     cache_module.cache_instances.clear()
     cache_module.cache_instances.update(original)
-
-
-# ---------------------------------------------------------------------------
-# BaseCache abstract interface
-# ---------------------------------------------------------------------------
 
 
 class TestBaseCache:
@@ -49,11 +40,6 @@ class TestBaseCache:
             # missing set, delete, clear
 
         pytest.raises(TypeError, Incomplete)
-
-
-# ---------------------------------------------------------------------------
-# InMemoryCache
-# ---------------------------------------------------------------------------
 
 
 class TestInMemoryCache:
@@ -145,11 +131,6 @@ class TestInMemoryCache:
         assert result is None  # None stored, None returned
 
 
-# ---------------------------------------------------------------------------
-# RedisCache – import guard
-# ---------------------------------------------------------------------------
-
-
 class TestRedisCacheImportGuard:
     """Tests for RedisCache when the redis package is absent."""
 
@@ -164,11 +145,6 @@ class TestRedisCacheImportGuard:
         with patch("openviper.cache.redis.redis_lib", None):
             with pytest.raises(ImportError, match="redis"):
                 RedisCache()
-
-
-# ---------------------------------------------------------------------------
-# get_cache
-# ---------------------------------------------------------------------------
 
 
 class TestGetCache:
@@ -243,11 +219,6 @@ class TestGetCache:
         assert isinstance(instance, CustomCache)
 
 
-# ---------------------------------------------------------------------------
-# DatabaseCache._get_model()
-# ---------------------------------------------------------------------------
-
-
 class TestDatabaseCacheGetModel:
     """Tests for the internal _get_model() helper in DatabaseCache."""
 
@@ -265,11 +236,6 @@ class TestDatabaseCacheGetModel:
         second = cache._get_model()
         assert first is second
         assert cache._model_cache is first
-
-
-# ---------------------------------------------------------------------------
-# DatabaseCache operations (mocked ORM)
-# ---------------------------------------------------------------------------
 
 
 class TestDatabaseCacheOperations:
@@ -576,11 +542,6 @@ class TestDatabaseCacheOperations:
                     mock_conn.execute.assert_awaited_once()
 
 
-# ---------------------------------------------------------------------------
-# RedisCache operations (mocked redis client)
-# ---------------------------------------------------------------------------
-
-
 class TestRedisCacheOperations:
     """Tests for RedisCache operations with mocked redis client."""
 
@@ -679,11 +640,6 @@ class TestRedisCacheOperations:
         mock_client.unlink.assert_awaited_once_with(b"ov:cache:key1", b"ov:cache:key2")
 
 
-# ---------------------------------------------------------------------------
-# get_cache with RedisCache
-# ---------------------------------------------------------------------------
-
-
 class TestGetCacheRedis:
     """Tests for get_cache() with Redis backend."""
 
@@ -775,11 +731,6 @@ async def test_redis_cache_import_error():
             RedisCache()
 
 
-# ---------------------------------------------------------------------------
-# validate_cache_key
-# ---------------------------------------------------------------------------
-
-
 class TestValidateCacheKey:
     """Tests for the validate_cache_key function."""
 
@@ -829,11 +780,6 @@ class TestValidateCacheKey:
         cache = InMemoryCache()
         with pytest.raises(ValueError, match="invalid characters"):
             await cache.set("bad key", "v")
-
-
-# ---------------------------------------------------------------------------
-# RedisCache key prefix
-# ---------------------------------------------------------------------------
 
 
 class TestRedisCacheKeyPrefix:

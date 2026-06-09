@@ -192,7 +192,21 @@ class Command(BaseCommand):
 
         settings_module = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
         package = settings_module.split(".")[0] if settings_module else None
+
         if package:
+            try:
+                pkg_module = importlib.import_module(package)
+                has_file = hasattr(pkg_module, "__file__") and pkg_module.__file__
+                pkg_dir = Path(pkg_module.__file__).parent if has_file else None
+            except ImportError:
+                pkg_dir = None
+
+            if pkg_dir is not None:
+                if (pkg_dir / "asgi.py").is_file():
+                    return f"{package}.asgi:app"
+                if (pkg_dir / "app.py").is_file():
+                    return f"{package}.app:app"
+
             return f"{package}.asgi:app"
 
         cwd_name = os.path.basename(os.getcwd())

@@ -24,10 +24,6 @@ from .conftest import (
     override_settings,
 )
 
-# ---------------------------------------------------------------------------
-# MID-001: Security middleware order is enforced
-# ---------------------------------------------------------------------------
-
 
 class TestMiddlewareOrder:
     """Security-critical middleware must execute in a deterministic order."""
@@ -89,11 +85,6 @@ class TestMiddlewareOrder:
         ]
 
 
-# ---------------------------------------------------------------------------
-# MID-002: Middleware cannot be skipped on errors
-# ---------------------------------------------------------------------------
-
-
 class TestMiddlewareErrorHandling:
     """Security middleware must still run even when handlers raise exceptions."""
 
@@ -147,11 +138,6 @@ class TestMiddlewareErrorHandling:
         assert "access-control-allow-origin" in headers
 
 
-# ---------------------------------------------------------------------------
-# MID-003: Middleware applies to APIs, static files, and error handlers
-# ---------------------------------------------------------------------------
-
-
 class TestMiddlewareAppliesToAllRoutes:
     """Middleware must apply uniformly to all route types."""
 
@@ -195,11 +181,6 @@ class TestMiddlewareAppliesToAllRoutes:
         assert "test error" not in body
 
 
-# ---------------------------------------------------------------------------
-# MID-004: Request state must not leak between requests
-# ---------------------------------------------------------------------------
-
-
 class TestRequestStateIsolation:
     """Request-local state must be isolated between concurrent requests."""
 
@@ -241,11 +222,6 @@ class TestRequestStateIsolation:
 
         assert results["task1"] == 1
         assert results["task2"] == 2
-
-
-# ---------------------------------------------------------------------------
-# MID-005: Async context must remain isolated
-# ---------------------------------------------------------------------------
 
 
 class TestAsyncContextIsolation:

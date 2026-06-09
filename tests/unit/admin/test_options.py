@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from openviper.admin.actions import AdminAction
 from openviper.admin.options import (
     ChildTable,
     InlineModelAdmin,
@@ -454,6 +455,41 @@ class TestActionMethods:
             assert "string_action" in actions
             assert "missing_action" not in actions
             mock_warning.assert_called_once()
+
+    def test_get_actions_admin_action_subclass_uses_name_attribute(self):
+        """AdminAction subclasses should be keyed by .name, not __name__."""
+
+        class MyAction(AdminAction):
+            name = "my_action"
+            description = "My custom action"
+
+        model = make_model_class()
+        admin = ModelAdmin(model)
+        admin.actions = [MyAction]
+
+        actions = admin.get_actions()
+        assert "my_action" in actions
+        assert "MyAction" not in actions
+        assert actions["my_action"] is MyAction
+
+    def test_serialize_actions_includes_name_and_description(self):
+        """Serialized actions should include name and description dicts."""
+
+        class MyAction(AdminAction):
+            name = "my_action"
+            description = "My custom action"
+
+        model = make_model_class()
+        admin = ModelAdmin(model)
+        admin.actions = [MyAction]
+
+        serialized = admin.serialize_actions()
+        assert isinstance(serialized, list)
+        names = [a["name"] for a in serialized]
+        assert "delete_selected" in names
+        assert "my_action" in names
+        my_action_info = next(a for a in serialized if a["name"] == "my_action")
+        assert my_action_info["description"] == "My custom action"
 
     @pytest.mark.asyncio
     async def testaction_delete_selected(self):

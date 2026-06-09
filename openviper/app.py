@@ -171,8 +171,6 @@ class OpenViper:
 
         self._autodiscover_routes()
 
-    # ── Route registration (delegate to router) ───────────────────────────
-
     def get(self, path: str, **kwargs: object) -> Callable[..., object]:
         return self.router.get(path, **kwargs)
 
@@ -250,8 +248,6 @@ class OpenViper:
             len(route_paths),
             routes_module_path,
         )
-
-    # ── Lifecycle hooks ───────────────────────────────────────────────────
 
     async def _call_installed_app_ready_hooks(self) -> None:
         """Call ``ready()`` on every installed app that exposes one.
@@ -378,8 +374,6 @@ class OpenViper:
         self._shutdown_handlers.append(func)
         return func
 
-    # ── Exception handlers ────────────────────────────────────────────────
-
     def exception_handler(self, exc_class: type[Exception]) -> Callable[..., object]:
         """Decorator to register a custom exception handler."""
 
@@ -388,8 +382,6 @@ class OpenViper:
             return func
 
         return decorator
-
-    # ── OpenAPI ───────────────────────────────────────────────────────────
 
     def _register_openapi_routes(self) -> None:
         """Register /open-api/openapi.json, /open-api/docs, /open-api/redoc routes."""
@@ -436,8 +428,6 @@ class OpenViper:
         Useful when routes are added dynamically after initial setup.
         """
         self._middleware_app = None
-
-    # ── Middleware stack ──────────────────────────────────────────────────
 
     def _get_middleware_app(self) -> ASGIApp:
         if self._middleware_app is None:
@@ -534,8 +524,6 @@ class OpenViper:
                     return True
         return False
 
-    # ── Core request handler ──────────────────────────────────────────────
-
     async def _core_app(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         """Resolve route and call the handler (inner ASGI callable)."""
         if scope["type"] == "lifespan":
@@ -563,7 +551,6 @@ class OpenViper:
 
     async def _handle_http(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         request = Request(scope, receive)
-        # Propagate user from middleware, defaults to None if not set
         request.user = scope.get("user")
         request.auth = scope.get("auth")
 
@@ -776,6 +763,7 @@ class OpenViper:
                         self.get_openapi_schema()
 
                     await self._call_installed_app_ready_hooks()
+
                     await self._call_installed_app_startup_hooks()
 
                     for handler in self._startup_handlers:
@@ -799,13 +787,9 @@ class OpenViper:
                     await send({"type": "lifespan.shutdown.failed", "message": str(exc)})
                 break  # exit the lifespan event loop
 
-    # ── ASGI callable ─────────────────────────────────────────────────────
-
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         app = self._get_middleware_app()
         await app(scope, receive, send)
-
-    # ── Dev server shortcut ───────────────────────────────────────────────
 
     def run(
         self,

@@ -33,7 +33,7 @@ def email_settings(tmp_path):
             "from": "noreply@example.com",
             "default_sender": "noreply@example.com",
             "fail_silently": False,
-            "use_background_worker": False,
+            "background": False,
         },
         TEMPLATES_DIR=str(templates_dir),
         INSTALLED_APPS=(),
@@ -45,7 +45,6 @@ def email_settings(tmp_path):
         patch("openviper.core.email.backends.settings", stub),
         patch("openviper.core.email.templates.settings", stub),
         patch("openviper.core.email.queue.settings", stub),
-        patch("openviper.core.email.delivery.settings", stub),
         patch(
             "openviper.core.email.attachments.ATTACHMENT_ALLOWED_DIRS",
             stub.ATTACHMENT_ALLOWED_DIRS,
@@ -173,7 +172,7 @@ class TestSendEmail:
 
     @pytest.mark.asyncio
     async def test_send_email_with_background_worker(self, email_settings):
-        email_settings.EMAIL["use_background_worker"] = True
+        email_settings.EMAIL["background"] = True
         email_settings.TASKS = {"broker": "stub"}
 
         with (
@@ -195,7 +194,7 @@ class TestSendEmail:
 
     @pytest.mark.asyncio
     async def test_send_email_background_falls_back_without_worker(self, email_settings):
-        email_settings.EMAIL["use_background_worker"] = True
+        email_settings.EMAIL["background"] = True
         email_settings.TASKS = {}
 
         with (
@@ -217,8 +216,8 @@ class TestSendEmail:
 
     @pytest.mark.asyncio
     async def test_send_email_auto_detects_background_when_unset(self, email_settings):
-        """When use_background_worker is absent, worker availability is auto-detected."""
-        del email_settings.EMAIL["use_background_worker"]
+        """When background is absent, worker availability is auto-detected."""
+        del email_settings.EMAIL["background"]
 
         with (
             patch("openviper.core.email.sender.worker_available", return_value=True),
@@ -240,7 +239,7 @@ class TestSendEmail:
     @pytest.mark.asyncio
     async def test_send_email_auto_mode_falls_back_when_enqueue_fails(self, email_settings):
         """Auto mode sends inline when a configured broker cannot enqueue."""
-        del email_settings.EMAIL["use_background_worker"]
+        del email_settings.EMAIL["background"]
 
         with (
             patch("openviper.core.email.sender.worker_available", return_value=True),
@@ -352,7 +351,7 @@ class TestBackends:
 
         The worker resolves the sender from its own settings at execution time.
         """
-        email_settings.EMAIL["use_background_worker"] = True
+        email_settings.EMAIL["background"] = True
 
         captured_data = {}
 

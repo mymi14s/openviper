@@ -28,12 +28,8 @@ from openviper.exceptions import MethodNotAllowed, NotFound
 
 log = logging.getLogger(__name__)
 
-# ── Type aliases ──────────────────────────────────────────────
-
 Handler = Callable[..., Awaitable[Any]]
 Middleware = Callable[[Any, Any], Awaitable[Any]]
-
-# ── Path converters ──────────────────────────────────────────
 
 CONVERTERS: dict[str, tuple[str, Callable[[str], str | int | float]]] = {
     "str": (r"[^/]+", str),
@@ -43,8 +39,6 @@ CONVERTERS: dict[str, tuple[str, Callable[[str], str | int | float]]] = {
     "uuid": (r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str),
     "slug": (r"[-a-zA-Z0-9_]+", str),
 }
-
-# ── Path normalization ───────────────────────────────────────
 
 MULTI_SLASH_RE: re.Pattern[str] = re.compile(r"/{2,}")
 
@@ -218,9 +212,6 @@ def route_specificity(path: str) -> tuple[int, int]:
     return (literal_count, len(segments))
 
 
-# ── Route ────────────────────────────────────────────────────
-
-
 @dataclass
 class Route:
     """A single registered route."""
@@ -279,9 +270,6 @@ class Route:
         )
 
 
-# ── Router ───────────────────────────────────────────────────
-
-# Sentinel for dispatch index routes with a dynamic first segment.
 DYNAMIC = "__dynamic__"
 
 
@@ -320,8 +308,6 @@ class Router:
         # Exact match index: literal path -> candidate routes.
         # Groups routes by literal path for multi-method fast-path.
         self._exact_index: dict[str, list[Route]] | None = None
-
-    # ── Cache management ───────────────────────────────────────────────────
 
     def _invalidate(self) -> None:
         """Mark the route cache and dispatch index stale.
@@ -376,8 +362,6 @@ class Router:
             if route._is_literal:
                 exact_index.setdefault(route.path, []).append(route)
         return exact_index
-
-    # ── Route registration ─────────────────────────────────────────────────
 
     def route(
         self,
@@ -583,8 +567,6 @@ class Router:
                 namespace=f"{handler.__name__.lower()}_{action_info['name']}",
             )
 
-    # ── Sub-routers ────────────────────────────────────────────────────────
-
     def include_router(
         self, router: Router, prefix: str = "", namespace: str | None = None
     ) -> None:
@@ -608,8 +590,6 @@ class Router:
         # We store the base prefix to apply during flattening
         self._sub_routers.append((prefix, router))
         self._invalidate()
-
-    # ── Route resolution ───────────────────────────────────────────────────
 
     @property
     def routes(self) -> list[Route]:
@@ -795,9 +775,6 @@ class Router:
 
     def __repr__(self) -> str:
         return f"Router(prefix={self.prefix!r}, routes={len(self.routes)})"
-
-
-# ── Convenience helpers ──────────────────────────────────────
 
 
 def include(router: Router, prefix: str = "", namespace: str | None = None) -> Router:

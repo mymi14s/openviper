@@ -9,7 +9,7 @@ import threading
 
 from openviper.staticfiles.handlers import StaticFilesMiddleware, collect_static
 
-# Thread-safe flags - set by calling static() / media() in routes.py.
+# Thread-safe flags - set by calling static() / media().
 static_serving_enabled: threading.Event = threading.Event()
 media_serving_enabled: threading.Event = threading.Event()
 

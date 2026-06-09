@@ -7,9 +7,9 @@ import asyncio
 
 from openviper.conf import settings as settings
 from openviper.core.management.base import BaseCommand, CommandError
-from openviper.core.management.utils import get_default_database_url
 from openviper.db.tools.restore.restore_engine import restore_backup
 from openviper.db.tools.utils.validators import ValidationError
+from openviper.db.utils import get_default_database_url
 
 
 class RestoreDBCommand(BaseCommand):

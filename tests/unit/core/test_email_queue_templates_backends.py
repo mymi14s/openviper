@@ -6,8 +6,6 @@ SMTP servers or message brokers.
 
 from __future__ import annotations
 
-import sys
-import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -81,19 +79,15 @@ class TestTemplates:
 
 
 class TestQueue:
-    def test_worker_available_cached(self) -> None:
+    def test_worker_available_returns_false_without_broker(self) -> None:
         queue.worker_available.cache_clear()
 
-        class FakeStubBroker:
-            pass
-
-        with (
-            patch("openviper.core.email.queue.StubBrokerClass", FakeStubBroker),
-            patch("openviper.core.email.queue.get_broker", return_value=FakeStubBroker()),
-        ):
-            assert queue.worker_available() is False
-            # Cached value is reused.
-            assert queue.worker_available() is False
+        with patch("openviper.core.email.queue.StubBroker", None):
+            with patch(
+                "openviper.core.email.queue.get_broker",
+                side_effect=ImportError("no dramatiq"),
+            ):
+                assert queue.worker_available() is False
 
     def test_worker_available_true_for_non_stub(self) -> None:
         queue.worker_available.cache_clear()
@@ -102,7 +96,7 @@ class TestQueue:
             pass
 
         with (
-            patch("openviper.core.email.queue.StubBrokerClass", FakeStubBroker),
+            patch("openviper.core.email.queue.StubBroker", FakeStubBroker),
             patch("openviper.core.email.queue.get_broker", return_value=object()),
         ):
             assert queue.worker_available() is True
@@ -139,14 +133,18 @@ class TestQueue:
         assert sent_msg.subject == "Hi"
 
     @pytest.mark.asyncio
-    async def test_enqueue_email_job_uses_actor_send(self) -> None:
+    async def test_enqueue_email_job_falls_back_to_direct(self) -> None:
         data = EmailMessageData(recipients=["to@example.com"], subject="Hi", text="Body")
 
-        with patch.object(queue.deliver_email_job, "send", return_value="job") as mock_send:
+        with (
+            patch("openviper.core.email.queue.send_now", new_callable=AsyncMock) as mock_send,
+            patch("openviper.core.email.queue.configure_email_log"),
+            patch("openviper.core.email.queue.worker_available", return_value=False),
+        ):
             result = await queue.enqueue_email_job(data)
 
-        assert result == "job"
-        mock_send.assert_called_once()
+        assert result is None
+        mock_send.assert_awaited_once()
 
     def test_payload_conversion_roundtrip_includes_attachments(self) -> None:
         msg = EmailMessageData(

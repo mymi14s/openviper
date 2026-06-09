@@ -23,10 +23,6 @@ from openviper.middleware.security import SecurityMiddleware
 
 from .conftest import SendCollector, make_scope, override_settings
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 async def dummy_app(scope: dict, receive: object, send: object) -> None:
     """Minimal ASGI app that returns 200 OK."""
@@ -38,11 +34,6 @@ async def dummy_app(scope: dict, receive: object, send: object) -> None:
         }
     )
     await send({"type": "http.response.body", "body": b"OK"})
-
-
-# ---------------------------------------------------------------------------
-# SSRF-001: Outbound URL fetcher blocks private IP ranges
-# ---------------------------------------------------------------------------
 
 
 class TestSSRF001PrivateIPBlocking:
@@ -197,8 +188,6 @@ class TestSSRF001PrivateIPBlocking:
         for target, network in targets_and_ranges:
             assert ipaddress.ip_address(target) in network, f"{target} must be in {network}"
 
-    # ── Fail-closed: wildcard ALLOWED_HOSTS ──────────────────────────────
-
     def test_ssrf001_wildcard_allows_all_hosts(self) -> None:
         """When ALLOWED_HOSTS=['*'], all hosts pass (intentional opt-in)."""
         with override_settings(ALLOWED_HOSTS=["*"]):
@@ -254,11 +243,6 @@ class TestSSRF001PrivateIPBlocking:
             collector = SendCollector()
             await middleware(scope, AsyncMock(), collector)
             assert collector.status_code == 200
-
-
-# ---------------------------------------------------------------------------
-# SSRF-002: Redirects cannot bypass SSRF protections
-# ---------------------------------------------------------------------------
 
 
 class TestSSRF002RedirectBypass:
@@ -415,11 +399,6 @@ class TestSSRF002RedirectBypass:
             assert collector.status_code == 400
 
 
-# ---------------------------------------------------------------------------
-# SSRF-003: Dangerous protocols are rejected
-# ---------------------------------------------------------------------------
-
-
 class TestSSRF003DangerousProtocols:
     """Dangerous URL protocols must be rejected."""
 
@@ -543,11 +522,6 @@ class TestSSRF003DangerousProtocols:
             assert collector.status_code == 400
 
 
-# ---------------------------------------------------------------------------
-# SSRF-004: DNS rebinding protections are applied
-# ---------------------------------------------------------------------------
-
-
 class TestSSRF004DNSRebinding:
     """DNS rebinding protections must ensure per-request host validation."""
 
@@ -604,8 +578,6 @@ class TestSSRF004DNSRebinding:
             collector_good = SendCollector()
             await middleware(scope_good, AsyncMock(), collector_good)
             assert collector_good.status_code == 200
-
-    # ── Wildcard ALLOWED_HOSTS does not bypass per-request checks ─────────
 
     @pytest.mark.asyncio
     async def test_ssrf004_wildcard_still_rejects_crlf(self) -> None:
@@ -671,8 +643,6 @@ class TestSSRF004DNSRebinding:
             scope.pop("server", None)
             host = middleware.get_host(scope)
             assert host == ""
-
-    # ── Fail-closed: empty ALLOWED_HOSTS ──────────────────────────────────
 
     @pytest.mark.asyncio
     async def test_ssrf004_empty_allowed_hosts_rejects_all(self) -> None:

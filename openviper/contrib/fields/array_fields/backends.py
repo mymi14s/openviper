@@ -13,6 +13,7 @@ import sqlalchemy as sa
 
 from openviper.conf import settings
 from openviper.db import connection as db_connection
+from openviper.db.utils import get_default_database_url
 
 if TYPE_CHECKING:
     from openviper.contrib.fields.array_fields.base import ArrayField
@@ -27,7 +28,7 @@ def is_postgresql() -> bool:
     except AttributeError, TypeError:
         pass
     try:
-        url = getattr(settings, "DATABASE_URL", "")
+        url = get_default_database_url(settings)
         return "postgresql" in url or "postgres" in url
     except AttributeError, TypeError:
         pass

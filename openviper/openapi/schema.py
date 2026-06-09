@@ -246,9 +246,6 @@ def openapi_path(path: str) -> str:
     return re.sub(r"\{([a-zA-Z_][a-zA-Z0-9_]*)(?::[a-zA-Z]+)?\}", r"{\1}", path)
 
 
-# ── Request schema declaration ────────────────────────────────────────────────
-
-# Public attribute name used to carry the schema class on a handler function.
 OPENAPI_REQUEST_SCHEMA_ATTR = "openapi_request_schema"
 
 

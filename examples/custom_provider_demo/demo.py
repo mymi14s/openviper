@@ -20,19 +20,15 @@ import asyncio
 import os
 import sys
 
-# ---------------------------------------------------------------------------
 # Make the demo directory importable as a package root so that
 # ``echo_provider`` can be imported without installing it.
-# ---------------------------------------------------------------------------
 DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
 if DEMO_DIR not in sys.path:
     sys.path.insert(0, DEMO_DIR)
 
 
-# ---------------------------------------------------------------------------
 # openviper bootstrap - use a minimal in-memory settings object so the demo
 # works without a full openviper project.
-# ---------------------------------------------------------------------------
 
 import openviper  # noqa: E402
 
@@ -45,10 +41,6 @@ openviper.setup(
 )
 
 
-# ---------------------------------------------------------------------------
-# Imports (after setup)
-# ---------------------------------------------------------------------------
-
 from echo_provider.provider import EchoProvider  # noqa: E402
 
 from openviper.ai.devkit import SimpleProvider  # noqa: E402
@@ -56,20 +48,11 @@ from openviper.ai.exceptions import ModelCollisionError, ModelNotFoundError  # n
 from openviper.ai.registry import ProviderRegistry  # noqa: E402
 from openviper.ai.router import ModelRouter  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 SEP = "-" * 60
 
 
 def section(title: str) -> None:
     print(f"\n{SEP}\n{title}\n{SEP}")
-
-
-# ---------------------------------------------------------------------------
-# Demo
-# ---------------------------------------------------------------------------
 
 
 async def main() -> None:

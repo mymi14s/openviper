@@ -27,10 +27,6 @@ from openviper.conf.settings import (
 )
 from openviper.exceptions import SettingsValidationError
 
-# ---------------------------------------------------------------------------
-# Settings dataclass
-# ---------------------------------------------------------------------------
-
 
 class TestSettingsDefaults:
     def test_is_frozen_dataclass(self):
@@ -76,11 +72,6 @@ class TestSettingsAsDict:
         s = Settings()
         d = s.as_dict()
         assert d["DEBUG"] == s.DEBUG
-
-
-# ---------------------------------------------------------------------------
-# Cast helpers
-# ---------------------------------------------------------------------------
 
 
 class TestCastBool:
@@ -135,11 +126,6 @@ class TestCastEnvValue:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# auto_include_project_app
-# ---------------------------------------------------------------------------
-
-
 class TestAutoIncludeProjectApp:
     def test_prepends_project_app_when_absent(self):
         s = Settings()
@@ -155,11 +141,6 @@ class TestAutoIncludeProjectApp:
         s = Settings()
         result = auto_include_project_app(s, "")
         assert result is s
-
-
-# ---------------------------------------------------------------------------
-# apply_env_overrides
-# ---------------------------------------------------------------------------
 
 
 class TestApplyEnvOverrides:
@@ -182,11 +163,6 @@ class TestApplyEnvOverrides:
         assert result.DEBUG == s.DEBUG
 
 
-# ---------------------------------------------------------------------------
-# generate_secret_key
-# ---------------------------------------------------------------------------
-
-
 class TestGenerateSecretKey:
     def test_returns_nonempty_string(self):
         key = generate_secret_key()
@@ -200,11 +176,6 @@ class TestGenerateSecretKey:
 
     def test_two_calls_differ(self):
         assert generate_secret_key() != generate_secret_key()
-
-
-# ---------------------------------------------------------------------------
-# validate_settings
-# ---------------------------------------------------------------------------
 
 
 class TestValidateSettings:
@@ -468,11 +439,6 @@ class MyProjectSettings(Settings):
         lazy._setup()
 
         assert "myproject" in lazy._instance.INSTALLED_APPS
-
-
-# ---------------------------------------------------------------------------
-# configure_logging
-# ---------------------------------------------------------------------------
 
 
 class TestConfigureLogging:

@@ -71,11 +71,6 @@ class TestArrayFieldConstruction:
         assert "scores" in r
 
 
-# ---------------------------------------------------------------------------
-# to_python - database to Python conversion
-# ---------------------------------------------------------------------------
-
-
 class TestArrayFieldToPython:
     """ArrayField.to_python converts database values to Python lists."""
 
@@ -115,11 +110,6 @@ class TestArrayFieldToPython:
         field = ArrayField(CharField(max_length=50))
         result = field.to_python(["a", "b", "c"])
         assert result == ["a", "b", "c"]
-
-
-# ---------------------------------------------------------------------------
-# to_db - Python to database conversion
-# ---------------------------------------------------------------------------
 
 
 class TestArrayFieldToDb:
@@ -173,11 +163,6 @@ class TestArrayFieldToDb:
             reset_backend()
 
 
-# ---------------------------------------------------------------------------
-# validate - application-level validation
-# ---------------------------------------------------------------------------
-
-
 class TestArrayFieldValidate:
     """ArrayField.validate enforces type and size constraints."""
 
@@ -220,11 +205,6 @@ class TestArrayFieldValidate:
         # The real coercion happens in to_python/to_db. Verify that validate
         # passes for valid integer lists and rejects null when not allowed.
         field.validate([1, 2, 3])  # should not raise
-
-
-# ---------------------------------------------------------------------------
-# Backends
-# ---------------------------------------------------------------------------
 
 
 class TestPostgresArrayBackend:
@@ -314,11 +294,6 @@ class TestGetBackend:
         ):
             b2 = get_backend()
             assert not isinstance(b2, PostgresArrayBackend)
-
-
-# ---------------------------------------------------------------------------
-# db_column_type property
-# ---------------------------------------------------------------------------
 
 
 class TestArrayFieldDbColumnType:

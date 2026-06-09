@@ -45,11 +45,6 @@ def cookie_scope(cookie_val):
     return http_scope([(b"cookie", cookie_val.encode("latin-1"))])
 
 
-# ---------------------------------------------------------------------------
-# Non-HTTP passthrough
-# ---------------------------------------------------------------------------
-
-
 class TestAuthMiddlewareNonHTTP:
     @pytest.mark.asyncio
     async def test_lifespan_passthrough(self):
@@ -73,11 +68,6 @@ class TestAuthMiddlewareNonHTTP:
         mw = AuthenticationMiddleware(app)
         await mw({"type": "websocket", "headers": []}, None, None)
         assert isinstance(captured["user"], AnonymousUser)
-
-
-# ---------------------------------------------------------------------------
-# Anonymous (no credentials)
-# ---------------------------------------------------------------------------
 
 
 class TestAuthMiddlewareAnonymous:
@@ -104,11 +94,6 @@ class TestAuthMiddlewareAnonymous:
         mw = AuthenticationMiddleware(app)
         await mw(http_scope(), None, None)
         assert captured["auth"] == {"type": "none"}
-
-
-# ---------------------------------------------------------------------------
-# JWT authentication
-# ---------------------------------------------------------------------------
 
 
 class TestAuthMiddlewareJWT:
@@ -232,11 +217,6 @@ class TestAuthMiddlewareJWT:
         assert captured["auth"]["type"] == "none"
 
 
-# ---------------------------------------------------------------------------
-# Session authentication
-# ---------------------------------------------------------------------------
-
-
 class TestAuthMiddlewareSession:
     @pytest.mark.asyncio
     async def test_valid_session_sets_user(self):
@@ -301,11 +281,6 @@ class TestAuthMiddlewareSession:
         assert isinstance(captured["user"], AnonymousUser)
 
 
-# ---------------------------------------------------------------------------
-# JWT takes precedence over session when both headers present
-# ---------------------------------------------------------------------------
-
-
 class TestAuthMiddlewarePrecedence:
     @pytest.mark.asyncio
     async def test_jwt_takes_precedence_over_session(self):
@@ -360,11 +335,6 @@ class TestAuthMiddlewarePrecedence:
             await AuthenticationMiddleware(app)(scope, None, None)
 
         assert captured["auth"]["type"] == "session"
-
-
-# ---------------------------------------------------------------------------
-# Context variable
-# ---------------------------------------------------------------------------
 
 
 class TestAuthMiddlewareContextVar:
@@ -428,11 +398,6 @@ class TestAuthMiddlewareContextVar:
                 await AuthenticationMiddleware(app)(bearer_scope(token), None, None)
 
         assert seen is fake_user
-
-
-# ---------------------------------------------------------------------------
-# User cache
-# ---------------------------------------------------------------------------
 
 
 class TestUserCache:
@@ -524,11 +489,6 @@ class TestUserCache:
             assert call_count == 1
 
         clear_auth_cache()
-
-
-# ---------------------------------------------------------------------------
-# User cache lock
-# ---------------------------------------------------------------------------
 
 
 class TestUserCacheLock:

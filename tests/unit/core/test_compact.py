@@ -12,10 +12,6 @@ from openviper.core import app_resolver
 from openviper.core.management import find_command
 from openviper.core.management.base import BaseCommand, CommandError
 
-# ---------------------------------------------------------------------------
-# app_resolver.py(cache eviction)
-# ---------------------------------------------------------------------------
-
 
 class TestAppResolverCacheEviction:
     """Test search pattern cache eviction."""
@@ -56,11 +52,6 @@ class TestAppResolverCacheEviction:
             app_resolver._SEARCH_PATTERN_CACHE_MAX = original_max
 
 
-# ---------------------------------------------------------------------------
-# management/__init__.py
-# ---------------------------------------------------------------------------
-
-
 class TestManagementInit:
     """Test management __init__.py uncovered branches."""
 
@@ -84,11 +75,6 @@ class TestManagementInit:
         with patch("openviper.core.management.settings", mock_settings):
             with pytest.raises(CommandError, match="Unknown command"):
                 find_command("nonexistent_command")
-
-
-# ---------------------------------------------------------------------------
-# commands/changepassword.py
-# ---------------------------------------------------------------------------
 
 
 class TestChangePasswordBranches:
@@ -157,11 +143,6 @@ class TestChangePasswordBranches:
             assert "Database error" in str(wrapped)
 
         assert error_occurred
-
-
-# ---------------------------------------------------------------------------
-# commands/createsuperuser.py
-# ---------------------------------------------------------------------------
 
 
 class TestCreatesuperuserBranches:
@@ -239,11 +220,6 @@ class TestCreatesuperuserBranches:
         assert error_occurred
 
 
-# ---------------------------------------------------------------------------
-# commands/console.py
-# ---------------------------------------------------------------------------
-
-
 class TestConsoleBranches:
     """Test console command uncovered branches."""
 
@@ -305,11 +281,6 @@ class TestConsoleBranches:
         assert "MyModel" in models
 
 
-# ---------------------------------------------------------------------------
-# commands/migrate.py
-# ---------------------------------------------------------------------------
-
-
 class TestMigrateBranches:
     """Test migrate command uncovered branches."""
 
@@ -329,11 +300,6 @@ class TestMigrateBranches:
         result = resolved_apps if isinstance(resolved_apps, dict) else None
 
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Integration-style tests for command execution
-# ---------------------------------------------------------------------------
 
 
 class TestCommandExecutionBranches:
@@ -365,11 +331,6 @@ class TestCommandExecutionBranches:
         """Test CommandError default returncode."""
         error = CommandError("Test error")
         assert error.returncode == 1
-
-
-# ---------------------------------------------------------------------------
-# Additional edge cases
-# ---------------------------------------------------------------------------
 
 
 class TestAdditionalEdgeCases:

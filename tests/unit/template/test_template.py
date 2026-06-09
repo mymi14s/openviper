@@ -7,21 +7,12 @@ from unittest.mock import MagicMock, patch
 from openviper.template import plugin_loader
 from openviper.template.environment import get_jinja2_env
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def mock_env() -> MagicMock:
     env = MagicMock()
     env.filters = {}
     env.globals = {}
     return env
-
-
-# ---------------------------------------------------------------------------
-# load() - disabled / fast-path
-# ---------------------------------------------------------------------------
 
 
 class TestLoadDisabled:
@@ -96,11 +87,6 @@ class TestLoadFastPath:
         assert "injected" not in env2.globals
 
 
-# ---------------------------------------------------------------------------
-# reset()
-# ---------------------------------------------------------------------------
-
-
 class TestReset:
     def test_reset_clears_loaded(self):
         plugin_loader.STATE.loaded = True
@@ -128,11 +114,6 @@ class TestReset:
         state_b = plugin_loader.State()
         state_a.filters["unique_to_a"] = lambda v: v
         assert "unique_to_a" not in state_b.filters
-
-
-# ---------------------------------------------------------------------------
-# scan_directory()
-# ---------------------------------------------------------------------------
 
 
 class TestScanDirectory:
@@ -230,11 +211,6 @@ class TestScanDirectory:
         assert not result
 
 
-# ---------------------------------------------------------------------------
-# discover_plugins() - project-level path traversal guard
-# ---------------------------------------------------------------------------
-
-
 class TestDiscoverPluginsPathGuard:
     def setup_method(self):
         plugin_loader.reset()
@@ -260,11 +236,6 @@ class TestDiscoverPluginsPathGuard:
             s.INSTALLED_APPS = []
             plugin_loader.discover_plugins(cfg)
         assert not any("escapes project root" in r.message for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# Integration: filters/globals flow through to environment
-# ---------------------------------------------------------------------------
 
 
 class TestPluginIntegration:

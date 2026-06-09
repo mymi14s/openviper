@@ -3793,11 +3793,6 @@ class TestOtherExceptionEdges:
                 await handler(mock_request, model_name="x", obj_id=1)
 
 
-# ---------------------------------------------------------------------------
-# correctness tests for admin fixes
-# ---------------------------------------------------------------------------
-
-
 def find_handler_by_path_method(router, path, method):
     for route in router.routes:
         if route.path == path and method in route.methods:

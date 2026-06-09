@@ -55,8 +55,6 @@ For a production-grade multi-app example with AI moderation see `examples/ai_mod
 * **Protected ORM** - role-based access enforcement at the query level, not just at the view level.
 * **AI-native** - a unified :ref:`ai` abstracts OpenAI, Anthropic, Gemini, Ollama, Grok and custom providers behind a single async API.
 * **Admin panel** - automatic CRUD interface, auto-discovery, and role-based visibility.
-* **Background tasks** - task queue with retry policies, priorities.
-* **Periodic scheduler** - cron and interval scheduling built into the framework.
 * **OpenAPI** - live Swagger and ReDoc UIs generated automatically from your routes.
 
 ----
@@ -90,7 +88,6 @@ For a production-grade multi-app example with AI moderation see `examples/ai_mod
    auth
    auth_hooks
    admin
-   tasks
    email
    openapi
    template

@@ -206,8 +206,6 @@ class ModelEventDispatcher:
         # Freeze handlers dict to avoid per-lookup attribute overhead.
         self._handlers: dict[str, dict[str, list[Any]]] = handlers
 
-    # ------------------------------------------------------------------
-
     def trigger(
         self,
         model_path: str,

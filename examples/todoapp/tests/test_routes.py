@@ -5,8 +5,6 @@ from __future__ import annotations
 import pytest
 from models import Todo
 
-# ── GET / ─────────────────────────────────────────────────────────────────────
-
 
 async def test_root_unauthenticated(client):
     resp = await client.get("/", follow_redirects=False)
@@ -18,9 +16,6 @@ async def test_root_authenticated(auth_client):
     resp = await auth_client.get("/", follow_redirects=False)
     assert resp.status_code == 303
     assert "/todos" in resp.headers["location"]
-
-
-# ── GET /login ────────────────────────────────────────────────────────────────
 
 
 async def test_login_page_unauthenticated(client):
@@ -38,9 +33,6 @@ async def test_login_page_authenticated_redirects(auth_client):
     resp = await auth_client.get("/login", follow_redirects=False)
     assert resp.status_code == 303
     assert "/todos" in resp.headers["location"]
-
-
-# ── POST /login ───────────────────────────────────────────────────────────────
 
 
 async def test_login_success_sets_cookie(client, user):
@@ -74,16 +66,10 @@ async def test_login_bad_credentials_redirects_with_error(client):
     assert "error" in resp.headers["location"]
 
 
-# ── POST /logout ──────────────────────────────────────────────────────────────
-
-
 async def test_logout_redirects_to_login(auth_client):
     resp = await auth_client.post("/logout", follow_redirects=False)
     assert resp.status_code == 303
     assert "/login" in resp.headers["location"]
-
-
-# ── Protected routes - unauthenticated ────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -101,9 +87,6 @@ async def test_protected_routes_redirect_unauthenticated(client, method, path):
     assert "/login" in resp.headers["location"]
 
 
-# ── GET /todos ────────────────────────────────────────────────────────────────
-
-
 async def test_todo_list_empty(auth_client):
     resp = await auth_client.get("/todos")
     assert resp.status_code == 200
@@ -113,9 +96,6 @@ async def test_todo_list_with_items(auth_client, user):
     await Todo(title="Existing item", done=False, owner_id=user.id).save()
     resp = await auth_client.get("/todos")
     assert resp.status_code == 200
-
-
-# ── POST /todos (create) ──────────────────────────────────────────────────────
 
 
 async def test_todo_create_valid_title(auth_client, user):
@@ -131,9 +111,6 @@ async def test_todo_create_empty_title_no_insert(auth_client, user):
     assert resp.status_code == 303
     todos = await Todo.objects.filter(owner_id=user.id).all()
     assert len(todos) == 0
-
-
-# ── POST /todos/{id}/toggle ───────────────────────────────────────────────────
 
 
 async def test_todo_toggle_found(auth_client, user):
@@ -155,9 +132,6 @@ async def test_todo_toggle_found(auth_client, user):
 async def test_todo_toggle_not_found_is_safe(auth_client):
     resp = await auth_client.post("/todos/99999/toggle", follow_redirects=False)
     assert resp.status_code == 303
-
-
-# ── POST /todos/{id}/delete ───────────────────────────────────────────────────
 
 
 async def test_todo_delete_found(auth_client, user):

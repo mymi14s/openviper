@@ -87,11 +87,6 @@ async def test_admin_current_user(monkeypatch):
     assert resp is not None
 
 
-# ---------------------------------------------------------------------------
-# Additional endpoint tests to cover remaining uncovered lines
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_list_by_app_with_filters(monkeypatch):
     """Test list_instances_by_app with filter params.
@@ -332,11 +327,6 @@ async def test_history_by_app_no_admin_access(monkeypatch):
     handler = get_handler("/models/{app_label}/{model_name}/{obj_id}/history/", "GET")
     with pytest.raises(views.PermissionDenied):
         await handler(req, "testapp", "TestModel", "1")
-
-
-# ---------------------------------------------------------------------------
-# Legacy endpoint tests
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

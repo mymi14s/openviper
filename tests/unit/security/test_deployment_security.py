@@ -35,10 +35,6 @@ from .conftest import (
     override_settings,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 async def simple_app(scope: dict, receive: object, send: object) -> None:
     """Trivial ASGI app that returns 200 OK with a short body."""
@@ -50,11 +46,6 @@ async def simple_app(scope: dict, receive: object, send: object) -> None:
         }
     )
     await send({"type": "http.response.body", "body": b"ok"})
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-001: X-Forwarded-* headers are trusted only from configured proxies
-# ---------------------------------------------------------------------------
 
 
 class TestXForwardedHeaders:
@@ -221,11 +212,6 @@ class TestXForwardedHeaders:
             middleware = SecurityMiddleware(simple_app)
             assert not middleware.is_host_allowed("localhost")
             assert not middleware.is_host_allowed("example.com")
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-002: Secure cookies work correctly behind trusted TLS proxy
-# ---------------------------------------------------------------------------
 
 
 class TestSecureCookiesBehindProxy:
@@ -441,11 +427,6 @@ class TestSecureCookiesBehindProxy:
                 validate_settings(Settings(), env="production")
 
 
-# ---------------------------------------------------------------------------
-# DEPLOY-003: Development server does not bind publicly by default
-# ---------------------------------------------------------------------------
-
-
 class TestDevServerBinding:
     """Development server must not bind to public interfaces by default."""
 
@@ -521,11 +502,6 @@ class TestDevServerBinding:
         """SECURE_HSTS_SECONDS must default to 0 (disabled) for development."""
         settings = Settings()
         assert settings.SECURE_HSTS_SECONDS == 0
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-004: Proxy and framework body limits are consistent
-# ---------------------------------------------------------------------------
 
 
 class TestBodyLimits:

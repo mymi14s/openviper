@@ -3,15 +3,25 @@
 import dataclasses
 import os
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from openviper.conf.settings import Settings
+
+if TYPE_CHECKING:
+    from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)
 class MiniAppSettings(Settings):
     PROJECT_NAME: str = "miniapp"
     DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///db.sqlite3")
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "URL": "sqlite:///db.sqlite3",
+            },
+        },
+    )
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
     INSTALLED_APPS: tuple[str, ...] = ("openviper.auth", "openviper.admin")

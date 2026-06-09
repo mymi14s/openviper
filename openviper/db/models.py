@@ -147,9 +147,6 @@ async def check_perm_cached(model: type, action: str, ignore_permissions: bool =
     cache[key] = True
 
 
-# -- Model Options -------------------------------------------------------------
-
-
 class ModelOptions:
     """Metadata container for a Model class.
 
@@ -215,9 +212,6 @@ class ModelOptions:
         )
 
 
-# -- Metaclass -----------------------------------------------------------------
-
-
 class ModelMeta(type):
     """Metaclass that collects field definitions and wires up the Manager.
 
@@ -225,8 +219,8 @@ class ModelMeta(type):
     if not explicitly specified in Meta.table_name.
     """
 
-    # Share the registry dict with _model_registry so fields.py and
-    # executor.py can access it without importing models.py (circular dep).
+    # Share the registry dict with _model_registry so other modules
+    # can access it without a circular import.
     registry: ClassVar[dict[str, type[Model]]] = registry_mod.registry
     name_index: ClassVar[dict[str, list[type]]] = registry_mod.name_index
     # FK targets may not be registered yet; defer reverse wiring until the target class appears.
@@ -330,8 +324,6 @@ class ModelMeta(type):
             if app_name and app_name != "default" and name != "Model" and not is_abstract:
                 table_name = f"{app_name}_{model_snake}".lower()
             else:
-                # Legacy apps without an app_name use pluralized snake_case
-                # for backward compatibility.
                 table_name = _CAMEL_RE3.sub("_", name).lower() + "s"
 
         # Index field names must resolve to real fields; fail early to surface migration bugs.
@@ -511,9 +503,6 @@ class Index:
         return f"Index(fields={self.fields!r}, name={self.name!r}, condition={self.condition!r})"
 
 
-# -- F expression -------------------------------------------------------------
-
-
 class F:
     """Reference a model field for database-side operations.
 
@@ -613,9 +602,6 @@ class _FExpr:
         return self.lhs == other.lhs and self.op == other.op and self.rhs == other.rhs
 
 
-# -- Aggregate expressions ----------------------------------------------------
-
-
 class _Aggregate:
     """Base class for SQL aggregate functions used in ``aggregate()`` / ``annotate()``."""
 
@@ -658,9 +644,6 @@ class Min(_Aggregate):
     """``MIN(field)`` aggregate."""
 
     func = "min"
-
-
-# -- Q object -----------------------------------------------------------------
 
 
 class Q:
@@ -813,9 +796,6 @@ def build_keyset_q(order_fields: list[str], cursor_values: dict[str, Any]) -> Q 
     for part in or_parts[1:]:
         result = result | part
     return result
-
-
-# -- Manager (QuerySet factory) ------------------------------------------------
 
 
 class Manager:
@@ -1168,8 +1148,7 @@ class Manager:
         return f"Manager(model={self.model.__name__})"
 
 
-# TraversalStep and TraversalLookup live in _traversal.py to break the circular dependency
-# between executor.py and models.py; re-exporting here preserves backward compatibility.
+# Re-exported from _traversal to preserve backward compatibility.
 
 
 class Page:
@@ -1223,9 +1202,6 @@ class Page:
 
     def __repr__(self) -> str:
         return f"<Page {self.number} of {self.num_pages} ({len(self.items)} items)>"
-
-
-# -- Traversal key remapping ---------------------------------------------------
 
 
 def remap_traversal_keys(
@@ -1284,9 +1260,6 @@ def remap_field_keys(fields: tuple[str, ...] | None) -> tuple[str, ...] | None:
     if not remap:
         return fields
     return tuple(remap.get(f, f) for f in fields)
-
-
-# -- QuerySet ------------------------------------------------------------------
 
 
 class QuerySet:
@@ -2312,11 +2285,6 @@ class QuerySet:
         return f"QuerySet(model={self._model.__name__}, filters={self._filters})"
 
 
-# -- Model ---------------------------------------------------------------------
-
-# -- Hook caller ---------------------------------------------------------------
-
-
 async def call_hook(hook: Any, *args: Any) -> Any:
     """Call a lifecycle hook, tolerating both sync and async implementations.
 
@@ -2327,9 +2295,6 @@ async def call_hook(hook: Any, *args: Any) -> Any:
     if inspect.isawaitable(result):
         return await result
     return result
-
-
-# -- Model ---------------------------------------------------------------------
 
 
 class Model(metaclass=ModelMeta):
@@ -3107,7 +3072,7 @@ class Model(metaclass=ModelMeta):
         return bool(self.pk >= other.pk)
 
 
-# Cross-module references break the circular import between fields.py and models.py.
+# Cross-module references break the circular import between fields and models.
 registry_mod.model_meta_cls = ModelMeta
 registry_mod.model_cls = Model
 registry_mod.queryset_cls = QuerySet

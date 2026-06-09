@@ -20,10 +20,6 @@ from openviper.middleware.error import ServerErrorMiddleware
 
 from .conftest import AnonymousMockUser, MockUser, make_scope
 
-# ---------------------------------------------------------------------------
-# ADMIN-001: Admin routes require admin authorization
-# ---------------------------------------------------------------------------
-
 
 class TestAdminAuthorization:
     """Admin routes must require admin authorization."""
@@ -69,11 +65,6 @@ class TestAdminAuthorization:
             await admin_view(request)
 
 
-# ---------------------------------------------------------------------------
-# ADMIN-002: Debug console is never enabled in production
-# ---------------------------------------------------------------------------
-
-
 class TestDebugConsoleProduction:
     """Debug console must never be enabled in production."""
 
@@ -100,11 +91,6 @@ class TestDebugConsoleProduction:
         assert dev_middleware.debug is True
 
 
-# ---------------------------------------------------------------------------
-# ADMIN-003: Generated CRUD excludes sensitive fields by default
-# ---------------------------------------------------------------------------
-
-
 class TestAdminCRUDSensitiveFields:
     """Generated CRUD must exclude sensitive fields by default."""
 
@@ -123,11 +109,6 @@ class TestAdminCRUDSensitiveFields:
         assert hasattr(ModelAdmin, "readonly_fields")
         admin = ModelAdmin(Model)
         assert isinstance(admin.readonly_fields, list)
-
-
-# ---------------------------------------------------------------------------
-# ADMIN-004: Management commands do not execute shell with untrusted input
-# ---------------------------------------------------------------------------
 
 
 class TestManagementCommandSafety:

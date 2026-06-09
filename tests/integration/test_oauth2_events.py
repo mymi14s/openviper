@@ -8,10 +8,6 @@ import pytest
 
 from openviper.auth.authentications import OAuth2Authentication
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_fake_user(
     user_id: int = 1,
@@ -38,11 +34,6 @@ class FakeRequest:
         self._scope: dict[str, object] = {}
         self.cookies: dict[str, str] = {}
         self.session = None
-
-
-# ---------------------------------------------------------------------------
-# Integration: full login success → on_success fires
-# ---------------------------------------------------------------------------
 
 
 class TestOAuth2LoginSuccessEvent:
@@ -119,11 +110,6 @@ class TestOAuth2LoginSuccessEvent:
         assert result is not None
 
 
-# ---------------------------------------------------------------------------
-# Integration: login failure → on_fail fires
-# ---------------------------------------------------------------------------
-
-
 class TestOAuth2LoginFailEvent:
     """OAuth2 on_fail event fires when authentication is unsuccessful."""
 
@@ -197,11 +183,6 @@ class TestOAuth2LoginFailEvent:
         request.headers = {}
         result = await auth.authenticate(request)
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Integration: first login → on_initial fires
-# ---------------------------------------------------------------------------
 
 
 class TestOAuth2FirstLoginEvent:

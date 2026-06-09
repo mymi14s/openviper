@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Final, cast
 from dotenv import find_dotenv, load_dotenv
 
 from openviper._version import __version__ as framework_version
+from openviper.conf.task_defaults import DEFAULT_TASKS
 from openviper.exceptions import ImproperlyConfigured, SettingsValidationError
 
 if TYPE_CHECKING:
@@ -252,7 +253,7 @@ class Settings:
             "from": "",
             "default_sender": "noreply@example.com",
             "fail_silently": False,
-            "use_background_worker": False,
+            "background": False,
         },
     )
 
@@ -272,9 +273,11 @@ class Settings:
     RATE_LIMIT_WINDOW: int = 60
     RATE_LIMIT_BY: str = "ip"  # "ip" | "user" | "path"
 
-    TASKS: ConfigMap = dataclasses.field(default_factory=dict)
-
     MODEL_EVENTS: ConfigMap = dataclasses.field(default_factory=dict)
+
+    TASKS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {**DEFAULT_TASKS},
+    )
 
     OAUTH2_EVENTS: dict[str, str] = dataclasses.field(default_factory=dict)
 

@@ -20,10 +20,6 @@ from openviper.core.management.commands.createsuperuser import (
 )
 from openviper.db.models import Model
 
-# ---------------------------------------------------------------------------
-# Console command tests
-# ---------------------------------------------------------------------------
-
 
 class TestConsoleModelDiscovery:
     """Test console command _discover_models method."""
@@ -167,11 +163,6 @@ class TestConsoleModelDiscovery:
                     assert mock_stdout.called
 
 
-# ---------------------------------------------------------------------------
-# Changepassword command tests
-# ---------------------------------------------------------------------------
-
-
 class TestChangepasswordBranches:
     """Test changepassword command uncovered branches."""
 
@@ -265,11 +256,6 @@ class TestChangepasswordBranches:
         error_shown = bool(not password)
 
         assert error_shown
-
-
-# ---------------------------------------------------------------------------
-# Createsuperuser command tests
-# ---------------------------------------------------------------------------
 
 
 class TestCreatesuperuserBranches:
@@ -420,11 +406,6 @@ class TestCreatesuperuserBranches:
         """Test _prompt_password with preset returns it."""
         result = createsuperuser_command._prompt_password("secretpass")
         assert result == "secretpass"
-
-
-# ---------------------------------------------------------------------------
-# Additional integration tests
-# ---------------------------------------------------------------------------
 
 
 class TestCommandIntegration:

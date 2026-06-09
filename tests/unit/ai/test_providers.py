@@ -43,10 +43,6 @@ from openviper.ai.providers.ollama_provider import OllamaProvider, validate_base
 from openviper.ai.providers.openai_provider import ALLOWED_GENERATE_KWARGS, OpenAIProvider
 from openviper.ai.registry import provider_registry as reg_registry
 
-# ---------------------------------------------------------------------------
-# Ollama - SSRF validation
-# ---------------------------------------------------------------------------
-
 
 class TestOllamaValidateBaseUrl:
     def test_localhost_http_allowed(self):
@@ -107,11 +103,6 @@ class TestOllamaProvider:
         client = p._get_client()
         assert client is not None
         assert p._client is client
-
-
-# ---------------------------------------------------------------------------
-# Grok - SSRF, error handling, helpers
-# ---------------------------------------------------------------------------
 
 
 class TestGrokValidateBaseUrl:
@@ -298,11 +289,6 @@ class TestGrokBuildExtraParams:
         assert "unknown_param" not in extra
 
 
-# ---------------------------------------------------------------------------
-# Gemini - SSRF, error wrapping, cost estimation
-# ---------------------------------------------------------------------------
-
-
 class TestGeminiValidateImageUrl:
     def test_https_allowed(self):
         validate_image_url("https://example.com/image.jpg")
@@ -329,11 +315,6 @@ class TestGeminiValidateImageUrl:
 
     def test_hostname_allowed(self):
         validate_image_url("https://images.example.com/photo.jpg")
-
-
-# ---------------------------------------------------------------------------
-# OpenAI - kwarg filtering, temperature clamping
-# ---------------------------------------------------------------------------
 
 
 class TestOpenAIFilterKwargs:
@@ -383,11 +364,6 @@ class TestOpenAIProviderInit:
         assert p._client is None
 
 
-# ---------------------------------------------------------------------------
-# Anthropic - kwarg filtering, temperature clamping
-# ---------------------------------------------------------------------------
-
-
 class TestAnthropicClampTemperature:
     def test_none_returns_none(self):
         assert clamp_temperature(None, max_temp=1.0) is None
@@ -424,11 +400,6 @@ class TestAnthropicFilterKwargs:
 
     def test_name(self):
         assert AnthropicProvider.name == "anthropic"
-
-
-# ---------------------------------------------------------------------------
-# Extension module - public API surface
-# ---------------------------------------------------------------------------
 
 
 class TestExtensionModule:

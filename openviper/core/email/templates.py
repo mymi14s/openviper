@@ -8,7 +8,7 @@ from typing import cast
 
 try:
     import markdown as markdown_lib
-except ImportError:  # pragma: no cover - runtime dependency in requirements.txt
+except ImportError:  # pragma: no cover - optional runtime dependency
     markdown_lib = None
 
 from openviper.conf import settings

@@ -33,10 +33,6 @@ from openviper.exceptions import (
     ValidationError,
 )
 
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
-
 
 def make_http_exc(status: int = 400, detail: str | None = None) -> HTTPException:
     return HTTPException(status, detail)
@@ -52,11 +48,6 @@ def make_collision(
     model: str = "gpt-4", existing: str = "OpenAI", new: str = "Azure"
 ) -> ModelCollisionError:
     return ModelCollisionError(model, existing, new)
-
-
-# ---------------------------------------------------------------------------
-# Hierarchy
-# ---------------------------------------------------------------------------
 
 
 class TestExceptionHierarchy:
@@ -126,11 +117,6 @@ class TestExceptionHierarchy:
     @pytest.mark.parametrize("exc_cls", [ModelNotFoundError, ModelCollisionError])
     def test_ai_subclasses(self, exc_cls):
         assert issubclass(exc_cls, AIException)
-
-
-# ---------------------------------------------------------------------------
-# HTTPException
-# ---------------------------------------------------------------------------
 
 
 class TestHTTPException:

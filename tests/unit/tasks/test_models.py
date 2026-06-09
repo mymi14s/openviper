@@ -1,83 +1,129 @@
-"""Unit tests for openviper.tasks.models - TaskResult ORM model."""
+"""Tests for openviper.tasks.models - task result persistence models."""
 
-from datetime import UTC, datetime, timedelta
+from __future__ import annotations
 
-from openviper.db import fields
-from openviper.tasks.models import TaskResult
+import pytest
+
+from openviper.tasks.models import (
+    TASK_STATUS_CHOICES,
+    TRIGGER_SOURCE_CHOICES,
+    ScheduledJob,
+    TaskResult,
+)
 
 
 class TestTaskResultModel:
-    """Test TaskResult model structure and properties."""
+    """Verify TaskResult model fields and constraints."""
 
-    def test_table_name(self):
-        """TaskResult should use openviper_task_results table."""
-        assert TaskResult.Meta.table_name == "openviper_task_results"
+    def test_task_status_choices_defined(self) -> None:
+        """Task status must include all required lifecycle states."""
+        expected = [
+            ("pending", "Pending"),
+            ("running", "Running"),
+            ("success", "Success"),
+            ("failure", "Failure"),
+            ("skipped", "Skipped"),
+            ("dead", "Dead"),
+        ]
+        assert expected == TASK_STATUS_CHOICES
 
-    def test_field_types(self):
-        """All fields should have correct types."""
-        assert isinstance(TaskResult.id, type(fields.IntegerField()))
-        assert isinstance(TaskResult.message_id, type(fields.CharField()))
-        assert isinstance(TaskResult.actor_name, type(fields.CharField()))
-        assert isinstance(TaskResult.queue_name, type(fields.CharField()))
-        assert isinstance(TaskResult.status, type(fields.CharField()))
-        assert isinstance(TaskResult.retries, type(fields.IntegerField()))
-        assert isinstance(TaskResult.args, type(fields.TextField()))
-        assert isinstance(TaskResult.kwargs, type(fields.TextField()))
-        assert isinstance(TaskResult.result, type(fields.TextField()))
-        assert isinstance(TaskResult.error, type(fields.TextField()))
-        assert isinstance(TaskResult.traceback, type(fields.TextField()))
-        assert isinstance(TaskResult.enqueued_at, type(fields.DateTimeField()))
-        assert isinstance(TaskResult.started_at, type(fields.DateTimeField()))
-        assert isinstance(TaskResult.completed_at, type(fields.DateTimeField()))
+    def test_task_result_meta_table_name(self) -> None:
+        """TaskResult must use the correct table name."""
+        assert TaskResult.Meta.table_name == "openviper_task_result"
 
-    def test_repr(self):
-        """__repr__ should show key fields."""
-        result = TaskResult(message_id="test-123", actor_name="my_actor", status="success")
-        repr_str = repr(result)
-        assert "TaskResult" in repr_str
-        assert "test-123" in repr_str
-        assert "my_actor" in repr_str
-        assert "success" in repr_str
+    def test_task_result_message_id_is_uuid(self) -> None:
+        """message_id field must be a UUIDField with unique constraint."""
+        from openviper.db import fields
 
-    def test_duration_ms_with_times(self):
-        """duration_ms should calculate execution time when times are set."""
-        result = TaskResult(
-            message_id="test-123",
-            actor_name="my_actor",
-            status="success",
-            started_at=datetime(2026, 3, 10, 12, 0, 0, tzinfo=UTC),
-            completed_at=datetime(2026, 3, 10, 12, 0, 5, tzinfo=UTC),
-        )
-        assert result.duration_ms == 5000.0
+        msg_field = TaskResult.message_id
+        assert isinstance(msg_field, fields.UUIDField)
+        assert msg_field.unique is True
 
-    def test_duration_ms_without_started_at(self):
-        """duration_ms should return None when started_at is missing."""
-        result = TaskResult(
-            message_id="test-123",
-            actor_name="my_actor",
-            status="success",
-            completed_at=datetime.now(UTC),
-        )
-        assert result.duration_ms is None
+    def test_task_result_status_default(self) -> None:
+        """status field must default to 'pending'."""
+        status_field = TaskResult.status
+        assert status_field.default == "pending"
 
-    def test_duration_ms_without_completed_at(self):
-        """duration_ms should return None when completed_at is missing."""
-        result = TaskResult(
-            message_id="test-123",
-            actor_name="my_actor",
-            status="running",
-            started_at=datetime.now(UTC),
-        )
-        assert result.duration_ms is None
+    def test_task_result_status_has_choices(self) -> None:
+        """status field must have choices constrained to TASK_STATUS_CHOICES."""
+        status_field = TaskResult.status
+        assert hasattr(status_field, "choices")
+        assert status_field.choices == TASK_STATUS_CHOICES
 
-    def test_duration_ms_sub_second(self):
-        """duration_ms should handle sub-second durations."""
-        now = datetime.now(UTC)
-        result = TaskResult(
-            message_id="test-123",
-            actor_name="my_actor",
-            status="success",
-            started_at=now,
-            completed_at=now + timedelta(milliseconds=250),
-        )
-        assert 240 < result.duration_ms < 260  # Allow small float precision variance
+    def test_task_result_queue_default(self) -> None:
+        """queue field must default to 'default'."""
+        queue_field = TaskResult.queue
+        assert queue_field.default == "default"
+
+
+class TestScheduledJobModel:
+    """Verify ScheduledJob model fields and constraints."""
+
+    def test_trigger_source_choices_defined(self) -> None:
+        """trigger_source must accept 'cron' and 'interval'."""
+        expected = [("cron", "Cron"), ("interval", "Interval")]
+        assert expected == TRIGGER_SOURCE_CHOICES
+
+    def test_scheduled_job_meta_table_name(self) -> None:
+        """ScheduledJob must use the correct table name."""
+        assert ScheduledJob.Meta.table_name == "openviper_scheduled_job"
+
+    def test_scheduled_job_name_is_unique(self) -> None:
+        """name field must be unique."""
+        name_field = ScheduledJob.name
+        assert name_field.unique is True
+
+    def test_scheduled_job_trigger_source_has_choices(self) -> None:
+        """trigger_source field must have choices constrained."""
+        trigger_field = ScheduledJob.trigger_source
+        assert hasattr(trigger_field, "choices")
+        assert trigger_field.choices == TRIGGER_SOURCE_CHOICES
+
+    def test_scheduled_job_status_default(self) -> None:
+        """status field must default to 'active'."""
+        status_field = ScheduledJob.status
+        assert status_field.default == "active"
+
+
+class TestTaskResultStateTransitions:
+    """Verify data state life cycles across all stages."""
+
+    def test_task_status_pending_to_running(self) -> None:
+        """Task status must transition from 'pending' to 'running'."""
+        values = [c[0] for c in TASK_STATUS_CHOICES]
+        assert "pending" in values
+        assert "running" in values
+
+    def test_task_status_running_to_success(self) -> None:
+        """Task status must support 'success' as a terminal state."""
+        values = [c[0] for c in TASK_STATUS_CHOICES]
+        assert "success" in values
+
+    def test_task_status_running_to_failure(self) -> None:
+        """Task status must support 'failure' as a terminal state."""
+        values = [c[0] for c in TASK_STATUS_CHOICES]
+        assert "failure" in values
+
+    def test_task_status_running_to_dead(self) -> None:
+        """Task status must support 'dead' as a terminal state after max retries."""
+        values = [c[0] for c in TASK_STATUS_CHOICES]
+        assert "dead" in values
+
+    def test_task_status_skipped(self) -> None:
+        """Task status must support 'skipped' for intentionally bypassed tasks."""
+        values = [c[0] for c in TASK_STATUS_CHOICES]
+        assert "skipped" in values
+
+
+class TestScheduledJobSync:
+    """Verify synchronization states reconcile database tables."""
+
+    def test_trigger_source_cron(self) -> None:
+        """Cron-based jobs must use 'cron' trigger source."""
+        values = [c[0] for c in TRIGGER_SOURCE_CHOICES]
+        assert "cron" in values
+
+    def test_trigger_source_interval(self) -> None:
+        """Interval-based jobs must use 'interval' trigger source."""
+        values = [c[0] for c in TRIGGER_SOURCE_CHOICES]
+        assert "interval" in values

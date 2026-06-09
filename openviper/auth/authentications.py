@@ -125,8 +125,8 @@ class JWTAuthentication(BaseAuthentication):
                     return user, {"type": "jwt"}
         except TokenExpired:
             logger.debug("JWT token expired for request to %s", request.path)
-        except (AuthenticationFailed, ValueError, KeyError, JWTError) as exc:
-            logger.warning("JWT authentication error: %s", exc)
+        except AuthenticationFailed, ValueError, KeyError, JWTError:
+            pass
 
         return None
 

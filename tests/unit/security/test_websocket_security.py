@@ -28,10 +28,6 @@ from openviper.middleware.ratelimit import RateLimitMiddleware, SlidingWindowCou
 
 from .conftest import MockUser, SendCollector, make_scope
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_ws_scope(
     path: str = "/ws/chat/",
@@ -60,19 +56,12 @@ async def noop_receive() -> dict[str, object]:
     return {"type": "websocket.connect"}
 
 
-# ---------------------------------------------------------------------------
-# WS-001: WebSocket upgrade requires authentication when configured
-# ---------------------------------------------------------------------------
-
-
 class TestWS001WebSocketAuthentication:
     """WebSocket upgrades must require authentication when configured.
 
     The AuthenticationMiddleware processes both HTTP and WebSocket scope
     types.  Unauthenticated WebSocket upgrades must be rejected (fail-closed).
     """
-
-    # -- Positive tests: authenticated upgrades pass through ----------------
 
     @pytest.mark.asyncio
     async def test_ws001_authenticated_user_set_on_ws_scope(self) -> None:
@@ -104,8 +93,6 @@ class TestWS001WebSocketAuthentication:
         scope = make_ws_scope(path="/ws/chat/")
         request = Request(scope)
         assert request.path == "/ws/chat/"
-
-    # -- Negative tests: unauthenticated upgrades are rejected --------------
 
     @pytest.mark.asyncio
     async def test_ws001_unauthenticated_user_set_on_ws_scope(self) -> None:
@@ -199,11 +186,6 @@ class TestWS001WebSocketAuthentication:
         assert "auth" in scope, "scope['auth'] must be set by AuthenticationMiddleware"
 
 
-# ---------------------------------------------------------------------------
-# WS-002: WebSocket origin is validated
-# ---------------------------------------------------------------------------
-
-
 class TestWS002WebSocketOriginValidation:
     """WebSocket origins must be validated.
 
@@ -211,8 +193,6 @@ class TestWS002WebSocketOriginValidation:
     and skips websocket scopes entirely.  This means WebSocket connections
     bypass origin validation - a critical security vulnerability.
     """
-
-    # -- Positive tests: CORS middleware validates HTTP origins correctly ----
 
     def test_ws002_cors_exact_origins_configured(self) -> None:
         """CORSMiddleware must store exact allowed origins for validation."""
@@ -249,8 +229,6 @@ class TestWS002WebSocketOriginValidation:
             allowed_origins=["https://trusted.example.com"],
         )
         assert middleware.origin_allowed("https://evil.example.com") is False
-
-    # -- Negative tests: CORS middleware skips websocket scopes (SECURITY GAP)
 
     @pytest.mark.asyncio
     async def test_ws002_cors_skips_websocket_scope_type(self) -> None:
@@ -345,11 +323,6 @@ class TestWS002WebSocketOriginValidation:
         assert middleware._allow_all_origins is True
 
 
-# ---------------------------------------------------------------------------
-# WS-003: Channel subscription authorization is enforced
-# ---------------------------------------------------------------------------
-
-
 class TestWS003ChannelSubscriptionAuthorization:
     """Channel subscriptions must enforce authorization.
 
@@ -357,8 +330,6 @@ class TestWS003ChannelSubscriptionAuthorization:
     permission to subscribe to a given channel.  Cross-user subscription
     must be denied.
     """
-
-    # -- Positive tests: decorators exist and work --------------------------
 
     def test_ws003_permission_required_decorator_callable(self) -> None:
         """permission_required decorator must be callable for route protection."""
@@ -409,8 +380,6 @@ class TestWS003ChannelSubscriptionAuthorization:
 
         result = await ws_admin_channel(request)
         assert result == {"status": "connected"}
-
-    # -- Negative tests: unauthorized users are denied ----------------------
 
     @pytest.mark.asyncio
     async def test_ws003_permission_required_denies_unauthorized_user(self) -> None:
@@ -523,11 +492,6 @@ class TestWS003ChannelSubscriptionAuthorization:
             await ws_handler(request)
 
 
-# ---------------------------------------------------------------------------
-# WS-004: WebSocket messages are rate limited
-# ---------------------------------------------------------------------------
-
-
 class TestWS004WebSocketRateLimiting:
     """WebSocket messages must be rate limited.
 
@@ -535,8 +499,6 @@ class TestWS004WebSocketRateLimiting:
     types and skips websocket scopes entirely.  This means WebSocket
     connections bypass rate limiting - a denial-of-service vulnerability.
     """
-
-    # -- Positive tests: rate limiter works for HTTP -------------------------
 
     def test_ws004_sliding_window_counter_configured(self) -> None:
         """SlidingWindowCounter must be configurable with limits."""
@@ -578,8 +540,6 @@ class TestWS004WebSocketRateLimiting:
         # key_b must still be allowed
         allowed_b, _ = await counter.is_allowed("key_b")
         assert allowed_b is True
-
-    # -- Negative tests: rate limiter skips websocket scopes (SECURITY GAP) ---
 
     @pytest.mark.asyncio
     async def test_ws004_rate_limit_middleware_skips_websocket(self) -> None:
@@ -632,8 +592,6 @@ class TestWS004WebSocketRateLimiting:
         await middleware(scope, noop_receive, collector)
         assert collector.status_code == 429
 
-    # -- Fail-closed: rate limiter must use IP by default -------------------
-
     def test_ws004_rate_limit_default_key_uses_ip(self) -> None:
         """RateLimitMiddleware must use client IP as the default key."""
         scope = make_scope(method="GET", path="/ws/chat/")
@@ -664,11 +622,6 @@ class TestWS004WebSocketRateLimiting:
             assert allowed is True
 
 
-# ---------------------------------------------------------------------------
-# WS-005: Broadcasts are tenant-isolated
-# ---------------------------------------------------------------------------
-
-
 class TestWS005TenantIsolation:
     """Broadcasts must be tenant-isolated.
 
@@ -676,8 +629,6 @@ class TestWS005TenantIsolation:
     delivered to connections belonging to tenant B.  This prevents
     cross-tenant data leakage in multi-tenant deployments.
     """
-
-    # -- Positive tests: tenant context is propagated -----------------------
 
     def test_ws005_mock_user_supports_tenant_id(self) -> None:
         """MockUser must support tenant_id for tenant isolation testing."""
@@ -846,11 +797,6 @@ class TestWS005TenantIsolation:
         # Third message should be rate limited
         allowed3, _ = await counter.is_allowed("ws:user:1")
         assert allowed3 is False
-
-
-# ---------------------------------------------------------------------------
-# WS-005: Broadcasts are tenant-isolated
-# ---------------------------------------------------------------------------
 
 
 class TestWebSocketTenantIsolation:

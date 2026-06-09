@@ -10,7 +10,6 @@ from pathlib import Path
 
 from openviper.conf import settings as settings
 from openviper.core.management.base import BaseCommand, CommandError
-from openviper.core.management.utils import get_default_database_url
 from openviper.db.tools.compression.tar import create_tar_gz
 from openviper.db.tools.restore.restore_engine import detect_engine_from_url
 from openviper.db.tools.utils.filename import (
@@ -19,6 +18,7 @@ from openviper.db.tools.utils.filename import (
 )
 from openviper.db.tools.utils.metadata import build_metadata, compute_checksum, write_metadata
 from openviper.db.tools.utils.validators import validate_backup_path
+from openviper.db.utils import get_default_database_url
 
 _DEFAULT_BACKUP_DIR = "./backup"
 

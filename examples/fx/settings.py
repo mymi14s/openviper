@@ -14,18 +14,25 @@ Usage::
 
 import dataclasses
 import os
+from typing import TYPE_CHECKING
 
 from openviper.conf.settings import Settings
+
+if TYPE_CHECKING:
+    from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)
 class FxSettings(Settings):
     PROJECT_NAME: str = "fx"
-    DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
-    DATABASE_URL: str = os.environ.get(
-        "DATABASE_URL",
-        "sqlite+aiosqlite:///"
-        + os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.sqlite3"),
+    DEBUG: bool = True
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "URL": "sqlite+aiosqlite:///"
+                + os.path.join(os.path.dirname(os.path.abspath(__file__)), "db.sqlite3"),
+            },
+        },
     )
     SECRET_KEY: str = "viperctl-demo-key-do-not-use-in-production"  # noqa: S105
     INSTALLED_APPS: tuple[str, ...] = ()

@@ -16,6 +16,7 @@ from openviper.conf import settings
 from openviper.contrib.fields.geolocation.geometry import Point
 from openviper.db import connection as db_connection
 from openviper.db.fields import Field
+from openviper.db.utils import get_default_database_url
 
 if TYPE_CHECKING:
     from openviper.contrib.fields.geolocation.types import GeoJSONObject, PointOwner
@@ -47,7 +48,7 @@ def is_postgresql() -> bool:
         pass
     # Fall back to settings when no engine has been configured yet.
     try:
-        url = getattr(settings, "DATABASE_URL", "")
+        url = get_default_database_url(settings)
         return "postgresql" in url or "postgres" in url
     except (AttributeError, TypeError):  # fmt: skip
         pass

@@ -21,10 +21,6 @@ from openviper.contrib.fields.geolocation.backends import (
 )
 from openviper.contrib.fields.geolocation.exceptions import DependencyMissingError
 
-# ---------------------------------------------------------------------------
-# Point geometry
-# ---------------------------------------------------------------------------
-
 
 class TestPointConstruction:
     """Point accepts valid coordinates and rejects invalid ones."""
@@ -207,11 +203,6 @@ class TestPointDistance:
         assert a.distance_to(b) == pytest.approx(b.distance_to(a))
 
 
-# ---------------------------------------------------------------------------
-# PointField
-# ---------------------------------------------------------------------------
-
-
 class TestPointFieldToPython:
     """PointField.to_python converts raw DB values to Point instances."""
 
@@ -328,11 +319,6 @@ class TestPointFieldAttributes:
         assert f._column_type == "GEOMETRY(Point,4326)"
 
 
-# ---------------------------------------------------------------------------
-# Backends
-# ---------------------------------------------------------------------------
-
-
 class TestPostGISBackend:
     """PostGISBackend generates correct DDL and serialises values."""
 
@@ -426,11 +412,6 @@ class TestGetBackend:
         assert isinstance(get_backend("POSTGRESQL"), PostGISBackend)
 
 
-# ---------------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------------
-
-
 class TestParsePoint:
     """parse_point converts diverse input formats to Point instances."""
 
@@ -471,11 +452,6 @@ class TestParsePoint:
         result = parse_point((1.0, 2.0), srid=27700)
         assert result is not None
         assert result.srid == 27700
-
-
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
 
 
 class TestExceptions:

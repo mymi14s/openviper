@@ -2,17 +2,25 @@
 
 import dataclasses
 import os
+from typing import TYPE_CHECKING
 
 from openviper.conf.settings import Settings
 
-type SettingsValue = object
+if TYPE_CHECKING:
+    from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)
 class ProjectSettings(Settings):
     PROJECT_NAME: str = "tp"
     DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite:///db.sqlite3")
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "URL": "sqlite:///db.sqlite3",
+            },
+        },
+    )
     STATIC_ROOT: str = os.environ.get("STATIC_ROOT", "static")
     STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
     MEDIA_ROOT: str = os.environ.get("MEDIA_ROOT", "media")
@@ -37,12 +45,18 @@ class ProjectSettings(Settings):
     ADMIN_TITLE: str = "John Admin"
 
     # ── Background Tasks ──────────────────────────────────────────────────
-    # Set broker="redis" and url in production.
-    TASKS: dict[str, SettingsValue] = dataclasses.field(
+    # Set broker="redis" and broker_url in production.
+    TASKS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
+            "enabled": 1,
             "broker": "stub",  # swap to "redis" in production
-            "scheduler": False,
-            "tracking": False,
+            "broker_url": "",
+            "backend_url": "",
+            "logging": {
+                "level": "INFO",
+                "file": None,
+                "database": None,
+            },
         }
     )
 
@@ -50,7 +64,7 @@ class ProjectSettings(Settings):
     # Handlers are resolved once at dispatcher construction time.
     # Keys: "{module}.{ClassName}" of the model.
     # Values: {event_name: [dotted_handler_path, ...]}
-    MODEL_EVENTS: dict[str, SettingsValue] = dataclasses.field(
+    MODEL_EVENTS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "blog.models.Post": {
                 "after_insert": ["blog.events.create_likes"],

@@ -43,11 +43,6 @@ class FakeRequest:
         self.method = "GET"
 
 
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
-
-
 class TestHashToken:
     def test_deterministic(self) -> None:
         assert hash_token("abc") == hash_token("abc")
@@ -105,11 +100,6 @@ class TestClearTokenAuthCache:
         assert len(token_auth.TOKEN_CACHE) == 0
 
 
-# ---------------------------------------------------------------------------
-# create_token
-# ---------------------------------------------------------------------------
-
-
 class TestCreateToken:
     @pytest.mark.asyncio
     async def test_returns_raw_token_and_record(self) -> None:
@@ -149,11 +139,6 @@ class TestCreateToken:
         assert len(r1) == 40
         assert len(r2) == 40
         assert r1 != r2
-
-
-# ---------------------------------------------------------------------------
-# revoke_token
-# ---------------------------------------------------------------------------
 
 
 class TestRevokeToken:
@@ -200,11 +185,6 @@ class TestRevokeToken:
         with patch(ensure_auth_tokens_table, new=AsyncMock()):
             with patch(get_engine, new=AsyncMock(return_value=mock_engine)):
                 await revoke_token(raw)  # should not raise
-
-
-# ---------------------------------------------------------------------------
-# TokenAuthentication
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -479,10 +459,6 @@ def test_authenticate_header_returns_token() -> None:
     auth = TokenAuthentication()
     assert auth.authenticate_header(request) == "Token"
 
-
-# ---------------------------------------------------------------------------
-# API key pair management
-# ---------------------------------------------------------------------------
 
 ensure_api_keys_table = "openviper.auth.authentications.ensure_api_keys_table"
 get_engine = "openviper.auth.authentications.get_engine"

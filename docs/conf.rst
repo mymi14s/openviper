@@ -385,7 +385,7 @@ Key Classes & Functions
         - ``ConfigMap``
         - Backend config dict; keys: ``backend``, ``host``, ``port``, ``use_tls``,
           ``use_ssl``, ``timeout``, ``username``, ``password``, ``from``,
-          ``default_sender``, ``fail_silently``, ``use_background_worker``
+          ``default_sender``, ``fail_silently``, ``background``
 
    **Rate Limiting**
 
@@ -420,7 +420,7 @@ Key Classes & Functions
         - Default / Notes
       * - ``TASKS``
         - ``ConfigMap``
-        - ``{}`` - Dramatiq broker/worker configuration
+        - ``{}`` - Dramatiq broker/worker configuration (see :doc:`tasks`)
 
    **Model Events**
 

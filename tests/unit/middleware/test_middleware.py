@@ -19,10 +19,6 @@ from openviper.middleware.csrf import (
 from openviper.middleware.security import SecurityMiddleware
 from openviper.middleware.security import SecurityMiddleware as SM
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(
     method="GET",
@@ -54,11 +50,6 @@ async def dummy_app(scope, receive, send):
     await send({"type": "http.response.body", "body": b"ok"})
 
 
-# ---------------------------------------------------------------------------
-# BaseMiddleware
-# ---------------------------------------------------------------------------
-
-
 class TestBaseMiddleware:
     @pytest.mark.asyncio
     async def test_passes_through_to_app(self):
@@ -74,11 +65,6 @@ class TestBaseMiddleware:
     def test_repr(self):
         mw = BaseMiddleware(dummy_app)
         assert "BaseMiddleware" in repr(mw)
-
-
-# ---------------------------------------------------------------------------
-# build_middleware_stack
-# ---------------------------------------------------------------------------
 
 
 class TestBuildMiddlewareStack:
@@ -133,11 +119,6 @@ class TestBuildMiddlewareStack:
         stack = build_middleware_stack(core, [(ParamMW, {"value": "test"})])
         assert isinstance(stack, ParamMW)
         assert stack.value == "test"
-
-
-# ---------------------------------------------------------------------------
-# CORSMiddleware
-# ---------------------------------------------------------------------------
 
 
 class TestCORSMiddleware:
@@ -227,11 +208,6 @@ class TestCORSMiddleware:
         await mw(scope, None, send)
         headers_dict = dict(send.messages[0]["headers"])
         assert headers_dict.get(b"access-control-allow-credentials") == b"true"
-
-
-# ---------------------------------------------------------------------------
-# CSRFMiddleware helpers
-# ---------------------------------------------------------------------------
 
 
 class TestCSRFHelpers:
@@ -330,11 +306,6 @@ class TestCSRFMiddleware:
         send = CaptureSend()
         await mw(make_scope(method="POST", headers=headers), None, send)
         assert any(m.get("status") == 403 for m in send.messages)
-
-
-# ---------------------------------------------------------------------------
-# SecurityMiddleware
-# ---------------------------------------------------------------------------
 
 
 class TestSecurityMiddleware:

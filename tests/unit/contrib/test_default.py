@@ -11,10 +11,6 @@ from openviper.contrib.default.middleware import (
 )
 from tests.factories import collect_send, echo_app, make_scope
 
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
-
 
 def make_landing_middleware(
     debug: bool = True,
@@ -33,11 +29,6 @@ async def noop_receive():
     return {"type": "http.disconnect"}
 
 
-# ---------------------------------------------------------------------------
-# LANDING_HTML
-# ---------------------------------------------------------------------------
-
-
 class TestLandingHTML:
     def test_is_string(self):
         assert isinstance(LANDING_HTML, str)
@@ -52,11 +43,6 @@ class TestLandingHTML:
         html = LANDING_HTML.replace("{version}", "2.0.0")
         assert "2.0.0" in html
         assert "{version}" not in html
-
-
-# ---------------------------------------------------------------------------
-# DefaultLandingMiddleware
-# ---------------------------------------------------------------------------
 
 
 class TestDefaultLandingMiddleware:
@@ -131,11 +117,6 @@ class TestDefaultLandingMiddleware:
         assert inner_called
 
 
-# ---------------------------------------------------------------------------
-# Caching - landing response is pre-rendered at init
-# ---------------------------------------------------------------------------
-
-
 class TestLandingResponseCaching:
     def test_landing_response_cached_at_init(self):
         mw = make_landing_middleware(debug=True, version="1.2.3")
@@ -165,11 +146,6 @@ class TestLandingResponseCaching:
 
     def test_404_response_is_module_level_singleton(self):
         assert NOT_FOUND_RESPONSE.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# XSS - version string is HTML-escaped
-# ---------------------------------------------------------------------------
 
 
 class TestVersionEscaping:

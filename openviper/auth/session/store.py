@@ -275,7 +275,6 @@ class DatabaseSessionStore(BaseSessionStore):
             logger.debug("get_user: No session found for key")
             return None
 
-        # Normalize backend datetimes before expiry comparison.
         expires_at = row.expires_at
         if timezone.is_naive(expires_at) and settings.USE_TZ:
             expires_at = expires_at.replace(tzinfo=datetime.UTC)

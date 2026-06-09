@@ -1910,11 +1910,9 @@ async def execute_save(
     table = get_table(model_cls)
     instance._apply_auto_fields()
 
-    # Load soft-removed columns to skip them during save.
     await load_soft_removed_columns()
     soft_removed = get_soft_removed_columns(model_cls._table_name)
 
-    # Skip membership checks when no soft-removed columns exist.
     has_soft_removed = bool(soft_removed)
 
     if update_fields is not None:
@@ -2203,8 +2201,6 @@ async def execute_values(
             initial_from_clause=from_clause,
         )
         if from_clause is not table and fields is None:
-            # Rebuild SELECT with the correct from_clause when WHERE
-            # traversals added JOINs but no explicit fields were given.
             ann_cols = [
                 sa_expr.label(alias)
                 for alias, expr in annotations.items()
@@ -2216,7 +2212,6 @@ async def execute_values(
                 else sa.select(table).select_from(from_clause)
             )
         elif from_clause is not table and fields is not None:
-            # Rebuild statement with the updated from_clause after WHERE traversal.
             stmt = (
                 sa.select(*wanted_cols).select_from(from_clause)
                 if wanted_cols
@@ -2333,7 +2328,6 @@ async def execute_explain(qs: QuerySet) -> str:
             compiled = stmt.compile(compile_kwargs={"literal_binds": False})
             lines = [f"EXPLAIN QUERY PLAN {compiled}"]
         else:
-            # Generic fallback with parameter placeholders only.
             compiled = stmt.compile(compile_kwargs={"literal_binds": False})
             lines = [f"EXPLAIN {compiled}"]
 

@@ -38,11 +38,6 @@ def reset_events():
     _decorator_registry.clear()
 
 
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
-
-
 def make_dispatcher() -> ModelEventDispatcher:
     return ModelEventDispatcher({})
 
@@ -50,11 +45,6 @@ def make_dispatcher() -> ModelEventDispatcher:
 def make_mock_model_cls(name: str = "Post", app: str = "blog") -> type:
     cls = type(name, (), {"_app_name": app, "_model_name": name})
     return cls
-
-
-# ---------------------------------------------------------------------------
-# ModelEventDispatcher
-# ---------------------------------------------------------------------------
 
 
 class TestModelEventDispatcher:

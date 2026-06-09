@@ -46,11 +46,6 @@ async def run_mw(mw, scope):
     return messages
 
 
-# ---------------------------------------------------------------------------
-# SlidingWindowCounter
-# ---------------------------------------------------------------------------
-
-
 class TestSlidingWindowCounter:
     @pytest.mark.asyncio
     async def test_allows_within_limit(self):
@@ -129,11 +124,6 @@ class TestSlidingWindowEviction:
         allowed, remaining = await counter.is_allowed("brand_new_key")
         assert allowed is True
         assert remaining == 4
-
-
-# ---------------------------------------------------------------------------
-# RateLimitMiddleware - happy path
-# ---------------------------------------------------------------------------
 
 
 class TestRateLimitMiddleware:
@@ -236,11 +226,6 @@ class TestRateLimitMiddleware:
         assert msgs[0]["status"] == 200
 
 
-# ---------------------------------------------------------------------------
-# Default key extraction - tested via middleware behaviour (no protected access)
-# ---------------------------------------------------------------------------
-
-
 class TestRateLimitDefaultKey:
     @pytest.mark.asyncio
     async def test_client_tuple_used_as_key(self):
@@ -327,11 +312,6 @@ class TestRateLimitDefaultKey:
         await run_mw(mw, scope)
         msgs = await run_mw(mw, scope)
         assert msgs[0]["status"] == 429
-
-
-# ---------------------------------------------------------------------------
-# rate_limit decorator
-# ---------------------------------------------------------------------------
 
 
 class TestRateLimitDecorator:

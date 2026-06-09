@@ -17,10 +17,6 @@ from openviper.serializers.base import Serializer
 
 from .conftest import PROTOTYPE_POLLUTION_KEYS
 
-# ---------------------------------------------------------------------------
-# VUE-001: Untrusted HTML is not rendered with v-html
-# ---------------------------------------------------------------------------
-
 
 class TestVueUntrustedHTML:
     """The frontend must not render untrusted HTML with v-html."""
@@ -40,11 +36,6 @@ class TestVueUntrustedHTML:
         )
 
 
-# ---------------------------------------------------------------------------
-# VUE-002: Client-side route guards are not trusted as authorization
-# ---------------------------------------------------------------------------
-
-
 class TestClientSideRouteGuards:
     """Backend authorization must be enforced regardless of frontend guards."""
 
@@ -60,11 +51,6 @@ class TestClientSideRouteGuards:
         assert protected_endpoint is not None
 
 
-# ---------------------------------------------------------------------------
-# VUE-003: Secrets are not exposed in frontend bundle config
-# ---------------------------------------------------------------------------
-
-
 class TestFrontendSecretExposure:
     """Server-only secrets must not appear in frontend configuration."""
 
@@ -78,11 +64,6 @@ class TestFrontendSecretExposure:
         """Settings __repr__ must not expose sensitive values."""
         # The Settings class must have a mechanism to hide sensitive fields
         assert len(SENSITIVE_FIELDS) > 0
-
-
-# ---------------------------------------------------------------------------
-# VUE-004: Prototype pollution is prevented in object merge helpers
-# ---------------------------------------------------------------------------
 
 
 class TestPrototypePollution:
@@ -107,11 +88,6 @@ class TestPrototypePollution:
         request.state["__proto__"] = "malicious"
         assert request.state.get("__proto__") == "malicious"
         # The state dict is isolated, not polluting global prototypes
-
-
-# ---------------------------------------------------------------------------
-# VUE-005: Production source maps are disabled or controlled
-# ---------------------------------------------------------------------------
 
 
 class TestProductionSourceMaps:

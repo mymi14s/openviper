@@ -9,10 +9,6 @@ from click.testing import CliRunner
 
 from openviper.viperctl import ALLOWED_COMMANDS, viperctl
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def runner():
@@ -26,11 +22,6 @@ def app_dir(tmp_path):
     (app / "models.py").write_text("# models\n")
     (app / "__init__.py").write_text("")
     return tmp_path, app
-
-
-# ---------------------------------------------------------------------------
-# ALLOWED_COMMANDS
-# ---------------------------------------------------------------------------
 
 
 class TestAllowedCommands:
@@ -56,11 +47,6 @@ class TestAllowedCommands:
 
     def test_len(self):
         assert len(ALLOWED_COMMANDS) == 9
-
-
-# ---------------------------------------------------------------------------
-# viperctl command
-# ---------------------------------------------------------------------------
 
 
 class TestViperctlCommand:

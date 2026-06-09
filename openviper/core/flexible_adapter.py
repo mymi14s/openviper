@@ -178,7 +178,7 @@ def ensure_models_imported(resolved: ResolvedModule) -> None:
         )
         return
 
-    # Root layout: models.py may be a bare file not inside a package.
+    # Root layout: models may be a bare file not inside a package.
     models_path = resolved.app_path / "models.py"
     if not models_path.is_file():
         return

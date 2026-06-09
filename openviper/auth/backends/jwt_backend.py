@@ -69,8 +69,8 @@ class JWTBackend:
                 "JWT token expired for request to %s",
                 getattr(scope, "path", scope.get("path") if isinstance(scope, dict) else "unknown"),
             )
-        except (AuthenticationFailed, ValueError, KeyError, JWTError) as exc:
-            logger.warning("JWT authentication error: %s", exc)
+        except AuthenticationFailed, ValueError, KeyError, JWTError:
+            pass
 
         return None
 

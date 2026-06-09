@@ -75,9 +75,6 @@ class ColumnAliasModel(Model):
         table_name = "col_alias_model"
 
 
-# ── delete / refresh ──────────────────────────────────────────────────────────
-
-
 @pytest.mark.asyncio
 async def test_model_delete_with_ignore_permissions_propagates_flag():
     note = BranchNote(id=9, title="a")
@@ -118,9 +115,6 @@ async def test_delete_stops_when_on_delete_hook_raises():
             await note.delete()
 
     mock_delete.assert_not_awaited()
-
-
-# ── bulk_create / bulk_update ─────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio

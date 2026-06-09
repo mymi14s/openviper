@@ -15,10 +15,6 @@ from openviper.debug.traceback_page import (
 )
 from openviper.middleware.error import ServerErrorMiddleware
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(path: str = "/test") -> dict[str, object]:
     return {
@@ -33,11 +29,6 @@ def make_scope(path: str = "/test") -> dict[str, object]:
 
 async def noop_receive() -> dict[str, object]:
     return {"type": "http.request", "body": b"", "more_body": False}
-
-
-# ---------------------------------------------------------------------------
-# openviper.debug.traceback_page
-# ---------------------------------------------------------------------------
 
 
 class TestEsc:
@@ -198,11 +189,6 @@ class TestRenderDebugPage:
         except RuntimeError as exc:
             page = render_debug_page(exc)
         assert "DEBUG" in page
-
-
-# ---------------------------------------------------------------------------
-# openviper.middleware.error.ServerErrorMiddleware
-# ---------------------------------------------------------------------------
 
 
 class TestServerErrorMiddlewarePassthrough:

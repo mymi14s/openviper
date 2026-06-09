@@ -11,8 +11,6 @@ from models import Todo
 from openviper.auth import get_user_model
 from openviper.conf import settings
 
-# ── Todo model ───────────────────────────────────────────────────────────────
-
 
 class TestTodoModel:
     def test_str_returns_title(self):
@@ -27,9 +25,6 @@ class TestTodoModel:
         assert len(todos) == 1
         assert todos[0].title == "Task A"
         assert todos[0].done is False
-
-
-# ── Settings ─────────────────────────────────────────────────────────────────
 
 
 class TestMiniAppSettings:
@@ -53,9 +48,6 @@ class TestMiniAppSettings:
         assert settings.SESSION_TIMEOUT.total_seconds() > 0
 
 
-# ── Admin registrations ───────────────────────────────────────────────────────
-
-
 class TestAdminRegistrations:
     def test_user_admin_attributes(self):
         assert "username" in UserAdmin.search_fields
@@ -69,9 +61,6 @@ class TestAdminRegistrations:
         assert "title" in TodoAdmin.search_fields
         assert "created_at" in TodoAdmin.readonly_fields
         assert "id" in TodoAdmin.list_display
-
-
-# ── App helpers ───────────────────────────────────────────────────────────────
 
 
 class TestHelpers:
@@ -105,9 +94,6 @@ class TestHelpers:
     def test_redirect_to_login_custom_next(self):
         resp = redirect_to_login("/custom")
         assert "/custom" in resp.headers["location"]
-
-
-# ── Startup function ──────────────────────────────────────────────────────────
 
 
 class TestStartup:

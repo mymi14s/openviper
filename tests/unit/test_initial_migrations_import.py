@@ -14,10 +14,6 @@ class TestInitialMigrationModules:
         mod = importlib.import_module("openviper.admin.migrations.0001_initial")
         assert hasattr(mod, "operations")
 
-    def test_tasks_initial_migration_imports(self) -> None:
-        mod = importlib.import_module("openviper.tasks.migrations.0001_initial")
-        assert hasattr(mod, "operations")
-
     def test_auth_initial_migration_imports(self) -> None:
         mod = importlib.import_module("openviper.auth.migrations.0001_initial")
         assert hasattr(mod, "operations")

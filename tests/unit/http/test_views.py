@@ -12,20 +12,11 @@ from openviper.http.response import JSONResponse, Response
 from openviper.http.views import View
 from openviper.routing.router import Router
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_request(method: str = "GET") -> MagicMock:
     req = MagicMock()
     req.method = method.upper()
     return req
-
-
-# ---------------------------------------------------------------------------
-# Basic dispatch
-# ---------------------------------------------------------------------------
 
 
 class TestViewDispatch:
@@ -82,11 +73,6 @@ class TestViewDispatch:
         assert data["pk"] == 42
 
 
-# ---------------------------------------------------------------------------
-# Options method
-# ---------------------------------------------------------------------------
-
-
 class TestViewOptions:
     @pytest.mark.asyncio
     async def test_options_returns_204(self):
@@ -109,11 +95,6 @@ class TestViewOptions:
         allow = resp.headers.get("allow")
         assert allow is not None
         assert "GET" in allow
-
-
-# ---------------------------------------------------------------------------
-# _allowed_methods
-# ---------------------------------------------------------------------------
 
 
 class TestAllowedMethods:
@@ -149,11 +130,6 @@ class TestAllowedMethods:
         a1 = view._allowed_methods()
         a2 = view._allowed_methods()
         assert a1 is a2
-
-
-# ---------------------------------------------------------------------------
-# as_view
-# ---------------------------------------------------------------------------
 
 
 class TestAsView:
@@ -203,11 +179,6 @@ class TestAsView:
         assert resp.body == b"from_view"
 
 
-# ---------------------------------------------------------------------------
-# register
-# ---------------------------------------------------------------------------
-
-
 class TestRegister:
     def test_register_calls_router_add(self):
         class MyView(View):
@@ -244,11 +215,6 @@ class TestRegister:
         router.add = fake_add
         MyView.register(router, "/path", name="custom-name")
         assert captured["name"] == "custom-name"
-
-
-# ---------------------------------------------------------------------------
-# View.__init__
-# ---------------------------------------------------------------------------
 
 
 class TestViewInit:

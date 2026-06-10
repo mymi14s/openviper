@@ -45,17 +45,18 @@ def run_async(coro: t.Coroutine[t.Any, t.Any, t.Any]) -> t.Any:
 def compute_next_cron_fire(cron_expr: str, base: datetime.datetime) -> datetime.datetime:
     """Return the next fire time for *cron_expr* after *base*.
 
-    Falls back to minute-aligned approximation when ``croniter`` is
-    unavailable.
+    Raises ``ImportError`` when ``croniter`` is not installed.
+    Raises ``ValueError`` for invalid cron expressions.
     """
-    try:
-        result = croniter(cron_expr, base).get_next(datetime.datetime)
-        if isinstance(result, datetime.datetime):
-            return result
-        return base + datetime.timedelta(minutes=1)
-    except Exception:
-        logger.warning("croniter not installed - cron schedules will fire every minute")
-        return base.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
+    result = croniter(cron_expr, base).get_next(datetime.datetime)
+    if isinstance(result, datetime.datetime):
+        return result
+    logger.warning(
+        "croniter returned %s for '%s' - falling back to 1-minute interval",
+        type(result).__name__,
+        cron_expr,
+    )
+    return base.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
 
 
 class Scheduler:
@@ -101,7 +102,15 @@ class Scheduler:
             cron = entry.get("cron")
             every = entry.get("every")
             if cron is not None:
-                next_cron_fire[name] = compute_next_cron_fire(cron, now_dt)
+                try:
+                    next_cron_fire[name] = compute_next_cron_fire(cron, now_dt)
+                except ImportError, ValueError:
+                    logger.exception(
+                        "Failed to compute initial fire time for '%s' "
+                        "with cron '%s' - skipping schedule",
+                        name,
+                        cron,
+                    )
             elif every is not None:
                 try:
                     interval = parse_interval(every)
@@ -127,7 +136,17 @@ class Scheduler:
                         if self.claim_enqueue(name):
                             self.enqueue_periodic(entry)
                             last_fired[name] = now
-                        next_cron_fire[name] = compute_next_cron_fire(cron, now_dt)
+                        try:
+                            next_cron_fire[name] = compute_next_cron_fire(cron, now_dt)
+                        except ImportError, ValueError:
+                            logger.exception(
+                                "Failed to compute next fire time for '%s' "
+                                "with cron '%s' - deactivating schedule",
+                                name,
+                                cron,
+                            )
+                            next_cron_fire.pop(name, None)
+                            continue
                 elif every is not None:
                     try:
                         interval = parse_interval(every)

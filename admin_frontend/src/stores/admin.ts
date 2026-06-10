@@ -203,7 +203,7 @@ export const useAdminStore = defineStore('admin', () => {
     modelName: string,
     action: string,
     ids: Array<string | number>
-  ): Promise<{ success: boolean; affected: number }> {
+  ): Promise<BulkActionResult> {
     error.value = null
     try {
       const result = await modelsApi.bulkAction(appLabel, modelName, { action, ids })
@@ -214,7 +214,7 @@ export const useAdminStore = defineStore('admin', () => {
     } catch (err: any) {
       error.value = err.response?.data?.error || 'Failed to perform bulk action'
       showOperationalError(error.value ?? 'Failed to perform bulk action')
-      return { success: false, affected: 0 }
+      return { success: false, count: 0, message: error.value, errors: null }
     }
   }
 

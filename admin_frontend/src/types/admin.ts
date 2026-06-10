@@ -194,5 +194,12 @@ export interface BulkActionRequest {
   ids: Array<number | string>
 }
 
+export interface BulkActionResult {
+  success: boolean
+  count: number
+  message: string
+  errors: Array<string> | null
+}
+
 // Export types
 export type ExportFormat = 'csv' | 'json' | 'xlsx'

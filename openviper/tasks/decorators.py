@@ -136,19 +136,34 @@ def enqueue_task(
     try:
         broker = get_broker()
 
-        # Register with Dramatiq broker if not yet declared.
+        # Attempt to resolve the actor from the local broker or registry.
         try:
             actor_obj = broker.get_actor(actor_name)
+            msg = actor_obj.message(*args, **kwargs)
         except dramatiq_errors.ActorNotFound:
             registry = Registry()
-            fn = registry.get_actor(actor_name)
-            actor_obj = dramatiq.actor(
-                actor_name=actor_name,
-                queue_name=queue_name,
-            )(fn)
-            # broker.get_actor() succeeds after dramatiq.actor() registration.
+            try:
+                fn = registry.get_actor(actor_name)
+                actor_obj = dramatiq.actor(
+                    actor_name=actor_name,
+                    queue_name=queue_name,
+                )(fn)
+                msg = actor_obj.message(*args, **kwargs)
+            except KeyError:
+                # Actor not registered in this process (e.g. web server).
+                # Build a raw message so the worker can still pick it up.
+                enqueue_logger.debug(
+                    "Actor %s not in local registry - enqueuing raw message",
+                    actor_name,
+                )
+                msg = dramatiq.Message(
+                    queue_name=queue_name,
+                    actor_name=actor_name,
+                    args=args,
+                    kwargs=kwargs,
+                    options={},
+                )
 
-        msg = actor_obj.message(*args, **kwargs)
         if delay is not None:
             msg = msg.copy(options={"delay": delay})
         broker.enqueue(msg)

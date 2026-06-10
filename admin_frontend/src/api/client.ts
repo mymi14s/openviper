@@ -12,6 +12,7 @@ import type {
   ChangeHistoryEntry,
   DashboardStats,
   BulkActionRequest,
+  BulkActionResult,
   ExportFormat,
   AdminConfig,
   FilterOption
@@ -285,7 +286,7 @@ export const modelsApi = {
     appLabel: string,
     modelName: string,
     action: BulkActionRequest
-  ): Promise<{ success: boolean; affected: number }> {
+  ): Promise<BulkActionResult> {
     const response = await client.post(
       `/models/${appLabel}/${modelName}/bulk-action/`,
       action

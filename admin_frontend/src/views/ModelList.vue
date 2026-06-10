@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
+import { useAlertsStore } from '@/stores/alerts'
 import DataTable from '@/components/DataTable.vue'
 import Pagination from '@/components/Pagination.vue'
 import FilterSidebar from '@/components/FilterSidebar.vue'
@@ -15,6 +16,7 @@ const props = defineProps<{
 const router = useRouter()
 const route = useRoute()
 const adminStore = useAdminStore()
+const alertsStore = useAlertsStore()
 
 const search = ref('')
 const selectedIds = ref<Array<string | number>>([])
@@ -230,6 +232,20 @@ async function executeBulkAction() {
   if (result.success) {
     selectedIds.value = []
     selectedAction.value = ''
+    alertsStore.show({
+      type: 'info',
+      title: 'Action Completed',
+      message: result.message || `Action applied to ${result.count} item(s).`
+    })
+  } else {
+    const errorDetail = result.errors?.length
+      ? result.errors.join('; ')
+      : result.message || 'Action failed.'
+    alertsStore.show({
+      type: 'error',
+      title: 'Action Failed',
+      message: errorDetail
+    })
   }
   showBulkConfirm.value = false
 }

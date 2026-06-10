@@ -16,9 +16,7 @@ def sanitize_filename(filename: str) -> str:
 
     Returns a safe basename suitable for storage on the filesystem.
     """
-    # Extract basename to discard any directory components supplied by the client.
     name = os.path.basename(filename.replace("\\", "/"))
-    # Remove null bytes and control characters.
     name = UNSAFE_FILENAME_RE.sub("", name)
     # Truncate excessively long filenames.
     if len(name) > MAX_COMPONENT_LEN:

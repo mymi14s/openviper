@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from openviper.core.management.base import CommandError
-from openviper.core.management.commands.create_app import _APP_TEMPLATE, Command
+from openviper.core.management.commands.create_app import APP_TEMPLATE, Command
 
 
 @pytest.fixture
@@ -88,14 +88,12 @@ class TestAppCreation:
 
         app_dir = Path(temp_dir) / "blogapp"
 
-        # Check __init__.py contains app label
         init_content = (app_dir / "__init__.py").read_text()
         assert "blogapp" in init_content
 
-        # Check routes.py contains app label
         routes_content = (app_dir / "routes.py").read_text()
         assert "blogapp" in routes_content
-        assert "/blogapp" in routes_content
+        assert "router.add" in routes_content
 
     def test_handle_models_py_has_correct_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
@@ -103,12 +101,14 @@ class TestAppCreation:
         models_content = (Path(temp_dir) / "testapp" / "models.py").read_text()
         assert "from openviper.db.models import Model" in models_content
         assert "from openviper.db import fields" in models_content
+        assert "class Article(Model)" in models_content
 
     def test_handle_admin_py_has_correct_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
 
         admin_content = (Path(temp_dir) / "testapp" / "admin.py").read_text()
-        assert "from openviper.admin import admin, ModelAdmin, register" in admin_content
+        assert "from openviper.admin import ModelAdmin, register" in admin_content
+        assert "@register(YourModel)" in admin_content
 
 
 class TestValidation:
@@ -181,32 +181,34 @@ class TestFileContents:
 
         routes_content = (Path(temp_dir) / "shopapp" / "routes.py").read_text()
         assert "Router" in routes_content
-        assert 'prefix="/shopapp"' in routes_content
+        assert "router.add" in routes_content
 
     def test_views_py_has_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
 
         views_content = (Path(temp_dir) / "testapp" / "views.py").read_text()
-        assert "from openviper.http.request import Request" in views_content
         assert "from openviper.http.response import JSONResponse" in views_content
+        assert "async def" in views_content
 
     def test_serializers_py_has_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
 
         serializers_content = (Path(temp_dir) / "testapp" / "serializers.py").read_text()
-        assert "from openviper.serializers import Serializer" in serializers_content
+        assert "from openviper.serializers import" in serializers_content
+        assert "Serializer" in serializers_content
 
     def test_events_py_has_imports(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
 
         events_content = (Path(temp_dir) / "testapp" / "events.py").read_text()
         assert "from openviper.db.events import model_event" in events_content
+        assert "model_event.trigger" in events_content
 
-    def test_tests_py_has_pytest_import(self, command, temp_dir):
+    def test_tests_py_has_docstring(self, command, temp_dir):
         command.handle(name="testapp", directory=temp_dir)
 
         tests_content = (Path(temp_dir) / "testapp" / "tests.py").read_text()
-        assert "import pytest" in tests_content
+        assert '"""testapp tests."""' in tests_content
 
 
 class TestOutputMessages:
@@ -228,23 +230,22 @@ class TestOutputMessages:
 
 
 class TestAppTemplateStructure:
-    """Test the _APP_TEMPLATE structure."""
+    """Test the APP_TEMPLATE structure."""
 
     def test_app_template_has_all_required_files(self):
-        assert "__init__.py" in _APP_TEMPLATE
-        assert "admin.py" in _APP_TEMPLATE
-        assert "models.py" in _APP_TEMPLATE
-        assert "routes.py" in _APP_TEMPLATE
-        assert "views.py" in _APP_TEMPLATE
-        assert "serializers.py" in _APP_TEMPLATE
-        assert "events.py" in _APP_TEMPLATE
-        assert "tests.py" in _APP_TEMPLATE
-        assert os.path.join("migrations", "__init__.py") in _APP_TEMPLATE
+        assert "__init__.py" in APP_TEMPLATE
+        assert "admin.py" in APP_TEMPLATE
+        assert "models.py" in APP_TEMPLATE
+        assert "routes.py" in APP_TEMPLATE
+        assert "views.py" in APP_TEMPLATE
+        assert "serializers.py" in APP_TEMPLATE
+        assert "events.py" in APP_TEMPLATE
+        assert "tests.py" in APP_TEMPLATE
+        assert os.path.join("migrations", "__init__.py") in APP_TEMPLATE
 
     def test_app_template_contains_placeholders(self):
-        # Check that templates contain {{ app_label }} placeholder
-        assert "{{ app_label }}" in _APP_TEMPLATE["__init__.py"]
-        assert "{{ app_label }}" in _APP_TEMPLATE["routes.py"]
+        assert "{{ app_label }}" in APP_TEMPLATE["__init__.py"]
+        assert "{{ app_label }}" in APP_TEMPLATE["routes.py"]
 
 
 class TestEdgeCases:

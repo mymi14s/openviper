@@ -498,15 +498,15 @@ def parse_range(
         return "ignore"
 
     if spec.startswith("-"):
-        return _parse_suffix_range(spec, file_size)
+        return parse_suffix_range(spec, file_size)
 
     if spec.endswith("-"):
-        return _parse_open_ended_range(spec, file_size)
+        return parse_open_ended_range(spec, file_size)
 
-    return _parse_explicit_range(spec, file_size)
+    return parse_explicit_range(spec, file_size)
 
 
-def _parse_suffix_range(
+def parse_suffix_range(
     spec: str,
     file_size: int,
 ) -> tuple[int, int] | Literal["ignore", "unsatisfiable"]:
@@ -524,7 +524,7 @@ def _parse_suffix_range(
     return start, end
 
 
-def _parse_open_ended_range(
+def parse_open_ended_range(
     spec: str,
     file_size: int,
 ) -> tuple[int, int] | Literal["ignore", "unsatisfiable"]:
@@ -539,7 +539,7 @@ def _parse_open_ended_range(
     return start, end
 
 
-def _parse_explicit_range(
+def parse_explicit_range(
     spec: str,
     file_size: int,
 ) -> tuple[int, int] | Literal["ignore", "unsatisfiable"]:
@@ -579,14 +579,14 @@ def discover_app_static_dirs() -> tuple[Path, ...]:
         all_apps.append("openviper.admin")
 
     for app_name in all_apps:
-        if _try_importlib_app_dir(app_name, static_dirs, seen):
+        if try_importlib_app_dir(app_name, static_dirs, seen):
             continue
-        _try_app_resolver_dir(app_name, static_dirs, seen)
+        try_app_resolver_dir(app_name, static_dirs, seen)
 
     return tuple(static_dirs)
 
 
-def _try_importlib_app_dir(
+def try_importlib_app_dir(
     app_name: str,
     static_dirs: list[Path],
     seen: set[Path],
@@ -606,7 +606,7 @@ def _try_importlib_app_dir(
     return False
 
 
-def _try_app_resolver_dir(
+def try_app_resolver_dir(
     app_name: str,
     static_dirs: list[Path],
     seen: set[Path],
@@ -645,7 +645,7 @@ def collect_static(
     dest = dest_raw.resolve()
     resolved_sources = [Path(s).resolve() for s in source_dirs]
 
-    _maybe_clear_dest(dest_raw, dest, resolved_sources, clear=clear)
+    maybe_clear_dest(dest_raw, dest, resolved_sources, clear=clear)
 
     dest.mkdir(parents=True, exist_ok=True)
 
@@ -685,7 +685,7 @@ def copy_tree(src_root: Path, dest: Path) -> int:
     return copied
 
 
-def _maybe_clear_dest(
+def maybe_clear_dest(
     dest_raw: Path,
     dest: Path,
     resolved_sources: list[Path],

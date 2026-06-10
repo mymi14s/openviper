@@ -58,7 +58,7 @@ class TestFrontendSecretExposure:
         """Settings must not expose sensitive fields in as_dict output."""
         # Verify that SECRET_KEY and DATABASE_URL are in the sensitive fields list
         assert "SECRET_KEY" in SENSITIVE_FIELDS
-        assert "DATABASE_URL" in SENSITIVE_FIELDS
+        assert "DATABASES" in SENSITIVE_FIELDS
 
     def test_vue003_settings_repr_hides_secrets(self):
         """Settings __repr__ must not expose sensitive values."""

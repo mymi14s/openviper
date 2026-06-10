@@ -1030,12 +1030,18 @@ Transactions
 
 .. code-block:: python
 
-    from openviper.db.executor import _begin
+    from openviper.db.connection import transaction, atomic
 
     async def example():
-        # Use _begin() for an explicit transaction block
-        async with _begin() as conn:
-            await conn.execute(...)
+        # transaction() pins all ORM operations to a specific alias
+        async with transaction(using="default"):
+            await Post.objects.create(title="Hello")
+            await Tag.objects.create(name="python")
+
+        # atomic() wraps a block in a commit/rollback transaction
+        async with atomic():
+            await Post.objects.create(title="Hello")
+            await Tag.objects.create(name="python")
 
 Bypassing Permissions
 ~~~~~~~~~~~~~~~~~~~~~

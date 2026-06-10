@@ -20,9 +20,13 @@ class ProjectSettings(Settings):
     DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"
-    ADMIN_TITLE: str = "Ecommerce Admin"
-    ADMIN_HEADER_TITLE: str = "EcommerceClone"
-    ADMIN_FOOTER_TITLE: str = "Ecommerce v1.0"
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "title": "Ecommerce Admin",
+            "header_title": "EcommerceClone",
+            "footer_title": "Ecommerce v1.0",
+        },
+    )
     OPENAPI: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "title": "Ecommerce API",

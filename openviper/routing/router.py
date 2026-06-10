@@ -207,7 +207,7 @@ def route_specificity(path: str) -> tuple[int, int]:
         /users/{id}/fk-search                -> (2, 3)
         /admin/models/{app}/{model}/fk-search -> (2, 5)
     """
-    segments = [s for s in path.split("/") if s]  # split and filter empty
+    segments = [s for s in path.split("/") if s]
     literal_count = sum(1 for seg in segments if not seg.startswith("{"))
     return (literal_count, len(segments))
 
@@ -300,7 +300,7 @@ class Router:
         self._parents: set[Router] = set()
         # Cache - invalidated whenever routes or sub-routers change.
         self._cached_routes: list[Route] | None = None
-        # Dispatch index: first static segment -> candidate routes.
+        # First static segment -> candidate routes.
         # The DYNAMIC bucket holds routes with a dynamic first segment.
         self._index: dict[str, list[Route]] | None = None
         # Name index: route name -> route (for O(1) url_for lookups)
@@ -553,13 +553,11 @@ class Router:
             else:
                 action_path = f"{base_path}/{action_info['url_path']}"
 
-            # Create a specialized as_view handler for this specific action
             action_handler = view_class.as_view(
                 _action_name=action_info["method_name"],
                 **getattr(handler, "view_initkwargs", {}),
             )
 
-            # Register it on this router instance
             self.add(
                 action_path,
                 action_handler,
@@ -688,7 +686,7 @@ class Router:
             PathSecurityError: Path contains null bytes, traversal, or encoded slashes.
         """
         method = method.upper()
-        path = sanitize_request_path(path)  # raises PathSecurityError on malicious input
+        path = sanitize_request_path(path)
 
         # Trigger lazy build of indices if needed
         if self._exact_index is None:

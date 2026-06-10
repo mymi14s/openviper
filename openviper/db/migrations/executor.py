@@ -34,9 +34,9 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql.base import PGDialect
 
 from openviper.conf import settings
-from openviper.db._model_registry import invalidate_soft_removed_cache
 from openviper.db.connection import get_engine, get_metadata
 from openviper.db.connections import connections
+from openviper.db.model_registry import invalidate_soft_removed_cache
 from openviper.db.utils import (
     get_default_database_url,
     validate_on_delete,
@@ -88,7 +88,6 @@ class MigrationStatus(Enum):
 class _MigrationLogger:
     """Enhanced logging for migrations with color-coded output."""
 
-    # ANSI color codes for terminal output
     COLORS = {
         "GREEN": "\033[92m",
         "RED": "\033[91m",
@@ -237,7 +236,7 @@ def get_dialect() -> str:
     return "sqlite"
 
 
-# Per-dialect type mapping: SQLite-specific type names → dialect equivalents.
+# SQLite type name overrides per dialect.
 # Only types that differ across dialects need an entry.
 _DIALECT_TYPE_MAP: dict[str, dict[str, str]] = {
     "postgresql": {
@@ -293,7 +292,6 @@ def map_column_type(col_type: str, dialect: str) -> str:
     mapping = _DIALECT_TYPE_MAP.get(dialect, {})
     if not mapping:
         return col_type
-    # Split off any parenthesised suffix so we match "DATETIME" in "DATETIME".
     m = re.match(r"^([A-Z_]+)(\(.*\))?$", col_type.strip().upper())
     if m:
         base, suffix = m.group(1), m.group(2) or ""
@@ -305,9 +303,7 @@ def map_column_type(col_type: str, dialect: str) -> str:
     return col_type
 
 
-# PostgreSQL type names that require an explicit USING clause when used as
-# the target of ALTER COLUMN TYPE (i.e., PG will not auto-cast from other
-# numeric/text types).  The value is the canonical PG cast target name.
+# PG types requiring USING clause for ALTER COLUMN.
 _PG_NEEDS_USING: frozenset[str] = frozenset(
     {
         "DOUBLE PRECISION",
@@ -329,12 +325,9 @@ def pg_auto_using(column_name: str, pg_type: str) -> str:
     Returns an empty string when the cast can be performed implicitly.
     The column name is validated to be a safe identifier before embedding.
     """
-    # Strip any length/precision suffix to get the base type name.
     base = re.match(r"^([A-Z_ ]+)", pg_type.strip().upper())
     base_type = base.group(1).strip() if base else pg_type.upper()
     if base_type in _PG_NEEDS_USING:
-        # column_name is already validated as a safe identifier by validate_identifier
-        # at migration-write time; re-verify defensively.
         if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column_name):
             return ""
         return f' USING "{column_name}"::{pg_type}'
@@ -357,12 +350,7 @@ quote_identifier = quote_identifier
 sql_literal = sql_literal
 
 
-# Dangerous SQL patterns that could enable statement injection in constraint
-# expressions and partial-index conditions.  These are developer-supplied
-# values (not end-user input), but validation prevents accidental or
-# malicious multi-statement injection through model Meta.constraints.
-# Note: SQL injection patterns and validation are centralized in
-# openviper.db.utils to avoid code duplication.
+# SQL injection patterns for constraint names.
 
 
 @dataclass
@@ -406,7 +394,7 @@ class CreateTable(Operation):
     def forward_sql(self) -> list[Any]:
         dialect = get_dialect()
         cols: list[str] = []
-        fk_columns: list[str] = []  # Track FK columns for index creation
+        fk_columns: list[str] = []
 
         for col in self.columns:
             raw_type = map_column_type(col["type"], dialect)
@@ -424,7 +412,6 @@ class CreateTable(Operation):
             if col.get("primary_key"):
                 definition += " PRIMARY KEY"
 
-            # Auto-increment handling
             if col.get("autoincrement"):
                 if dialect == "sqlite":
                     definition += " AUTOINCREMENT"
@@ -443,7 +430,6 @@ class CreateTable(Operation):
             if col.get("default") is not None:
                 definition += f" DEFAULT {sql_literal(col['default'])}"
 
-            # Foreign Key support
             if col.get("target_table"):
                 target = col["target_table"]
                 on_delete = validate_on_delete(
@@ -514,7 +500,7 @@ class CreateTable(Operation):
         """
         dialect = get_dialect()
         if dialect == "sqlite":
-            return []  # handled inline in forward_sql()
+            return []
 
         quoted_table = quote_identifier(self.table_name, dialect)
         stmts: list[str] = []
@@ -568,8 +554,6 @@ class CreateTable(Operation):
                         f"END $$;"
                     )
                 else:
-                    # MySQL / MariaDB - no portable IF NOT EXISTS for constraints;
-                    # caller catches duplicate-constraint errors.
                     stmts.append(
                         f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} "
                         f"FOREIGN KEY ({quoted_col}) REFERENCES {quoted_target}(id)"
@@ -946,8 +930,7 @@ class RenameColumn(Operation):
         quoted_old = quote_identifier(self.old_name, dialect)
         quoted_new = quote_identifier(self.new_name, dialect)
         if dialect == "mssql":
-            # Use parameterized query for sp_rename to prevent SQL injection
-            # Note: sp_rename requires string literals, so we validate identifiers strictly
+            # sp_rename requires validated identifiers.
             identifier_pattern = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,127}$")
             if not identifier_pattern.match(self.table_name):
                 raise ValueError(f"Invalid table name: {self.table_name}")
@@ -956,7 +939,6 @@ class RenameColumn(Operation):
             if not identifier_pattern.match(self.new_name):
                 raise ValueError(f"Invalid column name: {self.new_name}")
 
-            # Safe after validation - identifiers cannot contain quotes or special chars
             return [
                 f"EXEC sp_rename N'{self.table_name}.{self.old_name}', N'{self.new_name}', 'COLUMN'"
             ]
@@ -968,7 +950,6 @@ class RenameColumn(Operation):
         quoted_old = quote_identifier(self.old_name, dialect)
         quoted_new = quote_identifier(self.new_name, dialect)
         if dialect == "mssql":
-            # Validate identifiers to prevent SQL injection
             identifier_pattern = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,127}$")
             if not identifier_pattern.match(self.table_name):
                 raise ValueError(f"Invalid table name: {self.table_name}")
@@ -1047,7 +1028,6 @@ class RemoveIndex(Operation):
 
     def backward_sql(self) -> list[str]:
         # Backward requires knowing columns/unique, which we don't store here.
-        # In practice, usually handled via manual migration editing if needed.
         return []
 
 
@@ -1263,7 +1243,6 @@ def discover_migrations(
     """
     records: list[MigrationRecord] = []
 
-    # -- 1. Built-in OpenViper app migrations -----------------------------
     for dotted in _BUILTIN_APP_PACKAGES:
         try:
             pkg = importlib.import_module(dotted)
@@ -1276,7 +1255,6 @@ def discover_migrations(
         pkg_dir = Path(pkg_file).resolve().parent
         discover_app_migrations(pkg_dir, records)
 
-    # -- 2. Project app migrations -------------------------------------
     if resolved_apps:
         # Use resolved apps from AppResolver (flexible structure)
         for _app_name, app_path in sorted(resolved_apps.items()):
@@ -1297,10 +1275,9 @@ def discover_migrations(
 
 def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
     """Sort migrations based on their dependencies using a topological sort (Kahn's algorithm)."""
-    # map (app, name) -> MigrationRecord
     lookup = {(m.app, m.name): m for m in migrations}
 
-    # Pre-build position index for O(1) sort-key lookups (avoids O(n) list.index per call).
+    # Position index for O(1) sort-key lookups.
     migration_order: dict[tuple[str, str], int] = {
         (m.app, m.name): i for i, m in enumerate(migrations)
     }
@@ -1317,8 +1294,7 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
                 adj[dep_node].append(node)
                 in_degree[node] += 1
 
-    # Initialize queue with nodes having zero in-degree
-    # We sort them by their original index to maintain stability for non-dependent migrations
+    # Stable sort preserves original order for independent nodes.
     queue = deque(
         sorted(
             [node for node, degree in in_degree.items() if degree == 0],
@@ -1331,7 +1307,6 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
         curr = queue.popleft()
         sorted_nodes.append(curr)
 
-        # Sort neighbors before adding to queue to maintain Stability
         neighbors = sorted(adj[curr], key=lambda n: migration_order[n])
         for neighbor in neighbors:
             in_degree[neighbor] -= 1
@@ -1341,7 +1316,7 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
     if len(sorted_nodes) < len(migrations):
         remaining = [node for node in in_degree if node not in sorted_nodes]
         logger.warning("Circular dependency detected in migrations: %s", remaining)
-        # Append remaining migrations to ensure they aren't lost, even if order is wrong
+        # Append remaining migrations to prevent data loss.
         for node in remaining:
             sorted_nodes.append(node)
 
@@ -1478,9 +1453,7 @@ def normalize_type(col_type: str) -> str:
     and ``TEXT`` stays ``TEXT``.
     """
 
-    # Remove anything in parentheses
     normalized = re.sub(r"\(.*?\)", "", col_type).strip().upper()
-    # Map common aliases
     type_map = {
         "INT": "INTEGER",
         "BOOL": "BOOLEAN",
@@ -1595,8 +1568,7 @@ class MigrationExecutor:
         soft_table = get_soft_removed_table()
         engine = await self.get_engine_for_alias(db_alias)
         async with engine.begin() as conn:
-            # Create tables individually to avoid metadata.create_all() trying to
-            # create all registered models (which may have unfulfilled dependencies)
+            # Create tables individually to avoid unfulfilled dependency errors.
             await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
             await conn.run_sync(lambda sync_conn: soft_table.create(sync_conn, checkfirst=True))
 
@@ -1656,9 +1628,7 @@ class MigrationExecutor:
         newly_applied: list[str] = []
         migration_log: list[tuple[str, str, MigrationStatus]] = []
         # Collect FK constraint statements from every successfully-applied
-        # CreateTable operation.  They are executed in a second phase after all
-        # tables have been created so that circular FK dependencies between apps
-        # (e.g. users_user ↔ auth_role_profiles) don't cause failures.
+        # CreateTable operation.
         deferred_fk_stmts: list[str] = []
 
         if verbose:
@@ -1681,7 +1651,6 @@ class MigrationExecutor:
                     for op in record.operations:
                         if await should_skip_forward(conn, op):
                             continue
-                        # Validate RestoreColumn before executing
                         if isinstance(op, RestoreColumn):
                             error = await validate_restore_column(
                                 conn,
@@ -1723,7 +1692,6 @@ class MigrationExecutor:
                     raise
                 continue
 
-        # -- Phase 2: apply deferred FK constraints ----------------------------
         for fk_stmt in deferred_fk_stmts:
             try:
                 async with engine.begin() as conn:

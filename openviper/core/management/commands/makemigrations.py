@@ -248,7 +248,7 @@ class Command(BaseCommand):
                 if in_degree[neighbor] == 0:
                     queue.append(neighbor)
 
-        # Cycles must still produce migrations even though their order is ambiguous.
+        # Cycles still produce migrations despite ambiguous order.
         if len(sorted_labels) < len(app_data):
             remaining = sorted([label for label in app_data if label not in sorted_labels])
             sorted_labels.extend(remaining)

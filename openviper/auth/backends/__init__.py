@@ -174,7 +174,7 @@ def get_client_ip(request: AuthRequest) -> str:
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
             # Walk right-to-left to find the first non-trusted IP,
-            # matching the de-facto X-Forwarded-For security convention.
+            # matching the X-Forwarded-For security convention.
             ips = [ip.strip() for ip in forwarded.split(",")]
             for ip in reversed(ips):
                 if ip not in trusted_proxies:

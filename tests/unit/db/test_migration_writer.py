@@ -318,14 +318,19 @@ class TestFormatColumnsExtended:
         assert "'default': 0" in res
 
     def test_unresolvable_fk(self):
+        from openviper.db.shared_metadata import metadata
+
         class FKModel(Model):
             ref = ForeignKey(to="nonexistent.Model")
 
             class Meta:
                 table_name = "fk_model"
 
-        with pytest.raises(MigrationError, match="Cannot serialize ForeignKey"):
-            format_columns(FKModel)
+        try:
+            with pytest.raises(MigrationError, match="Cannot serialize ForeignKey"):
+                format_columns(FKModel)
+        finally:
+            metadata.remove(metadata.tables.get("fk_model"))  # type: ignore[arg-type]
 
 
 class TestFormatOperationExtended:

@@ -585,7 +585,6 @@ class Serializer(BaseModel):
 
         if cursor is not None:
             # Keyset path: O(log N) with no OFFSET.
-            # COUNT and page fetch are independent; run concurrently.
             cursor_values = cursor_decode(cursor)
             order_fields: list[str] = list(getattr(qs, "_order", []))
             keyset_q: Q | None = (
@@ -621,7 +620,6 @@ class Serializer(BaseModel):
             )
 
         # OFFSET path: first uncursored request only.
-        # COUNT and page fetch are independent; run concurrently.
         offset = (page - 1) * ps
         page_qs = qs.offset(offset).limit(ps)
 
@@ -770,7 +768,7 @@ class ModelSerializerMeta(type(BaseModel)):
         field_names = [f for f in field_names if f not in exclude_opt]
 
         annotations: dict[str, Any] = namespace.get("__annotations__", {})
-        # Serializer-level keys excluded from pydantic.Field().
+        # Keys excluded from pydantic.Field().
         serializer_only_keys: frozenset[str] = frozenset({"required"})
 
         for field_name in field_names:
@@ -826,7 +824,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
     ``writeonly_fields``, and ``extra_kwargs``.
     """
 
-    _model: ClassVar[type]  # set by metaclass
+    _model: ClassVar[type]
 
     @classmethod
     @lru_cache(maxsize=512)
@@ -892,7 +890,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
             value: UploadValueProtocol | bytes | bytearray | memoryview,
         ) -> tuple[str, str]:
             """Return (field_name, saved_path) after persisting."""
-            # Strip directory components to prevent path traversal.
+            # Prevent path traversal.
             # Normalize backslashes so basename extraction works
             # on POSIX.
             raw_name = getattr(value, "filename", None) or getattr(value, "name", None) or "file"
@@ -929,8 +927,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
 
             saved_path = await default_storage.save(target_name, content)
 
-            # Delete old file only after the new one is persisted
-            # to prevent data loss on save failure.
+            # Delete old file only after new one is persisted.
             if old_instance is not None:
                 old_path = getattr(old_instance, name, None)
                 if old_path and isinstance(old_path, str):
@@ -1066,8 +1063,6 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         always stripped.
         """
         await self.check_permissions()
-        # Whitelist serializer-declared fields that are not
-        # write-only.
         allowed_keys = set(self.model_fields) - set(self.writeonly_fields)
         data = {k: v for k, v in self.model_dump(exclude_unset=True).items() if k in allowed_keys}
         for f in self.readonly_fields:

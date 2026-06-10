@@ -15,7 +15,7 @@ class AdminRouter(DatabaseRouter):
 
     This router ensures that admin writes and reads use the
     primary (default) database for consistency.  It should be
-    listed last in ``DATABASE_ROUTERS`` so that it only affects
+    listed last in ``DATABASES['ROUTERS']`` so that it only affects
     operations not already routed by other routers.
     """
 

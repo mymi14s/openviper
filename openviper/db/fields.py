@@ -23,7 +23,7 @@ import aiofiles
 from pydantic_core import CoreSchema, core_schema
 
 from openviper.conf import settings
-from openviper.db import _model_registry
+from openviper.db import model_registry
 from openviper.db.utils import (
     validate_on_delete,
     validate_sql_expression,
@@ -82,7 +82,7 @@ class Field:
         self._choices_set: frozenset[Any] = frozenset(c[0] for c in self.choices)
         self.help_text = help_text
         self.editable = editable
-        self.name: str = ""  # Set by ModelMeta
+        self.name: str = ""
 
     @functools.cached_property
     def column_name(self) -> str:
@@ -439,7 +439,7 @@ class UUIDField(Field):
 # Hard ceiling prevents memory exhaustion from misconfigured
 # MAX_JSON_SIZE settings. 50 MB is a reasonable upper bound for any
 # JSON payload in a web application.
-_HARD_MAX_JSON_SIZE: int = 50 * 1024 * 1024  # 50 MB
+_HARD_MAX_JSON_SIZE: int = 50 * 1024 * 1024
 
 
 class JSONField(Field):
@@ -467,7 +467,7 @@ class JSONField(Field):
         """
         if self._max_size is not None:
             return min(self._max_size, _HARD_MAX_JSON_SIZE)
-        configured = int(getattr(settings, "MAX_JSON_SIZE", 1024 * 1024))  # 1MB default
+        configured = int(getattr(settings, "MAX_JSON_SIZE", 1024 * 1024))
         return min(configured, _HARD_MAX_JSON_SIZE)
 
     def to_python(self, value: Any) -> Any:
@@ -561,9 +561,9 @@ class ForeignKey(Field):
 
         # Use the live ModelMeta reference so test fixtures that replace
         # ModelMeta.registry are transparently followed.
-        model_meta = _model_registry.model_meta_cls
-        registry = model_meta.registry if model_meta is not None else _model_registry.registry
-        name_index = model_meta.name_index if model_meta is not None else _model_registry.name_index
+        model_meta = model_registry.model_meta_cls
+        registry = model_meta.registry if model_meta is not None else model_registry.registry
+        name_index = model_meta.name_index if model_meta is not None else model_registry.name_index
 
         # Most FK strings are 'app.Model' format, a direct registry hit.
         if target in registry:
@@ -605,7 +605,7 @@ class ForeignKey(Field):
                     if isinstance(field, ForeignKey):
                         return str(field._column_type)
                     return str(field._column_type)
-        return "INTEGER"  # default when target is not yet resolvable
+        return "INTEGER"
 
     @_column_type.setter
     def _column_type(self, value: object) -> None:
@@ -750,7 +750,7 @@ class LazyFK:
     @classmethod
     def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: Any) -> CoreSchema:
         if core_schema is None:
-            return {"type": "any"}  # Fallback if pydantic-core not installed
+            return {"type": "any"}
 
         return core_schema.no_info_after_validator_function(
             cls._validate,
@@ -981,7 +981,7 @@ class ReverseRelationDescriptor:
     def __get__(self, obj: Any, objtype: Any = None) -> Any:
         if obj is None:
             return self
-        queryset_cls = _model_registry.queryset_cls
+        queryset_cls = model_registry.queryset_cls
         if queryset_cls is None:
             raise RuntimeError("QuerySet class is not registered.")
         return cast("type", queryset_cls)(self._source_model).filter(
@@ -1001,8 +1001,8 @@ class ManyToManyDescriptor:
         if instance is None:
             return self
 
-        model_meta = _model_registry.model_meta_cls
-        live_registry = model_meta.registry if model_meta is not None else _model_registry.registry
+        model_meta = model_registry.model_meta_cls
+        live_registry = model_meta.registry if model_meta is not None else model_registry.registry
 
         if isinstance(self.field.to, str):
             target_model = live_registry.get(self.field.to)
@@ -1109,7 +1109,7 @@ class ManyToManyField(Field):
         await user.roles.remove(role)
     """
 
-    _column_type = ""  # No direct column
+    _column_type = ""
 
     def __init__(
         self,
@@ -1144,9 +1144,9 @@ class ManyToManyField(Field):
         target_fk_name = target_name.lower()
 
         app_name = getattr(source_model, "_app_name", "default")
-        model_meta_ref = _model_registry.model_meta_cls
+        model_meta_ref = model_registry.model_meta_cls
         live_reg = (
-            model_meta_ref.registry if model_meta_ref is not None else _model_registry.registry
+            model_meta_ref.registry if model_meta_ref is not None else model_registry.registry
         )
         registry_key = f"{app_name}.{auto_model_name}"
         if registry_key in live_reg:
@@ -1158,10 +1158,10 @@ class ManyToManyField(Field):
         source_table = getattr(source_model, "_table_name", source_name.lower())
         auto_meta = type("Meta", (), {"table_name": f"{source_table}_{field_name}"})
 
-        if _model_registry.model_cls is None or _model_registry.model_meta_cls is None:
+        if model_registry.model_cls is None or model_registry.model_meta_cls is None:
             raise RuntimeError("Model registry is not initialized.")
-        model_base = cast("type", _model_registry.model_cls)
-        model_meta_cls = cast("type", _model_registry.model_meta_cls)
+        model_base = cast("type", model_registry.model_cls)
+        model_meta_cls = cast("type", model_registry.model_meta_cls)
         through_cls = model_meta_cls(
             auto_model_name,
             (model_base,),
@@ -1309,7 +1309,7 @@ class FileField(CharField):
             return int(getattr(settings, "MAX_FILE_SIZE", 10 * 1024 * 1024))
         except Exception:
             logger.debug("Invalid MAX_FILE_SIZE setting, using default")
-            return 10 * 1024 * 1024  # 10 MB default
+            return 10 * 1024 * 1024
 
     async def pre_save(self, instance: Model, value: Any) -> None:
         """Handle file upload persistence before saving to database."""

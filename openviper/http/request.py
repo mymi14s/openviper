@@ -350,7 +350,6 @@ class Request:
                             inferred_ct = "image/webp"
                         elif raw_value[:6] in (b"GIF87a", b"GIF89a"):
                             inferred_ct = "image/gif"
-                        # Map inferred MIME type to a safe file extension.
                         ext_map = {
                             "image/png": ".png",
                             "image/jpeg": ".jpg",

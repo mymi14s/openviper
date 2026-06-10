@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # Model registry: populated by ModelMeta.
-# Maps "app.ModelName" -> model class.
 registry: dict[str, type] = {}
 
 # Secondary name index: simple class name -> list of model classes.
@@ -13,13 +12,13 @@ name_index: dict[str, list[type]] = {}
 soft_removed_cache: dict[str, frozenset[str]] = {}
 soft_removed_loaded: bool = False
 
-# Set after ModelMeta is defined; used for M2M auto-through creation.
+# Set after ModelMeta; used for M2M auto-through creation.
 model_meta_cls: type | None = None
 
-# Set after Model is defined; used as the base for auto-through models.
+# Set after Model; base for auto-through models.
 model_cls: type | None = None
 
-# Set after QuerySet is defined; used for ReverseRelationDescriptor.
+# Set after QuerySet; used for ReverseRelationDescriptor.
 queryset_cls: type | None = None
 
 

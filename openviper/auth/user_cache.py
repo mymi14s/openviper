@@ -14,7 +14,7 @@ import asyncio
 import threading
 from typing import TYPE_CHECKING
 
-from openviper.auth._cache_utils import lazy_async_lock
+from openviper.auth.cache_utils import lazy_async_lock
 
 if TYPE_CHECKING:
     from openviper.auth.types import Authenticable

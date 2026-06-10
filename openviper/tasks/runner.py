@@ -87,7 +87,6 @@ def run(
             except Exception:
                 logger.exception("Error importing %s", module_name)
 
-    # Register discovered actors with the Dramatiq broker.
     for actor_name, fn in registry.actors.items():
         try:
             broker.get_actor(actor_name)

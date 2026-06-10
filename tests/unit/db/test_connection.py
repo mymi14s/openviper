@@ -25,17 +25,25 @@ from openviper.db.connection import (
     request_connection,
     validate_pool_config,
 )
+from openviper.db.connections import connections
 
 
 @pytest.fixture(autouse=True)
 async def reset_engine():
-    """Reset module-level _engine before and after each test to prevent state leaks."""
+    """Reset module-level _engine and ConnectionManager state to prevent state leaks."""
     old = mod._engine
+    old_initialized = connections.initialized
+    old_backends = dict(connections.backends)
     mod._engine = None
+    connections.initialized = False
+    connections.backends.clear()
     yield
     if mod._engine is not None and mod._engine is not old:
         await mod._engine.dispose()
     mod._engine = old
+    connections.initialized = old_initialized
+    connections.backends.clear()
+    connections.backends.update(old_backends)
 
 
 class TestGetMetadata:

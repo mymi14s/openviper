@@ -74,18 +74,41 @@ from openviper.conf.settings import Settings
 @dataclasses.dataclass(frozen=True)
 class ProjectSettings(Settings):
     PROJECT_NAME: str = "{project_name}"
-    DEBUG: bool = os.environ.get("DEBUG", "1").lower() in ("1", "true", "yes")
+    DEBUG: bool = True
     DATABASES: ConfigMap = dataclasses.field(
         default_factory=lambda: {{
             "default": {{
-                "URL": os.environ.get(
-                    "DATABASE_URL",
-                    "sqlite+aiosqlite:///db.sqlite3",
-                ),
+                "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+                "OPTIONS": {{
+                    "URL": "sqlite+aiosqlite:///db.sqlite3",
+                    "ECHO": False,
+                    "POOL_SIZE": 5,
+                    "MAX_OVERFLOW": 10,
+                    "POOL_RECYCLE": 3600,
+                }},
+            }},
+            "ROUTERS": [],
+            "ROUTING": {{}},
+        }}
+    )
+    CACHES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {{
+            "default": {{
+                "BACKEND": "openviper.cache.InMemoryCache",
+                "OPTIONS": {{
+                    "ttl": 300,
+                }},
             }},
         }}
     )
-    SECRET_KEY: str = os.environ.get("SECRET_KEY", "{secret_key}")
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {{
+            "title": "{project_name} Admin",
+            "header_title": "{project_name}",
+            "footer_title": "{project_name} Admin",
+        }},
+    )
+    SECRET_KEY: str = "{secret_key}"
     INSTALLED_APPS: tuple[str, ...] = (
         "openviper.auth",
         "openviper.admin",
@@ -144,7 +167,6 @@ from openviper.http.response import HTMLResponse, JSONResponse
 from openviper.routing import Router
 
 async def home(request):
-    """Home page view."""
     context = {{
         "title": "Welcome to {project_name}",
         "project_name": "{project_name}",
@@ -153,26 +175,13 @@ async def home(request):
     return HTMLResponse(template="home.html", context=context)
 
 async def api_index(request):
-    """API endpoint view that handles both GET and POST."""
     if request.method == "GET":
-        return JSONResponse({{
-            "message": "Welcome to {project_name} API!",
-            "status": "success"
-        }})
+        return JSONResponse({{"message": "Welcome to {project_name} API!", "status": "success"}})
     elif request.method == "POST":
-        return JSONResponse({{
-            "message": "Data received",
-            "status": "success",
-            "method": "POST"
-        }})
-    else:
-        return JSONResponse({{
-            "error": "Method not allowed",
-            "status": "error"
-        }}, status_code=405)
+        return JSONResponse({{"message": "Data received", "status": "success", "method": "POST"}})
+    return JSONResponse({{"error": "Method not allowed", "status": "error"}}, status_code=405)
 
 router = Router()
-
 router.add("/home", home, namespace="home-view")
 router.add("/api", api_index, namespace="api-view", methods=["GET", "POST"])
 '''

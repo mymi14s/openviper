@@ -6,8 +6,8 @@ with modern async capabilities.
 import importlib
 import sys
 
-from openviper._version import __version__ as __version__
 from openviper.conf import settings
+from openviper.version import __version__ as __version__
 
 LAZY_SUBPACKAGES: dict[str, str] = {
     "ai": "openviper.ai",

@@ -13,7 +13,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Bounded LRU cache avoids repeated os.walk calls in long-running processes.
+# Bounded LRU avoids repeated os.walk in long-running processes.
 _SEARCH_PATTERN_CACHE_MAX = 256
 _SEARCH_PATTERN_CACHE: dict[tuple[str, str], str | None] = {}
 _CACHE_LOCK = threading.Lock()

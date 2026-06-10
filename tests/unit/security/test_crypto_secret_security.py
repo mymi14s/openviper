@@ -426,7 +426,7 @@ class TestSecretExposure:
     def test_secret001_sensitive_fields_defined(self) -> None:
         """Settings must define a comprehensive set of sensitive fields."""
         assert "SECRET_KEY" in SENSITIVE_FIELDS
-        assert "DATABASE_URL" in SENSITIVE_FIELDS
+        assert "DATABASES" in SENSITIVE_FIELDS
 
     def test_secret001_as_dict_masks_secret_key(self) -> None:
         """as_dict(mask_sensitive=True) must mask SECRET_KEY."""
@@ -437,20 +437,27 @@ class TestSecretExposure:
         ), f"SECRET_KEY must be masked, got: {result['SECRET_KEY']!r}"
 
     def test_secret001_as_dict_masks_database_url(self) -> None:
-        """as_dict(mask_sensitive=True) must mask DATABASE_URL."""
-        s = Settings(DATABASE_URL="postgresql://user:pass@db:5432/mydb")
+        """as_dict(mask_sensitive=True) must mask DATABASES."""
+        s = Settings(
+            DATABASES={"default": {"OPTIONS": {"URL": "postgresql://user:pass@db:5432/mydb"}}}
+        )
         result = s.as_dict(mask_sensitive=True)
         assert (
-            result["DATABASE_URL"] == "***"
-        ), f"DATABASE_URL must be masked, got: {result['DATABASE_URL']!r}"
+            result["DATABASES"] == "***"
+        ), f"DATABASES must be masked, got: {result['DATABASES']!r}"
 
     def test_secret001_as_dict_masks_cache_url(self) -> None:
-        """as_dict(mask_sensitive=True) must mask CACHE_URL."""
-        s = Settings(CACHE_URL="redis://user:pass@redis:6379/0")
+        """as_dict(mask_sensitive=True) must mask CACHES."""
+        s = Settings(
+            CACHES={
+                "default": {
+                    "BACKEND": "openviper.cache.RedisCache",
+                    "OPTIONS": {"url": "redis://user:pass@redis:6379/0"},
+                }
+            }
+        )
         result = s.as_dict(mask_sensitive=True)
-        assert (
-            result["CACHE_URL"] == "***"
-        ), f"CACHE_URL must be masked, got: {result['CACHE_URL']!r}"
+        assert result["CACHES"] == "***", f"CACHES must be masked, got: {result['CACHES']!r}"
 
     def test_secret001_as_dict_masks_email(self) -> None:
         """as_dict(mask_sensitive=True) must mask EMAIL."""
@@ -539,17 +546,18 @@ class TestSecretExposure:
     def test_secret001_settings_as_dict_is_safe_serialization(self) -> None:
         """as_dict(mask_sensitive=True) must be the safe path for serialization."""
         s = Settings(
-            SECRET_KEY="do-not-expose-in-serialization", DATABASE_URL="postgresql://secret@db/db"
+            SECRET_KEY="do-not-expose-in-serialization",
+            DATABASES={"default": {"OPTIONS": {"URL": "postgresql://secret@db/db"}}},
         )
         safe_dict = s.as_dict(mask_sensitive=True)
         assert safe_dict["SECRET_KEY"] == "***"
-        assert safe_dict["DATABASE_URL"] == "***"
+        assert safe_dict["DATABASES"] == "***"
         # Verify that non-sensitive fields remain accessible
         assert "PROJECT_NAME" in safe_dict
 
     def test_secret001_sensitive_fields_cover_critical_secrets(self) -> None:
         """The SENSITIVE_FIELDS set must cover all critical secret fields."""
-        required_fields = {"SECRET_KEY", "DATABASE_URL", "CACHE_URL", "EMAIL"}
+        required_fields = {"SECRET_KEY", "DATABASES", "CACHES", "EMAIL"}
         for field in required_fields:
             assert field in SENSITIVE_FIELDS, f"{field} must be in SENSITIVE_FIELDS"
 

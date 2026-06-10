@@ -43,7 +43,7 @@ class {{ class_name }}(AIProvider):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self._api_key: str = config.get("api_key") or os.environ.get("{{ env_var }}") or ""
-        # Store an authenticated SDK or HTTP client so it can be reused across calls.
+        # Authenticated SDK/client reused across calls.
 
     async def generate(self, prompt: str, **kwargs: Any) -> str:
         """Call the {{ provider_title }} API and return generated text.

@@ -133,9 +133,7 @@ class MariaDBBackupEngine(BackupEngine):
         flags, db_name, password = build_mysql_args(database_url)
 
         with mysql_defaults_file(password) as defaults_flags:
-            # Read the SQL file and pipe it to mysql via stdin instead of
-            # using the `source` command, which is vulnerable to injection
-            # when the file path contains shell-interpreted characters.
+            # Pipe SQL via stdin to avoid shell injection.
             sql_content = sql_file.read_text(encoding="utf-8")
             returncode, _, stderr = await run_subprocess(
                 ["mysql", *defaults_flags, *flags, db_name],

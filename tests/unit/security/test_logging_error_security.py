@@ -201,12 +201,12 @@ class TestSensitiveValueRedaction:
         assert "SECRET_KEY" in SENSITIVE_FIELDS
 
     def test_log001_settings_sensitive_fields_include_database_url(self) -> None:
-        """Settings must define DATABASE_URL as a sensitive field."""
-        assert "DATABASE_URL" in SENSITIVE_FIELDS
+        """Settings must define DATABASES as a sensitive field."""
+        assert "DATABASES" in SENSITIVE_FIELDS
 
     def test_log001_settings_sensitive_fields_include_cache_url(self) -> None:
-        """Settings must define CACHE_URL as a sensitive field."""
-        assert "CACHE_URL" in SENSITIVE_FIELDS
+        """Settings must define CACHES as a sensitive field."""
+        assert "CACHES" in SENSITIVE_FIELDS
 
     def test_log001_settings_sensitive_fields_include_email(self) -> None:
         """Settings must define EMAIL as a sensitive field."""

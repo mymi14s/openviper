@@ -57,8 +57,8 @@ def oracle_par_file(conn: dict[str, str]) -> Generator[list[str]]:
     port = conn["port"]
     service = conn["service"]
 
-    # Validate connection parameters to prevent injection into the Oracle
-    # parfile.  Host, port, and service must be simple identifiers or
+    # Validate connection parameters to prevent injection.
+    # Host, port, and service must be simple identifiers or
     # numeric values - no special characters that could alter the
     # connection string semantics.
     oracle_conn_param_re: re.Pattern[str] = re.compile(r"^[a-zA-Z0-9._-]+$")

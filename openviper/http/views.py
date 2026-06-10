@@ -148,8 +148,8 @@ class View:
 
     #: List of permission classes to apply to this view.
     #: ``None`` inherits ``settings.DEFAULT_PERMISSION_CLASSES``.
-    #: The framework default is empty, so unspecified views are public unless
-    #: the project configures a global permission policy.
+    #: Framework default is empty; unspecified views are public
+    #: unless the project configures a global permission policy.
     #: Set to ``[]`` to explicitly disable per-view permission checks.
     permission_classes: list[type[PermissionProtocol] | PermissionProtocol | str] | None = None
 
@@ -193,7 +193,6 @@ class View:
             return JSONResponse(result)
         response = cast("Response", result)
 
-        # Strip body for HEAD responses while preserving all headers.
         if request.method == "HEAD":
             response.body = b""
         return response
@@ -332,7 +331,6 @@ class View:
 
             router.get("/items")(ItemView.as_view())
         """
-        # Validate that initkwargs don't clash with HTTP methods.
         for key in initkwargs:
             if key in HTTP_METHODS:
                 raise TypeError(
@@ -343,8 +341,6 @@ class View:
 
         async def view(request: Request, **kwargs: str) -> Response:
             self = cls(**initkwargs)
-            # When an explicit action name is provided, skip dispatch
-            # and call that specific method directly.
             if _action_name:
                 await self.perform_authentication(request)
                 await self.check_permissions(request)

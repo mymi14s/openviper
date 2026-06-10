@@ -7,8 +7,8 @@ import logging
 from collections.abc import Callable
 from typing import TypeVar, cast
 
-from openviper.auth._user_cache import invalidate_user_cache
 from openviper.auth.hashers import check_password, make_password
+from openviper.auth.user_cache import invalidate_user_cache
 from openviper.cache import InMemoryCache, get_cache
 from openviper.conf import settings
 from openviper.core.context import request_perms_cache
@@ -505,7 +505,7 @@ def on_role_permission_change(instance: object, event: str | None = None, **kwar
     role_id = getattr(instance, "role", None)
     role_id = getattr(role_id, "pk", role_id)
 
-    # Role changes can affect many users, so the entire context cache must be cleared.
+    # Role changes affect many users; clear entire context cache.
     request_perms_cache.set({})
 
     if role_id:

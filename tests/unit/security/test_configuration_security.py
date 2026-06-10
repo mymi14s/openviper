@@ -67,7 +67,7 @@ class TestDefaultSecretKey:
     def test_conf003_sensitive_fields_defined(self):
         """Settings must define sensitive fields that are never exposed."""
         assert "SECRET_KEY" in SENSITIVE_FIELDS
-        assert "DATABASE_URL" in SENSITIVE_FIELDS
+        assert "DATABASES" in SENSITIVE_FIELDS
 
     def test_conf003_jwt_rejects_insecure_algorithm(self):
         """JWT must reject insecure algorithms like 'none'."""

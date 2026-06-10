@@ -49,8 +49,7 @@ from openviper.auth.permission_core import (
     check_permission_for_model,
 )
 from openviper.core.context import ignore_permissions_ctx
-from openviper.db import _model_registry as registry_mod
-from openviper.db._traversal import TraversalLookup, TraversalStep
+from openviper.db import model_registry as registry_mod
 from openviper.db.backends.registry import backend_registry
 from openviper.db.events import dispatch_decorator_handlers, get_dispatcher
 from openviper.db.exceptions import (
@@ -90,6 +89,7 @@ from openviper.db.fields import (
     ReverseRelationDescriptor,
 )
 from openviper.db.queryspec import FilterClause, FilterOp, QuerySpec
+from openviper.db.traversal import TraversalLookup, TraversalStep
 from openviper.db.utils import enforce_single_model_constraint, validate_sql_expression
 from openviper.exceptions import DoesNotExist, FieldError, MultipleObjectsReturned
 from openviper.utils import timezone
@@ -110,12 +110,12 @@ class ClassProperty:
         return self.func(owner)
 
 
-# Pre-compiling avoids re-compilation overhead on every model class creation.
+# Pre-compiled regex avoids per-class re-compilation.
 _CAMEL_RE1 = re.compile(r"(.)([A-Z][a-z]+)")
 _CAMEL_RE2 = re.compile(r"([a-z0-9])([A-Z])")
 _CAMEL_RE3 = re.compile(r"(?<!^)(?=[A-Z])")
 
-# Caching per request avoids redundant permission queries within the same async context.
+# Per-request cache avoids redundant permission queries.
 _perm_cache: ContextVar[dict[tuple[type, str], bool] | None] = ContextVar(
     "_perm_cache", default=None
 )
@@ -141,7 +141,7 @@ async def check_perm_cached(model: type, action: str, ignore_permissions: bool =
 
     key = (model, action)
     if key in cache:
-        return  # Already verified this request.
+        return
 
     await check_permission_for_model(model, action, ignore_permissions=False)
     cache[key] = True
@@ -151,9 +151,7 @@ class ModelOptions:
     """Metadata container for a Model class.
 
     Aggregates all Meta-level configuration into a single object accessible
-    via ``cls._meta``.  This mirrors Django's ``Options`` pattern and
-    provides a clean interface for introspecting model configuration
-    without reaching for scattered private class attributes.
+    via ``cls._meta``.
     """
 
     __slots__ = (
@@ -219,11 +217,11 @@ class ModelMeta(type):
     if not explicitly specified in Meta.table_name.
     """
 
-    # Share the registry dict with _model_registry so other modules
+    # Share the registry dict with model_registry so other modules
     # can access it without a circular import.
     registry: ClassVar[dict[str, type[Model]]] = registry_mod.registry
     name_index: ClassVar[dict[str, list[type]]] = registry_mod.name_index
-    # FK targets may not be registered yet; defer reverse wiring until the target class appears.
+    # Defer reverse wiring until target class is registered.
     _pending_reverse_wirings: ClassVar[list[tuple[type, str, ForeignKey]]] = []
 
     def __new__(
@@ -312,7 +310,7 @@ class ModelMeta(type):
                 elif isinstance(ord_val, (list, tuple)):
                     ordering = list(ord_val)
 
-        # Proxy models share the parent table; auto-generating a name would create an orphan table.
+        # Proxy models share parent table; auto-name would orphan.
         if is_proxy and not table_name:
             for base in bases:
                 if hasattr(base, "_table_name") and base._table_name:
@@ -326,7 +324,7 @@ class ModelMeta(type):
             else:
                 table_name = _CAMEL_RE3.sub("_", name).lower() + "s"
 
-        # Index field names must resolve to real fields; fail early to surface migration bugs.
+        # Fail early if index fields don't resolve to real columns.
         for idx in meta_indexes:
             for f_name in idx.fields:
                 if f_name not in fields:
@@ -365,7 +363,7 @@ class ModelMeta(type):
 
         cls = super().__new__(mcs, name, bases, namespace)
 
-        # ModelOptions needs the fully-constructed class to resolve field references correctly.
+        # ModelOptions needs the fully-constructed class to resolve fields.
         cls._meta = ModelOptions(
             table_name=table_name,
             app_name=app_name,
@@ -517,7 +515,6 @@ class F:
         # Compound expression
         await Post.objects.filter(pk=1).update(score=F("likes") * 2 - F("dislikes"))
 
-        # Filter using another column's value
         await Post.objects.filter(views__gte=F("min_views"))
     """
 
@@ -656,13 +653,10 @@ class Q:
 
         from openviper.db.models import Q
 
-        # OR
         posts = await Post.objects.filter(Q(published=True) | Q(featured=True)).all()
 
-        # NOT
         posts = await Post.objects.filter(~Q(status="draft")).all()
 
-        # AND via & operator (same result as multiple kwargs)
         posts = await Post.objects.filter(
             Q(published=True) & Q(views__gte=100)
         ).all()
@@ -780,10 +774,10 @@ def build_keyset_q(order_fields: list[str], cursor_values: dict[str, Any]) -> Q 
         fname = field_expr.lstrip("-")
         if fname not in cursor_values:
             break
-        # The leading field uses a strict inequality to skip past the cursor row itself.
+        # Strict inequality skips the cursor row itself.
         lookup = f"{fname}__lt" if is_desc else f"{fname}__gt"
         part: Q = Q(**{lookup: cursor_values[fname]})
-        # Tie-breaking on preceding fields preserves total ordering across duplicate values.
+        # Tie-breaking preserves total ordering across duplicate values.
         for prev_expr in reversed(order_fields[:i]):
             prev_fname = prev_expr.lstrip("-")
             if prev_fname not in cursor_values:
@@ -981,7 +975,7 @@ class Manager:
             self._trigger_bulk_event(model_path, "pre_bulk_create", objs)
 
             stmt = self.model._get_insert_statement()
-            # A single transaction with executemany is ~40-60% faster than per-row inserts.
+            # executemany in a single transaction is ~40-60% faster.
             async with begin() as conn:
                 if batch_size is not None and batch_size > 0 and len(records) > batch_size:
                     # Batching within one transaction avoids per-row commit overhead.
@@ -1146,9 +1140,6 @@ class Manager:
 
     def __repr__(self) -> str:
         return f"Manager(model={self.model.__name__})"
-
-
-# Re-exported from _traversal to preserve backward compatibility.
 
 
 class Page:
@@ -1535,8 +1526,7 @@ class QuerySet:
         the first logical record regardless of how many rows exist.
         """
         backend = self.virtual_backend()
-        # Fetch the single record without user filters so we always get
-        # the same "first" row regardless of what the caller filtered on.
+        # Fetch record without user filters to guarantee existence check.
         single_spec = QuerySpec(
             filters={},
             filter_clauses=(),
@@ -1551,8 +1541,7 @@ class QuerySet:
         if not rows:
             return []
         instance = self._model._from_row_fast(dict(rows[0]))
-        # Apply user filters in-memory so filter(id=2).exists() correctly
-        # returns False when the single record has id=1.
+        # Apply user filters in-memory.
         if self._filters or self._excludes:
             for filt in self._filters:
                 for key, value in filt.items():
@@ -1605,7 +1594,7 @@ class QuerySet:
             raise ValueError("Page number must be >= 1.")
 
         if cursor is not None:
-            # Running COUNT and fetch in parallel halves the latency of keyset pagination.
+            # Parallel COUNT and fetch halves keyset pagination latency.
             cursor_values = cursor_decode(cursor)
             order_fields: list[str] = list(self._order)
             keyset_q = (
@@ -1628,7 +1617,7 @@ class QuerySet:
                 )
             return Page(items, page_number, page_size, total_count, next_cursor=next_cursor)
 
-        # Running COUNT and fetch in parallel halves the latency of offset-based pagination.
+        # Parallel COUNT and fetch halves offset pagination latency.
         offset = (page_number - 1) * page_size
 
         total_count, items = await asyncio.gather(
@@ -1636,8 +1625,7 @@ class QuerySet:
             self.limit(page_size).offset(offset).all(),
         )
 
-        # Encode the last row's ordering values as an opaque cursor for
-        # fast subsequent page fetches.
+        # Encode ordering values as an opaque cursor.
         next_cursor_offset: str | None = None
         if len(items) == page_size and self._order:
             last = items[-1]
@@ -1664,7 +1652,7 @@ class QuerySet:
             instances: list[Model] = []
 
             if self._select_related:
-                # Pre-compute column mappings once rather than per-row to reduce string operations.
+                # Pre-compute column mappings to reduce per-row string operations.
                 sr_mappings: dict[str, tuple[type, list[tuple[str, str]]]] = {}
                 for field_name in self._select_related:
                     field = self._model._fields.get(field_name)
@@ -1995,7 +1983,7 @@ class QuerySet:
         if self._distinct:
             stmt = stmt.distinct()
 
-        # Parameterised compilation prevents sensitive filter values from appearing in raw SQL.
+        # Parameterised compilation prevents filter values in raw SQL.
         compiled = stmt.compile(compile_kwargs={"literal_binds": False})
         return str(compiled)
 
@@ -2173,9 +2161,8 @@ class QuerySet:
                     [target_map[pk] for pk in tgt_pks if pk in target_map],
                 )
 
-        # (field_name, field, related_cls, fk_col)
         field_meta: list[tuple[str, Any, type, str]] = []
-        # Grouping by target model deduplicates queries when multiple FKs point to the same model.
+        # Group by target model to deduplicate FK queries.
         grouped_ids: dict[type, set[int]] = {}
 
         for field_name in self._prefetch_related:
@@ -2215,7 +2202,7 @@ class QuerySet:
         ]
         prefetch_results = await asyncio.gather(*prefetch_tasks)
 
-        # A single lookup dict per target model avoids repeated DB queries per instance.
+        # Single lookup dict per target model avoids repeated queries.
         related_maps: dict[type, dict[Any, Any]] = {}
         for cls, result_list in zip(cls_list, prefetch_results, strict=False):
             related_maps[cls] = {ri.pk: ri for ri in result_list}
@@ -2347,13 +2334,13 @@ class Model(metaclass=ModelMeta):
     #: The default Manager for query building.
     objects: ClassVar[Manager]
 
-    # A default integer PK avoids the ambiguity of PK-less models across backends.
+    # Default integer PK avoids PK-less model ambiguity across backends.
     id = IntegerField(primary_key=True, auto_increment=True)
 
     def __init__(self, **kwargs: Any) -> None:
-        # Lazy creation avoids allocating empty dicts for models that never use relation caching.
+        # Lazy creation avoids empty dicts for unused relation caches.
         self._relation_cache: dict[str, Any] | None = None
-        # _persisted distinguishes INSERT from UPDATE for all PK types (auto, UUID, string).
+        # _persisted distinguishes INSERT from UPDATE for all PK types.
         self._persisted: bool = False
 
         for name, field in self._fields.items():
@@ -2371,8 +2358,7 @@ class Model(metaclass=ModelMeta):
             else:
                 setattr(self, name, None)
 
-        # Leading-underscore kwargs could overwrite internal state; unknown non-private kwargs
-        # support annotation columns and ad-hoc query-result data.
+        # Reject underscore kwargs; forward unknown non-private kwargs.
         known_fields = set(self._fields.keys())
         for key in kwargs:
             if key.startswith("_"):
@@ -2382,7 +2368,7 @@ class Model(metaclass=ModelMeta):
                     f"set via the constructor."
                 )
             if key not in known_fields:
-                # FK column_name aliases (e.g. user_id) must be recognised as known fields.
+                # FK column_name aliases must be recognised as known fields.
                 matched_column = False
                 for _fname, fobj in self._fields.items():
                     if hasattr(fobj, "column_name") and fobj.column_name == key:
@@ -2448,7 +2434,7 @@ class Model(metaclass=ModelMeta):
             if isinstance(field, ForeignKey):
                 snap[name] = obj_dict.get(field.column_name)
             else:
-                # __dict__ lookup avoids the descriptor overhead of getattr() for plain fields.
+                # __dict__ lookup avoids descriptor overhead for plain fields.
                 snap[name] = obj_dict.get(name, getattr(self, name, None))
         return snap
 
@@ -2493,7 +2479,7 @@ class Model(metaclass=ModelMeta):
 
         errors: list[str] = []
         for name, field in self._fields.items():
-            # Auto-PKs are None before INSERT and must not trigger null-validation errors.
+            # Auto-PKs are None before INSERT; skip null-validation.
             if field.primary_key and field.auto_increment:
                 continue
             if isinstance(field, DateTimeField) and (
@@ -2508,7 +2494,7 @@ class Model(metaclass=ModelMeta):
 
             value = getattr(self, name, None)
 
-            # A FK is satisfied when either the relation object or the raw ID alias is present.
+            # FK satisfied when relation object or raw ID alias is present.
             if (
                 value is None
                 and not field.null
@@ -2527,7 +2513,7 @@ class Model(metaclass=ModelMeta):
                 f"Validation failed for {self.__class__.__name__}: " + "; ".join(errors)
             )
 
-        # unique_together must be enforced in Python to catch violations before the DB round-trip.
+        # Enforce unique_together in Python before DB round-trip.
         is_create = not getattr(self, "_persisted", False)
         for ut_fields in getattr(self.__class__, "_meta_unique_together", []):
             filter_kwargs: dict[str, Any] = {}
@@ -2770,7 +2756,7 @@ class Model(metaclass=ModelMeta):
                         inst_dict[dict_key] = None
                         prev_state[field_name] = None
 
-        # Annotation columns live outside _fields; skip known keys to avoid overwriting field data.
+        # Skip known keys to avoid overwriting annotation columns.
         for key, val in row.items():
             if key not in known_fields and key not in known_cols:
                 inst_dict[key] = val
@@ -2804,7 +2790,7 @@ class Model(metaclass=ModelMeta):
                 # through a single dispatch point.
                 dispatcher.trigger(model_path, event_name, self, **kwargs)
             else:
-                # Decorator-based handlers must still fire even when the task system is off.
+                # Decorator handlers fire even when task system is off.
                 dispatch_decorator_handlers(model_path, event_name, self, **kwargs)
         except Exception:
             logger.debug(
@@ -2842,7 +2828,7 @@ class Model(metaclass=ModelMeta):
           → on_change`` (only when data actually changed)
         """
 
-        # _persisted distinguishes INSERT from UPDATE for all PK types (auto, UUID, string).
+        # _persisted distinguishes INSERT from UPDATE for all PK types.
         is_create = not getattr(self, "_persisted", False)
 
         # Prevent a second row when save() is called directly on a
@@ -2850,7 +2836,7 @@ class Model(metaclass=ModelMeta):
         if is_create and self._meta.single:
             await enforce_single_model_constraint(type(self))
 
-        # Capture pre-save diff so on_change handlers receive the exact field-level delta.
+        # Capture pre-save diff for on_change field-level delta.
         pre_save_state = self._get_changed_fields() if not is_create else {}
 
         try:
@@ -2996,7 +2982,7 @@ class Model(metaclass=ModelMeta):
                         raise ValueError("start_at must be before end_at")
 
             event = Event(start_at=..., end_at=...)
-            await event.full_clean()   # raises if invalid
+            await event.full_clean()
         """
         await call_hook(self.before_validate)
         await call_hook(self.validate)
@@ -3072,7 +3058,7 @@ class Model(metaclass=ModelMeta):
         return bool(self.pk >= other.pk)
 
 
-# Cross-module references break the circular import between fields and models.
+# Cross-module refs break circular import between fields and models.
 registry_mod.model_meta_cls = ModelMeta
 registry_mod.model_cls = Model
 registry_mod.queryset_cls = QuerySet
@@ -3102,8 +3088,8 @@ class TextChoice(StrEnum):
 
     def __new__(cls, value: str, label: str) -> TextChoice:
         obj = str.__new__(cls, value)
-        obj._value_ = value  # enum value
-        obj.label = label  # human-readable label
+        obj._value_ = value
+        obj.label = label
         return obj
 
     @ClassProperty

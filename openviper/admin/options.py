@@ -72,8 +72,7 @@ class ModelAdmin:
         self._fields = getattr(model_class, "_fields", {})
         self._cached_model_info: dict[str, t.Any] | None = None
 
-        # Initialize mutable defaults as instance attributes to prevent
-        # shared-state bugs across ModelAdmin instances.
+        # Instance-level defaults prevent shared-state mutation.
         if self.list_display is None:
             self.list_display = []
         if self.list_filter is None:
@@ -614,8 +613,7 @@ class ModelAdmin:
             "list_display_styles": self.list_display_styles,
         }
 
-        # Add permissions for the current request - deep copy to prevent
-        # callers from mutating the cached nested dicts.
+        # Deep copy prevents mutation of cached permission dicts.
         info = copy.deepcopy(self._cached_model_info)
         info["permissions"] = {
             "add": bool(self.has_add_permission(request)),

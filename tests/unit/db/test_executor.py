@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import sqlalchemy as sa
 
-import openviper.db._model_registry
 import openviper.db.executor as mod
+import openviper.db.model_registry
 from openviper.db.exceptions import DatabaseAliasNotFoundError
 from openviper.db.executor import (
     _TRAVERSAL_FAILURE,
@@ -2006,16 +2006,16 @@ class TestLoadSoftRemovedColumns:
 
     @pytest.mark.asyncio
     async def test_already_loaded_skips(self):
-        openviper.db._model_registry.soft_removed_loaded = True
+        openviper.db.model_registry.soft_removed_loaded = True
         # Should return immediately without touching engine
         with patch("openviper.db.executor.get_engine", new_callable=AsyncMock) as mock_eng:
             await load_soft_removed_columns()
             mock_eng.assert_not_awaited()
-        openviper.db._model_registry.soft_removed_loaded = False
+        openviper.db.model_registry.soft_removed_loaded = False
 
     @pytest.mark.asyncio
     async def test_table_not_exists(self):
-        openviper.db._model_registry.soft_removed_loaded = False
+        openviper.db.model_registry.soft_removed_loaded = False
 
         mock_engine = MagicMock()
         mock_conn = AsyncMock()
@@ -2025,21 +2025,21 @@ class TestLoadSoftRemovedColumns:
 
         with patch("openviper.db.executor.get_engine", new=AsyncMock(return_value=mock_engine)):
             await load_soft_removed_columns()
-            assert openviper.db._model_registry.soft_removed_loaded is True
+            assert openviper.db.model_registry.soft_removed_loaded is True
 
-        openviper.db._model_registry.soft_removed_loaded = False
+        openviper.db.model_registry.soft_removed_loaded = False
 
     @pytest.mark.asyncio
     async def test_exception_sets_loaded(self):
-        openviper.db._model_registry.soft_removed_loaded = False
+        openviper.db.model_registry.soft_removed_loaded = False
 
         with patch(
             "openviper.db.executor.get_engine", new=AsyncMock(side_effect=RuntimeError("db error"))
         ):
             await load_soft_removed_columns()
-            assert openviper.db._model_registry.soft_removed_loaded is True
+            assert openviper.db.model_registry.soft_removed_loaded is True
 
-        openviper.db._model_registry.soft_removed_loaded = False
+        openviper.db.model_registry.soft_removed_loaded = False
 
 
 class TestMaxQueryRows:

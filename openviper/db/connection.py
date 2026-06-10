@@ -23,6 +23,7 @@ from openviper.db.shared_metadata import metadata
 from openviper.db.utils import (
     BoundedDict,
     cleanup_stale_locks_for_cache,
+    get_database_option,
     get_default_database_url,
     get_per_loop_lock,
 )
@@ -40,11 +41,7 @@ _transaction_writes_allowed: ContextVar[bool] = ContextVar(
     default=True,
 )
 
-# Shared compiled-statement cache with bounded size.  SQLAlchemy accesses
-# this dict from multiple threads during statement compilation.  CPython's
-# GIL guarantees that individual dict operations (getitem, setitem) are
-# atomic.  A maximum size prevents unbounded memory growth under workloads
-# with many unique query patterns.
+# Bounded LRU prevents unbounded memory under high query diversity.
 _COMPILED_CACHE_MAX_SIZE: int = 2048
 _compiled_cache: BoundedDict = BoundedDict(_COMPILED_CACHE_MAX_SIZE)
 
@@ -125,13 +122,13 @@ async def get_engine() -> AsyncEngine:
 
     lock = get_engine_lock()
     async with lock:
-        # Double-checked locking - another coroutine may have initialised while we waited.
+        # Double-checked locking for concurrent initialization.
         if _engine is not None:
             return _engine
 
         _engine = create_engine(
             get_default_database_url(settings),
-            cast("bool", settings.DATABASE_ECHO),
+            cast("bool", get_database_option(settings, "ECHO", False)),
         )
 
     return _engine
@@ -162,29 +159,29 @@ def create_engine(url: str, echo: bool = False) -> AsyncEngine:
         kwargs["pool_pre_ping"] = True
         kwargs["pool_use_lifo"] = True
         kwargs["pool_size"] = validate_pool_config(
-            getattr(settings, "DATABASE_POOL_SIZE", 20),
-            "DATABASE_POOL_SIZE",
+            get_database_option(settings, "POOL_SIZE", 20),
+            "POOL_SIZE",
             min_val=1,
             max_val=100,
             default=20,
         )
         kwargs["max_overflow"] = validate_pool_config(
-            getattr(settings, "DATABASE_MAX_OVERFLOW", 80),
-            "DATABASE_MAX_OVERFLOW",
+            get_database_option(settings, "MAX_OVERFLOW", 80),
+            "MAX_OVERFLOW",
             min_val=0,
             max_val=200,
             default=80,
         )
         kwargs["pool_recycle"] = validate_pool_config(
-            getattr(settings, "DATABASE_POOL_RECYCLE", 900),
-            "DATABASE_POOL_RECYCLE",
+            get_database_option(settings, "POOL_RECYCLE", 900),
+            "POOL_RECYCLE",
             min_val=60,
-            max_val=86400,  # 24 hours max
+            max_val=86400,
             default=900,
         )
         kwargs["pool_timeout"] = validate_pool_config(
-            getattr(settings, "DATABASE_POOL_TIMEOUT", 10),
-            "DATABASE_POOL_TIMEOUT",
+            get_database_option(settings, "POOL_TIMEOUT", 10),
+            "POOL_TIMEOUT",
             min_val=1,
             max_val=300,
             default=10,
@@ -193,8 +190,8 @@ def create_engine(url: str, echo: bool = False) -> AsyncEngine:
         if "asyncpg" in async_url:
             kwargs.setdefault("connect_args", {})
             kwargs["connect_args"]["prepared_statement_cache_size"] = validate_pool_config(
-                getattr(settings, "DATABASE_PREPARED_STMT_CACHE", 256),
-                "DATABASE_PREPARED_STMT_CACHE",
+                get_database_option(settings, "PREPARED_STMT_CACHE", 256),
+                "PREPARED_STMT_CACHE",
                 min_val=0,
                 max_val=2048,
                 default=256,
@@ -280,7 +277,7 @@ async def init_db(drop_first: bool = False) -> None:
     engine = await get_engine()
 
     if drop_first:
-        # SQLite requires FK checks disabled before dropping tables with cross-references.
+        # Disable FK checks before dropping cross-referenced tables.
         if "sqlite" in str(engine.url):
             async with engine.begin() as conn:
                 await conn.execute(sa.text("PRAGMA foreign_keys=OFF"))
@@ -317,6 +314,21 @@ async def configure_db(database_url: str, echo: bool = False) -> None:
         if _engine is not None:
             await _engine.dispose()
         _engine = create_engine(database_url, echo)
+
+    config: dict[str, object] = {
+        "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+        "OPTIONS": {
+            "URL": database_url,
+            "ECHO": echo,
+        },
+        "ROLE": "primary",
+    }
+    connections.setup_alias("default", config)
+    connections.initialized = True
+
+    backend = connections.backends.get("default")
+    if backend is not None and _engine is not None:
+        backend.engine = _engine
 
 
 @asynccontextmanager

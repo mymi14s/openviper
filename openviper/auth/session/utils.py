@@ -7,7 +7,7 @@ import secrets
 
 import sqlalchemy as sa
 
-from openviper.auth._cache_utils import ensure_table
+from openviper.auth.cache_utils import ensure_table
 from openviper.db.connection import get_metadata
 from openviper.utils import timezone
 

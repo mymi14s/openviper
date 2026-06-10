@@ -1,4 +1,4 @@
-"""create_app management command - scaffold a new OpenViper app."""
+"""Scaffold a new OpenViper application directory."""
 
 from __future__ import annotations
 
@@ -7,79 +7,92 @@ import os
 
 from openviper.core.management.base import BaseCommand, CommandError
 
-_APP_TEMPLATE = {
-    "__init__.py": ('"""{{ app_label }} app."""\n'),
+APP_TEMPLATE: dict[str, str] = {
+    "__init__.py": '"""{{ app_label }} app."""\n',
     "admin.py": '''"""{{ app_label }} admin configuration."""
 
-from openviper.admin import admin, ModelAdmin, register
+#from openviper.admin import ModelAdmin, register
 
-# Import your models
-# from .models import YourModel
-
-# Register your models with admin here.
-# Example:
-#
 # @register(YourModel)
 # class YourModelAdmin(ModelAdmin):
-#     list_display = ["id", "name", "created_at"]
+#     list_display = ["id", "title", "created_at"]
 #     list_filter = ["created_at"]
-#     search_fields = ["name"]
+#     search_fields = ["title"]
+#     ordering = ["-created_at"]
 ''',
     "models.py": '''"""{{ app_label }} models."""
 
-from openviper.db.models import Model
-from openviper.db import fields
+#from openviper.db.models import Model
+#from openviper.db import fields
 
-# Define your models here.
+# class Article(Model):
+#     title = fields.CharField(max_length=255)
+#     body = fields.TextField()
+#     published = fields.BooleanField(default=False)
+#     created_at = fields.DateTimeField(auto_now_add=True)
+#
+#     class Meta:
+#         ordering = ["-created_at"]
 ''',
     "routes.py": '''"""{{ app_label }} routes."""
 
-from openviper.routing import Router
+#from openviper.routing import Router
+#from {{ app_label }}.views import list_items, create_item
 
-router = Router(prefix="/{{ app_label }}")
+#router = Router(prefix="")
 
-# Register your routes here.
+# router.add("/items", list_items, methods=["GET"])
+# router.add("/items", create_item, methods=["POST"])
 ''',
     "views.py": '''"""{{ app_label }} views."""
 
-from openviper.http.request import Request
-from openviper.http.response import JSONResponse
+#from openviper.http.response import JSONResponse
 
-# Define your view handlers here.
+# async def list_items(request):
+#     return JSONResponse({"items": []})
+#
+# async def create_item(request):
+#     data = await request.json()
+#     return JSONResponse(data, status_code=201)
 ''',
     "serializers.py": '''"""{{ app_label }} serializers."""
 
-from openviper.serializers import Serializer
+#from openviper.serializers import Serializer, ModelSerializer
 
-# Define your serializers here.
+# class ItemSerializer(Serializer):
+#     name: str
+#     description: str | None = None
 ''',
     "tasks.py": '''"""{{ app_label }} background tasks."""
 
-from openviper.tasks import actor
+#from openviper.tasks import actor, periodic
 
-# Define your background tasks here.
+# @actor(queue_name="default", max_retries=3)
+# async def process_item(item_id: int) -> None:
+#     pass
 ''',
     "events.py": '''"""{{ app_label }} model events."""
 
-from openviper.db.events import model_event
+#from openviper.db.events import model_event
 
-# Define your background events here.
+# @model_event.trigger("{{ app_label }}.models.Article.after_insert")
+# async def on_article_created(instance, *, event: str) -> None:
+#     pass
 ''',
     "lifecycle.py": '''"""{{ app_label }} lifecycle hooks."""
 
 
-# Define your lifecycle hooks here.
-
 def ready() -> None:
-    """Run lightweight setup after OpenViper discovers this app."""
-    return None
-
+    """Post-discovery setup hook."""
 ''',
     "tests.py": '''"""{{ app_label }} tests."""
 
-#import pytest
-
-# Write your tests here.
+# from openviper.testing import OpenViperTestCase
+#
+# class TestItem(OpenViperTestCase):
+#     async def test_list_items(self):
+#         response = await self.client.get("/{{ app_label }}/items")
+#         self.assertEqual(response.status_code, 200)
 ''',
     os.path.join("migrations", "__init__.py"): "",
 }
@@ -112,7 +125,7 @@ class Command(BaseCommand):
 
         os.makedirs(os.path.join(app_dir, "migrations"), exist_ok=True)
 
-        for filename, template in _APP_TEMPLATE.items():
+        for filename, template in APP_TEMPLATE.items():
             filepath = os.path.join(app_dir, filename)
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             content = template.replace("{{ app_label }}", name)

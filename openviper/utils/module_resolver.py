@@ -58,18 +58,7 @@ def resolve_target(
 
 
 def resolve_root(cwd: Path) -> ResolvedModule:
-    """Treat the CWD itself as the application module.
-
-    When the CWD contains ``models.py`` or ``routes.py`` directly, it
-    is treated as a root-layout project (e.g. ``examples/fx``).
-
-    When the CWD does **not** contain those files, this function
-    searches for a single Python package subdirectory that has both
-    ``settings.py`` and either ``models.py`` or ``routes.py``.  This
-    covers the common module-organized project layout where the CWD
-    holds a ``viperctl.py`` and a package directory (e.g.
-    ``dayqurio/``) containing the actual app code.
-    """
+    """Treat the CWD itself as the application module."""
     resolved_cwd = cwd.resolve()
     has_models = (resolved_cwd / "models.py").is_file()
     has_routes = (resolved_cwd / "routes.py").is_file()
@@ -91,7 +80,6 @@ def resolve_root(cwd: Path) -> ResolvedModule:
     # CWD has no models.py/routes.py: look for a single package
     # subdirectory that contains settings.py + (models.py or routes.py).
     # This handles module-organized projects where the CWD holds
-    # viperctl.py and a package directory like "dayqurio/".
     candidates: list[tuple[str, Path]] = []
     for child in sorted(resolved_cwd.iterdir()):
         if not child.is_dir():

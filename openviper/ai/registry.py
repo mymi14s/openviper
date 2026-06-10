@@ -282,7 +282,6 @@ def resolve_provider_class(provider_type: str) -> type[AIProvider] | None:
         return None
 
 
-# Global singleton
 provider_registry = ProviderRegistry()
 
 

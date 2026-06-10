@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import TYPE_CHECKING, Final, ParamSpec, Protocol, TypeVar, cast
 
+from openviper.cache import get_cache_url
 from openviper.conf import settings
 from openviper.exceptions import TooManyRequests
 from openviper.http.request import Request
@@ -97,7 +98,7 @@ class RedisWindowCounter:
             )
         self.max_requests = max_requests
         self.window = window_seconds
-        url: str = cast("str", settings.CACHE_URL) or "redis://localhost:6379"
+        url: str = get_cache_url() or "redis://localhost:6379"
         self._client: RedisClientProtocol = redis_asyncio_module.Redis.from_url(url)
 
     async def is_allowed(self, key: str) -> tuple[bool, int]:

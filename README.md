@@ -37,7 +37,7 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 | 📦 **Serializers** | Pydantic v2-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware, readonly/writeonly fields |
 | 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes and type hints |
 | 📧 **Email** | Async email delivery with Jinja2 templates, Markdown rendering, SMTP/Console backends, attachments |
-| 💾 **Cache** | In-memory, Redis, and database cache backends with async API |
+| 💾 **Cache** | In-memory, Redis, Dragonfly, Memcached, and database cache backends with async API |
 | 📁 **Storage** | Pluggable file storage API - FileSystemStorage, async uploads, media serving |
 | 🌐 **Static Files** | Development static serving, `collectstatic` for production, ETag/range support |
 | 🗺️ **Geolocation** | PostGIS-compatible `PointField` with haversine distance, WKT/EWKT/GeoJSON serialization |
@@ -62,17 +62,19 @@ pip install openviper
 Optional extras:
 
 ```bash
-pip install openviper[postgres]      # PostgreSQL (asyncpg + psycopg2-binary)
-pip install openviper[mariadb]      # MariaDB / MySQL (aiomysql)
-pip install openviper[mssql]       # MS SQL Server (aioodbc)
-pip install openviper[oracle]      # Oracle (oracledb)
-pip install openviper[ai]           # OpenAI, Anthropic, Google GenAI SDKs
-pip install openviper[tasks]          # Dramatiq 2.1+ task queue, Croniter
-pip install openviper[tasks-redis]    # Redis broker for Dramatiq tasks
-pip install openviper[tasks-rabbitmq] # RabbitMQ broker for Dramatiq
-pip install openviper[geolocation]    # PostGIS + shapely
-pip install openviper[testing]        # pytest, httpx, pytest-asyncio
-pip install openviper[all]            # Everything
+pip install openviper[postgres]          # PostgreSQL (asyncpg + psycopg2-binary)
+pip install openviper[mariadb]          # MariaDB / MySQL (aiomysql)
+pip install openviper[mssql]             # MS SQL Server (aioodbc)
+pip install openviper[oracle]            # Oracle (oracledb)
+pip install openviper[ai]               # OpenAI, Anthropic, Google GenAI SDKs
+pip install openviper[tasks]             # Dramatiq 2.1+ task queue, Croniter
+pip install openviper[tasks-redis]       # Redis broker for Dramatiq tasks
+pip install openviper[tasks-rabbitmq]    # RabbitMQ broker for Dramatiq
+pip install openviper[tasks-sqs]          # Amazon SQS broker for Dramatiq
+pip install openviper[tasks-postgresql]   # PostgreSQL broker for Dramatiq
+pip install openviper[geolocation]       # PostGIS + shapely
+pip install openviper[testing]           # pytest, httpx, pytest-asyncio
+pip install openviper[all]               # Everything
 ```
 
 Development extras:
@@ -123,8 +125,14 @@ openviper create-project myproject
 cd myproject
 openviper create-app blog
 
-# Configure your myproject/settings.py
-
+# Configure DATABASES in myproject/settings.py:
+DATABASES = {
+    "default": {
+        "OPTIONS": {
+            "URL": "sqlite+aiosqlite:///./db.sqlite3",
+        },
+    },
+}
 
 # Run migrations and create an admin user
 # Using python viperctl.py (from inside the project):
@@ -225,7 +233,7 @@ class PostAdmin(ModelAdmin):
         return ActionResult(success=True, count=count, message=f"Published {count} posts.")
 ```
 
-start server
+Start the server:
 
 ```bash
 python viperctl.py start-server    # or: openviper viperctl start-server .

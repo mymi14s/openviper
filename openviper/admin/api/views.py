@@ -16,7 +16,7 @@ import logging
 import re
 import typing as t
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import sqlalchemy.exc
 
@@ -348,11 +348,13 @@ def get_admin_router() -> Router:
         user_model = User
         user_model_string = f"{user_model._app_name}.{user_model.__name__}"
 
+        admin_settings: dict[str, Any] = dict(settings.ADMIN_SETTINGS)
+
         return JSONResponse(
             {
-                "admin_title": getattr(settings, "ADMIN_TITLE", "OpenViper Admin"),
-                "admin_header_title": getattr(settings, "ADMIN_HEADER_TITLE", "OpenViper"),
-                "admin_footer_title": getattr(settings, "ADMIN_FOOTER_TITLE", "OpenViper Admin"),
+                "admin_title": admin_settings.get("title", "OpenViper Admin"),
+                "admin_header_title": admin_settings.get("header_title", "OpenViper"),
+                "admin_footer_title": admin_settings.get("footer_title", "OpenViper Admin"),
                 "user_model": user_model_string,
                 "auth_user_model": user_model_string,
                 "is_custom_user": getattr(

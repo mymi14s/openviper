@@ -32,8 +32,7 @@ from sqlalchemy.sql.sqltypes import Uuid
 
 from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
-from openviper.db import _model_registry
-from openviper.db._traversal import TraversalLookup
+from openviper.db import model_registry
 from openviper.db.connection import (
     _request_conn,
     _transaction_alias,
@@ -69,6 +68,7 @@ from openviper.db.fields import (
 )
 from openviper.db.migrations.executor import get_soft_removed_table
 from openviper.db.routing.resolver import resolver
+from openviper.db.traversal import TraversalLookup
 from openviper.db.utils import enforce_single_model_constraint, get_per_loop_lock
 from openviper.exceptions import FieldError, TableNotFound
 
@@ -158,7 +158,6 @@ def redact_values(values: dict[str, object]) -> dict[str, str]:
     return result
 
 
-# Match DB-agnostic "table missing" error strings for clean 503 responses.
 _TABLE_MISSING_RE: re.Pattern[str] = re.compile(
     r"no such table|doesn't exist|does not exist|undefined table",
     re.IGNORECASE,
@@ -192,13 +191,11 @@ def is_data_error(exc: SADBAPIError) -> bool:
     return "DataError" in type(exc).__name__ or "invalid input" in str(exc).lower()
 
 
-# Match DB-agnostic "column missing" error strings for clean 400 responses.
 _FIELD_MISSING_RE: re.Pattern[str] = re.compile(
     r"column[^\n]*does not exist|no such column|undefined column",
     re.IGNORECASE,
 )
 
-# Extract the unknown column name from DB error messages for user feedback.
 _FIELD_NAME_EXTRACT_RE: re.Pattern[str] = re.compile(
     r"""
     (?:column\s+["']?([^"'\s().]+)["']?\s+does\s+not\s+exist)|  # PostgreSQL
@@ -261,9 +258,6 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
     from openviper.db.models import Model, QuerySet
-
-# Optional row cap prevents unbounded SELECT results when no .limit() is set.
-# Configure via settings.MAX_QUERY_ROWS; unset means no cap.
 
 
 def max_query_rows() -> int | None:
@@ -415,7 +409,6 @@ def cache_key_for_stmt(table_name: str, stmt: Any) -> str:
 
 
 # Scoped permission bypass via ContextVar is safer than boolean flags
-# because it is explicitly scoped and cannot be accidentally left enabled.
 _bypass_permissions: ContextVar[bool] = ContextVar("_bypass_permissions", default=False)
 
 
@@ -439,7 +432,6 @@ def bypass_permissions(*, reason: str | None = None) -> Generator[None]:
         with bypass_permissions(reason="bulk import script"):
             await user.save()          # Permission check skipped
             await sensitive.delete()   # Permission check skipped
-        # Context manager exit restores permission enforcement.
     """
     token = _bypass_permissions.set(True)
     reason_str = f" Reason: {reason}" if reason else ""
@@ -454,11 +446,9 @@ def bypass_permissions(*, reason: str | None = None) -> Generator[None]:
         _bypass_permissions.reset(token)
 
 
-# Share the soft-removed cache with _model_registry so clearing either clears both.
-SOFT_REMOVED_CACHE = _model_registry.soft_removed_cache
+SOFT_REMOVED_CACHE = model_registry.soft_removed_cache
 _soft_removed_lock: asyncio.Lock | None = None
 
-# Cache real DB column names to tolerate legacy/mismatched schemas.
 _REAL_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
 
 # Per-event-loop locks avoid "bound to a different event loop" errors.
@@ -544,12 +534,12 @@ async def preload_table_schemas() -> None:
     async with engine.connect() as conn:
         table_names = [
             str(cast("Any", model_cls)._table_name)
-            for model_cls in _model_registry.registry.values()
+            for model_cls in model_registry.registry.values()
         ]
         await get_real_columns_bulk(conn, table_names)
 
 
-# Cache the failure sentinel to avoid re-constructing TraversalLookup on every query.
+# Sentinel for traversal lookup failure.
 _TRAVERSAL_FAILURE: object = object()
 
 
@@ -671,12 +661,12 @@ async def load_soft_removed_columns() -> None:
     and re-check inside the lock.
     """
     # Avoid lock acquisition on the hot path when data is already loaded.
-    if _model_registry.soft_removed_loaded:
+    if model_registry.soft_removed_loaded:
         return
 
     lock = get_soft_removed_lock()
     async with lock:
-        if _model_registry.soft_removed_loaded:
+        if model_registry.soft_removed_loaded:
             return
         try:
             engine = await get_engine()
@@ -686,7 +676,7 @@ async def load_soft_removed_columns() -> None:
                     lambda sync_conn: sa.inspect(sync_conn).has_table(soft_table.name)
                 )
                 if not exists:
-                    _model_registry.soft_removed_loaded = True
+                    model_registry.soft_removed_loaded = True
                     return
                 result = await conn.execute(
                     sa.select(soft_table.c.table_name, soft_table.c.column_name)
@@ -698,15 +688,15 @@ async def load_soft_removed_columns() -> None:
                     staging.setdefault(row.table_name, set()).add(row.column_name)
                 for tname, cols in staging.items():
                     SOFT_REMOVED_CACHE[tname] = frozenset(cols)
-            _model_registry.soft_removed_loaded = True
+            model_registry.soft_removed_loaded = True
         except Exception:
             logger.debug("Soft-removed columns load failed; treating as empty", exc_info=True)
-            _model_registry.soft_removed_loaded = True
+            model_registry.soft_removed_loaded = True
 
 
 def invalidate_soft_removed_cache() -> None:
     """Clear the soft-removed column cache (call after migrations)."""
-    _model_registry.invalidate_soft_removed_cache()
+    model_registry.invalidate_soft_removed_cache()
     build_table.cache_clear()
 
 
@@ -754,11 +744,11 @@ def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) ->
     if not isinstance(target_str, str):
         target_str = str(target_str)
 
-    if target_str in _model_registry.registry:
-        target_model_cls = cast("type", _model_registry.registry[target_str])
+    if target_str in model_registry.registry:
+        target_model_cls = cast("type", model_registry.registry[target_str])
         return str(getattr(target_model_cls, "_table_name", ""))
 
-    model_meta_cls = _model_registry.model_meta_cls
+    model_meta_cls = model_registry.model_meta_cls
     if model_meta_cls is None:
         raise RuntimeError("Model metadata registry is not initialised.")
     camel_to_snake = cast("Callable[[str], str]", model_meta_cls._camel_to_snake)
@@ -782,8 +772,8 @@ def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) ->
         ]
 
         for key in registry_keys:
-            if key in _model_registry.registry:
-                target_model_cls = cast("type", _model_registry.registry[key])
+            if key in model_registry.registry:
+                target_model_cls = cast("type", model_registry.registry[key])
                 return str(getattr(target_model_cls, "_table_name", ""))
 
         model_snake = camel_to_snake(model_name)
@@ -949,7 +939,6 @@ def build_traversal_joins(
     for _i, step in enumerate(join_steps):
         fk_column = step.field.column_name
         if fk_column not in left_table.c:
-            # Django-style FK fields may store the column with an _id suffix.
             if f"{step.field.name}_id" in left_table.c:
                 fk_column = f"{step.field.name}_id"
             else:
@@ -1032,7 +1021,7 @@ def escape_like(value: object) -> str:
     match all rows or '%%' could cause expensive pattern matching.
     """
     str_value: str = value if isinstance(value, str) else str(value)
-    # Backslash is the escape character - process it first to avoid double-escaping.
+    # Process backslash escapes first to prevent double-escaping.
     return str_value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
@@ -1049,7 +1038,6 @@ def apply_lookup(
     col: sa.ColumnElement[Any], lookup: str, value: object, field: object = None
 ) -> sa.ColumnElement[Any]:
     """Apply a lookup operator to a column."""
-    # Field.to_db() applies type-specific coercion (DateTime timezones, Boolean mappings).
     if field is not None:
         try:
             if lookup in ("in", "not_in") and isinstance(value, (list, tuple)):
@@ -1364,7 +1352,6 @@ def build_where_clause_with_traversals(
 
     parts: list[sa.ColumnElement[Any]] = []
     from_clause = initial_from_clause if initial_from_clause is not None else base_table
-    # Deduplicate JOINs across multiple filter traversals.
     collected_joins: dict[str, tuple[sa.FromClause, sa.Table]] = {}
 
     for filters in filter_dicts:
@@ -1377,8 +1364,6 @@ def build_where_clause_with_traversals(
                     else:
                         traversal_from, final_table = build_traversal_joins(traversal, base_table)
                         collected_joins[key] = (traversal_from, final_table)
-                        # Merge traversal JOINs into the shared from_clause
-                        # so that multiple FK traversals are all present.
                         if traversal_from is not base_table:
                             from_clause = (
                                 from_clause.join(
@@ -1393,7 +1378,6 @@ def build_where_clause_with_traversals(
                                 else traversal_from
                             )
 
-                    # Apply lookup on the traversal's final table.
                     col = final_table.c[traversal.final_field.column_name]
                     clause = apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
@@ -1402,7 +1386,6 @@ def build_where_clause_with_traversals(
             except FieldError:
                 pass
 
-            # Non-traversal keys fall back to direct column lookup.
             fallback_clause = compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_clause is None:
                 available = ", ".join(sorted(model_cls._fields))
@@ -1445,7 +1428,6 @@ def build_where_clause_with_traversals(
             except FieldError:
                 pass
 
-            # Non-traversal excludes fall back to direct column lookup.
             fallback_exclude = compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_exclude is None:
                 available = ", ".join(sorted(model_cls._fields))
@@ -1575,7 +1557,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
     from_clause: Any = table
     extra_cols: list[Any] = []
 
-    # Collect related tables first so all column checks share one connection.
     related_info: list[tuple[str, Any]] = []
     for field_name in qs._select_related:
         if field_name not in model_cls._fields:
@@ -1604,17 +1585,13 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
         initial_from_clause=from_clause,
     )
 
-    # Single connection for all schema-resilience checks and query execution.
     async with connect(qs._db_alias, model_cls) as conn:
-        # Check all table columns in parallel for schema drift.
         all_table_names = [related_table.name for _, related_table in related_info] + [table.name]
         schema_results = await get_real_columns_bulk(conn, all_table_names)
 
-        # Verify related table columns exist before SELECT.
         for field_name, related_table in related_info:
             real_cols = schema_results.get(related_table.name)
 
-            # Respect only/defer for related columns via "relation__field" patterns.
             prefix = f"{field_name}__"
             for col in related_table.c:
                 if real_cols is not None and col.name not in real_cols:
@@ -1631,7 +1608,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
                     continue
                 extra_cols.append(col.label(label))
 
-        # Verify base table columns exist before SELECT.
         base_real_cols = schema_results.get(table.name)
 
         if only_fields:
@@ -1657,7 +1633,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
                 col for col in table.c if base_real_cols is None or col.name in base_real_cols
             ]
 
-        # Build SELECT once with the final from_clause to avoid rebuilding as JOINs are discovered.
         all_sel = [*base_cols, *extra_cols]
         stmt = (
             sa.select(*all_sel).select_from(from_clause)
@@ -1694,7 +1669,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             skip_locked: bool = getattr(qs, "_for_update_skip_locked", False)
             stmt = stmt.with_for_update(nowait=nowait, skip_locked=skip_locked)
 
-        # Cache read-only queries (no FOR UPDATE) on models with cache_ttl.
         cache_ttl: float = getattr(model_cls, "_cache_ttl", 0)
         cache_key: str | None = None
         if cache_ttl > 0 and not getattr(qs, "_for_update", False):
@@ -1948,15 +1922,12 @@ async def execute_save(
                 setattr(instance, name, val)
         if has_soft_removed and field.column_name in soft_removed:
             continue
-        # On UPDATE with update_fields, skip fields not in the list.
-        # Always include all fields for INSERT.
         if _update_fields is not None and name not in _update_fields:
             continue
         data[field.column_name] = field.to_db(val)
 
     pk_val = getattr(instance, "id", None)
-    # _persisted is authoritative - False means never saved,
-    # regardless of whether a PK is already set (UUID, string, user-assigned int).
+    # _persisted is authoritative for INSERT vs UPDATE.
     is_new = not getattr(instance, "_persisted", False)
 
     if is_new:
@@ -1964,7 +1935,6 @@ async def execute_save(
         try:
             async with begin(model_class=model_cls) as conn:
                 result = await conn.execute(stmt)
-                # Only set instance.id for auto-increment PKs.
                 if pk_val is None:
                     instance.id = cast("Any", result).inserted_primary_key[0]
             instance._persisted = True
@@ -2066,7 +2036,6 @@ async def execute_values(
 
     annotations: dict[str, Any] = getattr(qs, "_annotations", {})
 
-    # -- Classify fields into simple / traversal / annotation --------------
     traversal_fields: list[str] = []
     simple_fields: list[str] = []
     has_traversal = False
@@ -2081,7 +2050,6 @@ async def execute_values(
             else:
                 simple_fields.append(fname)
 
-    # Detect order_by traversals not covered by field traversals.
     order_traversal_fields: list[str] = []
     for ofield in qs._order:
         col_name = ofield.lstrip("-")
@@ -2089,14 +2057,11 @@ async def execute_values(
             order_traversal_fields.append(col_name)
             has_traversal = True
 
-    # -- Build JOINs & column list -----------------------------------------
     from_clause: sa.FromClause = table
     wanted_cols: list[Any] = []
 
-    # Deduplicate FK JOINs when multiple traversals share the same prefix.
     joined_fks: dict[tuple[str, str], sa.Table] = {}
 
-    # All traversal paths needing JOINs (fields + order_by).
     all_traversal: list[str] = sorted(
         set(traversal_fields) | set(order_traversal_fields),
         key=lambda k: k.count("__"),
@@ -2104,7 +2069,6 @@ async def execute_values(
     traversal_lookups: dict[str, Any] = {}
 
     if all_traversal:
-        # Sort by depth so shallower paths are joined before deeper dependents.
         for fname in all_traversal:
             try:
                 traversal = cached_traversal_lookup(fname, model_cls)
@@ -2116,7 +2080,6 @@ async def execute_values(
                 ) from None
             traversal_lookups[fname] = traversal
 
-            # Build JOINs for each FK step in the traversal path.
             left_table: sa.Table = table
             for step in traversal.get_joins_needed():
                 fk_key = (left_table.name, step.field.column_name)
@@ -2146,7 +2109,6 @@ async def execute_values(
                 left_table = related_table
 
     if fields:
-        # Build the SELECT column list from requested fields.
         field_defs = model_cls._fields
         available = sorted(field_defs.keys())
         for fname in fields:
@@ -2159,7 +2121,6 @@ async def execute_values(
                 final_table = get_table(traversal.final_model)
                 col_name = traversal.final_field.column_name
                 if col_name not in final_table.c:
-                    # Fall back to the field name when column_name is absent.
                     if traversal.final_field.name in final_table.c:
                         col_name = traversal.final_field.name
                     else:
@@ -2189,7 +2150,6 @@ async def execute_values(
         ]
         stmt = sa.select(*table.c, *ann_cols) if ann_cols else sa.select(table)
 
-    # -- WHERE clause - use traversal-aware builder when JOINs are present -
     q_filters = getattr(qs, "_q_filters", [])
     if has_traversal or from_clause is not table:
         where, from_clause = build_where_clause_with_traversals(
@@ -2355,7 +2315,6 @@ async def execute_bulk_update(
     table = get_table(model_cls)
     field_defs = cast("Any", model_cls)._fields
 
-    # Resolve field-to-column mapping once for all objects.
     col_map: dict[str, str] = {}
     for fname in fields:
         if fname in field_defs:
@@ -2363,7 +2322,6 @@ async def execute_bulk_update(
         else:
             col_map[fname] = fname
 
-    # Build parameter dicts (one per object) for executemany.
     param_rows: list[dict[str, Any]] = []
     for obj in objs:
         pk_val = getattr(obj, "id", None) or getattr(obj, "pk", None)
@@ -2381,7 +2339,6 @@ async def execute_bulk_update(
     if not param_rows:
         return 0
 
-    # Single parameterised UPDATE statement reused for all rows.
     set_clause: dict[str, Any] = {col_map[f]: sa.bindparam(col_map[f]) for f in fields}
     upd_stmt = sa.update(table).where(table.c.id == sa.bindparam("_pk")).values(**set_clause)
 

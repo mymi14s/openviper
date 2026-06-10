@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import re
 import typing as t
 from typing import TYPE_CHECKING
 
@@ -16,6 +15,7 @@ from openviper.cache.db import CacheEntry
 from openviper.cache.validation import validate_cache_key
 from openviper.db.connection import get_engine
 from openviper.db.executor import get_table
+from openviper.db.utils import validate_identifier
 from openviper.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -23,25 +23,14 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
-SAFE_TABLE_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-
 
 def validate_table_name(name: str) -> str:
-    """Validate that *name* is a safe SQL identifier.
+    """Validate that *name* is a safe SQL table identifier.
 
     Non-string values (e.g. from mocked table objects in tests) are
     coerced to ``str`` before validation.
-
-    Raises:
-        ValueError: If *name* contains characters outside the safe set
-            for SQL identifiers.
-
     """
-    name_str = str(name)
-    if not SAFE_TABLE_RE.match(name_str):
-        msg = f"Invalid table name {name_str!r}: must match pattern [a-zA-Z_][a-zA-Z0-9_]*"
-        raise ValueError(msg)
-    return name_str
+    return validate_identifier(str(name), "table name")
 
 
 def get_begin(engine: sa.Engine | AsyncEngine) -> t.Callable[[], t.Any]:
@@ -69,8 +58,13 @@ def is_entry_expired(expires_at: datetime.datetime | None) -> bool:
 class DatabaseCache(BaseCache):
     """Database-backed cache using the OpenViper ORM with orjson serialization."""
 
-    def __init__(self) -> None:
-        """Initialise the database cache with a lazily-resolved model."""
+    def __init__(self, **kwargs: t.Any) -> None:
+        """Initialise the database cache with a lazily-resolved model.
+
+        Accepts and ignores extra keyword arguments so that OPTIONS
+        like ``ttl`` can be present in the CACHES config without
+        causing ``TypeError``.
+        """
         self._model_cache: type | None = None
 
     def _get_model(self) -> type:

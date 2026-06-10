@@ -42,8 +42,7 @@ logger = logging.getLogger(__name__)
 
 MISSING_SENTINEL = object()
 
-# Match "namespace:route_name" patterns to distinguish them from
-# absolute URLs or path-based routes.
+# Distinguish "namespace:route_name" from bare route names.
 NAMESPACED_ROUTE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*:[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -207,7 +206,6 @@ class Response:
         if max_age is not None:
             cookie += f"; Max-Age={max_age}"
         if expires is not None:
-            # Convert integer timestamps to RFC 2822 HTTP date format.
             if isinstance(expires, int):
                 expires_time = time.gmtime(expires)
                 expires_str = email.utils.formatdate(
@@ -271,7 +269,7 @@ class JSONResponse(Response):
             return obj.isoformat()
         if isinstance(obj, uuid.UUID):
             return str(obj)
-        # Delegate to model_dump() for JSON-safe serialisation of Pydantic models.
+        # Delegate to model_dump() for JSON-safe Pydantic serialisation.
         if isinstance(obj, BaseModel):
             return obj.model_dump()
         # LazyFK wraps a raw FK id - serialise the underlying id value.
@@ -573,8 +571,6 @@ class FileResponse(Response):
                 more = remaining > 0
                 await send({"type": "http.response.body", "body": chunk, "more_body": more})
             if remaining > 0:
-                # Send a final empty frame to close the response stream cleanly
-                # when the file ended before content_length bytes were read.
                 await send({"type": "http.response.body", "body": b"", "more_body": False})
 
 
@@ -588,7 +584,7 @@ class GZipResponse(Response):
         self._minimum_size = minimum_size
         self._compresslevel = compresslevel
 
-    # Content types that are already compressed and should not be re-compressed.
+    # Content types already compressed; skip re-compression.
     _SKIP_COMPRESS_TYPES: frozenset[str] = frozenset(
         {
             "image/jpeg",
@@ -628,7 +624,7 @@ class GZipResponse(Response):
             body = b"".join(collected_parts)
 
         if should_skip or len(body) < self._minimum_size:
-            # Send uncompressed when content is already compressed or body is too small.
+            # Skip compression for small or pre-compressed bodies.
             inner._headers.set("content-length", str(len(body)))
             await send(
                 {

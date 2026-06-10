@@ -146,7 +146,7 @@ def enqueue_task(
                 actor_name=actor_name,
                 queue_name=queue_name,
             )(fn)
-            # broker.get_actor() will now succeed after dramatiq.actor() registration.
+            # broker.get_actor() succeeds after dramatiq.actor() registration.
 
         msg = actor_obj.message(*args, **kwargs)
         if delay is not None:

@@ -7,10 +7,14 @@ modules, synchronises periodic schedules, and starts the worker process.
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import sys
 import typing as t
 
+from openviper.conf import settings
 from openviper.core.management.base import BaseCommand
+from openviper.tasks.conf import validate_tasks_config
+from openviper.tasks.runner import run
 
 
 class Command(BaseCommand):
@@ -63,22 +67,16 @@ class Command(BaseCommand):
         processes = options.get("processes", 1)
         no_scheduler = options.get("no_scheduler", False)
 
-        try:
-            import dramatiq  # noqa: F401
-        except ImportError:
+        if importlib.util.find_spec("dramatiq") is None:
             sys.stderr.write(
                 "Error: dramatiq is required to run the worker.\n"
                 "Install it with: pip install 'openviper[tasks]'\n"
             )
             sys.exit(1)
 
-        from openviper.conf import settings
-
         cfg = settings.TASKS
         if not isinstance(cfg, dict):
             cfg = {}
-
-        from openviper.tasks.conf import validate_tasks_config
 
         try:
             validate_tasks_config(cfg)
@@ -92,8 +90,6 @@ class Command(BaseCommand):
             except ImportError:
                 sys.stderr.write(f"Error: Could not import module '{module_name}'\n")
                 sys.exit(1)
-
-        from openviper.tasks.runner import run
 
         run(
             processes=processes,

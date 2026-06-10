@@ -102,24 +102,129 @@ Multiple extras can be combined:
    pip install openviper[postgres,tasks-redis]
 
 
-Database URL Format
--------------------
+Database Configuration
+----------------------
 
-OpenViper uses SQLAlchemy Core connection strings.  Set ``DATABASE_URL`` in your
-``settings.py``:
+OpenViper uses a ``DATABASES`` dictionary in ``settings.py``:
+
+.. code-block:: python
+
+    DATABASES = {
+        "default": {
+            "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+            "OPTIONS": {
+                "URL": "sqlite+aiosqlite:///./db.sqlite3",
+                "ECHO": False,
+                "POOL_SIZE": 20,
+                "MAX_OVERFLOW": 80,
+                "POOL_RECYCLE": 900,
+                "POOL_TIMEOUT": 10,
+            },
+        },
+    }
+
+For PostgreSQL:
+
+.. code-block:: python
+
+    DATABASES = {
+        "default": {
+            "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+            "OPTIONS": {
+                "URL": "postgresql+asyncpg://user:pass@localhost:5432/mydb",
+                "POOL_SIZE": 20,
+                "MAX_OVERFLOW": 80,
+                "POOL_RECYCLE": 900,
+                "POOL_TIMEOUT": 10,
+                "PREPARED_STMT_CACHE": 256,
+            },
+        },
+    }
+
+The ``BACKEND`` key is optional.  When omitted, OpenViper uses the default
+``DefaultDatabaseBackend`` (SQLAlchemy async engine).  The short name
+``"sqlalchemy"`` is also accepted as an alias for
+``"openviper.db.backends.DefaultDatabaseBackend"``.
+
+Configuration keys can be placed either inside ``OPTIONS`` (nested format)
+or directly in the alias dict (flat format).  Both are valid:
+
+.. code-block:: python
+
+    # Nested format (recommended):
+    DATABASES = {
+        "default": {
+            "OPTIONS": {"URL": "postgresql+asyncpg://user:pass@localhost/db"},
+        },
+    }
+
+    # Flat format (also supported):
+    DATABASES = {
+        "default": {
+            "URL": "postgresql+asyncpg://user:pass@localhost/db",
+        },
+    }
+
+Pool options:
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 80
+   :widths: 25 15 15 45
 
-   * - Backend
-     - DATABASE_URL example
+   * - Key
+     - Default
+     - Range
+     - Description
+   * - ``POOL_SIZE``
+     - 20
+     - 1-100
+     - Number of persistent connections in the pool.
+   * - ``MAX_OVERFLOW``
+     - 80
+     - 0-200
+     - Additional connections allowed beyond ``POOL_SIZE``.
+   * - ``POOL_RECYCLE``
+     - 900
+     - 60-86400
+     - Recycle connections after this many seconds.
+   * - ``POOL_TIMEOUT``
+     - 10
+     - 1-300
+     - Seconds to wait for a connection from the pool.
+   * - ``PREPARED_STMT_CACHE``
+     - 256
+     - 0-2048
+     - asyncpg prepared-statement cache size (PostgreSQL only).
+   * - ``ECHO``
+     - False
+     - -
+     - Echo all SQL statements to the log.
+
+Supported URL formats:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Database
+     - URL format
    * - SQLite (dev)
      - ``sqlite+aiosqlite:///./db.sqlite3``
    * - PostgreSQL
      - ``postgresql+asyncpg://user:pass@localhost:5432/mydb``
    * - MariaDB / MySQL
      - ``mysql+aiomysql://user:pass@localhost:3306/mydb``
+
+Custom database backends can be registered by dotted path:
+
+.. code-block:: python
+
+    DATABASES = {
+        "default": {
+            "BACKEND": "myapp.db.MyCustomBackend",
+            "OPTIONS": {"URL": "custom://host/db"},
+        },
+    }
 
 Message Broker Configuration
 ----------------------------
@@ -267,7 +372,7 @@ Configure in ``settings.py``:
        default_factory=lambda: {
            "enabled": 1,
            "broker": "postgresql",
-           "broker_url": os.environ.get("DATABASE_URL", "postgresql://user:pass@localhost:5432/mydb"),
+           "broker_url": "postgresql://user:pass@localhost:5432/mydb",
            "pg_min_connections": 2,
            "pg_max_connections": 10,
            "backend_url": "",
@@ -286,9 +391,6 @@ Configure in ``settings.py``:
            },
         }
     )
-
-Cache
-~~~~~
 
 Stub (Testing)
 ~~~~~~~~~~~~~~
@@ -330,11 +432,28 @@ Configure in ``settings.py`` or your test configuration:
 Cache
 ~~~~~
 
-Set ``CACHE_URL`` in ``settings.py`` if you use Redis for caching:
+Configure caching in ``settings.py`` using the ``CACHES`` dictionary:
 
 .. code-block:: python
 
-   CACHE_URL = "redis://localhost:6379/0"
+   CACHES = {
+       "default": {
+           "BACKEND": "openviper.cache.RedisCache",
+           "OPTIONS": {"host": "localhost", "port": 6379, "db": 0},
+       },
+   }
+
+For local development, the default ``InMemoryCache`` requires no
+configuration:
+
+.. code-block:: python
+
+   CACHES = {
+       "default": {
+           "BACKEND": "openviper.cache.InMemoryCache",
+           "OPTIONS": {"ttl": 300},
+       },
+   }
 
 Verifying the Installation
 ---------------------------

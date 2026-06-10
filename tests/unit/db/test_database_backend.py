@@ -620,6 +620,8 @@ class TestBackwardCompatibility:
         mgr.backends.clear()
         mgr.initialized = False
         mgr.setup_alias("default", {"URL": "sqlite+aiosqlite:///:memory:"})
+        # Mark initialized so get() does not re-configure from settings.
+        mgr.initialized = True
         backend = mgr.get("default")
         assert isinstance(backend, DefaultDatabaseBackend)
         assert backend.vendor == "sqlite"
@@ -644,6 +646,7 @@ class TestBackwardCompatibility:
         mgr.backends.clear()
         mgr.initialized = False
         mgr.setup_alias("default", {"URL": "sqlite+aiosqlite:///:memory:"})
+        mgr.initialized = True
         backend = mgr.get("default")
         assert isinstance(backend, DefaultDatabaseBackend)
 
@@ -653,6 +656,7 @@ class TestBackwardCompatibility:
         mgr.initialized = False
         mgr.setup_alias("default", {"URL": "sqlite+aiosqlite:///:memory:"})
         mgr.setup_alias("replica", {"URL": "sqlite+aiosqlite:///:memory:", "READ_ONLY": True})
+        mgr.initialized = True
         assert isinstance(mgr.get("default"), DefaultDatabaseBackend)
         assert isinstance(mgr.get("replica"), DefaultDatabaseBackend)
         assert mgr.get("replica").is_read_only is True
@@ -665,6 +669,7 @@ class TestBackwardCompatibility:
             "default",
             {"BACKEND": "sqlalchemy", "URL": "sqlite+aiosqlite:///:memory:"},
         )
+        mgr.initialized = True
         backend = mgr.get("default")
         assert isinstance(backend, DefaultDatabaseBackend)
 

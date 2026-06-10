@@ -12,7 +12,7 @@ class PrimaryReplicaRouter(DatabaseRouter):
     """Route reads to replicas and writes to the primary database.
 
     Configuration is provided via constructor arguments or
-    ``DATABASE_ROUTING`` settings.
+    ``DATABASES['ROUTING']`` settings.
 
     Args:
         primary_alias: Alias for the primary (writable) database.

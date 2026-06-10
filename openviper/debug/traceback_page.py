@@ -240,7 +240,7 @@ def redact_credentials(text: str) -> str:
     return text
 
 
-# Headers that carry credentials or secrets and must never appear in debug output.
+# Headers carrying credentials that must never appear in debug output.
 SENSITIVE_HEADERS: frozenset[str] = frozenset(
     {
         "authorization",
@@ -282,7 +282,7 @@ SENSITIVE_QUERY_PARAMS: frozenset[str] = frozenset(
     }
 )
 
-# Regex patterns matching common credential-bearing strings in text output.
+# Patterns matching credential-bearing strings in text output.
 CREDENTIAL_PATTERNS: list[re.Pattern[str]] = [
     # Database URLs: postgres://user:pass@host, mysql://user:pass@host, etc.
     re.compile(r"((?:postgres|mysql|postgresql|redis|mongodb|amqp)://[^:\s]*:)([^@\s]+)(@)"),
@@ -521,7 +521,7 @@ def render_debug_page(exc: BaseException, request: _DebugRequest | None = None) 
     {request_html}
 
     <div class="footer">
-      OpenViper &bull; Python {py_version} &bull; Debug mode - disable before deploying.
+      OpenViper &middot; Python {py_version} &middot; Debug mode - disable before deploying.
     </div>
   </div>
 </body>

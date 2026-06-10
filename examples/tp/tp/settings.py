@@ -40,9 +40,13 @@ class ProjectSettings(Settings):
     )
     ALLOWED_HOSTS: tuple[str, ...] = ("*",)
 
-    ADMIN_FOOTER_TITLE: str = "John Admin"
-    ADMIN_HEADER_TITLE: str = "John Admin"
-    ADMIN_TITLE: str = "John Admin"
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "title": "John Admin",
+            "header_title": "John Admin",
+            "footer_title": "John Admin",
+        },
+    )
 
     # ── Background Tasks ──────────────────────────────────────────────────
     # Set broker="redis" and broker_url in production.

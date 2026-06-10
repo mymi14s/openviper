@@ -181,14 +181,13 @@ def execute_from_command_line(argv: list[str] | None = None) -> NoReturn:
         if discovered:
             os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", discovered)
 
-    # Always force a reload whenever any settings module is known.  Framework
-    # modules such as openviper.auth.jwt access the settings proxy at import
-    # time (before execute_from_command_line runs), which pre-configures the
-    # lazy proxy with the base Settings() class.  If OPENVIPER_SETTINGS_MODULE
-    # is already in the environment that premature load may still produce the
-    # correct result, but silently falls back to Settings() on any import
-    # error or missing subclass.  By forcing a reload here - the authoritative
-    # entry point - we guarantee the correct project settings are always used.
+    # Force a reload when a settings module is known. Framework modules
+    # (e.g. openviper.auth.jwt) access the settings proxy at import time,
+    # pre-configuring the lazy proxy with the base Settings() class. If
+    # OPENVIPER_SETTINGS_MODULE is in the environment, that premature load
+    # may still produce the correct result, but silently falls back to
+    # Settings() on import error or missing subclass. Forcing a reload
+    # here guarantees the correct project settings are always used.
     openviper.setup(
         force=bool(settings_flag or discovered or os.environ.get("OPENVIPER_SETTINGS_MODULE"))
     )

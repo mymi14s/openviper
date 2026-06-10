@@ -1,6 +1,6 @@
 import type { ModelField } from '@/types/admin'
 
-/** Map of Django field type names to HTML input types. */
+/** Map of field type names to HTML input types. */
 const FIELD_TYPE_MAP: Record<string, string> = {
   text: 'text',
   string: 'text',

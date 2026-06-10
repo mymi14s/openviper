@@ -17,7 +17,7 @@ DEFAULT_KEY_PREFIX: str = "ov:cache:"
 try:
     import redis.asyncio as redis_lib
 except ImportError:
-    redis_lib = None  # type: ignore[assignment]
+    redis_lib = None  # type: ignore[assignment,unused-ignore]
 
 
 class RedisCache(BaseCache):

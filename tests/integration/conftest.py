@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+import sqlalchemy as sa
 
 from openviper.app import OpenViper
 from openviper.auth.models import Permission, Role, User
@@ -61,9 +62,21 @@ async def test_database():
     engine = await create_test_engine()
     metadata = get_metadata()
 
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(metadata.create_all)
+    # Only create tables required by integration tests (auth + cache).
+    # Using the full metadata.create_all() fails when unit tests have
+    # registered models with broken FK references or duplicate indexes.
+    required_prefixes = ("auth_", "openviper_cache_")
+    required_tables = [
+        t
+        for name, t in metadata.tables.items()
+        if any(name.startswith(p) for p in required_prefixes)
+    ]
+    if required_tables:
+        subset = sa.MetaData()
+        for table in required_tables:
+            table.tometadata(subset)
+        async with engine.begin() as conn:
+            await conn.run_sync(subset.create_all)
 
     yield engine
 

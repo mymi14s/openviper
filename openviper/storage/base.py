@@ -221,7 +221,7 @@ class FileSystemStorage:
             try:
                 resolved_tmp.relative_to(root)
             except ValueError:
-                # Remove escaped temp file to prevent orphans.
+                # Clean up temp file.
                 with contextlib.suppress(OSError):
                     os.remove(str(tmp_path))
                 raise ValueError(f"Temp file {str(tmp_path)!r} escapes the storage root.") from None

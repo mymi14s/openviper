@@ -54,6 +54,16 @@ try:
 except ImportError:
     _prometheus_client = None
 
+try:
+    from dramatiq.broker import default_middleware as dramatiq_defaults
+except ImportError:
+    dramatiq_defaults = None  # type: ignore[assignment]
+
+try:
+    from dramatiq.middleware.prometheus import Prometheus as _Prometheus
+except ImportError:
+    _Prometheus = None  # type: ignore[assignment,misc]
+
 BROKER_INSTANCE: Broker | None = None
 
 SUPPORTED_BROKERS = frozenset({"redis", "rabbitmq", "sqs", "postgresql", "stub"})
@@ -62,16 +72,11 @@ SUPPORTED_BROKERS = frozenset({"redis", "rabbitmq", "sqs", "postgresql", "stub"}
 def default_middleware() -> list:
     """Return Dramatiq default middleware, excluding Prometheus when
     ``prometheus_client`` is not installed."""
-    from dramatiq.broker import default_middleware as dramatiq_defaults
-
+    if dramatiq_defaults is None:
+        return []
     middleware = [m() for m in dramatiq_defaults]
-    if _prometheus_client is None:
-        try:
-            from dramatiq.middleware.prometheus import Prometheus
-
-            middleware = [m for m in middleware if not isinstance(m, Prometheus)]
-        except ImportError:
-            pass
+    if _prometheus_client is None and _Prometheus is not None:
+        middleware = [m for m in middleware if not isinstance(m, _Prometheus)]
     return middleware
 
 
@@ -195,7 +200,7 @@ def create_stub_broker(cfg: ConfigMap) -> Broker:
     """Create a StubBroker for testing."""
     if dramatiq.brokers.stub is None:
         raise OpenViperTasksConfigurationError(
-            ["dramatiq.brokers.stub is not available. " "Ensure dramatiq is installed correctly."]
+            ["dramatiq.brokers.stub is not available. Ensure dramatiq is installed correctly."]
         )
     broker: Broker = dramatiq.brokers.stub.StubBroker(middleware=default_middleware())
     dramatiq.set_broker(broker)

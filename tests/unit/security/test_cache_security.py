@@ -17,10 +17,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from openviper.auth._user_cache import USER_CACHE, invalidate_user_cache
 from openviper.auth.backends import get_client_ip
 from openviper.auth.session.middleware import SessionMiddleware
 from openviper.auth.session.store import SESSION_CACHE_PREFIX, SESSION_USER_CACHE_PREFIX
+from openviper.auth.user_cache import USER_CACHE, invalidate_user_cache
 from openviper.cache.memory import InMemoryCache
 from openviper.cache.validation import validate_cache_key
 from openviper.core.context import current_user, request_perms_cache

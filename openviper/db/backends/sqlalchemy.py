@@ -101,7 +101,7 @@ class DefaultDatabaseBackend(DatabaseBackend):
     def build_engine(self) -> AsyncEngine:
         """Build the async engine from the configured URL."""
         url = self.url
-        echo = bool(self.config.get("ECHO", False))
+        echo = bool(self.get_option("ECHO", False))
         async_url = self.operations.normalize_url(url)
         kwargs: dict[str, object] = {"echo": echo}
         is_memory = ":memory:" in async_url
@@ -118,7 +118,7 @@ class DefaultDatabaseBackend(DatabaseBackend):
                 ("POOL_RECYCLE", "pool_recycle"),
                 ("POOL_TIMEOUT", "pool_timeout"),
             ):
-                value = self.config.get(config_key)
+                value = self.get_option(config_key)
                 if isinstance(value, (str, bytes, bytearray)) or hasattr(value, "__int__"):
                     kwargs[kwarg] = int(cast("str | bytes | bytearray | SupportsInt", value))
 

@@ -95,5 +95,5 @@ async def ensure_table(
                     await conn.run_sync(table.create, checkfirst=True)
         else:
             async with engine.begin() as conn:
-                await conn.run_sync(table.metadata.create_all, checkfirst=True)
+                await conn.run_sync(table.create, checkfirst=True)
         ensured_flag[0] = True

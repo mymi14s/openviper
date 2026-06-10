@@ -18,9 +18,13 @@ class ProjectSettings(Settings):
     PROJECT_NAME: str = "AI Moderation Platform"
     VERSION: str = "1.0.0"
     DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
-    ADMIN_TITLE: str = "Moderation Admin"
-    ADMIN_HEADER_TITLE: str = "ModPlatform"
-    ADMIN_FOOTER_TITLE: str = "AI Moderation v1.0"
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "title": "Moderation Admin",
+            "header_title": "ModPlatform",
+            "footer_title": "AI Moderation v1.0",
+        },
+    )
     OPENAPI: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "title": "AI Moderation API",

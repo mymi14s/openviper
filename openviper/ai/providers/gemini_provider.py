@@ -148,7 +148,7 @@ class GeminiProvider(AIProvider):
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
             log.warning("GeminiProvider: rate limit error (details suppressed).")
             return GeminiRateLimitError("Gemini rate limit exceeded. Retry after backoff.")
-        # Truncate the raw message to limit information leakage in generic errors.
+        # Truncate raw message to limit information leakage.
         safe_msg = msg[:200] if msg else "unknown error"
         return GeminiError(f"Gemini API error: {safe_msg}")
 
@@ -157,7 +157,7 @@ class GeminiProvider(AIProvider):
         model_name = kwargs.pop("model", self._default_model)
         images = kwargs.pop("images", None)
 
-        # Accept max_tokens as an alias for max_output_tokens (common cross-provider name)
+        # max_tokens alias for max_output_tokens.
         if "max_tokens" in kwargs and "max_output_tokens" not in kwargs:
             kwargs["max_output_tokens"] = kwargs.pop("max_tokens")
         else:

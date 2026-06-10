@@ -102,28 +102,21 @@ import threading
 from collections.abc import Callable
 from typing import Any, cast
 
-# Module-level reference so tests can patch ``openviper.db.events.settings``
-# without having to reach into ``openviper.conf.settings``.
 from openviper.conf.settings import settings
 
 logger = logging.getLogger("openviper.db")
 
-# Sentinel for "not yet initialised" - avoids confusing None (disabled) with
-# "not yet set".
+# Sentinel distinguishing "not yet built" from "built but disabled".
 _UNSET: object = object()
 _init_lock = threading.Lock()
 
-# Module-level dispatcher cache.  _UNSET = never built; None = built but disabled.
 _dispatcher_cache: object = _UNSET
 
-# Background task tracking to prevent garbage collection and log exceptions.
+# Prevent GC of background tasks and log exceptions.
 _background_tasks: set[asyncio.Task[Any]] = set()
 _MAX_BACKGROUND_TASKS: int = 1024
 
-# Populated by @model_event.trigger(...).  Keyed by model_path → event_name
-# → list of callables.  Intentionally separate from the settings-based
-# dispatcher so that decorator-registered handlers fire even when
-# MODEL_EVENTS is empty.
+# Decorator-registered event handlers keyed by model_path.
 _decorator_registry: dict[str, dict[str, list[Callable[..., None]]]] = {}
 _dec_registry_lock = threading.Lock()
 
@@ -140,7 +133,6 @@ SUPPORTED_EVENTS: frozenset[str] = frozenset(
         "after_insert",
         "on_update",
         "on_change",
-        # Delete phase.
         "on_delete",
         "after_delete",
         # Bulk operation phases (Manager.bulk_create / Manager.bulk_update).
@@ -226,7 +218,6 @@ class ModelEventDispatcher:
             instance:   The model instance that triggered the event.
             **kwargs:   Extra context forwarded verbatim to every handler.
         """
-        # Dispatch settings-based handlers (MODEL_EVENTS).
         event_map = self._handlers.get(model_path)
         if event_map:
             handlers = event_map.get(event_name)
@@ -244,7 +235,6 @@ class ModelEventDispatcher:
                             exc,
                         )
 
-        # Dispatch decorator-registered handlers (@model_event.trigger).
         dispatch_decorator_handlers(model_path, event_name, instance, **kwargs)
 
     def __bool__(self) -> bool:
@@ -429,7 +419,7 @@ def task_done_callback(task: asyncio.Task[Any]) -> None:
     """Clean up completed background task and log exceptions."""
     _background_tasks.discard(task)
     try:
-        # Retrieve exception to prevent "Task exception was never retrieved" warnings.
+        # Retrieve exception to suppress "never retrieved" warnings.
         exc = task.exception()
         if exc is not None:
             logger.exception(

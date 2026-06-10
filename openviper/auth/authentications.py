@@ -27,12 +27,12 @@ from typing import TYPE_CHECKING, Final, cast
 import sqlalchemy as sa
 from jose import JWTError
 
-from openviper.auth._cache_utils import ensure_table, evict_cache_if_full, lazy_async_lock
-from openviper.auth._user_cache import USER_CACHE, get_user_cache_lock
+from openviper.auth.cache_utils import ensure_table, evict_cache_if_full, lazy_async_lock
 from openviper.auth.jwt import decode_access_token, decode_access_token_checked
 from openviper.auth.session.store import get_session_store
 from openviper.auth.token_blocklist import is_token_revoked
 from openviper.auth.user import get_user_by_id
+from openviper.auth.user_cache import USER_CACHE, get_user_cache_lock
 from openviper.conf import settings
 from openviper.db.connection import get_engine, get_metadata
 from openviper.exceptions import AuthenticationFailed, TokenExpired
@@ -251,7 +251,7 @@ async def create_token(
         representation of the created row.
     """
     await ensure_auth_tokens_table()
-    raw = secrets.token_hex(20)  # 40-char hex string, cryptographically random
+    raw = secrets.token_hex(20)
     key_hash = hash_token(raw)
     now_utc = timezone.now()
     table = get_auth_tokens_table()
@@ -591,7 +591,7 @@ class TokenAuthentication(BaseAuthentication):
         key_hash = hash_token(raw)
         now_mono = time.monotonic()
 
-        # Release the lock before async I/O to avoid blocking concurrent cache reads.
+        # Release lock before async I/O to avoid blocking.
         cached_user_id: int | None = None
         lock = get_token_cache_lock()
         async with lock:

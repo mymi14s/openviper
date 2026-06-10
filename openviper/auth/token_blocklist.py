@@ -24,7 +24,7 @@ from typing import Final
 
 import sqlalchemy as sa
 
-from openviper.auth._cache_utils import ensure_table, evict_cache_if_full, lazy_async_lock
+from openviper.auth.cache_utils import ensure_table, evict_cache_if_full, lazy_async_lock
 from openviper.db.connection import get_engine, get_metadata
 from openviper.utils import timezone
 
@@ -36,7 +36,7 @@ TABLE_ENSURE_LOCK: asyncio.Lock = asyncio.Lock()
 # Avoid DB queries for revoked tokens by caching their expiry timestamps.
 JTI_REVOKED_CACHE: dict[str, float] = {}
 
-# Avoid DB queries for valid tokens by caching negative results with a short TTL.
+# Cache negative results with short TTL to avoid DB queries.
 JTI_VALID_CACHE: dict[str, float] = {}
 
 _CACHE_LOCK_REF: list[asyncio.Lock | None] = [None]

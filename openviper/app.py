@@ -18,7 +18,6 @@ import typing
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, cast
 
-from openviper._version import __version__
 from openviper.conf import settings
 from openviper.contrib.default.middleware import DefaultLandingMiddleware
 from openviper.core.context import current_request, current_router
@@ -41,6 +40,7 @@ from openviper.openapi.ui import get_redoc_html, get_swagger_html
 from openviper.routing.router import Router, include
 from openviper.staticfiles.handlers import StaticFilesMiddleware, discover_app_static_dirs
 from openviper.utils.logging import get_uvicorn_log_config
+from openviper.version import __version__
 
 if TYPE_CHECKING:
     import httpx
@@ -579,9 +579,7 @@ class OpenViper:
 
     async def call_handler(self, handler: Callable[..., object], request: Request) -> Response:
         """Call a view handler, performing automatic response coercion."""
-        # Use the handler object directly as the cache key instead of id(handler).
-        # id() values can be reused after garbage collection, leading to stale
-        # or incorrect cache entries for different handlers that share an id.
+        # Handler object as cache key avoids id() collisions.
         if handler not in self._handler_param_cache:
             sig, hints = get_handler_signature(handler)
             params = sig.parameters

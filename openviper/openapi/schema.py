@@ -50,7 +50,7 @@ class RouteHandler(Protocol):
 
 logger = logging.getLogger(__name__)
 
-# Python primitives lack native JSON Schema equivalents; this table bridges the gap.
+# JSON Schema equivalents for Python primitives.
 PYTHON_TO_JSON_TYPE: dict[type, dict[str, str]] = {
     int: {"type": "integer"},
     float: {"type": "number"},
@@ -76,8 +76,7 @@ SCHEMA_CACHE_STORE: list[dict[str, Any] | None] = [None]
 
 # Keyed by weakref to handler; avoids id() reuse bugs after GC.
 SERIALIZER_CACHE: weakref.WeakValueDictionary[RouteHandler, type] = weakref.WeakValueDictionary()
-# Tracks handlers whose detected serializer is None (weakref can't store None).
-# Uses WeakSet so entries are removed automatically when handlers are garbage-collected.
+# Handlers with no detected serializer (weakref can't hold None).
 SERIALIZER_NONE_SET: weakref.WeakSet[RouteHandler] = weakref.WeakSet()
 # Type-hints cache keyed by handler reference; entries evicted on GC.
 TYPE_HINTS_CACHE: weakref.WeakKeyDictionary[
@@ -85,14 +84,14 @@ TYPE_HINTS_CACHE: weakref.WeakKeyDictionary[
     dict[str, Any],
 ] = weakref.WeakKeyDictionary()
 
-# NoneType sentinel for isinstance/identity checks (avoids unidiomatic type() calls).
+# NoneType sentinel for identity checks.
 NoneType: type = type(None)
 
 # Segments that are too generic to serve as an OpenAPI tag on their own.
-# Routes whose path starts with these are drilled into for a more specific segment.
+# Path prefixes that trigger deeper route drilling.
 GENERIC_PATH_SEGMENTS: frozenset[str] = frozenset({"api", "v1", "v2", "v3"})
 
-# Version segments are noise in tags; this pattern identifies them for exclusion.
+# Pattern identifying version segments to exclude from tags.
 VERSION_SEGMENT_RE: re.Pattern[str] = re.compile(r"^v\d+$", re.IGNORECASE)
 
 
@@ -182,13 +181,11 @@ def python_type_to_schema(annotation: Any) -> dict[str, Any]:
         args = getattr(annotation, "__args__", None)
         return {"type": "array", "items": python_type_to_schema(args[0]) if args else {}}
 
-    # dict and Union origins map to simple JSON primitives or delegate to a helper.
     if origin is dict:
         return {"type": "object"}
     if origin is typing.Union:
         return union_schema(annotation)
 
-    # Pydantic models provide their own schema; anything else degrades to string.
     schema_fn = getattr(annotation, "model_json_schema", None)
     return cast("dict[str, Any]", schema_fn()) if schema_fn else {"type": "string"}
 
@@ -197,7 +194,7 @@ def union_schema(annotation: Any) -> dict[str, Any]:
     """Return the JSON Schema for a Union type (handles Optional[X])."""
     non_none = [a for a in annotation.__args__ if a is not NoneType]
     if len(non_none) == 1:
-        # Copy to avoid mutating the lru_cache-held dict for the inner type.
+        # Copy to avoid mutating the cached dict.
         schema = dict(python_type_to_schema(non_none[0]))
         schema["nullable"] = True
         return schema
@@ -322,7 +319,7 @@ def detect_serializer_from_source(handler: RouteHandler) -> type | None:
         SERIALIZER_NONE_SET.add(handler)
         return None
 
-    # Globals are the only reliable namespace for resolving bare names at runtime.
+    # Globals are the only reliable namespace for bare name resolution.
     handler_globals = getattr(handler, "__globals__", {})
     result = None
     for cls_name in find_validate_call_names(tree):
@@ -355,7 +352,7 @@ def detect_serializer_from_docstring(handler: RouteHandler) -> type | None:
         return None
 
     cls_name = m.group(1)
-    # Globals are the only reliable namespace for resolving bare names at runtime.
+    # Globals are the only reliable namespace for bare name resolution.
     handler_globals = getattr(handler, "__globals__", {})
     cls = handler_globals.get(cls_name)
     if cls is not None and hasattr(cls, "model_json_schema"):
@@ -376,9 +373,6 @@ def extract_json_from_docstring(doc: str | None, header: str) -> dict[str, Any] 
     if not doc:
         return None
 
-    # Locate the header then use raw_decode to parse the JSON block that follows.
-    # raw_decode stops at the correct closing brace without any regex backtracking,
-    # making this safe against crafted/malformed docstrings.
     header_marker = f"{header}:"
     idx = doc.find(header_marker)
     if idx == -1:
@@ -556,7 +550,6 @@ def resolve_view_class_schema(view_cls: type, handler: RouteHandler) -> type | N
     if schema_cls is not None:
         return cast("type", schema_cls)
 
-    # The action method is the most serializer-relevant entry point in a view set.
     view_action = getattr(handler, "view_action", None)
     if view_action:
         method = getattr(view_cls, view_action, None)
@@ -589,7 +582,6 @@ def resolve_request_schema(handler: RouteHandler) -> type | None:
     if schema_cls is not None:
         return cast("type", schema_cls)
 
-    # Class-based views use a class-level attribute rather than per-handler decorators.
     view_cls = getattr(handler, "view_class", None)
     if view_cls is not None:
         detected = resolve_view_class_schema(view_cls, handler)
@@ -601,7 +593,6 @@ def resolve_request_schema(handler: RouteHandler) -> type | None:
     if detected is not None:
         return detected
 
-    # Source-code inspection is the most expensive but most thorough fallback.
     return detect_serializer_from_source(handler)
 
 
@@ -639,7 +630,6 @@ def build_request_body(
     if schema_cls is not None and hasattr(schema_cls, "model_json_schema"):
         content["application/json"] = {"schema": schema_cls.model_json_schema()}
 
-    # Example payloads in docstrings supplement the formal schema for UI consumers.
     doc = inspect.getdoc(doc_handler or handler)
     example = extract_json_from_docstring(doc, "Example Request")
     if example:
@@ -655,12 +645,11 @@ def build_request_body(
     if content:
         return {"required": True, "content": content}
 
-    # Parameter annotations are the last structural source for Pydantic models.
     param_body = find_pydantic_param_schema(handler, hints)
     if param_body is not None:
         return param_body
 
-    # A missing schema on a mutating endpoint would hide the body field in Swagger UI.
+    # Default schema prevents hidden body fields in Swagger UI.
     if method.upper() in MUTATING_METHODS:
         return {
             "required": True,
@@ -731,11 +720,10 @@ def build_operation(route: Route, method: str) -> dict[str, Any]:
 
     responses = build_responses(method, docstring, response_schema)
 
-    # Explicit tags are authoritative; path-derived tags are a heuristic fallback
-    # that skips generic prefixes and version segments to avoid noise.
+    # Explicit tags override path-derived heuristics.
     tag = route.tags[0] if route.tags else tag_from_path(route.path)
 
-    # Include the module suffix to disambiguate same-named handlers across modules.
+    # Module suffix disambiguates same-named handlers.
     module = getattr(handler, "__module__", "") or ""
     module_suffix = module.split(".")[-1] if module else ""
     op_id = (
@@ -813,10 +801,8 @@ def generate_openapi_schema(
         OpenAPI 3.1.0 document as a dict.
 
     """
-    # Include a fingerprint of the route paths so that filtered and unfiltered
-    # route sets produce different cache keys, preventing stale schema hits after
-    # OPENAPI["exclude"] changes without a full process restart.
-    # Each component is hashed individually to prevent delimiter-injection collisions.
+    # Route path fingerprint prevents stale schema cache hits.
+    # Per-component hashing prevents delimiter-injection collisions.
     routes_fingerprint = ",".join(sorted(f"{r.path}:{','.join(sorted(r.methods))}" for r in routes))
     raw_key = (
         hashlib.sha256(title.encode()).hexdigest()

@@ -111,8 +111,8 @@ class TestCastEnvValue:
 
     def test_int_cast(self):
         s = Settings()
-        result = cast_env_value(s.DATABASE_POOL_SIZE, "20")
-        assert result == 20
+        result = cast_env_value(s.SESSION_TIMEOUT, "3600")
+        assert result == timedelta(seconds=3600)
 
     def test_str_cast(self):
         s = Settings()
@@ -151,10 +151,10 @@ class TestApplyEnvOverrides:
         assert result.DEBUG is False
 
     def test_applies_int_override(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_POOL_SIZE", "42")
+        monkeypatch.setenv("SESSION_TIMEOUT", "7200")
         s = Settings()
         result = apply_env_overrides(s)
-        assert result.DATABASE_POOL_SIZE == 42
+        assert timedelta(seconds=7200) == result.SESSION_TIMEOUT
 
     def test_no_override_when_env_absent(self, monkeypatch):
         monkeypatch.delenv("DEBUG", raising=False)
@@ -192,7 +192,12 @@ class TestValidateSettings:
             "CSRF_COOKIE_SECURE": True,
             "OPENAPI": {"enabled": False},
             "CORS_ALLOWED_HEADERS": ("content-type",),
-            "DATABASE_URL": "postgres://localhost/db",
+            "DATABASES": {
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "postgres://localhost/db"},
+                },
+            },
         }
         base.update(overrides)
         return dataclasses.replace(Settings(), **base)
@@ -215,21 +220,34 @@ class TestValidateSettings:
         with pytest.raises(SettingsValidationError, match="SECRET_KEY"):
             validate_settings(s, "production")
 
-    def test_missing_database_url_fails(self):
-        s = dataclasses.replace(Settings(), DATABASE_URL="")
-        with pytest.raises(SettingsValidationError, match="DATABASE_URL"):
+    def test_missing_database_config_fails(self):
+        s = dataclasses.replace(Settings(), DATABASES={})
+        with pytest.raises(SettingsValidationError, match="DATABASES"):
             validate_settings(s, "development")
 
-    def test_databases_default_url_passes_without_database_url(self):
+    def test_databases_default_url_passes(self):
         s = dataclasses.replace(
             Settings(),
-            DATABASE_URL="",
-            DATABASES={"default": {"URL": "sqlite:///x"}},
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
         )
         validate_settings(s, "development")
 
     def test_insecure_jwt_algorithm_fails(self):
-        s = dataclasses.replace(Settings(), JWT_ALGORITHM="none", DATABASE_URL="sqlite:///x")
+        s = dataclasses.replace(
+            Settings(),
+            JWT_ALGORITHM="none",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
+        )
         with pytest.raises(SettingsValidationError, match="JWT_ALGORITHM"):
             validate_settings(s, "development")
 
@@ -238,7 +256,12 @@ class TestValidateSettings:
             Settings(),
             SESSION_COOKIE_SAMESITE="None",
             SESSION_COOKIE_SECURE=False,
-            DATABASE_URL="sqlite:///x",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
         )
         with pytest.raises(SettingsValidationError, match="SESSION_COOKIE_SECURE"):
             validate_settings(s, "development")
@@ -248,12 +271,26 @@ class TestValidateSettings:
             Settings(),
             SESSION_COOKIE_SAMESITE="None",
             SESSION_COOKIE_SECURE=True,
-            DATABASE_URL="sqlite:///x",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
         )
         validate_settings(s, "development")
 
     def test_validate_settings_does_not_mutate_frozen_instance(self):
-        s = dataclasses.replace(Settings(), SECRET_KEY="", DATABASE_URL="sqlite:///x")
+        s = dataclasses.replace(
+            Settings(),
+            SECRET_KEY="",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
+        )
         original_key = s.SECRET_KEY
         validate_settings(s, "development")
         assert original_key == s.SECRET_KEY

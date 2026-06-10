@@ -12,57 +12,30 @@ chooses which alias should handle a read, write, migration, or relation
 operation.  This enables read/write splitting with replicas, per-app
 database selection, and tenant-specific routing.
 
-DATABASES Setting
-==================
+See :doc:`installation` for the full ``DATABASES`` configuration reference
+including pool options, URL formats, and the nested vs flat config format.
+See :doc:`database_backends` for backend registration and custom backends.
 
-Configure multiple database aliases in your settings:
+DATABASES ROUTERS Setting
+==========================
 
-.. code-block:: python
-
-   DATABASES = {
-       "default": {
-           "URL": "postgresql://user:pass@primary-db/app",
-           "ROLE": "primary",
-       },
-       "replica": {
-           "URL": "postgresql://user:pass@replica-db/app",
-           "ROLE": "replica",
-           "READ_ONLY": True,
-       },
-   }
-
-BACKEND is Optional
-====================
-
-The ``BACKEND`` key is optional.  When omitted, OpenViper uses the
-default ``DefaultDatabaseBackend``.  See :doc:`database_backends`
-for details.
-
-.. code-block:: python
-
-   DATABASES = {
-       "default": {
-           "URL": "postgresql://user:pass@primary-db/app",
-           "ROLE": "primary",
-       },
-       "replica": {
-           "URL": "postgresql://user:pass@replica-db/app",
-           "ROLE": "replica",
-           "READ_ONLY": True,
-       },
-   }
-
-DATABASE_ROUTERS Setting
-=========================
-
-``DATABASE_ROUTERS`` is a list of import paths or router instances.
+``DATABASES['ROUTERS']`` is a list of import paths or router instances.
 Routers are checked in order; the first non-``None`` result wins.
 
 .. code-block:: python
 
-   DATABASE_ROUTERS = [
-       "myproject.db.routers.PrimaryReplicaRouter",
-   ]
+   DATABASES = {
+       "default": {
+           "OPTIONS": {"URL": "postgresql+asyncpg://user:pass@primary/db"},
+       },
+       "ROUTERS": [
+           "myproject.db.routers.PrimaryReplicaRouter",
+       ],
+       "ROUTING": {
+           "primary_alias": "default",
+           "replica_aliases": ["replica"],
+       },
+   }
 
 Primary and Replica Databases
 ==============================

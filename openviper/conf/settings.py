@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Final, cast
 
 from dotenv import find_dotenv, load_dotenv
 
-from openviper._version import __version__ as framework_version
 from openviper.conf.task_defaults import DEFAULT_TASKS
 from openviper.exceptions import ImproperlyConfigured, SettingsValidationError
+from openviper.version import __version__ as framework_version
 
 if TYPE_CHECKING:
     import types
@@ -52,8 +52,8 @@ FIELD_METADATA_CACHE: dict[type, list[tuple[str, type]]] = {}
 SENSITIVE_FIELDS: Final[frozenset[str]] = frozenset(
     {
         "SECRET_KEY",
-        "DATABASE_URL",
-        "CACHE_URL",
+        "DATABASES",
+        "CACHES",
         "EMAIL",
     },
 )
@@ -139,30 +139,45 @@ class Settings:
         "openviper.middleware.auth.AuthenticationMiddleware",
     )
 
-    ADMIN_TITLE: str = "OpenViper Admin"
-    ADMIN_HEADER_TITLE: str = "OpenViper"
-    ADMIN_FOOTER_TITLE: str = "OpenViper Admin"
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "title": "OpenViper Admin",
+            "header_title": "OpenViper",
+            "footer_title": "OpenViper Admin",
+        },
+    )
 
     # WARNING: Generate a secure SECRET_KEY using generate_secret_key()
     # NEVER use this default in production! Set via environment or config.
     SECRET_KEY: str = ""
 
-    DATABASE_URL: str = ""
-    DATABASE_ECHO: bool = False
-    DATABASE_POOL_SIZE: int = 5
-    DATABASE_MAX_OVERFLOW: int = 10
-    DATABASE_POOL_RECYCLE: int = 3600
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+                "OPTIONS": {
+                    "URL": "",
+                    "ECHO": False,
+                    "POOL_SIZE": 5,
+                    "MAX_OVERFLOW": 10,
+                    "POOL_RECYCLE": 3600,
+                },
+            },
+            "ROUTERS": [],
+            "ROUTING": {},
+        },
+    )
 
-    DATABASES: ConfigMap = dataclasses.field(default_factory=dict)
-
-    DATABASE_ROUTERS: list[str] = dataclasses.field(default_factory=list)
-
-    DATABASE_ROUTING: ConfigMap = dataclasses.field(default_factory=dict)
-
-    CACHE_BACKEND: str = "memory"  # "memory" | "redis"
-    CACHE_URL: str = ""
-    CACHE_TTL: int = 300
-    CACHES: ConfigMap = dataclasses.field(default_factory=dict)
+    CACHES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "BACKEND": "openviper.cache.InMemoryCache",
+                "OPTIONS": {
+                    "ttl": 300,
+                },
+            },
+        },
+    )
 
     PASSWORD_HASHERS: tuple[str, ...] = ("argon2", "bcrypt")
     SESSION_COOKIE_NAME: str = "sessionid"
@@ -314,7 +329,7 @@ class Settings:
     def as_dict(self, *, mask_sensitive: bool = True) -> ConfigMap:
         """Return all settings as a plain dict (shallow copy).
 
-        Sensitive fields (SECRET_KEY, DATABASE_URL, AWS credentials, etc.)
+        Sensitive fields (SECRET_KEY, DATABASES, CACHES, etc.)
         are masked by default to prevent accidental leakage into logs or
         API responses.  Pass ``mask_sensitive=False`` to get raw values.
         """
@@ -703,8 +718,11 @@ def validate_settings(s: Settings, env: str) -> None:
             "Set SECRET_KEY in environment for production!",
         )
 
-    if not s.DATABASES and not s.DATABASE_URL:
-        errors.append("DATABASES or DATABASE_URL must be set.")
+    databases = s.DATABASES
+    if not databases or not isinstance(databases, dict):
+        errors.append("DATABASES must be a non-empty dict with at least a 'default' alias.")
+    elif "default" not in databases:
+        errors.append("DATABASES must contain a 'default' alias.")
 
     if s.SESSION_COOKIE_SAMESITE.lower() == "none" and not s.SESSION_COOKIE_SECURE:
         errors.append("SESSION_COOKIE_SECURE must be True when SESSION_COOKIE_SAMESITE is 'None'.")

@@ -420,7 +420,7 @@ class TestSecureCookiesBehindProxy:
             CSRF_COOKIE_SECURE=True,
             DEBUG=False,
             SECRET_KEY="a" * 64,
-            DATABASE_URL="sqlite:///test.db",
+            DATABASES={"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}},
             ALLOWED_HOSTS=("example.com",),
         ):
             with pytest.raises(SettingsValidationError):
@@ -474,7 +474,7 @@ class TestDevServerBinding:
         with override_settings(
             DEBUG=True,
             SECRET_KEY="a" * 64,
-            DATABASE_URL="sqlite:///test.db",
+            DATABASES={"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}},
             ALLOWED_HOSTS=("example.com",),
             SECURE_SSL_REDIRECT=True,
             SECURE_HSTS_SECONDS=31536000,

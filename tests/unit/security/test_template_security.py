@@ -10,12 +10,9 @@ import json
 import pytest
 from jinja2.sandbox import SandboxedEnvironment, SecurityError
 
-from openviper.template.environment import get_jinja2_env, validate_path_within_root
+from openviper.template.environment import get_jinja2_env
+from openviper.template.paths import validate_path_within_root
 from openviper.template.plugin_loader import UNSAFE_CALLABLE_NAMES, scan_directory
-
-# ---------------------------------------------------------------------------
-# TPL-001: Autoescaping is enabled by default
-# ---------------------------------------------------------------------------
 
 
 class TestAutoescaping:
@@ -50,11 +47,6 @@ class TestAutoescaping:
             pytest.skip("jinja2 not installed")
 
 
-# ---------------------------------------------------------------------------
-# TPL-002: Unsafe template filters require explicit opt-in
-# ---------------------------------------------------------------------------
-
-
 class TestUnsafeTemplateFilters:
     """Unsafe template filters must require explicit opt-in."""
 
@@ -73,11 +65,6 @@ class TestUnsafeTemplateFilters:
             assert "<b>" in result_safe
         except ImportError:
             pytest.skip("jinja2 not installed")
-
-
-# ---------------------------------------------------------------------------
-# TPL-003: Template sandbox prevents object access
-# ---------------------------------------------------------------------------
 
 
 class TestTemplateSandbox:
@@ -134,11 +121,6 @@ class TestTemplateSandbox:
             pytest.skip("jinja2 not installed")
 
 
-# ---------------------------------------------------------------------------
-# TPL-004: JSON embedded in HTML is safely escaped
-# ---------------------------------------------------------------------------
-
-
 class TestJSONInHTML:
     """JSON embedded in HTML must be safely escaped to prevent script context breakout."""
 
@@ -172,11 +154,6 @@ class TestJSONInHTML:
             # The encoded output must not contain raw HTML-breaking sequences
             # JSON encoding converts < to \u003c in some implementations
             assert encoded is not None
-
-
-# ---------------------------------------------------------------------------
-# TPL-005: Path traversal prevention in template directories
-# ---------------------------------------------------------------------------
 
 
 class TestPathTraversalPrevention:

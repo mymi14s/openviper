@@ -17,10 +17,6 @@ from openviper.staticfiles.handlers import (
     parse_range,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(
     path: str = "/static/file.js",
@@ -41,11 +37,6 @@ def start_headers(send: MagicMock) -> dict:
     return dict(send.call_args_list[0][0][0]["headers"])
 
 
-# ---------------------------------------------------------------------------
-# NotModifiedResponse
-# ---------------------------------------------------------------------------
-
-
 class TestNotModifiedResponse:
     @pytest.mark.asyncio
     async def test_sends_304_start(self):
@@ -64,11 +55,6 @@ class TestNotModifiedResponse:
         send = AsyncMock()
         await NotModifiedResponse()(scope={}, receive=AsyncMock(), send=send)
         assert send.call_args_list[1][0][0]["body"] == b""
-
-
-# ---------------------------------------------------------------------------
-# StaticFilesMiddleware.__init__ - pre-resolved directories
-# ---------------------------------------------------------------------------
 
 
 class TestStaticFilesMiddlewareInit:
@@ -92,11 +78,6 @@ class TestStaticFilesMiddlewareInit:
     def test_resolved_path_is_absolute(self):
         """Path.resolve() on a relative dir produces an absolute path."""
         assert Path("static").resolve().is_absolute()
-
-
-# ---------------------------------------------------------------------------
-# StaticFilesMiddleware.__call__ - routing
-# ---------------------------------------------------------------------------
 
 
 class TestStaticFilesMiddlewareRouting:
@@ -131,11 +112,6 @@ class TestStaticFilesMiddlewareRouting:
         assert send.call_args_list[0][0][0]["status"] == 405
 
 
-# ---------------------------------------------------------------------------
-# path traversal - Path.parts check
-# ---------------------------------------------------------------------------
-
-
 class TestPathTraversalRejection:
     @pytest.mark.asyncio
     async def test_rejects_dotdot_component(self):
@@ -165,11 +141,6 @@ class TestPathTraversalRejection:
         send = AsyncMock()
         await mw(make_scope(path="/static/js/app.js"), AsyncMock(), send)
         assert send.call_args_list[0][0][0]["status"] != 400
-
-
-# ---------------------------------------------------------------------------
-# _find_file - single stat syscall (TOCTOU fix #7), via real filesystem
-# ---------------------------------------------------------------------------
 
 
 class TestFindFile:
@@ -241,11 +212,6 @@ class TestFindFile:
         assert status in (400, 404)
 
 
-# ---------------------------------------------------------------------------
-# X-Content-Type-Options nosniff header
-# ---------------------------------------------------------------------------
-
-
 class TestNosniffHeader:
     @pytest.mark.asyncio
     async def test_response_includes_nosniff(self):
@@ -268,11 +234,6 @@ class TestNosniffHeader:
             await mw(make_scope(path="/static/style.css", method="HEAD"), AsyncMock(), send)
 
         assert start_headers(send).get(b"x-content-type-options") == b"nosniff"
-
-
-# ---------------------------------------------------------------------------
-# _serve_file - full file serving behaviour
-# ---------------------------------------------------------------------------
 
 
 class TestServeFile:
@@ -368,11 +329,6 @@ class TestServeFile:
         assert start_headers(send).get(b"accept-ranges") == b"bytes"
 
 
-# ---------------------------------------------------------------------------
-# collect_static - symlink guard (security fix #3)
-# ---------------------------------------------------------------------------
-
-
 class TestCollectStaticSymlinkGuard:
     def test_raises_on_symlink_dest_with_clear(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -411,11 +367,6 @@ class TestCollectStaticSymlinkGuard:
             ):
                 count = collect_static([], str(dest), clear=True)
             assert count == 0
-
-
-# ---------------------------------------------------------------------------
-# collect_static - general behaviour
-# ---------------------------------------------------------------------------
 
 
 class TestCollectStatic:
@@ -477,11 +428,6 @@ class TestCollectStatic:
             assert count == 0
 
 
-# ---------------------------------------------------------------------------
-# discover_app_static_dirs - exception handling (narrowed except)
-# ---------------------------------------------------------------------------
-
-
 class TestDiscoverAppStaticDirs:
     def test_returns_tuple(self):
         with patch("openviper.conf.settings") as ms:
@@ -527,11 +473,6 @@ class TestDiscoverAppStaticDirs:
         assert isinstance(result, tuple)
 
 
-# ---------------------------------------------------------------------------
-# _serve_file: MIME type fallback and content-encoding header
-# ---------------------------------------------------------------------------
-
-
 class TestServeMIMEFallback:
     @pytest.mark.asyncio
     async def test_unknown_extension_uses_octet_stream(self):
@@ -560,11 +501,6 @@ class TestServeMIMEFallback:
         assert headers[b"content-encoding"] == b"gzip"
 
 
-# ---------------------------------------------------------------------------
-# discover_app_static_dirs: AppResolver fallback success
-# ---------------------------------------------------------------------------
-
-
 class TestDiscoverAppStaticDirsResolverFallback:
     def test_app_resolver_fallback_finds_static_dir(self, tmp_path):
         """AppResolver fallback discovers static/ dir when importlib path fails."""
@@ -585,11 +521,6 @@ class TestDiscoverAppStaticDirsResolverFallback:
         assert static_dir.resolve() in [p.resolve() for p in result]
 
 
-# ---------------------------------------------------------------------------
-# collect_static: copy_tree skips subdirectories
-# ---------------------------------------------------------------------------
-
-
 class TestCollectStaticCopyTreeSkipsDirs:
     def test_copy_tree_skips_non_file_items(self, tmp_path):
         """copy_tree skips subdirectory items during rglob."""
@@ -607,11 +538,6 @@ class TestCollectStaticCopyTreeSkipsDirs:
         # Only the file was copied, not the directory
         assert (dest / "script.js").exists()
         assert not (dest / "subdir").is_file()
-
-
-# ---------------------------------------------------------------------------
-# parse_range - unit tests
-# ---------------------------------------------------------------------------
 
 
 class TestParseRange:
@@ -656,11 +582,6 @@ class TestParseRange:
 
     def test_zero_suffix_returns_ignore(self) -> None:
         assert parse_range(b"bytes=-0", 1000) == "ignore"
-
-
-# ---------------------------------------------------------------------------
-# Range requests - integration with StaticFilesMiddleware
-# ---------------------------------------------------------------------------
 
 
 class TestRangeRequests:
@@ -746,11 +667,6 @@ class TestRangeRequests:
             await mw(make_scope(path="/static/data.bin", headers=headers), AsyncMock(), send)
         hdrs = start_headers(send)
         assert hdrs[b"content-range"] == b"bytes */10"
-
-
-# ---------------------------------------------------------------------------
-# Last-Modified header
-# ---------------------------------------------------------------------------
 
 
 class TestLastModifiedHeader:

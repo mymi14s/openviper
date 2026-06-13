@@ -6,6 +6,7 @@ import ast
 import contextlib
 import re
 import sys
+import typing as t
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from openviper.db.models import Model
 from openviper.db.fields import CheckConstraint, ForeignKey, UniqueConstraint
 from openviper.db.migrations.executor import (
+    UNSET,
     AddColumn,
     AddConstraint,
     AlterColumn,
@@ -30,21 +32,20 @@ from openviper.db.migrations.executor import (
     RunSQL,
     types_compatible,
 )
+from openviper.db.utils import validate_identifier
 from openviper.exceptions import MigrationError
-
-# Pattern for valid SQL/Python identifiers
-_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 # Column type substrings that require the PostGIS extension.
 _POSTGIS_TYPE_MARKERS = ("GEOMETRY", "GEOGRAPHY", "RASTER", "TOPOGEOMETRY")
+_POSTGIS_RE = re.compile(r"geometry|geography|raster|topogeometry", flags=re.IGNORECASE)
 
 
 def needs_postgis(model_classes: list[type[Any]]) -> bool:
     """Return True if any field in *model_classes* requires the PostGIS extension."""
     for model_cls in model_classes:
         for field in model_cls._fields.values():
-            col_type = (field._column_type or "").upper()
-            if any(marker in col_type for marker in _POSTGIS_TYPE_MARKERS):
+            col_type = (field.column_type or "").upper()
+            if _POSTGIS_RE.search(col_type):
                 return True
     return False
 
@@ -55,50 +56,28 @@ def needs_postgis_ops(operations: list[Any]) -> bool:
         if isinstance(op, CreateTable):
             for col in op.columns:
                 col_type = (col.get("type") or "").upper()
-                if any(marker in col_type for marker in _POSTGIS_TYPE_MARKERS):
+                if _POSTGIS_RE.search(col_type):
                     return True
         elif isinstance(op, AddColumn):
             col_type = (op.column_type or "").upper()
-            if any(marker in col_type for marker in _POSTGIS_TYPE_MARKERS):
+            if _POSTGIS_RE.search(col_type):
                 return True
     return False
-
-
-def validate_identifier(name: str, context: str = "identifier") -> None:
-    """Validate that a name is a safe SQL/Python identifier.
-
-    Prevents code injection attacks where malicious model/table/column names
-    could inject Python code into generated migration files.
-
-    Args:
-        name: The identifier to validate
-        context: Description of what the identifier represents (for error messages)
-
-    Raises:
-        ValueError: If the identifier contains invalid characters
-    """
-    if not _IDENTIFIER_PATTERN.match(name):
-        raise ValueError(
-            f"Invalid {context}: {name!r}. "
-            f"Identifiers must start with a letter or underscore, "
-            f"followed by letters, digits, or underscores only."
-        )
 
 
 def format_columns(model_cls: type[Model]) -> str:
     lines = []
     for _name, field in model_cls._fields.items():
-        if field._column_type == "":
+        if field.column_type == "":
             continue
 
-        # Validate column name to prevent code injection
         validate_identifier(
             field.column_name, f"column name '{field.column_name}' in {model_cls.__name__}"
         )
 
         col: dict[str, Any] = {
             "name": field.column_name,
-            "type": field._column_type,
+            "type": field.column_type,
             "nullable": field.null,
         }
         if field.primary_key:
@@ -115,7 +94,6 @@ def format_columns(model_cls: type[Model]) -> str:
             target_model = field.resolve_target()
             if target_model:
                 target_table = cast("Any", target_model)._table_name
-                # Validate target table name
                 validate_identifier(target_table, f"target table name '{target_table}'")
                 col["target_table"] = target_table
             elif isinstance(field.to, str):
@@ -132,7 +110,6 @@ def format_columns(model_cls: type[Model]) -> str:
 
 def sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Model]]:
     """Sort models based on ForeignKey dependencies within the same app."""
-    # map table_name -> Model
     lookup = {m._table_name: m for m in model_classes}
     # build adjacency list and in-degree count
     adj: dict[str, Any] = {m._table_name: [] for m in model_classes}
@@ -153,7 +130,6 @@ def sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Mod
                     adj[target._table_name].append(node)
                     in_degree[node] += 1
 
-    # Initialize queue with zero in-degree nodes
     queue = deque([node for node, degree in in_degree.items() if degree == 0])
     sorted_nodes = []
     while queue:
@@ -166,9 +142,10 @@ def sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Mod
 
     # If circular, append remaining to not lose data
     if len(sorted_nodes) < len(model_classes):
-        remaining = [node for node in in_degree if node not in sorted_nodes]
-        for node in remaining:
-            sorted_nodes.append(node)
+        seen = set(sorted_nodes)
+        for node in in_degree:
+            if node not in seen:
+                sorted_nodes.append(node)
 
     return [lookup[node] for node in sorted_nodes]
 
@@ -194,7 +171,6 @@ def write_initial_migration(
     Returns:
         Path to the written migration file.
     """
-    # Validate app_name to prevent code injection
     validate_identifier(app_name, "app name")
 
     filename = f"{migration_name or '0001_initial'}.py"
@@ -207,7 +183,7 @@ def write_initial_migration(
     )
 
     tables_code = []
-    # Sort models topologically to handle intra-app dependencies (e.g. Post before Comment)
+    # Topological sort for dependency ordering.
     sorted_models = sort_models_topologically(model_classes)
     for model_cls in sorted_models:
         meta = getattr(model_cls, "Meta", None)
@@ -218,7 +194,6 @@ def write_initial_migration(
         if model_opts is not None and model_opts.virtual:
             continue
 
-        # Validate table name to prevent code injection
         validate_identifier(model_cls._table_name, f"table name for {model_cls.__name__}")
 
         cols = format_columns(model_cls)
@@ -339,9 +314,6 @@ def next_migration_number(migrations_dir: str) -> str:
     return str(max(numbers, default=0) + 1).zfill(4)
 
 
-# ── Model state helpers ──────────────────────────────────────────────────
-
-
 def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str, Any]]:
     """Build a deterministic snapshot of the current model state.
 
@@ -365,12 +337,11 @@ def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str
             continue
         cols: list[dict[str, Any]] = []
         for _name, field in model_cls._fields.items():
-            if field._column_type == "":
+            if field.column_type == "":
                 continue
             col: dict[str, Any] = {
                 "name": field.column_name,
-                "type": field._column_type,
-                "field_class": type(field).__name__,
+                "type": field.column_type,
                 "nullable": field.null,
             }
             if field.primary_key:
@@ -379,8 +350,7 @@ def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str
                 col["autoincrement"] = True
             if field.unique:
                 col["unique"] = True
-            if field.default is not None and not callable(field.default):
-                col["default"] = field.default
+            col["default"] = field.default if not callable(field.default) else None
             cols.append(col)
         cols.sort(key=lambda c: c["name"])
 
@@ -422,7 +392,6 @@ def read_migrated_state(migrations_dir: str) -> dict[str, dict[str, Any]]:
 
     Returns the same structure as :func:`model_state_snapshot`.
     """
-    # Reset soft-removed tracking for a clean parse
     _soft_removed_columns.clear()
 
     state: dict[str, dict[str, Any]] = {}
@@ -467,7 +436,8 @@ def get_keyword_str(node: ast.Call, key: str) -> str | None:
     """Extract a string keyword argument from an AST Call node."""
     for kw in node.keywords:
         if kw.arg == key and isinstance(kw.value, ast.Constant):
-            return kw.value.value  # type: ignore[return-value]
+            value = kw.value.value
+            return value if isinstance(value, str) else None
     return None
 
 
@@ -568,7 +538,7 @@ def parse_create_index(node: ast.Call, state: dict[str, dict[str, Any]]) -> None
         state[table_name] = {"columns": [], "indexes": [], "unique_together": []}
 
     if unique:
-        # If it's unique but doesn't have an autogenerated-looking name, it's unique_together
+        # Unique constraint without auto-generated name implies unique_together.
         if index_name and not index_name.startswith("uniq_"):
             state[table_name]["unique_together"].append(columns)
         else:
@@ -623,12 +593,13 @@ def parse_remove_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> Non
 
     table_data = state.get(table_name, {"columns": [], "indexes": [], "unique_together": []})
     cols = table_data["columns"]
-    # Find the column info before removing it, so we can track it
     removed_col = None
+    kept: list[dict[str, t.Any]] = []
     for c in cols:
         if c.get("name") == column_name:
             removed_col = dict(c)
-            break
+        else:
+            kept.append(c)
 
     # Also check for column_type keyword in the operation itself
     column_type = get_keyword_str(node, "column_type")
@@ -638,10 +609,9 @@ def parse_remove_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> Non
     elif column_type:
         removed_col["type"] = column_type
 
-    # Track this column as soft-removed
     _soft_removed_columns[(table_name, column_name)] = removed_col
 
-    table_data["columns"] = [c for c in cols if c.get("name") != column_name]
+    table_data["columns"] = kept
     state[table_name] = table_data
 
 
@@ -656,18 +626,29 @@ def parse_alter_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> None
     if not table_data:
         return
     cols = table_data["columns"]
+
+    has_default_kw = False
+    for kw in node.keywords:
+        if kw.arg == "default":
+            has_default_kw = True
+            break
+
     for col in cols:
         if col.get("name") == column_name:
-            # Update type if provided
             new_type = get_keyword_str(node, "column_type")
             if new_type is not None:
                 col["type"] = new_type
-            # Update nullable if provided
             for kw in node.keywords:
                 if kw.arg == "nullable" and isinstance(kw.value, ast.Constant):
                     col["nullable"] = bool(kw.value.value)
                 if kw.arg == "default" and isinstance(kw.value, ast.Constant):
                     col["default"] = kw.value.value
+                if kw.arg == "autoincrement" and isinstance(kw.value, ast.Constant):
+                    col["autoincrement"] = bool(kw.value.value)
+                if kw.arg == "primary_key" and isinstance(kw.value, ast.Constant):
+                    col["primary_key"] = bool(kw.value.value)
+            if not has_default_kw:
+                col.pop("default", None)
             break
 
 
@@ -702,11 +683,9 @@ def parse_restore_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> No
     if not table_name or not column_name:
         return
 
-    # Remove from soft-removed tracking
     key = (table_name, column_name)
     soft_info = _soft_removed_columns.pop(key, None)
 
-    # Add column back to state
     col: dict[str, Any] = {
         "name": column_name,
         "type": column_type or (soft_info.get("type", "TEXT") if soft_info else "TEXT"),
@@ -729,12 +708,27 @@ def ast_dict_to_dict(node: ast.Dict) -> dict[str, Any]:
     return result
 
 
+def normalize_state(state: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Normalize state dicts for deterministic comparison.
+
+    * Missing ``default`` keys are filled with ``None`` so that columns
+      without a default compare equal regardless of whether the key is
+      present.
+    * ``field_class`` keys are stripped because they are not tracked in
+      :func:`model_state_snapshot` and should not affect diffs.
+    """
+    for table_data in state.values():
+        for col in table_data["columns"]:
+            col.setdefault("default", None)
+            col.pop("field_class", None)
+    return state
+
+
 def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> bool:
     """Return ``True`` if the models differ from what existing migrations cover.
 
     Virtual models are excluded because they are not backed by database tables.
     """
-    # Filter out virtual models - they have no database representation.
     db_model_classes = [
         cls
         for cls in model_classes
@@ -742,15 +736,11 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
     ]
     if not db_model_classes:
         return False
-    current = model_state_snapshot(db_model_classes)
-    existing = read_migrated_state(migrations_dir)
+    current = normalize_state(model_state_snapshot(db_model_classes))
+    existing = normalize_state(read_migrated_state(migrations_dir))
     return current != existing
 
 
-# ── Diff-based migration generation ──────────────────────────────────────
-
-# Global dict to track columns that have been soft-removed across migrations.
-# Populated by read_migrated_state; maps (table_name, column_name) to col info.
 _soft_removed_columns: dict[tuple[str, str], dict[str, Any]] = {}
 
 
@@ -779,6 +769,8 @@ def diff_states(
     Returns a list of :class:`Operation` objects that would bring the
     database from *existing* to *current*.
     """
+    current = normalize_state(current)
+    existing = normalize_state(existing)
 
     ops: list[Operation] = []
 
@@ -807,7 +799,6 @@ def diff_states(
                 if in_degree[neighbor] == 0:
                     queue.append(neighbor)
 
-        # Add remaining to avoid loss
         if len(sorted_new) < len(new_table_names):
             remaining = [n for n in new_table_names if n not in sorted_new]
             sorted_new.extend(remaining)
@@ -816,14 +807,12 @@ def diff_states(
             table_data = current[table_name]
             ops.append(CreateTable(table_name=table_name, columns=table_data["columns"]))
 
-            # Add composite indexes for new tables
             for idx in table_data["indexes"]:
                 index_name = idx.get("name") or f"idx_{table_name}_{'_'.join(idx['fields'])}"
                 ops.append(
                     CreateIndex(table_name=table_name, index_name=index_name, columns=idx["fields"])
                 )
 
-            # Add unique constraints for new tables
             for ut_fields in table_data["unique_together"]:
                 index_name = f"uniq_{table_name}_{'_'.join(ut_fields)}"
                 ops.append(
@@ -853,7 +842,6 @@ def diff_states(
         restored: set[str] = set()
         restored_old_names: set[str] = set()
 
-        # Handle restored/legacy column names
         for col_name in sorted(added_col_names):
             removed_name = f"_removed_{col_name}"
             if removed_name in old_cols:
@@ -867,7 +855,6 @@ def diff_states(
                 restored.add(col_name)
                 restored_old_names.add(removed_name)
 
-        # Handle soft-removed restores
         for col_name in sorted(added_col_names - restored):
             was_soft = check_was_soft_removed(col_name, table_name, existing)
             if was_soft:
@@ -905,7 +892,6 @@ def diff_states(
                     )
                 restored.add(col_name)
 
-        # Added columns
         for col_name in sorted(added_col_names - restored):
             col = cur_cols[col_name]
             ops.append(
@@ -918,7 +904,6 @@ def diff_states(
                 )
             )
 
-        # Removed columns
         for col_name in sorted(removed_col_names - restored_old_names):
             old_col = old_cols[col_name]
             ops.append(
@@ -936,22 +921,31 @@ def diff_states(
             type_changed = cur.get("type") != old.get("type")
             nullable_changed = cur.get("nullable") != old.get("nullable")
             default_changed = cur.get("default") != old.get("default")
-            field_class_changed = (
-                cur.get("field_class")
-                and old.get("field_class")
-                and cur.get("field_class") != old.get("field_class")
-            )
-            if type_changed or nullable_changed or default_changed or field_class_changed:
+            autoincrement_changed = cur.get("autoincrement") != old.get("autoincrement")
+            primary_key_changed = cur.get("primary_key") != old.get("primary_key")
+            if (
+                type_changed
+                or nullable_changed
+                or default_changed
+                or autoincrement_changed
+                or primary_key_changed
+            ):
                 ops.append(
                     AlterColumn(
                         table_name=table_name,
                         column_name=col_name,
-                        column_type=cur.get("type"),
-                        nullable=cur.get("nullable"),
-                        default=cur.get("default"),
-                        old_type=old.get("type"),
-                        old_nullable=old.get("nullable"),
-                        old_default=old.get("default"),
+                        column_type=cur.get("type") if type_changed else None,
+                        nullable=cur.get("nullable") if nullable_changed else None,
+                        default=cur.get("default") if default_changed else UNSET,
+                        old_type=old.get("type") if type_changed else None,
+                        old_nullable=old.get("nullable") if nullable_changed else None,
+                        old_default=old.get("default") if default_changed else UNSET,
+                        autoincrement=(cur.get("autoincrement") if autoincrement_changed else None),
+                        old_autoincrement=(
+                            old.get("autoincrement") if autoincrement_changed else None
+                        ),
+                        primary_key=(cur.get("primary_key") if primary_key_changed else None),
+                        old_primary_key=(old.get("primary_key") if primary_key_changed else None),
                     )
                 )
 
@@ -1056,14 +1050,28 @@ def format_operation(op: Operation) -> str:
             parts.append(f"        column_type={op.column_type!r}")
         if op.nullable is not None:
             parts.append(f"        nullable={op.nullable!r}")
-        if op.default is not None:
-            parts.append(f"        default={op.default!r}")
+        if op.default is not UNSET:
+            if op.default is None:
+                parts.append("        default=None")
+            else:
+                parts.append(f"        default={op.default!r}")
         if op.old_type is not None:
             parts.append(f"        old_type={op.old_type!r}")
         if op.old_nullable is not None:
             parts.append(f"        old_nullable={op.old_nullable!r}")
-        if op.old_default is not None:
-            parts.append(f"        old_default={op.old_default!r}")
+        if op.old_default is not UNSET:
+            if op.old_default is None:
+                parts.append("        old_default=None")
+            else:
+                parts.append(f"        old_default={op.old_default!r}")
+        if op.autoincrement is not None:
+            parts.append(f"        autoincrement={op.autoincrement!r}")
+        if op.old_autoincrement is not None:
+            parts.append(f"        old_autoincrement={op.old_autoincrement!r}")
+        if op.primary_key is not None:
+            parts.append(f"        primary_key={op.primary_key!r}")
+        if op.old_primary_key is not None:
+            parts.append(f"        old_primary_key={op.old_primary_key!r}")
         inner = ",\n".join(parts)
         return f"    migrations.AlterColumn(\n{inner},\n    ),"
     if isinstance(op, RenameColumn):
@@ -1109,7 +1117,6 @@ def format_operation(op: Operation) -> str:
         if op.reverse_sql:
             return f"    migrations.RunSQL(sql={op.sql!r}, reverse_sql={op.reverse_sql!r}),"
         return f"    migrations.RunSQL({op.sql!r}),"
-    # Fallback for other ops
     return f"    # Unsupported operation: {op!r}"
 
 
@@ -1137,7 +1144,6 @@ def write_migration(
     Returns:
         Path to the written migration file.
     """
-    # Validate app_name to prevent code injection in generated migration
     validate_identifier(app_name, "app name")
 
     filename = f"{migration_name or '0001_initial'}.py"

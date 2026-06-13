@@ -320,11 +320,11 @@ class TestCORSOriginSpoofing:
 
 
 class TestCORSFromSettings:
-    """Tests that CORSMiddleware is wired from CORS_* settings via _build_middleware_stack."""
+    """Tests that CORSMiddleware is wired from CORS_* settings via build_middleware_stack."""
 
     def _build_stack(self, **cors_overrides):
         """Build a middleware stack with CORSMiddleware using the same kwargs logic
-        as OpenViper._build_middleware_stack."""
+        as OpenViper.build_middleware_stack."""
         defaults = {
             "CORS_ALLOWED_ORIGINS": None,
             "CORS_ALLOW_CREDENTIALS": False,

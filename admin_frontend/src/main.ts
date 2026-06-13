@@ -47,8 +47,8 @@ import('@/stores/admin').then(({ useAdminStore }) => {
         params[k] = Array.isArray(v) ? v[0] : v
       }
       window.__adminRegistry?.notifyObject(
-        instance as Record<string, any> | null,
-        adminStore.currentModel as Record<string, any> | null,
+        instance as Record<string, unknown> | null,
+        adminStore.currentModel as Record<string, unknown> | null,
         params
       )
     }
@@ -63,8 +63,8 @@ import('@/stores/admin').then(({ useAdminStore }) => {
         params[k] = Array.isArray(v) ? v[0] : v
       }
       window.__adminRegistry?.notifyList(
-        items as Record<string, any>[],
-        adminStore.currentModel as Record<string, any> | null,
+        items as Record<string, unknown>[],
+        adminStore.currentModel as Record<string, unknown> | null,
         params
       )
     }
@@ -88,8 +88,8 @@ loadExtensions().then(() => {
     // Replay detail object if one is already loaded
     if (adminStore.currentInstance) {
       window.__adminRegistry?.notifyObject(
-        adminStore.currentInstance as Record<string, any>,
-        adminStore.currentModel as Record<string, any> | null,
+        adminStore.currentInstance as Record<string, unknown>,
+        adminStore.currentModel as Record<string, unknown> | null,
         params
       )
     }
@@ -97,8 +97,8 @@ loadExtensions().then(() => {
     // Replay list if rows are already loaded
     if (adminStore.instances.length > 0) {
       window.__adminRegistry?.notifyList(
-        adminStore.instances as Record<string, any>[],
-        adminStore.currentModel as Record<string, any> | null,
+        adminStore.instances as Record<string, unknown>[],
+        adminStore.currentModel as Record<string, unknown> | null,
         params
       )
     }

@@ -58,7 +58,7 @@ class TestBackupDBCommandAsyncHandle:
             "openviper.core.management.commands.backup_db.detect_engine_from_url",
             return_value=mock_engine,
         ):
-            await cmd._async_handle(
+            await cmd.async_handle(
                 path=str(backup_dir),
                 name=None,
                 db="sqlite:///db.sqlite3",
@@ -71,8 +71,6 @@ class TestBackupDBCommandAsyncHandle:
     @pytest.mark.asyncio
     async def test_uses_settings_database_url_when_db_not_given(self, tmp_path: Path) -> None:
         backup_dir = tmp_path / "backup"
-        mock_settings = MagicMock()
-        mock_settings.DATABASE_URL = "sqlite:///settings_db.sqlite3"
 
         mock_engine = MagicMock()
         mock_engine.engine_name = "sqlite"
@@ -85,12 +83,15 @@ class TestBackupDBCommandAsyncHandle:
         mock_engine.dump = fake_dump
 
         cmd = BackupDBCommand()
-        with patch("openviper.core.management.commands.backup_db.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.backup_db.resolve_db_url",
+            return_value="sqlite:///settings_db.sqlite3",
+        ):
             with patch(
                 "openviper.core.management.commands.backup_db.detect_engine_from_url",
                 return_value=mock_engine,
             ):
-                await cmd._async_handle(
+                await cmd.async_handle(
                     path=str(backup_dir),
                     name=None,
                     db=None,
@@ -103,12 +104,13 @@ class TestBackupDBCommandAsyncHandle:
     @pytest.mark.asyncio
     async def test_no_db_url_raises_command_error(self, tmp_path: Path) -> None:
         cmd = BackupDBCommand()
-        mock_settings = MagicMock()
-        mock_settings.DATABASE_URL = ""
 
-        with patch("openviper.core.management.commands.backup_db.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.backup_db.resolve_db_url",
+            side_effect=CommandError("No default DATABASES URL"),
+        ):
             with pytest.raises(CommandError, match="No default DATABASES URL"):
-                await cmd._async_handle(
+                await cmd.async_handle(
                     path=str(tmp_path),
                     name=None,
                     db=None,
@@ -133,7 +135,7 @@ class TestBackupDBCommandAsyncHandle:
             "openviper.core.management.commands.backup_db.detect_engine_from_url",
             return_value=mock_engine,
         ):
-            await cmd._async_handle(
+            await cmd.async_handle(
                 path=str(backup_dir),
                 name="my_custom_backup",
                 db="sqlite:///db.sqlite3",

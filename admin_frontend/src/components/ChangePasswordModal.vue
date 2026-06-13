@@ -58,9 +58,10 @@ async function handleSubmit() {
     form.newPassword = ''
     form.confirmPassword = ''
     emit('success')
-  } catch (err: any) {
-    if (err.response?.data?.error) {
-      error.value = err.response.data.error
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { error?: string } } }
+    if (axiosErr.response?.data?.error) {
+      error.value = axiosErr.response.data.error
     } else {
       error.value = 'Failed to change password'
     }
@@ -171,30 +172,29 @@ function handleClose() {
               {{ fieldErrors.confirmPassword }}
             </p>
           </div>
-        </form>
 
-        <!-- Footer -->
-        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            @click="handleClose"
-            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
-                   bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600
-                   rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            @click="handleSubmit"
-            :disabled="isSubmitting"
-            class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700
-                   rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span v-if="isSubmitting">Saving...</span>
-            <span v-else>Change Password</span>
-          </button>
-        </div>
+          <!-- Footer -->
+          <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              @click="handleClose"
+              class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
+                     bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600
+                     rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="isSubmitting"
+              class="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700
+                     rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span v-if="isSubmitting">Saving...</span>
+              <span v-else>Change Password</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </Teleport>

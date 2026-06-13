@@ -70,7 +70,7 @@ class TestMetadataValidation:
             backup_dir = tmp_path / "backup"
 
             cmd = BackupDBCommand()
-            await cmd._async_handle(
+            await cmd.async_handle(
                 path=str(backup_dir),
                 name="validated",
                 db=f"sqlite:///{db_file}",

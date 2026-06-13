@@ -22,10 +22,6 @@ from openviper.db.migrations.executor import (
     RestoreColumn,
 )
 
-# ---------------------------------------------------------------------------
-# auto_migration_name tests
-# ---------------------------------------------------------------------------
-
 
 class TestAutoMigrationName:
     """Test auto_migration_name function."""
@@ -53,7 +49,7 @@ class TestAutoMigrationName:
     def test_alter_column(self):
         """Test AlterColumn operation naming."""
         ops = [AlterColumn("users", "email", nullable=False)]
-        assert auto_migration_name(ops) == "alter_email"
+        assert auto_migration_name(ops) == "alter_users_email"
 
     def test_rename_column(self):
         """Test RenameColumn operation naming."""
@@ -85,11 +81,6 @@ class TestAutoMigrationName:
         ]
         name = auto_migration_name(ops)
         assert len(name) <= 40
-
-
-# ---------------------------------------------------------------------------
-# Command class tests
-# ---------------------------------------------------------------------------
 
 
 class TestMakemigrationsCommand:
@@ -300,11 +291,6 @@ class TestMakemigrationsCommand:
                             assert exc_info.value.code == 1
 
 
-# ---------------------------------------------------------------------------
-# Dependency analysis tests
-# ---------------------------------------------------------------------------
-
-
 class TestDependencyAnalysis:
     """Test dependency analysis in makemigrations."""
 
@@ -402,11 +388,6 @@ class TestDependencyAnalysis:
         assert "app2" in sorted_labels
 
 
-# ---------------------------------------------------------------------------
-# Drop columns flag test
-# ---------------------------------------------------------------------------
-
-
 class TestDropColumnsFlag:
     """Test --drop-columns flag behavior."""
 
@@ -419,11 +400,6 @@ class TestDropColumnsFlag:
                 op.drop = True
 
         assert ops[0].drop is True
-
-
-# ---------------------------------------------------------------------------
-# Migration file generation tests
-# ---------------------------------------------------------------------------
 
 
 class TestMigrationFileGeneration:

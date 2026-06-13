@@ -9,10 +9,13 @@ from __future__ import annotations
 import copy
 import functools
 import logging
+import re
 import typing as t
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from openviper.admin.actions import AdminAction
+from openviper.admin.constants import is_admin_user
 from openviper.admin.fields import get_field_schema
 from openviper.db.backends.registry import backend_registry
 
@@ -33,6 +36,7 @@ class ModelAdmin:
     search_fields: list[str] | None = None
     ordering: str | list[str] | None = None
     list_per_page: int = 25
+    list_per_page_options: list[int] = [25, 50, 100, 500, 1000]
     list_max_show_all: int = 200
     date_hierarchy: str | None = None
     list_select_related: list[str] | bool | None = None
@@ -70,8 +74,7 @@ class ModelAdmin:
         self._fields = getattr(model_class, "_fields", {})
         self._cached_model_info: dict[str, t.Any] | None = None
 
-        # Initialize mutable defaults as instance attributes to prevent
-        # shared-state bugs across ModelAdmin instances.
+        # Instance-level defaults prevent shared-state mutation.
         if self.list_display is None:
             self.list_display = []
         if self.list_filter is None:
@@ -228,7 +231,7 @@ class ModelAdmin:
         if self.fields is not None:
             return list(self.fields)
         all_fields = list(self._fields.keys())
-        excluded = self.get_exclude(request, obj)
+        excluded = set(self.get_exclude(request, obj))
         is_create = obj is None or getattr(obj, "pk", None) is None
 
         fields = []
@@ -271,19 +274,10 @@ class ModelAdmin:
         if self.sensitive_fields:
             return list(self.sensitive_fields)
 
-        default_sensitive = [
-            "password",
-            "token",
-            "secret",
-            "key",
-            "api_key",
-            "access_token",
-            "refresh_token",
-        ]
+        # Precompiled regex avoids re-building the pattern on every call.
+        _sensitive_re = re.compile(r"password|token|secret|key|api_key|access_token|refresh_token")
         return [
-            f
-            for f in getattr(obj or self.model, "_fields", {})
-            if any(s in f.lower() for s in default_sensitive)
+            f for f in getattr(obj or self.model, "_fields", {}) if _sensitive_re.search(f.lower())
         ]
 
     def get_readonly_fields(
@@ -343,7 +337,27 @@ class ModelAdmin:
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
+
+    def check_virtual_capability(self, capability: str) -> bool:
+        """Check if the virtual backend supports a given capability.
+
+        Returns False if the model is virtual and the backend lacks the
+        given capability. Returns True for non-virtual models or when
+        the capability is present.
+        """
+        meta = getattr(self.model, "_meta", None)
+        if meta is None or not isinstance(getattr(meta, "virtual", None), bool):
+            return True
+        if getattr(meta, "read_only", False):
+            return False
+        if getattr(meta, "virtual", False):
+            backend_name = getattr(meta, "backend", None)
+            if backend_name:
+                backend = backend_registry.get(backend_name)
+                if backend and not getattr(backend.capabilities, capability, True):
+                    return False
+        return True
 
     def has_add_permission(self, request: Request | None = None) -> bool:
         """Check if user can add new instances.
@@ -354,22 +368,14 @@ class ModelAdmin:
         Returns:
             True if user has add permission.
         """
-        meta = getattr(self.model, "_meta", None)
-        if meta is not None and isinstance(getattr(meta, "virtual", None), bool):
-            if getattr(meta, "read_only", False):
-                return False
-            if getattr(meta, "virtual", False):
-                backend_name = getattr(meta, "backend", None)
-                if backend_name:
-                    backend = backend_registry.get(backend_name)
-                    if backend and not getattr(backend.capabilities, "supports_create", True):
-                        return False
+        if not self.check_virtual_capability("supports_create"):
+            return False
         if request is None:
             return True
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
 
     def has_change_permission(
         self, request: Request | None = None, obj: Model | None = None
@@ -383,22 +389,14 @@ class ModelAdmin:
         Returns:
             True if user has change permission.
         """
-        meta = getattr(self.model, "_meta", None)
-        if meta is not None and isinstance(getattr(meta, "virtual", None), bool):
-            if getattr(meta, "read_only", False):
-                return False
-            if getattr(meta, "virtual", False):
-                backend_name = getattr(meta, "backend", None)
-                if backend_name:
-                    backend = backend_registry.get(backend_name)
-                    if backend and not getattr(backend.capabilities, "supports_update", True):
-                        return False
+        if not self.check_virtual_capability("supports_update"):
+            return False
         if request is None:
             return True
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
 
     def has_delete_permission(
         self, request: Request | None = None, obj: Model | None = None
@@ -412,22 +410,14 @@ class ModelAdmin:
         Returns:
             True if user has delete permission.
         """
-        meta = getattr(self.model, "_meta", None)
-        if meta is not None and isinstance(getattr(meta, "virtual", None), bool):
-            if getattr(meta, "read_only", False):
-                return False
-            if getattr(meta, "virtual", False):
-                backend_name = getattr(meta, "backend", None)
-                if backend_name:
-                    backend = backend_registry.get(backend_name)
-                    if backend and not getattr(backend.capabilities, "supports_delete", True):
-                        return False
+        if not self.check_virtual_capability("supports_delete"):
+            return False
         if request is None:
             return True
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
 
     async def save_model(
         self,
@@ -504,9 +494,30 @@ class ModelAdmin:
                         self.__class__.__name__,
                     )
             else:
-                name = getattr(action_name_or_func, "__name__", str(action_name_or_func))
+                if isinstance(action_name_or_func, type) and issubclass(
+                    action_name_or_func, AdminAction
+                ):
+                    name = action_name_or_func.name or action_name_or_func.__name__.lower()
+                else:
+                    name = getattr(action_name_or_func, "__name__", str(action_name_or_func))
                 actions[name] = action_name_or_func
         return actions
+
+    def serialize_actions(self) -> list[dict[str, str]]:
+        """Build action metadata for the model info API response.
+
+        Returns a list of dicts with ``name`` and ``description`` keys so
+        the frontend can display human-readable labels while sending the
+        internal ``name`` to the bulk-action endpoint.
+        """
+        result: list[dict[str, str]] = []
+        for name, action in self.get_actions().items():
+            if isinstance(action, type) and issubclass(action, AdminAction):
+                instance = action()
+                result.append({"name": name, "description": instance.description or name})
+            else:
+                result.append({"name": name, "description": name.replace("_", " ").title()})
+        return result
 
     async def action_delete_selected(self, request: Request, queryset: t.Any) -> int:
         """Built-in action: delete selected objects.
@@ -540,8 +551,8 @@ class ModelAdmin:
             }
             return info
 
-        sensitive_fields = self.get_sensitive_fields()
-        excluded_fields = self.get_exclude()
+        sensitive_fields = set(self.get_sensitive_fields())
+        excluded_fields = set(self.get_exclude())
 
         fields_info = {}
         for field_name, field in self._fields.items():
@@ -576,6 +587,7 @@ class ModelAdmin:
                 self.model, "_verbose_name_plural", f"{self._model_name}s"
             ),
             "is_virtual": bool(getattr(getattr(self.model, "_meta", None), "virtual", False)),
+            "is_single": bool(getattr(getattr(self.model, "_meta", None), "single", False)),
             "fields": fields_info,
             "fieldsets": filtered_fieldsets if filtered_fieldsets else None,
             "list_display": self.get_list_display(),
@@ -583,14 +595,14 @@ class ModelAdmin:
             "search_fields": self.get_search_fields(),
             "ordering": self.get_ordering(),
             "list_per_page": self.list_per_page,
+            "list_per_page_options": self.list_per_page_options,
             "readonly_fields": list(self.readonly_fields),
-            "actions": list(self.get_actions().keys()),
+            "actions": self.serialize_actions(),
             "child_tables": self.get_child_tables_info(),
             "list_display_styles": self.list_display_styles,
         }
 
-        # Add permissions for the current request - deep copy to prevent
-        # callers from mutating the cached nested dicts.
+        # Deep copy prevents mutation of cached permission dicts.
         info = copy.deepcopy(self._cached_model_info)
         info["permissions"] = {
             "add": bool(self.has_add_permission(request)),

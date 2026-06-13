@@ -1,4 +1,5 @@
 import type { App } from 'vue'
+import type { RouteRecordRaw } from 'vue-router'
 import type { AdminPlugin, ModelConfig } from '@/types/admin'
 
 // Plugin registry
@@ -7,8 +8,8 @@ const plugins: Map<string, AdminPlugin> = new Map()
 // Plugin hooks
 const hooks = {
   onModelLoad: [] as Array<(config: ModelConfig) => void>,
-  onBeforeSave: [] as Array<(model: string, data: any) => any>,
-  onAfterSave: [] as Array<(model: string, data: any) => void>,
+  onBeforeSave: [] as Array<(model: string, data: Record<string, unknown>) => Record<string, unknown>>,
+  onAfterSave: [] as Array<(model: string, data: Record<string, unknown>) => void>,
   onBeforeDelete: [] as Array<(model: string, id: string | number) => boolean>,
 }
 
@@ -90,7 +91,7 @@ export function runOnModelLoad(config: ModelConfig): void {
  * Run onBeforeSave hooks
  * Returns the potentially modified data
  */
-export function runOnBeforeSave(model: string, data: any): any {
+export function runOnBeforeSave(model: string, data: Record<string, unknown>): Record<string, unknown> {
   let result = data
   for (const hook of hooks.onBeforeSave) {
     try {
@@ -105,7 +106,7 @@ export function runOnBeforeSave(model: string, data: any): any {
 /**
  * Run onAfterSave hooks
  */
-export function runOnAfterSave(model: string, data: any): void {
+export function runOnAfterSave(model: string, data: Record<string, unknown>): void {
   for (const hook of hooks.onAfterSave) {
     try {
       hook(model, data)
@@ -135,8 +136,8 @@ export function runOnBeforeDelete(model: string, id: string | number): boolean {
 /**
  * Get all plugin routes
  */
-export function getPluginRoutes(): any[] {
-  const routes: any[] = []
+export function getPluginRoutes(): RouteRecordRaw[] {
+  const routes: RouteRecordRaw[] = []
   for (const plugin of plugins.values()) {
     if (plugin.routes) {
       routes.push(...plugin.routes)

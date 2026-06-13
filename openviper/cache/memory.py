@@ -4,23 +4,48 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, cast
+from collections.abc import Mapping
+from typing import Any
 
 from openviper.cache.base import BaseCache
 from openviper.cache.validation import validate_cache_key
 from openviper.conf import settings
+
+DEFAULT_CACHE_TTL: int = 300
+
+
+def get_default_ttl() -> int:
+    """Return the default TTL from CACHES config or legacy CACHE_TTL setting."""
+    caches = getattr(settings, "CACHES", {})
+    if isinstance(caches, Mapping):
+        default_config = caches.get("default")
+        if isinstance(default_config, Mapping):
+            options = default_config.get("OPTIONS")
+            if isinstance(options, Mapping):
+                ttl = options.get("ttl") or options.get("TTL")
+                if isinstance(ttl, int):
+                    return ttl
+    cache_ttl = getattr(settings, "CACHE_TTL", None)
+    if isinstance(cache_ttl, int):
+        return cache_ttl
+    return DEFAULT_CACHE_TTL
 
 
 class InMemoryCache(BaseCache):
     """Simple in-memory cache implementation using a dictionary.
 
     Thread-safe for concurrent async access via an ``asyncio.Lock``.
-    When no ``ttl`` is provided to ``set()``, ``settings.CACHE_TTL`` is
-    used as the default.
+    When no ``ttl`` is provided to ``set()``, the TTL from
+    ``CACHES['default']['OPTIONS']['ttl']`` is used (default 300 seconds).
     """
 
-    def __init__(self) -> None:
-        """Initialise the in-memory store and async lock."""
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialise the in-memory store and async lock.
+
+        Accepts and ignores extra keyword arguments so that OPTIONS
+        like ``ttl`` can be present in the CACHES config without
+        causing ``TypeError``.
+        """
         self._data: dict[str, tuple[Any, float | None]] = {}
         self._lock: asyncio.Lock = asyncio.Lock()
 
@@ -42,7 +67,7 @@ class InMemoryCache(BaseCache):
         """Store a value in the cache with an optional TTL."""
         validate_cache_key(key)
         if ttl is None:
-            ttl = int(cast("int", settings.CACHE_TTL))
+            ttl = get_default_ttl()
         expiry = time.time() + ttl
         async with self._lock:
             self._data[key] = (value, expiry)
@@ -77,9 +102,10 @@ class InMemoryCache(BaseCache):
         """Return all cache keys, optionally filtered by prefix."""
         async with self._lock:
             now = time.time()
-            expired = [k for k, (_, exp) in self._data.items() if exp is not None and now >= exp]
-            for k in expired:
-                del self._data[k]
-            if prefix:
-                return [k for k in self._data if k.startswith(prefix)]
-            return list(self._data)
+            result: list[str] = []
+            for key, (_, exp) in self._data.items():
+                if exp is not None and now >= exp:
+                    del self._data[key]
+                elif not prefix or key.startswith(prefix):
+                    result.append(key)
+            return result

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import atexit
 import concurrent.futures
-import importlib
 import importlib.util
 import logging
 import os
@@ -23,6 +22,7 @@ import types
 from typing import TYPE_CHECKING
 
 from openviper.conf import settings
+from openviper.template.paths import PROJECT_ROOT, iter_app_dirs, validate_path_and_warn
 
 if TYPE_CHECKING:
     from jinja2 import Environment
@@ -69,6 +69,14 @@ THREAD_POOL = concurrent.futures.ThreadPoolExecutor(
 atexit.register(THREAD_POOL.shutdown, False)
 
 
+def apply_to_env(env: Environment) -> None:
+    """Copy cached filters and globals into a Jinja2 environment instance."""
+    if STATE.filters:
+        env.filters.update(STATE.filters.copy())
+    if STATE.globals:
+        env.globals.update(STATE.globals.copy())
+
+
 def load(env: Environment, *, wait: bool = True) -> None:
     """Register discovered Jinja2 plugins into *env*.
 
@@ -82,10 +90,7 @@ def load(env: Environment, *, wait: bool = True) -> None:
             registers any already-discovered plugins immediately and returns.
     """
     if STATE.loaded:
-        if STATE.filters:
-            env.filters.update(STATE.filters.copy())
-        if STATE.globals:
-            env.globals.update(STATE.globals.copy())
+        apply_to_env(env)
         return
 
     cfg: dict[str, object] = getattr(settings, "JINJA_PLUGINS", None) or {}
@@ -95,10 +100,7 @@ def load(env: Environment, *, wait: bool = True) -> None:
 
     with DISCOVERY_LOCK:
         if STATE.loaded:
-            if STATE.filters:
-                env.filters.update(STATE.filters.copy())
-            if STATE.globals:
-                env.globals.update(STATE.globals.copy())
+            apply_to_env(env)
             return
 
         if STATE.future is None:
@@ -112,13 +114,46 @@ def load(env: Environment, *, wait: bool = True) -> None:
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning("Plugin discovery failed: %s", exc)
 
-        if STATE.filters:
-            env.filters.update(STATE.filters.copy())
-        if STATE.globals:
-            env.globals.update(STATE.globals.copy())
+        apply_to_env(env)
 
         if STATE.future is None or STATE.future.done():
             STATE.loaded = True
+
+
+def scan_plugin_dirs(root: str) -> dict[str, dict[str, object]]:
+    """Scan filters/ and globals/ subdirectories under *root*.
+
+    Returns a mapping with ``"filters"`` and ``"globals"`` keys whose
+    values are the respective callable dictionaries discovered by
+    :func:`scan_directory`.
+    """
+    result: dict[str, dict[str, object]] = {
+        "filters": scan_directory(os.path.join(root, "filters")),
+        "globals": scan_directory(os.path.join(root, "globals")),
+    }
+    return result
+
+
+def merge_scanned(
+    root: str,
+    merged_filters: dict[str, object],
+    merged_globals: dict[str, object],
+) -> None:
+    """Scan plugin directories under *root* and merge into target dicts."""
+    scanned = scan_plugin_dirs(root)
+    merged_filters.update(scanned["filters"])
+    merged_globals.update(scanned["globals"])
+
+
+def log_registered(kind: str, collection: dict[str, object]) -> None:
+    """Log the count and sorted names of a registered plugin collection."""
+    if collection:
+        logger.debug(
+            "Registered %d Jinja2 %s(s): %s",
+            len(collection),
+            kind,
+            sorted(collection),
+        )
 
 
 def discover_plugins(cfg: dict[str, object]) -> bool:
@@ -129,33 +164,20 @@ def discover_plugins(cfg: dict[str, object]) -> bool:
     merged_filters: dict[str, object] = {}
     merged_globals: dict[str, object] = {}
 
-    for app_label in getattr(settings, "INSTALLED_APPS", ()):
-        try:
-            mod = importlib.import_module(app_label)
-            if not (hasattr(mod, "__file__") and mod.__file__):
-                continue
-            app_plugin_root = os.path.join(os.path.dirname(mod.__file__), "jinja_plugins")
-            if not os.path.isdir(app_plugin_root):
-                continue
-            merged_filters.update(scan_directory(os.path.join(app_plugin_root, "filters")))
-            merged_globals.update(scan_directory(os.path.join(app_plugin_root, "globals")))
-        except ImportError, AttributeError:
+    for _app_label, app_dir in iter_app_dirs():
+        app_plugin_root = os.path.join(app_dir, "jinja_plugins")
+        if not os.path.isdir(app_plugin_root):
             continue
+        merge_scanned(app_plugin_root, merged_filters, merged_globals)
 
     plugin_root: str = str(cfg.get("path", "jinja_plugins") or "jinja_plugins")
     if not os.path.isabs(plugin_root):
-        project_root = os.path.abspath(".")
-        resolved_root = os.path.abspath(plugin_root)
-        if not (resolved_root == project_root or resolved_root.startswith(project_root + os.sep)):
-            logger.warning(
-                "JINJA_PLUGINS path %r escapes project root; "
-                "skipping project-level plugin discovery.",
-                plugin_root,
-            )
-            plugin_root = ""
+        validated = validate_path_and_warn(
+            os.path.abspath(plugin_root), PROJECT_ROOT, "JINJA_PLUGINS"
+        )
+        plugin_root = "" if validated is None else validated
     if plugin_root and os.path.isdir(plugin_root):
-        merged_filters.update(scan_directory(os.path.join(plugin_root, "filters")))
-        merged_globals.update(scan_directory(os.path.join(plugin_root, "globals")))
+        merge_scanned(plugin_root, merged_filters, merged_globals)
     elif plugin_root:
         logger.debug(
             "JINJA_PLUGINS path %r does not exist; skipping project-level plugin discovery.",
@@ -165,18 +187,8 @@ def discover_plugins(cfg: dict[str, object]) -> bool:
     STATE.filters.update(merged_filters)
     STATE.globals.update(merged_globals)
 
-    if STATE.filters:
-        logger.debug(
-            "Registered %d Jinja2 filter(s): %s",
-            len(STATE.filters),
-            sorted(STATE.filters),
-        )
-    if STATE.globals:
-        logger.debug(
-            "Registered %d Jinja2 global(s): %s",
-            len(STATE.globals),
-            sorted(STATE.globals),
-        )
+    log_registered("filter", STATE.filters)
+    log_registered("global", STATE.globals)
 
     return True
 

@@ -19,10 +19,6 @@ from openviper.routing.router import (
     sanitize_request_path,
 )
 
-# ---------------------------------------------------------------------------
-# ROUTE-001: Protected routes cannot be bypassed by trailing slashes
-# ---------------------------------------------------------------------------
-
 
 class TestTrailingSlashBypass:
     """Protected routes must enforce authorization regardless of trailing slash."""
@@ -33,8 +29,8 @@ class TestTrailingSlashBypass:
         route_without = Route("/admin/", {"GET"}, handler=lambda r: r, name="admin_slash")
 
         # Both should compile successfully
-        assert route_with._regex is not None
-        assert route_without._regex is not None
+        assert route_with.compiled_regex is not None
+        assert route_without.compiled_regex is not None
 
     def test_route001_normalize_preserves_trailing_slash(self):
         """Path normalization must not add or remove trailing slashes."""
@@ -61,11 +57,6 @@ class TestTrailingSlashBypass:
 
         route_slash, params_slash = router.resolve("GET", "/admin/")
         assert route_slash is not None
-
-
-# ---------------------------------------------------------------------------
-# ROUTE-002: Protected routes cannot be bypassed by encoded paths
-# ---------------------------------------------------------------------------
 
 
 class TestEncodedPathBypass:
@@ -141,11 +132,6 @@ class TestEncodedPathBypass:
             router.resolve("GET", "/admin%2fpanel")
 
 
-# ---------------------------------------------------------------------------
-# ROUTE-003: Route precedence must not expose sensitive routes
-# ---------------------------------------------------------------------------
-
-
 class TestRoutePrecedence:
     """More specific routes must take precedence over broader ones."""
 
@@ -172,13 +158,8 @@ class TestRoutePrecedence:
         route_broad = Route("/api/{version}/users", {"GET"}, handler=lambda r: r)
 
         # Both should compile; specificity determines order
-        assert route_specific._is_literal is True
-        assert route_broad._is_literal is False
-
-
-# ---------------------------------------------------------------------------
-# ROUTE-004: Regex routes must resist ReDoS
-# ---------------------------------------------------------------------------
+        assert route_specific.is_literal is True
+        assert route_broad.is_literal is False
 
 
 class TestRegexReDoS:
@@ -218,11 +199,6 @@ class TestRegexReDoS:
         assert result is not None
 
 
-# ---------------------------------------------------------------------------
-# ROUTE-005: Static file routes must not bypass middleware
-# ---------------------------------------------------------------------------
-
-
 class TestStaticFileMiddlewareEnforcement:
     """Static file routes must go through the same middleware pipeline."""
 
@@ -245,11 +221,6 @@ class TestStaticFileMiddlewareEnforcement:
         assert match is not None
         # The path converter now rejects segments starting with ..
         # Traversal is also blocked at the normalization layer.
-
-
-# ---------------------------------------------------------------------------
-# ROUTE-006: Null bytes must be rejected in request paths
-# ---------------------------------------------------------------------------
 
 
 class TestNullByteRejection:
@@ -283,11 +254,6 @@ class TestNullByteRejection:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# ROUTE-007: Unknown path converters must be rejected at registration time
-# ---------------------------------------------------------------------------
-
-
 class TestUnknownConverterRejection:
     """Unknown path converter types must raise an error at route registration."""
 
@@ -300,18 +266,13 @@ class TestUnknownConverterRejection:
         """All built-in converter types must be accepted."""
         for conv in ("str", "int", "float", "path", "uuid", "slug"):
             route = Route(f"/{{{conv}_val:{conv}}}", {"GET"}, handler=lambda r: r)
-            assert route._regex is not None
+            assert route.compiled_regex is not None
 
     def test_route007_default_converter_accepted(self):
         """Parameters without an explicit type default to 'str'."""
         route = Route("/users/{id}", {"GET"}, handler=lambda r: r)
-        assert route._regex is not None
-        assert "id" in route._converters
-
-
-# ---------------------------------------------------------------------------
-# ROUTE-008: url_for must sanitize path parameter values
-# ---------------------------------------------------------------------------
+        assert route.compiled_regex is not None
+        assert "id" in route.param_converters
 
 
 class TestUrlForSanitization:

@@ -59,19 +59,16 @@ function isSelected(instance: ModelInstance): boolean {
   return props.selectedIds?.includes(instance.id) ?? false
 }
 
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '-'
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   if (value instanceof Date) return value.toLocaleDateString()
 
-  // For objects (including JSON field values), format nicely
   if (typeof value === 'object') {
     const jsonStr = JSON.stringify(value)
-    // Truncate long JSON for list view
     return jsonStr.length > 60 ? jsonStr.slice(0, 60) + '...' : jsonStr
   }
 
-  // Truncate long strings
   const str = String(value)
   return str.length > 100 ? str.slice(0, 100) + '...' : str
 }
@@ -80,7 +77,7 @@ function getColumnStyle(fieldName: string): string | undefined {
   return props.model.list_display_styles?.[fieldName]
 }
 
-function getStatusBadgeClass(status: any): string {
+function getStatusBadgeClass(status: unknown): string {
   const s = String(status).toLowerCase()
   if (s === 'success' || s === 'completed' || s === 'done') {
     return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
@@ -230,7 +227,7 @@ const urlFieldNames = computed(() => {
             <template v-else-if="urlFieldNames.has(column) && isValidUrl(instance[column])">
               <a
                 :href="instance[column]"
-                target="_blank"
+                target="_blank" rel="noopener noreferrer"
                 class="text-primary-600 hover:text-primary-700 dark:text-primary-400 underline"
                 @click.stop
               >

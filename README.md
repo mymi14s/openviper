@@ -28,16 +28,16 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 |---|---|
 | 🔀 **Routing** | function-based and class-based (`View`) routes, path params, sub-routers, per-route middleware |
 | 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events, protected queries |
-| 🔐 **Auth** | Session + JWT + token auth, Argon2id/bcrypt hashing, roles, permissions, `@login_required`, lifecycle hooks |
+| 🔐 **Auth** | Session + JWT + token auth, Argon2id/bcrypt hashing, roles, permissions, `@login_required`, OAuth2, lifecycle hooks, `ensure_authenticated()` |
 | 🖥️ **Admin UI** | Auto-discovered Vue 3 SPA - CRUD, bulk actions, change history, inlines, role-based visibility |
 | 🔧 **Middleware** | Auth, CORS, CSRF, rate-limiting, security headers, DB connection pinning |
 | ⚙️ **Background Tasks** | Dramatiq-backed task queue with retry, priorities, model-event hooks |
 | 🕐 **Scheduler** | Cron and interval periodic jobs built into the framework |
 | 🤖 **AI Registry** | Unified async API - OpenAI, Anthropic, Gemini, Ollama, Grok, custom providers, streaming, moderation |
-| 📦 **Serializers** | Pydantic v2-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware, readonly/writeonly fields |
+| 📦 **Serializers** | Pydantic v2-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware, readonly/writeonly fields, `serialize_value()` |
 | 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes and type hints |
 | 📧 **Email** | Async email delivery with Jinja2 templates, Markdown rendering, SMTP/Console backends, attachments |
-| 💾 **Cache** | In-memory, Redis, and database cache backends with async API |
+| 💾 **Cache** | In-memory, Redis, Dragonfly, Memcached, and database cache backends with async API, `deserialize_cache_value()` |
 | 📁 **Storage** | Pluggable file storage API - FileSystemStorage, async uploads, media serving |
 | 🌐 **Static Files** | Development static serving, `collectstatic` for production, ETag/range support |
 | 🗺️ **Geolocation** | PostGIS-compatible `PointField` with haversine distance, WKT/EWKT/GeoJSON serialization |
@@ -62,14 +62,19 @@ pip install openviper
 Optional extras:
 
 ```bash
-pip install openviper[postgres]      # PostgreSQL (asyncpg + psycopg2-binary)
-pip install openviper[mariadb]      # MariaDB / MySQL (aiomysql)
-pip install openviper[mssql]       # MS SQL Server (aioodbc)
-pip install openviper[oracle]      # Oracle (oracledb)
-pip install openviper[tasks]       # Dramatiq task queue + Redis
-pip install openviper[ai]           # OpenAI, Anthropic, Google GenAI SDKs
-pip install openviper[geolocation]  # PostGIS + shapely
-pip install openviper[all]          # Everything
+pip install openviper[postgres]          # PostgreSQL (asyncpg + psycopg2-binary)
+pip install openviper[mariadb]          # MariaDB / MySQL (aiomysql)
+pip install openviper[mssql]             # MS SQL Server (aioodbc)
+pip install openviper[oracle]            # Oracle (oracledb)
+pip install openviper[ai]               # OpenAI, Anthropic, Google GenAI SDKs
+pip install openviper[tasks]             # Dramatiq 2.1+ task queue, Croniter
+pip install openviper[tasks-redis]       # Redis broker for Dramatiq tasks
+pip install openviper[tasks-rabbitmq]    # RabbitMQ broker for Dramatiq
+pip install openviper[tasks-sqs]          # Amazon SQS broker for Dramatiq
+pip install openviper[tasks-postgresql]   # PostgreSQL broker for Dramatiq
+pip install openviper[geolocation]       # PostGIS + shapely
+pip install openviper[testing]           # pytest, httpx, pytest-asyncio
+pip install openviper[all]               # Everything
 ```
 
 Development extras:
@@ -120,17 +125,28 @@ openviper create-project myproject
 cd myproject
 openviper create-app blog
 
-# Configure your myproject/settings.py
-
+# Configure DATABASES in myproject/settings.py:
+DATABASES = {
+    "default": {
+        "OPTIONS": {
+            "URL": "sqlite+aiosqlite:///./db.sqlite3",
+        },
+    },
+}
 
 # Run migrations and create an admin user
+# Using python viperctl.py (from inside the project):
 python viperctl.py makemigrations
 python viperctl.py migrate
 python viperctl.py createsuperuser
 
+# Or using openviper viperctl (from any directory):
+openviper viperctl makemigrations .
+openviper viperctl migrate .
+openviper viperctl createsuperuser .
+
 # Start everything
-python viperctl.py start-server    # web server
-python viperctl.py start-worker    # background task worker (separate terminal)
+python viperctl.py start-server    # or: openviper viperctl start-server .
 ```
 
 ---
@@ -217,48 +233,58 @@ class PostAdmin(ModelAdmin):
         return ActionResult(success=True, count=count, message=f"Published {count} posts.")
 ```
 
-start server
+Admin API helpers for custom endpoints:
+
+```python
+from openviper.admin.api.views import resolve_admin_model, require_admin_access
+from openviper.admin.api.serializers import serialize_value
+from openviper.exceptions import PermissionDenied, NotFound
+
+async def my_admin_endpoint(request, app_label, model_name):
+    require_admin_access(request)  # raises PermissionDenied if not admin
+    model_admin, model_class = resolve_admin_model(app_label, model_name)  # raises NotFound
+    instance = await model_class.objects.get_or_none(id=some_id)
+    return {"data": serialize_value(instance)}
+```
+
+Start the server:
 
 ```bash
-python viperctl.py start-server
+python viperctl.py start-server    # or: openviper viperctl start-server .
 ```
 
 Visit `http://localhost:8000/admin`
 
-### Background Tasks
+### Authentication & Authorization
 
 ```python
-# blog/tasks.py
-from openviper.tasks import task
+from openviper.auth.decorators import (
+    login_required, permission_required, role_required,
+    superuser_required, staff_required, ensure_authenticated,
+)
+from openviper.auth.session.utils import get_session_cookie_config
 
-@task(queue_name="default", max_retries=3, priority=0)
-async def send_welcome_email(user_id: int):
-    """Send a welcome email to a new user."""
+@login_required
+async def dashboard(request):
+    return JSONResponse({"user": request.user.username})
+
+@permission_required("post.delete")
+async def delete_post(request, post_id: int):
     ...
 
-# Enqueue: fire-and-forget
-send_welcome_email.send(user_id=42)
-
-# Enqueue: with delay (milliseconds)
-send_welcome_email.send_with_options(args=(42,), delay=5_000)
-```
-
-### Periodic Scheduler
-
-```python
-from openviper.tasks.scheduler import periodic
-
-@periodic(every=60)          # every 60 seconds
-async def morning_digest():
+@role_required("manager")
+async def reports(request):
     ...
 
-@periodic(cron="0 8 * * 1-5")  # weekdays at 08:00
-async def weekday_report():
-    ...
-```
+# Programmatic auth check - raises Unauthorized if not authenticated
+def some_view(request, **kwargs):
+    req = ensure_authenticated(args, kwargs)
+    user = req.user
 
-```bash
-python viperctl.py start-worker
+# Session cookie configuration from settings
+config = get_session_cookie_config()
+# config.cookie_name, config.httponly, config.secure, config.samesite,
+# config.path, config.domain, config.max_age
 ```
 
 ---
@@ -287,6 +313,44 @@ Full reference documentation lives in [`https://mymi14s.github.io/openviper/`](h
 
 ## 🛠️ Management Commands
 
+There are **two ways** to run management commands:
+
+### `python viperctl.py` (from inside a project)
+
+Generated by `openviper create-project`, this script is pre-configured
+with your project's settings module:
+
+```bash
+cd myproject
+python viperctl.py makemigrations
+python viperctl.py migrate
+python viperctl.py console
+python viperctl.py start-server
+python viperctl.py start-worker
+```
+
+### `openviper viperctl` (from any directory)
+
+Auto-discovers the project layout from the current working directory.
+Use `.` to target the current directory:
+
+```bash
+# Root-layout projects (e.g. examples/fx)
+cd examples/fx
+openviper viperctl migrate .
+openviper viperctl start-server .
+
+# Module-organized projects (e.g. examples/ai_moderation_platform)
+cd examples/ai_moderation_platform
+openviper viperctl migrate .
+openviper viperctl console .
+
+# Or specify a module name explicitly
+openviper viperctl --settings myproject.settings console
+```
+
+### Command Reference
+
 | Command | Description |
 |---|---|
 | `makemigrations` | Generate migration files for changed models |
@@ -294,12 +358,13 @@ Full reference documentation lives in [`https://mymi14s.github.io/openviper/`](h
 | `createsuperuser` | Interactively create an admin superuser |
 | `changepassword` | Change a user's password |
 | `console` | Open a Python REPL with models and settings pre-loaded |
-| `start-worker` | Start the background task worker |
 | `collectstatic` | Collect static assets into `STATIC_ROOT` |
 | `create-app` | Scaffold a new app package |
 | `create-provider` | Scaffold a new AI provider package |
 | `backup-db` | Create a compressed database backup |
 | `restore-db` | Restore a database from backup |
+| `start-worker` | Start the background task worker and scheduler |
+| `start-server` | Start the ASGI development server |
 | `test` | Run the project test suite via pytest |
 
 ---

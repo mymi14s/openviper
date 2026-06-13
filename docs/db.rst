@@ -520,19 +520,19 @@ All fields accept a common set of base arguments: ``primary_key``,
    * - ``CountryField(max_length=2, extra_countries=None)``
      - ISO 3166-1 alpha-2 country code stored as a 2-character ``VARCHAR``.
        Values are validated against the built-in country registry.
-       Returns a :class:`~openviper.contrib.countries.Country` instance on
+       Returns a :class:`~openviper.contrib.fields.countries.Country` instance on
        access, giving rich metadata properties: ``.iso``, ``.name``,
        ``.dial_code``, ``.alpha3``, ``.numeric``, ``.continent``,
        ``.region``, ``.capital``, ``.currency_code``, ``.currency_name``,
        ``.currency_symbol``, ``.languages``, ``.tld``, ``.flag``,
        ``.is_eu``, ``.is_eea``, ``.timezone``, ``.is_valid``.
        Pass ``extra_countries`` to register non-standard codes.
-       Available from ``openviper.contrib.countries``.
+       Available from ``openviper.contrib.fields.countries``.
 
        .. code-block:: python
 
           from openviper.db import Model
-          from openviper.contrib.countries import CountryField
+          from openviper.contrib.fields.countries import CountryField
 
           class UserProfile(Model):
               country = CountryField(null=True, db_index=True)
@@ -586,6 +586,16 @@ All fields accept a common set of base arguments: ``primary_key``,
        ``"both"`` (default), ``"IPv4"``, or ``"IPv6"``.  When *unpack_ipv4*
        is ``True``, IPv4-mapped IPv6 addresses (e.g. ``::ffff:192.0.2.1``)
        are unpacked to plain IPv4.
+
+   * - ``ArrayField(base_field, size=None)``
+     - Homogeneous list of a scalar field type.  On PostgreSQL the column
+       uses the native ``ARRAY`` type (e.g. ``INTEGER[]``, ``VARCHAR[]``);
+       on other databases values are stored as JSON text.
+       *base_field* accepts a Field instance (``IntegerField()``) or class
+       (``IntegerField``, auto-instantiated with defaults).
+       *size* caps the maximum number of elements at validation time.
+       Available from ``openviper.contrib.fields.array_fields``.
+       See :doc:`array_fields` for full documentation.
 
 ``openviper.db.models.Index``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1020,12 +1030,18 @@ Transactions
 
 .. code-block:: python
 
-    from openviper.db.executor import _begin
+    from openviper.db.connection import transaction, atomic
 
     async def example():
-        # Use _begin() for an explicit transaction block
-        async with _begin() as conn:
-            await conn.execute(...)
+        # transaction() pins all ORM operations to a specific alias
+        async with transaction(using="default"):
+            await Post.objects.create(title="Hello")
+            await Tag.objects.create(name="python")
+
+        # atomic() wraps a block in a commit/rollback transaction
+        async with atomic():
+            await Post.objects.create(title="Hello")
+            await Tag.objects.create(name="python")
 
 Bypassing Permissions
 ~~~~~~~~~~~~~~~~~~~~~

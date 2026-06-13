@@ -15,6 +15,7 @@ from openviper.db.routing.context import (
     mark_write_used,
     read_from_primary,
 )
+from openviper.db.utils import get_database_routers
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class RouterResolver:
 class DefaultRouterResolver(RouterResolver):
     """Router resolver that loads routers from settings on first use.
 
-    Reads ``DATABASE_ROUTERS`` from settings and instantiates
+    Reads ``DATABASES['ROUTERS']`` from settings and instantiates
     each router class lazily.
     """
 
@@ -127,7 +128,7 @@ class DefaultRouterResolver(RouterResolver):
             return
         self.loaded = True
 
-        router_paths = getattr(settings, "DATABASE_ROUTERS", [])
+        router_paths = get_database_routers(settings)
         if not router_paths:
             return
 

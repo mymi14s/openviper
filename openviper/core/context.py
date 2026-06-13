@@ -16,7 +16,7 @@ current_user: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
     "current_user", default=None
 )
 
-# Tracks whether permissions should be ignored for the current execution context
+# Whether permissions are ignored for the current context.
 ignore_permissions_ctx: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "ignore_permissions_ctx", default=False
 )
@@ -26,8 +26,8 @@ current_request: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
     "current_request", default=None
 )
 
-# Tracks per-request permission cache to avoid redundant DB/Cache lookups.
-# Default is None (not a mutable dict) to prevent cross-request cache leakage.
+# Per-request permission cache to avoid redundant lookups.
+# None default prevents cross-request cache leakage.
 request_perms_cache: contextvars.ContextVar[dict[Any, set[str]] | None] = contextvars.ContextVar(
     "request_perms_cache", default=None
 )

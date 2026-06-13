@@ -377,7 +377,7 @@ class TestCoerceResponse:
 
 
 class TestHandleException:
-    """Tests for _handle_exception method."""
+    """Tests for handle_exception method."""
 
     @pytest.mark.asyncio
     async def test_handles_http_exception(self):
@@ -386,7 +386,7 @@ class TestHandleException:
 
         exc = HTTPException(status_code=404, detail="Not found")
 
-        response = await app._handle_exception(request, exc)
+        response = await app.handle_exception(request, exc)
 
         assert response.status_code == 404
 
@@ -404,7 +404,7 @@ class TestHandleException:
         request = MagicMock(spec=Request)
         exc = CustomError("test")
 
-        response = await app._handle_exception(request, exc)
+        response = await app.handle_exception(request, exc)
 
         assert response.status_code == 400
 
@@ -415,20 +415,20 @@ class TestHandleException:
 
         exc = ValueError("Something went wrong")
 
-        response = await app._handle_exception(request, exc)
+        response = await app.handle_exception(request, exc)
 
         assert response.status_code == 500
 
 
 class TestCreateErrorResponse:
-    """Tests for _create_error_response method."""
+    """Tests for create_error_response method."""
 
     def test_creates_json_error_response(self):
         app = OpenViper()
         request = MagicMock(spec=Request)
         request.headers = {"accept": "application/json"}
 
-        response = app._create_error_response(
+        response = app.create_error_response(
             request,
             {"detail": "Bad request"},
             status_code=400,
@@ -442,7 +442,7 @@ class TestCreateErrorResponse:
         request = MagicMock(spec=Request)
         request.headers = {"accept": "text/html"}
 
-        response = app._create_error_response(
+        response = app.create_error_response(
             request,
             {"detail": "Not found"},
             status_code=404,
@@ -495,7 +495,7 @@ class TestCallHandler:
 
 
 class TestHandleHTTP:
-    """Tests for _handle_http method."""
+    """Tests for handle_http method."""
 
     @pytest.mark.asyncio
     async def test_handles_valid_request(self):
@@ -515,7 +515,7 @@ class TestHandleHTTP:
         receive = AsyncMock()
         send = AsyncMock()
 
-        await app._handle_http(scope, receive, send)
+        await app.handle_http(scope, receive, send)
 
         # Should have sent a response
         assert send.called
@@ -534,14 +534,14 @@ class TestHandleHTTP:
         receive = AsyncMock()
         send = AsyncMock()
 
-        await app._handle_http(scope, receive, send)
+        await app.handle_http(scope, receive, send)
 
         # Should send 404 response
         assert send.called
 
 
 class TestHandleLifespan:
-    """Tests for _handle_lifespan method."""
+    """Tests for handle_lifespan method."""
 
     @pytest.mark.asyncio
     async def test_handles_startup(self):
@@ -561,7 +561,7 @@ class TestHandleLifespan:
         )
         send = AsyncMock()
 
-        await app._handle_lifespan(scope, receive, send)
+        await app.handle_lifespan(scope, receive, send)
 
         assert startup_called
 
@@ -583,7 +583,7 @@ class TestHandleLifespan:
         )
         send = AsyncMock()
 
-        await app._handle_lifespan(scope, receive, send)
+        await app.handle_lifespan(scope, receive, send)
 
         assert shutdown_called
 
@@ -603,8 +603,8 @@ class TestCall:
         receive = AsyncMock()
         send = AsyncMock()
 
-        await app._core_app(scope, receive, send)
-        # Verify it went through _core_app -> _handle_http -> router -> handler -> send
+        await app.core_app(scope, receive, send)
+        # Verify it went through core_app -> handle_http -> router -> handler -> send
         assert send.called
 
     @pytest.mark.asyncio
@@ -665,7 +665,7 @@ class TestCall:
         assert json.loads(response.body) == {"a": 1, "b": 2}
 
     @pytest.mark.asyncio
-    async def test_handle_lifespan_startup_failure(self):
+    async def testhandle_lifespan_startup_failure(self):
         app = OpenViper()
 
         @app.on_startup
@@ -676,11 +676,11 @@ class TestCall:
         receive = AsyncMock(side_effect=[{"type": "lifespan.startup"}])
         send = AsyncMock()
 
-        await app._handle_lifespan(scope, receive, send)
+        await app.handle_lifespan(scope, receive, send)
         send.assert_called_with({"type": "lifespan.startup.failed", "message": "Startup failed"})
 
     @pytest.mark.asyncio
-    async def test_handle_lifespan_shutdown_failure(self):
+    async def testhandle_lifespan_shutdown_failure(self):
         app = OpenViper()
 
         @app.on_shutdown
@@ -693,12 +693,12 @@ class TestCall:
         )
         send = AsyncMock()
 
-        await app._handle_lifespan(scope, receive, send)
+        await app.handle_lifespan(scope, receive, send)
         # First call is startup complete, second is shutdown failed
         assert send.call_args_list[-1][0][0]["type"] == "lifespan.shutdown.failed"
 
     @pytest.mark.asyncio
-    async def test_handle_http_route_middleware(self):
+    async def testhandle_http_route_middleware(self):
         app = OpenViper()
         middleware_called = []
 
@@ -723,28 +723,28 @@ class TestCall:
         receive = AsyncMock()
         send = AsyncMock()
 
-        await app._handle_http(scope, receive, send)
+        await app.handle_http(scope, receive, send)
         assert middleware_called == [True]
 
     @pytest.mark.asyncio
-    async def test_create_error_response_with_traceback(self):
+    async def testcreate_error_response_with_traceback(self):
         app = OpenViper(debug=True)
         request = MagicMock(spec=Request)
         request.headers = {"accept": "text/html"}
 
         content = {"detail": "Error", "type": "ValueError", "traceback": ["line 1", "line 2"]}
 
-        response = app._create_error_response(request, content, status_code=500)
+        response = app.create_error_response(request, content, status_code=500)
         assert b"ValueError" in response.body
         assert b"line 1" in response.body
 
     @pytest.mark.asyncio
-    async def test_handle_exception_fallback(self):
+    async def testhandle_exception_fallback(self):
         app = OpenViper(debug=False)
         request = MagicMock(spec=Request)
         request.headers = {}
 
-        response = await app._handle_exception(request, Exception("Secret error"))
+        response = await app.handle_exception(request, Exception("Secret error"))
         assert response.status_code == 500
         assert b"Internal Server Error" in response.body
         assert b"Secret error" not in response.body
@@ -763,7 +763,7 @@ class TestCall:
     @pytest.mark.asyncio
     async def test_register_openapi_handlers(self):
         app = OpenViper()
-        app._register_openapi_routes()
+        app.register_openapi_routes()
 
         # Manually call handlers to cover internal routes
         for route in app.router.routes:
@@ -783,14 +783,14 @@ class TestCall:
         with pytest.raises(TypeError, match="Type is not JSON serializable"):
             app.coerce_response(UnknownType())
 
-    def test_has_custom_root_route_with_name(self):
+    def testhas_custom_root_route_with_name(self):
         app = OpenViper()
 
         @app.get("/", name="custom_root")
         def root():
             return {}
 
-        assert app._has_custom_root_route() is True
+        assert app.has_custom_root_route() is True
 
 
 class TestTestClient:
@@ -815,11 +815,11 @@ class TestRepr:
 
 
 class TestHasCustomRootRoute:
-    """Tests for _has_custom_root_route method."""
+    """Tests for has_custom_root_route method."""
 
     def test_returns_false_when_no_root_route(self):
         app = OpenViper()
-        assert app._has_custom_root_route() is False
+        assert app.has_custom_root_route() is False
 
     def test_returns_true_when_root_route_exists(self):
         app = OpenViper()
@@ -828,7 +828,7 @@ class TestHasCustomRootRoute:
         def root():
             return {}
 
-        assert app._has_custom_root_route() is True
+        assert app.has_custom_root_route() is True
 
 
 class TestRun:
@@ -973,7 +973,7 @@ class TestAutodiscoverRoutes:
 
 
 class TestInstalledAppReadyHooks:
-    """Tests for _call_installed_app_ready_hooks."""
+    """Tests for call_installed_app_ready_hooks."""
 
     @pytest.mark.asyncio
     async def test_calls_async_ready_on_installed_app(self):
@@ -990,7 +990,7 @@ class TestInstalledAppReadyHooks:
         with patch("openviper.app.settings") as ms:
             ms.INSTALLED_APPS = ["myplugin"]
             with patch("importlib.import_module", return_value=fake_mod):
-                await app._call_installed_app_ready_hooks()
+                await app.call_installed_app_ready_hooks()
 
         assert called == ["async"]
 
@@ -1009,7 +1009,7 @@ class TestInstalledAppReadyHooks:
         with patch("openviper.app.settings") as ms:
             ms.INSTALLED_APPS = ["myplugin"]
             with patch("importlib.import_module", return_value=fake_mod):
-                await app._call_installed_app_ready_hooks()
+                await app.call_installed_app_ready_hooks()
 
         assert called == ["sync"]
 
@@ -1037,7 +1037,7 @@ class TestInstalledAppReadyHooks:
         with patch("openviper.app.settings") as ms:
             ms.INSTALLED_APPS = ["myplugin"]
             with patch("importlib.import_module", side_effect=import_side_effect):
-                await app._call_installed_app_ready_hooks()
+                await app.call_installed_app_ready_hooks()
 
         assert called == ["apps_ready"]
 
@@ -1056,7 +1056,7 @@ class TestInstalledAppReadyHooks:
         with patch("openviper.app.settings") as ms:
             ms.INSTALLED_APPS = ["myplugin"]
             with patch("importlib.import_module", side_effect=import_side_effect):
-                await app._call_installed_app_ready_hooks()
+                await app.call_installed_app_ready_hooks()
 
     @pytest.mark.asyncio
     async def test_raises_on_unimportable_app(self):
@@ -1066,7 +1066,7 @@ class TestInstalledAppReadyHooks:
             ms.INSTALLED_APPS = ["nonexistent_plugin"]
             with patch("importlib.import_module", side_effect=ImportError("no module")):
                 with pytest.raises(RuntimeError, match="nonexistent_plugin"):
-                    await app._call_installed_app_ready_hooks()
+                    await app.call_installed_app_ready_hooks()
 
     @pytest.mark.asyncio
     async def test_raises_when_ready_raises(self):
@@ -1083,7 +1083,7 @@ class TestInstalledAppReadyHooks:
             ms.INSTALLED_APPS = ["myplugin"]
             with patch("importlib.import_module", return_value=fake_mod):
                 with pytest.raises(RuntimeError, match="myplugin"):
-                    await app._call_installed_app_ready_hooks()
+                    await app.call_installed_app_ready_hooks()
 
     @pytest.mark.asyncio
     async def test_calls_ready_on_multiple_apps_in_order(self):
@@ -1114,7 +1114,7 @@ class TestInstalledAppReadyHooks:
         with patch("openviper.app.settings") as ms:
             ms.INSTALLED_APPS = ["alpha", "beta"]
             with patch("importlib.import_module", side_effect=import_side_effect):
-                await app._call_installed_app_ready_hooks()
+                await app.call_installed_app_ready_hooks()
 
         assert order == ["alpha", "beta"]
 
@@ -1146,8 +1146,8 @@ class TestInstalledAppReadyHooks:
             ms.RATE_LIMIT_REQUESTS = 0
             with patch("importlib.import_module", return_value=fake_mod):
                 # OpenViper uses __slots__, so patch at the class level.
-                with patch.object(OpenViper, "_get_middleware_app", return_value=MagicMock()):
+                with patch.object(OpenViper, "get_middleware_app", return_value=MagicMock()):
                     with patch("openviper.app.should_register_openapi", return_value=False):
-                        await app._handle_lifespan(scope, receive, send)
+                        await app.handle_lifespan(scope, receive, send)
 
         assert called

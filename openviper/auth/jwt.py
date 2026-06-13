@@ -180,7 +180,7 @@ def decode_access_token(token: str) -> AuthPayload:
     except ExpiredSignatureError as exc:
         raise TokenExpired() from exc
     except JWTError as exc:
-        # Intent: Keep token parser details out of client-facing errors.
+        # Keep token parser details out of client-facing errors.
         raise AuthenticationFailed("Invalid token.") from exc
 
 
@@ -218,7 +218,7 @@ def decode_refresh_token(token: str) -> AuthPayload:
     except ExpiredSignatureError as exc:
         raise TokenExpired() from exc
     except JWTError as exc:
-        # Intent: Keep token parser details out of client-facing errors.
+        # Keep token parser details out of client-facing errors.
         raise AuthenticationFailed("Invalid token.") from exc
 
 

@@ -109,56 +109,65 @@ class TestPromptMethods:
 
     @patch("builtins.input", return_value="validuser")
     def test_prompt_username_valid(self, mock_input, command):
-        username = command._prompt_username(None)
+        username = command.prompt_username(None)
         assert username == "validuser"
 
     def test_prompt_username_with_preset(self, command):
-        username = command._prompt_username("preset_user")
+        username = command.prompt_username("preset_user")
         assert username == "preset_user"
 
     def test_prompt_username_preset_invalid_raises_error(self, command):
         with pytest.raises(CommandError) as exc_info:
-            command._prompt_username("invalid user!")
+            command.prompt_username("invalid user!")
 
         assert "Invalid username" in str(exc_info.value)
 
     @patch("builtins.input", side_effect=["", "validuser"])
     def test_prompt_username_retries_on_empty(self, mock_input, command, capsys):
-        username = command._prompt_username(None)
+        username = command.prompt_username(None)
         assert username == "validuser"
         assert mock_input.call_count == 2
 
     @patch("builtins.input", return_value="test@example.com")
     def test_prompt_email_valid(self, mock_input, command):
-        email = command._prompt_email(None)
+        email = command.prompt_email(None)
         assert email == "test@example.com"
 
     def test_prompt_email_with_preset(self, command):
-        email = command._prompt_email("preset@example.com")
+        email = command.prompt_email("preset@example.com")
         assert email == "preset@example.com"
 
-    @patch("getpass.getpass", side_effect=["password123", "password123"])
+    @patch(
+        "openviper.core.management.utils.getpass.getpass",
+        side_effect=["password123", "password123"],
+    )
     def test_prompt_password_matching(self, mock_getpass, command):
-        password = command._prompt_password(None)
+        password = command.prompt_password(None)
         assert password == "password123"
         assert mock_getpass.call_count == 2
 
     def test_prompt_password_with_preset(self, command):
-        password = command._prompt_password("preset_pass")
+        password = command.prompt_password("preset_pass")
         assert password == "preset_pass"
 
-    @patch("getpass.getpass", side_effect=["pass1", "pass2", "pass3", "pass3"])
+    @patch(
+        "openviper.core.management.utils.getpass.getpass",
+        side_effect=["pass1", "pass2", "pass3", "pass3"],
+    )
     def test_prompt_password_retries_on_mismatch(self, mock_getpass, command, capsys):
-        password = command._prompt_password(None)
+        password = command.prompt_password(None)
         assert password == "pass3"
         assert mock_getpass.call_count == 4
 
         captured = capsys.readouterr()
         assert "do not match" in captured.err
 
-    @patch("getpass.getpass", side_effect=["", "password", "password"])
+    @patch(
+        "openviper.core.management.utils.getpass.getpass",
+        side_effect=["", "password", "password"],
+    )
     def test_prompt_password_retries_on_blank(self, mock_getpass, command, capsys):
-        password = command._prompt_password(None)
+        password = command.prompt_password(None)
         assert password == "password"
 
         captured = capsys.readouterr()
@@ -169,17 +178,12 @@ class TestHandleNoInput:
     """Test --no-input mode."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    @patch("openviper.core.management.commands.createsuperuser.asyncio.run")
+    @patch("openviper.core.management.commands.createsuperuser.run_async_command")
     def test_handle_no_input_with_all_options(
-        self, mock_run, mock_get_user_model, command, mock_user_model
+        self, mock_run_async, mock_get_user_model, command, mock_user_model
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
-
-        def close_coro(coro):
-            coro.close()
-
-        mock_run.side_effect = close_coro
 
         command.handle(
             username="admin",
@@ -188,7 +192,7 @@ class TestHandleNoInput:
             no_input=True,
         )
 
-        mock_run.assert_called_once()
+        mock_run_async.assert_called_once()
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
     def test_handle_no_input_missing_username_raises_error(self, mock_get_user_model, command):
@@ -219,13 +223,13 @@ class TestHandleInteractive:
     """Test interactive mode."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    @patch.object(Command, "_prompt_username")
-    @patch.object(Command, "_prompt_email")
-    @patch.object(Command, "_prompt_password")
-    @patch("openviper.core.management.commands.createsuperuser.asyncio.run")
+    @patch.object(Command, "prompt_username")
+    @patch.object(Command, "prompt_email")
+    @patch.object(Command, "prompt_password")
+    @patch("openviper.core.management.commands.createsuperuser.run_async_command")
     def test_handle_interactive_prompts_all_fields(
         self,
-        mock_run,
+        mock_run_async,
         mock_prompt_pass,
         mock_prompt_email,
         mock_prompt_user,
@@ -239,11 +243,6 @@ class TestHandleInteractive:
         mock_prompt_user.return_value = "interactive_user"
         mock_prompt_email.return_value = "user@example.com"
         mock_prompt_pass.return_value = "password123"
-
-        def close_coro(coro):
-            coro.close()
-
-        mock_run.side_effect = close_coro
 
         command.handle(username=None, email=None, password=None, no_input=False)
 
@@ -397,9 +396,9 @@ class TestEdgeCases:
         cmd = Command()
         assert cmd is not None
         assert hasattr(cmd, "handle")
-        assert hasattr(cmd, "_prompt_username")
-        assert hasattr(cmd, "_prompt_email")
-        assert hasattr(cmd, "_prompt_password")
+        assert hasattr(cmd, "prompt_username")
+        assert hasattr(cmd, "prompt_email")
+        assert hasattr(cmd, "prompt_password")
 
     def testvalidate_username_regex_pattern(self):
         """Test username validation regex."""

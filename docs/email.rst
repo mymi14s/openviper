@@ -50,7 +50,7 @@ settings module (``settings.py``):
        "fail_silently": False,             # Swallow send errors (default: False)
 
        # ── Background delivery ───────────────────────────────────────
-       "use_background_worker": None,      # True / False / None (auto-detect)
+       "background": None,      # True / False / None (auto-detect)
    }
 
 .. list-table:: ``EMAIL`` keys reference
@@ -96,7 +96,7 @@ settings module (``settings.py``):
      - When ``True``, delivery errors are silently swallowed and
        :func:`send_email` returns ``False``.  When ``False``, exceptions
        propagate to the caller.
-   * - ``use_background_worker``
+   * - ``background``
      - ``None``
      - Controls background delivery.  See
        :ref:`email-background-delivery` below.
@@ -407,7 +407,7 @@ queue instead of being sent synchronously in the request cycle.
 Auto-detection
 ~~~~~~~~~~~~~~
 
-By default (``use_background_worker`` absent or ``None``), ``send_email``
+By default (``background`` absent or ``None``), ``send_email``
 **auto-detects** whether a background worker is available:
 
 1. It calls :func:`worker_available`, which checks if the configured
@@ -427,8 +427,9 @@ inline delivery instead of dropping the message.
 
    # settings.py - tasks enabled with Redis
    TASKS = {
+       "enabled": 1,
        "broker": "redis",
-       "url": "redis://localhost:6379/0",
+       "broker_url": "redis://localhost:6379/0",
    }
 
    EMAIL = {
@@ -438,7 +439,7 @@ inline delivery instead of dropping the message.
        "username": "apikey",
        "password": "SG.xxxx",
        "default_sender": "noreply@example.com",
-       # use_background_worker is omitted - auto-detects worker availability
+       # background is omitted - auto-detects worker availability
    }
 
 With this configuration, calling ``await send_email(...)`` automatically
@@ -447,13 +448,13 @@ queues the email for background delivery.
 Explicit control
 ~~~~~~~~~~~~~~~~
 
-Set ``use_background_worker`` in settings to force behaviour:
+Set ``background`` in settings to force behaviour:
 
 .. code-block:: python
 
    EMAIL = {
        ...
-       "use_background_worker": True,   # Always attempt background delivery
+       "background": True,   # Always attempt background delivery
    }
 
 Or override per call:
@@ -479,8 +480,8 @@ Or override per call:
 Safety fallback
 ~~~~~~~~~~~~~~~
 
-Even when ``use_background_worker`` is ``True`` (or ``background=True``),
-if no real worker is available at runtime (e.g. Redis is down), the email
+Even when ``background`` is ``True`` (or ``background=True``),
+if no real worker is available at runtime (e.g. the broker is down), the email
 **falls back to synchronous delivery** rather than silently dropping.
 
 Queue configuration

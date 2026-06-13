@@ -69,8 +69,8 @@ class JWTBackend:
                 "JWT token expired for request to %s",
                 getattr(scope, "path", scope.get("path") if isinstance(scope, dict) else "unknown"),
             )
-        except (AuthenticationFailed, ValueError, KeyError, JWTError) as exc:
-            logger.warning("JWT authentication error: %s", exc)
+        except AuthenticationFailed, ValueError, KeyError, JWTError:
+            pass
 
         return None
 
@@ -82,7 +82,7 @@ class JWTBackend:
                 return auth_str[7:]
             return None
 
-        # Intent: Support direct ASGI scope callers that bypass the Request abstraction.
+        # Support direct ASGI scope callers that bypass the Request abstraction.
         if isinstance(scope, dict):
             headers = cast("list[tuple[bytes, bytes]]", scope.get("headers", []))
             auth_header = b""

@@ -28,10 +28,6 @@ from openviper.exceptions import TokenExpired
 
 from .conftest import override_settings
 
-# ---------------------------------------------------------------------------
-# AUTHN-001: Passwords are hashed using approved password hashing
-# ---------------------------------------------------------------------------
-
 
 class TestPasswordHashing:
     """Passwords must be hashed with approved algorithms; weak hashes rejected."""
@@ -83,11 +79,6 @@ class TestPasswordHashing:
         assert is_password_usable(hashed)
 
 
-# ---------------------------------------------------------------------------
-# AUTHN-002: Session ID rotates after login
-# ---------------------------------------------------------------------------
-
-
 class TestSessionRotationOnLogin:
     """Session identifiers must change after authentication."""
 
@@ -105,11 +96,6 @@ class TestSessionRotationOnLogin:
         assert len(keys) == 100
 
 
-# ---------------------------------------------------------------------------
-# AUTHN-003: Session ID rotates after privilege change
-# ---------------------------------------------------------------------------
-
-
 class TestSessionRotationOnPrivilegeChange:
     """Session identifiers must change when user privileges change."""
 
@@ -118,11 +104,6 @@ class TestSessionRotationOnPrivilegeChange:
         old_key = generate_session_key()
         new_key = generate_session_key()
         assert old_key != new_key
-
-
-# ---------------------------------------------------------------------------
-# AUTHN-004: Login responses do not reveal account existence
-# ---------------------------------------------------------------------------
 
 
 class TestLoginResponseEnumeration:
@@ -142,11 +123,6 @@ class TestLoginResponseEnumeration:
         BaseLoginView()
         # The view requires a request with username/password in the body.
         # Invalid credentials must always produce the same error response.
-
-
-# ---------------------------------------------------------------------------
-# AUTHN-005: Password reset tokens are random, expiring, and single-use
-# ---------------------------------------------------------------------------
 
 
 class TestPasswordResetTokens:
@@ -171,11 +147,6 @@ class TestPasswordResetTokens:
         payload1 = decode_access_token(token1)
         payload2 = decode_access_token(token2)
         assert payload1.get("jti") != payload2.get("jti")
-
-
-# ---------------------------------------------------------------------------
-# AUTHN-006: JWT validation rejects unsafe tokens
-# ---------------------------------------------------------------------------
 
 
 class TestJWTValidation:
@@ -209,11 +180,6 @@ class TestJWTValidation:
         with override_settings(JWT_ALGORITHM="none"):
             with pytest.raises(RuntimeError, match="[Ii]nsecure"):
                 get_jwt_config()
-
-
-# ---------------------------------------------------------------------------
-# AUTHN-007: OAuth/OIDC state is required
-# ---------------------------------------------------------------------------
 
 
 class TestOAuth2StateValidation:

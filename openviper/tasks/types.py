@@ -1,132 +1,71 @@
-"""Shared structural types for the task subsystem."""
+"""Type definitions for the tasks subsystem."""
 
 from __future__ import annotations
 
 import typing as t
-from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
 
-from sqlalchemy.engine import Connection, Engine, Row
-
-type TaskValue = object
-type TaskFields = dict[str, TaskValue]
-type TaskResultRow = dict[str, TaskValue]
-type TaskArgs = tuple[TaskValue, ...]
-type TaskKwargs = dict[str, TaskValue]
-type TaskCallable = Callable[..., TaskValue]
-type UpsertFunction = Callable[[Connection, str, TaskFields], None]
-type SqlRow = Row[tuple[TaskValue, ...]]
+from openviper.conf import settings
+from openviper.tasks.exceptions import ResultsBackendDisabledError
+from openviper.tasks.results import TaskResultTracker
 
 
-class ActorProtocol(t.Protocol):
-    """Dramatiq actor operations used by the scheduler."""
+class TaskMessageProxy:
+    """Thin wrapper returned by ``actor.send()`` and ``actor.send_with_options()``.
 
-    actor_name: str
+    Carries the message payload and provides ``.get_result()`` when a
+    results backend is configured.
+    """
 
-    def send(self, *args: TaskValue, **kwargs: TaskValue) -> object: ...
+    __slots__ = ("message_id_value", "actor_name_value", "args", "kwargs", "queue_name_value")
 
+    def __init__(
+        self,
+        actor_name: str,
+        args: tuple[object, ...],
+        kwargs: dict[str, object],
+        queue_name: str = "default",
+        message_id: str | None = None,
+    ) -> None:
+        self.actor_name_value = actor_name
+        self.args = args
+        self.kwargs = kwargs
+        self.queue_name_value = queue_name
+        self.message_id_value = message_id or ""
 
-class DelayActorProtocol(ActorProtocol, t.Protocol):
-    """Actor with the optional delay alias installed by ``task``."""
+    @property
+    def actor_name(self) -> str:
+        return self.actor_name_value
 
-    delay: Callable[..., object]
+    @property
+    def queue_name(self) -> str:
+        return self.queue_name_value
 
+    @property
+    def message_id(self) -> str:
+        return self.message_id_value
 
-type TaskDecorator = Callable[[TaskCallable], ActorProtocol]
+    def get_result(
+        self,
+        *,
+        block: bool = True,
+        timeout: int | None = None,
+    ) -> t.Any:
+        """Retrieve the result of this task message.
 
+        Raises :class:`ResultsBackendDisabledError` when no backend
+        is configured.
+        """
+        try:
+            cfg = settings.TASKS if isinstance(settings.TASKS, dict) else {}
+        except Exception:
+            cfg = {}
 
-class BrokerProtocol(t.Protocol):
-    """Broker operations used by task setup and workers."""
+        backend_url = cfg.get("backend_url", "")
+        if not backend_url:
+            raise ResultsBackendDisabledError(
+                "No results backend configured. "
+                "Set TASKS['backend_url'] to enable result retrieval."
+            )
 
-    def add_middleware(self, middleware: object) -> None: ...
-
-    def get_declared_queues(self) -> set[str]: ...
-
-    def close(self) -> None: ...
-
-
-class SettingsProtocol(t.Protocol):
-    """Settings values consumed by the task subsystem."""
-
-    TASKS: Mapping[str, object]
-    DATABASE_URL: str
-    LOG_LEVEL: str
-    LOG_FORMAT: str
-
-
-class TaskMessageProtocol(t.Protocol):
-    """Dramatiq message fields consumed by middleware."""
-
-    message_id: str
-    actor_name: str
-    queue_name: str
-    args: Sequence[TaskValue]
-    kwargs: Mapping[str, TaskValue]
-    options: MutableMapping[str, TaskValue]
-
-
-class TaskMessageProxyProtocol(t.Protocol):
-    """Message proxy fields used by the database broker."""
-
-    options: MutableMapping[str, TaskValue]
-
-
-class UpsertBuilderProtocol(t.Protocol):
-    """Factory for dialect-specific SQLAlchemy insert statements."""
-
-    def __call__(self, table: object) -> object: ...
-
-
-class SchedulerEventProtocol(t.Protocol):
-    """Thread event operations required by the scheduler loop."""
-
-    def clear(self) -> None: ...
-
-    def set(self) -> None: ...
-
-    def wait(self, timeout: float | None = None) -> bool: ...
-
-
-class WorkerProtocol(t.Protocol):
-    """Worker lifecycle surface used by the runner."""
-
-    broker: BrokerProtocol
-
-    def start(self) -> None: ...
-
-    def stop(self, timeout: int) -> None: ...
-
-
-class QueryResultProtocol(t.Protocol):
-    """SQL execution result methods used by result queries."""
-
-    rowcount: int | None
-
-
-class EngineHolder(t.Protocol):
-    """Engine lifecycle operations used during test and worker teardown."""
-
-    def dispose(self) -> None: ...
-
-
-__all__ = [
-    "ActorProtocol",
-    "BrokerProtocol",
-    "DelayActorProtocol",
-    "Engine",
-    "EngineHolder",
-    "Iterable",
-    "QueryResultProtocol",
-    "SettingsProtocol",
-    "SqlRow",
-    "TaskArgs",
-    "TaskCallable",
-    "TaskDecorator",
-    "TaskFields",
-    "TaskKwargs",
-    "TaskMessageProtocol",
-    "TaskMessageProxyProtocol",
-    "TaskResultRow",
-    "TaskValue",
-    "UpsertFunction",
-    "WorkerProtocol",
-]
+        tracker = TaskResultTracker(backend_url=str(backend_url))
+        return tracker.get_result(self, block=block, timeout=timeout)

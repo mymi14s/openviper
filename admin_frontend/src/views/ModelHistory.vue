@@ -30,6 +30,7 @@ onMounted(async () => {
 
 const {
   currentPage,
+  itemsPerPage,
   totalPages,
   visiblePages,
   paginatedRows: paginatedHistory,
@@ -45,7 +46,7 @@ function getActionLabel(action: string): string {
   }
 }
 
-function formatValue(value: any, fieldName?: string): string {
+function formatValue(value: unknown, fieldName?: string): string {
   if (fieldName) {
     const sensitive = ['password', 'token', 'secret', 'key', 'api_key', 'access_token', 'refresh_token']
     if (sensitive.includes(fieldName.toLowerCase()) || sensitive.some(s => fieldName.toLowerCase().includes(s))) {
@@ -57,6 +58,9 @@ function formatValue(value: any, fieldName?: string): string {
   if (typeof value === 'object') return JSON.stringify(value)
   return String(value)
 }
+
+const showingFrom = computed(() => (currentPage.value - 1) * itemsPerPage.value + 1)
+const showingTo = computed(() => Math.min(currentPage.value * itemsPerPage.value, history.value.length))
 </script>
 
 <template>
@@ -173,9 +177,9 @@ function formatValue(value: any, fieldName?: string): string {
           <div>
             <p class="text-sm text-gray-700 dark:text-gray-300">
               Showing
-              <span class="font-medium">{{ (currentPage - 1) * itemsPerPage + 1 }}</span>
+              <span class="font-medium">{{ showingFrom }}</span>
               to
-              <span class="font-medium">{{ Math.min(currentPage * itemsPerPage, history.length) }}</span>
+              <span class="font-medium">{{ showingTo }}</span>
               of
               <span class="font-medium">{{ history.length }}</span>
               results

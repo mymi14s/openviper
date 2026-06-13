@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openviper.auth._user_cache import USER_CACHE, invalidate_user_cache
 from openviper.auth.models import (
     AnonymousUser,
     Permission,
@@ -12,6 +11,7 @@ from openviper.auth.models import (
     User,
     on_user_update,
 )
+from openviper.auth.user_cache import USER_CACHE, invalidate_user_cache
 from openviper.core.context import request_perms_cache
 
 

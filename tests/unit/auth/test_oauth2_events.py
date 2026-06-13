@@ -6,11 +6,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from openviper.auth import authentications as auth_mod
 from openviper.auth.authentications import OAuth2Authentication
 
-# ---------------------------------------------------------------------------
-# Fixtures / helpers
-# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def reset_oauth2_caches():
+    """Clear module-level OAuth2 caches so each test sees fresh settings."""
+    auth_mod._OAUTH2_EVENTS_CACHE = None
+    auth_mod._OAUTH2_HANDLER_CACHE.clear()
+    yield
+    auth_mod._OAUTH2_EVENTS_CACHE = None
+    auth_mod._OAUTH2_HANDLER_CACHE.clear()
+
 
 VALID_PATH = "myapp.events.oauth_success"
 VALID_PATH_FAIL = "myapp.events.oauth_fail"
@@ -47,11 +55,6 @@ class FakeRequest:
         self._scope: dict[str, object] = {}
         self.cookies: dict[str, str] = {}
         self.session = None
-
-
-# ---------------------------------------------------------------------------
-# load_oauth2_events
-# ---------------------------------------------------------------------------
 
 
 class TestLoadOAuth2Events:
@@ -91,11 +94,6 @@ class TestLoadOAuth2Events:
             with patch.object(auth, "load_oauth2_events", return_value={}):
                 result = auth.load_oauth2_events()
         assert result == {}
-
-
-# ---------------------------------------------------------------------------
-# resolve_event_handler
-# ---------------------------------------------------------------------------
 
 
 class TestResolveEventHandler:
@@ -142,11 +140,6 @@ class TestResolveEventHandler:
         auth = OAuth2Authentication()
         with pytest.raises(ValueError, match="Invalid event handler path"):
             auth.resolve_event_handler("1app.events.fn")
-
-
-# ---------------------------------------------------------------------------
-# trigger_event
-# ---------------------------------------------------------------------------
 
 
 class TestTriggerEventOnSuccess:

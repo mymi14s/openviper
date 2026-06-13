@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import datetime
 from typing import TYPE_CHECKING
 
 from openviper.auth.session.manager import SessionManager
+from openviper.auth.session.utils import get_session_cookie_config
 from openviper.auth.views.base_login import BaseLoginView
-from openviper.conf import settings
 from openviper.http.response import JSONResponse
 
 if TYPE_CHECKING:
@@ -31,27 +30,17 @@ class SessionLoginView(BaseLoginView):
         manager = SessionManager()
         session_key = await manager.login(request, user)
 
-        cookie_name: str = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
-        httponly: bool = getattr(settings, "SESSION_COOKIE_HTTPONLY", True)
-        samesite: str = getattr(settings, "SESSION_COOKIE_SAMESITE", "lax")
-        secure: bool = getattr(settings, "SESSION_COOKIE_SECURE", True)
-        path: str = getattr(settings, "SESSION_COOKIE_PATH", "/")
-        domain: str | None = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
-        timeout = getattr(settings, "SESSION_TIMEOUT", datetime.timedelta(hours=1))
-        if isinstance(timeout, datetime.timedelta):
-            max_age = int(timeout.total_seconds())
-        else:
-            max_age = int(timeout)
+        config = get_session_cookie_config()
 
         response = JSONResponse({"detail": "Logged in."})
         response.set_cookie(
-            cookie_name,
+            config.cookie_name,
             session_key,
-            max_age=max_age,
-            path=path,
-            domain=domain,
-            httponly=httponly,
-            samesite=samesite,
-            secure=secure,
+            max_age=config.max_age,
+            path=config.path,
+            domain=config.domain,
+            httponly=config.httponly,
+            samesite=config.samesite,
+            secure=config.secure,
         )
         return response

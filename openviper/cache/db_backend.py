@@ -3,45 +3,31 @@
 from __future__ import annotations
 
 import datetime
-import logging
-import re
 import typing as t
 from typing import TYPE_CHECKING
 
 import orjson
 import sqlalchemy as sa
 
-from openviper.cache.base import BaseCache
+from openviper.cache.base import BaseCache, deserialize_cache_value
 from openviper.cache.db import CacheEntry
 from openviper.cache.validation import validate_cache_key
 from openviper.db.connection import get_engine
 from openviper.db.executor import get_table
+from openviper.db.utils import validate_identifier
 from openviper.utils import timezone
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
-SAFE_TABLE_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-
 
 def validate_table_name(name: str) -> str:
-    """Validate that *name* is a safe SQL identifier.
+    """Validate that *name* is a safe SQL table identifier.
 
     Non-string values (e.g. from mocked table objects in tests) are
     coerced to ``str`` before validation.
-
-    Raises:
-        ValueError: If *name* contains characters outside the safe set
-            for SQL identifiers.
-
     """
-    name_str = str(name)
-    if not SAFE_TABLE_RE.match(name_str):
-        msg = f"Invalid table name {name_str!r}: must match pattern [a-zA-Z_][a-zA-Z0-9_]*"
-        raise ValueError(msg)
-    return name_str
+    return validate_identifier(str(name), "table name")
 
 
 def get_begin(engine: sa.Engine | AsyncEngine) -> t.Callable[[], t.Any]:
@@ -69,11 +55,16 @@ def is_entry_expired(expires_at: datetime.datetime | None) -> bool:
 class DatabaseCache(BaseCache):
     """Database-backed cache using the OpenViper ORM with orjson serialization."""
 
-    def __init__(self) -> None:
-        """Initialise the database cache with a lazily-resolved model."""
+    def __init__(self, **kwargs: t.Any) -> None:
+        """Initialise the database cache with a lazily-resolved model.
+
+        Accepts and ignores extra keyword arguments so that OPTIONS
+        like ``ttl`` can be present in the CACHES config without
+        causing ``TypeError``.
+        """
         self._model_cache: type | None = None
 
-    def _get_model(self) -> type:
+    def get_model(self) -> type:
         """Return the CacheEntry model class, caching the result on this instance."""
         if self._model_cache is None:
             self._model_cache = CacheEntry
@@ -82,23 +73,20 @@ class DatabaseCache(BaseCache):
     async def get(self, key: str, default: t.Any = None) -> t.Any:  # noqa: ANN401
         """Fetch a value from the cache, returning *default* on miss."""
         validate_cache_key(key)
-        cls = self._get_model()
+        cls = self.get_model()
         entry = await cls.objects.filter(key=key).first()
         if entry is None:
             return default
         if is_entry_expired(entry.expires_at):
             await cls.objects.filter(key=key).delete()
             return default
-        try:
-            return orjson.loads(entry.value)
-        except ValueError, TypeError:
-            logger.debug("Failed to deserialize cached value for key %r", key, exc_info=True)
-            return default
+        result = deserialize_cache_value(entry.value, key)
+        return result if result is not entry.value else default
 
     async def set(self, key: str, value: t.Any, ttl: int | None = None) -> None:  # noqa: ANN401
         """Store a value in the cache with an optional TTL."""
         validate_cache_key(key)
-        cls = self._get_model()
+        cls = self.get_model()
         engine = await get_engine()
         if isinstance(value, (dict, list)):
             serialized: str = orjson.dumps(value).decode()
@@ -142,18 +130,18 @@ class DatabaseCache(BaseCache):
     async def delete(self, key: str) -> None:
         """Remove a value from the cache."""
         validate_cache_key(key)
-        cls = self._get_model()
+        cls = self.get_model()
         await cls.objects.filter(key=key).delete()
 
     async def clear(self) -> None:
         """Remove all values from the cache."""
-        cls = self._get_model()
+        cls = self.get_model()
         await cls.objects.all().delete()
 
     async def has_key(self, key: str) -> bool:
         """Check if a key exists in the cache."""
         validate_cache_key(key)
-        cls = self._get_model()
+        cls = self.get_model()
         entry = await cls.objects.filter(key=key).first()
         if entry is None:
             return False

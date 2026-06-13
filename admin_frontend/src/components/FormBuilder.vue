@@ -5,6 +5,7 @@ import ForeignKeyField from '@/components/ForeignKeyField.vue'
 import FileUploadField from '@/components/FileUploadField.vue'
 import CountrySelectField from '@/components/CountrySelectField.vue'
 import PointFieldComponent from '@/components/PointField.vue'
+import HtmlField from '@/components/HtmlField.vue'
 import { formatFieldName, isValidUrl } from '@/utils/formatters'
 import { getFieldType, getFieldComponent, getInputAttributes } from '@/utils/fieldHelpers'
 import { formatDateTimeValue, parseDateTimeValue, formatValueForDisplay, parseValueFromDisplay } from '@/utils/dateTime'
@@ -12,7 +13,7 @@ import { getEditableFields } from '@/utils/formHelpers'
 
 const props = defineProps<{
   model: ModelConfig
-  modelValue: Record<string, any>
+  modelValue: Record<string, unknown>
   errors?: Record<string, string>
   readonlyFields?: string[]
   disabled?: boolean
@@ -26,7 +27,7 @@ const allErrors = computed(() => {
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: Record<string, any>]
+  'update:modelValue': [value: Record<string, unknown>]
 }>()
 
 const formData = computed({
@@ -34,7 +35,7 @@ const formData = computed({
   set: (value) => emit('update:modelValue', value),
 })
 
-function updateField(fieldName: string, value: any) {
+function updateField(fieldName: string, value: unknown) {
   emit('update:modelValue', { ...props.modelValue, [fieldName]: value })
 }
 
@@ -91,6 +92,22 @@ const fieldsetFieldMap = computed(() => {
   return map
 })
 
+const fieldComponentMap = computed(() => {
+  const map: Record<string, string> = {}
+  for (const field of props.model.fields) {
+    map[field.name] = getFieldComponent(field)
+  }
+  return map
+})
+
+const fieldTypeMap = computed(() => {
+  const map: Record<string, string> = {}
+  for (const field of props.model.fields) {
+    map[field.name] = getFieldType(field)
+  }
+  return map
+})
+
 function getFieldLabel(field: ModelField): string {
   return field.label || formatFieldName(field.name)
 }
@@ -102,8 +119,8 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
     try {
       JSON.parse(value)
       delete validationErrors.value[fieldName]
-    } catch (e: any) {
-      validationErrors.value[fieldName] = `Invalid JSON: ${e.message}`
+    } catch (e: unknown) {
+      validationErrors.value[fieldName] = `Invalid JSON: ${e instanceof Error ? e.message : String(e)}`
     }
   } else {
     delete validationErrors.value[fieldName]
@@ -146,7 +163,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
               </label>
 
               <!-- Checkbox -->
-              <div v-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'checkbox'" class="flex items-center">
+              <div v-if="fieldComponentMap[fieldName] === 'checkbox'" class="flex items-center">
                 <input
                   :id="fieldName"
                   type="checkbox"
@@ -160,7 +177,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
               <!-- Select -->
               <select
-                v-else-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'select'"
+                v-else-if="fieldComponentMap[fieldName] === 'select'"
                 :id="fieldName"
                 :value="formData[fieldName]"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
@@ -180,7 +197,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
               <!-- ForeignKey -->
               <ForeignKeyField
-                v-else-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'foreignkey'"
+                v-else-if="fieldComponentMap[fieldName] === 'foreignkey'"
                 :model-value="formData[fieldName]"
                 :related-model="fieldsetFieldMap[fieldName].related_model || ''"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
@@ -191,7 +208,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
               <!-- Country -->
               <CountrySelectField
-                v-else-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'country'"
+                v-else-if="fieldComponentMap[fieldName] === 'country'"
                 :model-value="formData[fieldName] ?? null"
                 :choices="fieldsetFieldMap[fieldName].choices ?? []"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
@@ -201,7 +218,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
               <!-- File Upload -->
               <FileUploadField
-                v-else-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'file'"
+                v-else-if="fieldComponentMap[fieldName] === 'file'"
                 :field="fieldsetFieldMap[fieldName]"
                 :model-value="formData[fieldName]"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
@@ -211,7 +228,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
               <!-- PointField -->
               <PointFieldComponent
-                v-else-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'point'"
+                v-else-if="fieldComponentMap[fieldName] === 'point'"
                 :model-value="formData[fieldName] ?? null"
                 :srid="fieldsetFieldMap[fieldName].srid ?? 4326"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
@@ -219,9 +236,19 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
                 @update:model-value="updateField(fieldName, $event)"
               />
 
+              <!-- HTMLField -->
+              <HtmlField
+                v-else-if="fieldComponentMap[fieldName] === 'html'"
+                :model-value="formData[fieldName] ?? null"
+                :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
+                :required="fieldsetFieldMap[fieldName].required"
+                :placeholder="fieldsetFieldMap[fieldName].help_text"
+                @update:model-value="updateField(fieldName, $event)"
+              />
+
               <!-- Textarea -->
               <textarea
-                v-else-if="getFieldComponent(fieldsetFieldMap[fieldName]) === 'textarea'"
+                v-else-if="fieldComponentMap[fieldName] === 'textarea'"
                 :id="fieldName"
                 :value="formatValueForDisplay(formData[fieldName], fieldsetFieldMap[fieldName])"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
@@ -233,12 +260,12 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
               />
 
               <!-- URL Field -->
-              <div v-else-if="getFieldType(fieldsetFieldMap[fieldName]) === 'url'" class="space-y-1">
+              <div v-else-if="fieldTypeMap[fieldName] === 'url'" class="space-y-1">
                 <div v-if="isReadonly(fieldsetFieldMap[fieldName])" class="py-2">
                   <a
                     v-if="isValidUrl(formData[fieldName])"
                     :href="formData[fieldName]"
-                    target="_blank"
+                    target="_blank" rel="noopener noreferrer"
                     class="text-primary-600 hover:text-primary-700 dark:text-primary-400 underline break-all"
                   >
                     {{ formData[fieldName] }}
@@ -262,7 +289,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
                   <a
                     v-if="isValidUrl(formData[fieldName])"
                     :href="formData[fieldName]"
-                    target="_blank"
+                    target="_blank" rel="noopener noreferrer"
                     class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                     title="Open link in new tab"
                   >
@@ -277,18 +304,18 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
               <input
                 v-else
                 :id="fieldName"
-                :type="getFieldType(fieldsetFieldMap[fieldName])"
-                :value="formatDateTimeValue(formData[fieldName], getFieldType(fieldsetFieldMap[fieldName]))"
+                :type="fieldTypeMap[fieldName]"
+                :value="formatDateTimeValue(formData[fieldName], fieldTypeMap[fieldName])"
                 :disabled="disabled || isReadonly(fieldsetFieldMap[fieldName])"
                 :required="fieldsetFieldMap[fieldName].required"
                 :placeholder="fieldsetFieldMap[fieldName].help_text"
                 v-bind="getInputAttributes(fieldsetFieldMap[fieldName])"
                 class="w-full px-3 py-2"
-                @input="handleDateTimeChange(fieldName, ($event.target as HTMLInputElement).value, getFieldType(fieldsetFieldMap[fieldName]))"
+                @input="handleDateTimeChange(fieldName, ($event.target as HTMLInputElement).value, fieldTypeMap[fieldName])"
               />
 
               <!-- Help text -->
-              <p v-if="fieldsetFieldMap[fieldName].help_text && getFieldComponent(fieldsetFieldMap[fieldName]) !== 'checkbox' && getFieldComponent(fieldsetFieldMap[fieldName]) !== 'file'" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p v-if="fieldsetFieldMap[fieldName].help_text && fieldComponentMap[fieldName] !== 'checkbox' && fieldComponentMap[fieldName] !== 'file'" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ fieldsetFieldMap[fieldName].help_text }}
               </p>
 
@@ -320,7 +347,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
         </label>
 
         <!-- Checkbox -->
-        <div v-if="getFieldComponent(field) === 'checkbox'" class="flex items-center">
+        <div v-if="fieldComponentMap[field.name] === 'checkbox'" class="flex items-center">
           <input
             :id="field.name"
             type="checkbox"
@@ -336,7 +363,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
         <!-- Select -->
         <select
-          v-else-if="getFieldComponent(field) === 'select'"
+          v-else-if="fieldComponentMap[field.name] === 'select'"
           :id="field.name"
           :value="formData[field.name]"
           :disabled="disabled || isReadonly(field)"
@@ -356,7 +383,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
         <!-- ForeignKey -->
         <ForeignKeyField
-          v-else-if="getFieldComponent(field) === 'foreignkey'"
+          v-else-if="fieldComponentMap[field.name] === 'foreignkey'"
           :model-value="formData[field.name]"
           :related-model="field.related_model || ''"
           :disabled="disabled || isReadonly(field)"
@@ -367,7 +394,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
         <!-- Country -->
         <CountrySelectField
-          v-else-if="getFieldComponent(field) === 'country'"
+          v-else-if="fieldComponentMap[field.name] === 'country'"
           :model-value="formData[field.name] ?? null"
           :choices="field.choices ?? []"
           :disabled="disabled || isReadonly(field)"
@@ -377,7 +404,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
         <!-- File Upload -->
         <FileUploadField
-          v-else-if="getFieldComponent(field) === 'file'"
+          v-else-if="fieldComponentMap[field.name] === 'file'"
           :field="field"
           :model-value="formData[field.name]"
           :disabled="disabled || isReadonly(field)"
@@ -387,7 +414,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
 
         <!-- PointField -->
         <PointFieldComponent
-          v-else-if="getFieldComponent(field) === 'point'"
+          v-else-if="fieldComponentMap[field.name] === 'point'"
           :model-value="formData[field.name] ?? null"
           :srid="field.srid ?? 4326"
           :disabled="disabled || isReadonly(field)"
@@ -395,9 +422,19 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
           @update:model-value="updateField(field.name, $event)"
         />
 
+        <!-- HTMLField -->
+        <HtmlField
+          v-else-if="fieldComponentMap[field.name] === 'html'"
+          :model-value="formData[field.name] ?? null"
+          :disabled="disabled || isReadonly(field)"
+          :required="field.required"
+          :placeholder="field.help_text"
+          @update:model-value="updateField(field.name, $event)"
+        />
+
         <!-- Textarea -->
         <textarea
-          v-else-if="getFieldComponent(field) === 'textarea'"
+          v-else-if="fieldComponentMap[field.name] === 'textarea'"
           :id="field.name"
           :value="formatValueForDisplay(formData[field.name], field)"
           :disabled="disabled || isReadonly(field)"
@@ -409,12 +446,12 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
         />
 
         <!-- URL Field -->
-        <div v-else-if="getFieldType(field) === 'url'" class="space-y-1">
+        <div v-else-if="fieldTypeMap[field.name] === 'url'" class="space-y-1">
           <div v-if="isReadonly(field)" class="py-2">
             <a
               v-if="isValidUrl(formData[field.name])"
               :href="formData[field.name]"
-              target="_blank"
+              target="_blank" rel="noopener noreferrer"
               class="text-primary-600 hover:text-primary-700 dark:text-primary-400 underline break-all"
             >
               {{ formData[field.name] }}
@@ -438,7 +475,7 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
             <a
               v-if="isValidUrl(formData[field.name])"
               :href="formData[field.name]"
-              target="_blank"
+              target="_blank" rel="noopener noreferrer"
               class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               title="Open link in new tab"
             >
@@ -453,18 +490,18 @@ function handleTextareaInput(fieldName: string, value: string, field: ModelField
         <input
           v-else
           :id="field.name"
-          :type="getFieldType(field)"
-          :value="formatDateTimeValue(formData[field.name], getFieldType(field))"
+          :type="fieldTypeMap[field.name]"
+          :value="formatDateTimeValue(formData[field.name], fieldTypeMap[field.name])"
           :disabled="disabled || isReadonly(field)"
           :required="field.required"
           :placeholder="field.help_text"
           v-bind="getInputAttributes(field)"
           class="w-full px-3 py-2"
-          @input="handleDateTimeChange(field.name, ($event.target as HTMLInputElement).value, getFieldType(field))"
+          @input="handleDateTimeChange(field.name, ($event.target as HTMLInputElement).value, fieldTypeMap[field.name])"
         />
 
         <!-- Help text -->
-        <p v-if="field.help_text && getFieldComponent(field) !== 'checkbox' && getFieldComponent(field) !== 'file'" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        <p v-if="field.help_text && fieldComponentMap[field.name] !== 'checkbox' && fieldComponentMap[field.name] !== 'file'" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {{ field.help_text }}
         </p>
 

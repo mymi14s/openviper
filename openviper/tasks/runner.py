@@ -1,83 +1,123 @@
-"""Blocking run-loop for OpenViper's periodic task scheduler.
+"""Worker lifecycle: validate, discover, schedule, run.
 
-:func:`run_scheduler` is the entry-point called by the ``start-worker``
-management command.  It ticks the scheduler at *tick_interval* second
-intervals and handles ``SIGINT`` / ``SIGTERM`` for a clean shutdown.
-
-There is **no subprocess** - the scheduler runs entirely in-process, which
-mirrors the design of :mod:`openviper.tasks.worker`.
-
-Example (programmatic)::
-
-    from openviper.tasks.core import Scheduler
-    from openviper.tasks.runner import run_scheduler
-    from openviper.tasks.schedule import CronSchedule
-
-    scheduler = Scheduler()
-    scheduler.add("nightly", nightly_report, CronSchedule("0 2 * * *"))
-
-    run_scheduler(scheduler=scheduler)   # blocks until SIGINT/SIGTERM
+Entry point for the ``start-worker`` management command.
 """
 
 from __future__ import annotations
 
-import logging
-import signal
-import time
-from datetime import UTC, datetime
-from types import FrameType
+import asyncio
+import importlib
+import typing as t
 
-from openviper.tasks.core import Scheduler
+import dramatiq
+import dramatiq.errors as dramatiq_errors
+from dramatiq.middleware.asyncio import AsyncIO
 
-logger = logging.getLogger("openviper.tasks")
+from openviper.conf import settings
+from openviper.tasks.broker import get_broker
+from openviper.tasks.conf import resolve_tasks_config, validate_tasks_config
+from openviper.tasks.discovery import discover_tasks
+from openviper.tasks.logging import configure_task_logging, get_task_logger
+from openviper.tasks.middleware import (
+    DatabaseCleanupMiddleware,
+    StateObservationMiddleware,
+    UnifiedContextLogger,
+)
+from openviper.tasks.registry import Registry
+from openviper.tasks.schedule import sync_scheduled_jobs
+from openviper.tasks.scheduler import Scheduler
+from openviper.tasks.worker import run_worker
 
-__all__ = ["run_scheduler"]
+logger = get_task_logger("openviper.tasks.runner")
 
-_DEFAULT_TICK_INTERVAL: float = 1.0  # seconds
+BUILTIN_TASK_MODULES: list[str] = [
+    "openviper.core.email.queue",
+]
 
 
-def run_scheduler(
-    scheduler: Scheduler | None = None,
-    tick_interval: float = _DEFAULT_TICK_INTERVAL,
+def run(
+    *,
+    processes: int = 1,
+    threads: int = 8,
+    queues: list[str] | None = None,
+    installed_apps: tuple[str, ...] | list[str] | None = None,
+    no_scheduler: bool = False,
 ) -> None:
-    """Start the scheduler loop and block until a shutdown signal.
+    """Full worker lifecycle: validate, discover, schedule, run.
 
     Args:
-        scheduler:     The :class:`~openviper.tasks.core.Scheduler` to tick.
-                       A default (process-level) instance is created if not
-                       provided.
-        tick_interval: How often (in seconds) to call
-                       :meth:`~openviper.tasks.core.Scheduler.tick`.
-                       Lower values give finer resolution at the cost of more
-                       CPU cycles; 1 second is sufficient for minute-granularity
-                       cron expressions.
+        processes: Number of Dramatiq worker processes.
+        threads: Number of threads per process.
+        queues: Specific queues to consume.
+        installed_apps: Override for ``settings.INSTALLED_APPS``.
+        no_scheduler: When True, skip the scheduler thread.  Only one
+            worker should run the scheduler to avoid duplicate enqueues.
     """
-    active_scheduler: Scheduler = scheduler if scheduler is not None else Scheduler()
+    cfg = resolve_tasks_config(settings.TASKS if isinstance(settings.TASKS, dict) else {})
+    validate_tasks_config(cfg)
 
-    logger.info("=" * 60)
-    logger.info("OpenViper scheduler starting  (tick_interval=%.2fs)", tick_interval)
-    logger.info("Registered entries: %d", len(active_scheduler))
-    logger.info("=" * 60)
+    configure_task_logging(cfg, worker_mode=True)
 
-    running = True
+    broker = get_broker()
 
-    def shutdown(signum: int, frame: FrameType | None) -> None:
-        nonlocal running
-        sig_name = signal.Signals(signum).name
-        logger.info("Received %s - shutting down scheduler…", sig_name)
-        running = False
+    broker.add_middleware(AsyncIO())
+    broker.add_middleware(DatabaseCleanupMiddleware())
 
-    signal.signal(signal.SIGINT, shutdown)
-    signal.signal(signal.SIGTERM, shutdown)
+    log_cfg = cfg.get("logging", {})
+    db_cfg = log_cfg.get("database") if isinstance(log_cfg, dict) else None
+    if isinstance(db_cfg, dict) and db_cfg.get("task", 0):
+        broker.add_middleware(StateObservationMiddleware())
+
+    broker.add_middleware(UnifiedContextLogger())
+
+    if installed_apps is None:
+        installed_apps = t.cast("tuple[str, ...]", settings.INSTALLED_APPS)
+    discover_tasks(list(installed_apps))
+
+    # Framework task modules outside any installed app.
+    registry = Registry()
+    for module_name in BUILTIN_TASK_MODULES:
+        if not registry.is_discovered(module_name):
+            try:
+                importlib.import_module(module_name)
+                registry.mark_discovered(module_name)
+                print(f"Discovered built-in tasks module: {module_name}")
+            except ModuleNotFoundError:
+                logger.debug("Built-in tasks module %s not found", module_name)
+            except Exception:
+                logger.exception("Error importing %s", module_name)
+
+    for actor_name, fn in registry.actors.items():
+        try:
+            broker.get_actor(actor_name)
+        except dramatiq_errors.ActorNotFound:
+            queue = registry.get_actor_queue(actor_name)
+            dramatiq.actor(actor_name=actor_name, queue_name=queue)(fn)
 
     try:
-        while running:
-            now = datetime.now(UTC)
-            enqueued = active_scheduler.tick(now)
-            if enqueued:
-                logger.debug("Tick enqueued: %s", enqueued)
-            time.sleep(tick_interval)
-    except (KeyboardInterrupt, SystemExit):  # fmt: skip
-        pass
+        asyncio.run(sync_scheduled_jobs())
+    except Exception:
+        logger.exception("Failed to synchronise scheduled jobs")
+
+    scheduler = None
+    if not no_scheduler:
+        scheduler = Scheduler()
+        scheduler.start()
+
+    queues_display = queues or ["default"]
+    scheduler_status = "disabled" if no_scheduler else "enabled"
+    print(
+        f"Worker started: processes={processes} threads={threads} "
+        f"queues={queues_display} scheduler={scheduler_status}"
+    )
+
+    try:
+        run_worker(processes=processes, threads=threads, queues=queues)
+    except KeyboardInterrupt:
+        print("Worker interrupted, shutting down...")
+    except SystemExit:
+        print("Worker forced to exit")
     finally:
-        logger.info("Scheduler stopped.")
+        if scheduler is not None:
+            scheduler.stop()
+        print("Worker shutdown complete.")

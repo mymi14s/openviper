@@ -65,7 +65,7 @@ class GrokProvider(AIProvider):
         self._timeout: float = float(config.get("timeout", 60.0))
         self._client: httpx.AsyncClient | None = None
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def get_client(self) -> httpx.AsyncClient:
         """Get or create a persistent HTTP client with connection pooling."""
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self._timeout)
@@ -77,14 +77,14 @@ class GrokProvider(AIProvider):
             await self._client.aclose()
             self._client = None
 
-    def _get_headers(self) -> dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Return request headers. Built fresh each call; never stored."""
         return {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
 
-    def _build_messages(
+    def build_messages(
         self,
         prompt: str,
         images: list[dict[str, object]] | None = None,
@@ -113,7 +113,7 @@ class GrokProvider(AIProvider):
         return [{"role": "user", "content": content}]
 
     @staticmethod
-    def _build_payload(
+    def build_payload(
         messages: list[dict[str, object]],
         model: str,
         temperature: float,
@@ -128,7 +128,7 @@ class GrokProvider(AIProvider):
             **extra,
         }
 
-    def _build_extra_params(self, kwargs: dict[str, object]) -> dict[str, object]:
+    def build_extra_params(self, kwargs: dict[str, object]) -> dict[str, object]:
         """Extract Grok-specific parameters and whitelist remaining kwargs."""
         extra: dict[str, object] = {}
 
@@ -151,7 +151,7 @@ class GrokProvider(AIProvider):
         return extra
 
     @staticmethod
-    def _raise_for_status(response: httpx.Response) -> None:
+    def raise_for_status(response: httpx.Response) -> None:
         """Raise an appropriate GrokError for non-2xx responses."""
         if response.is_success:
             return
@@ -175,19 +175,19 @@ class GrokProvider(AIProvider):
         )
         max_tokens = kwargs.pop("max_tokens", self.config.get("max_tokens"))
         images = kwargs.pop("images", None)
-        extra = self._build_extra_params(kwargs)
+        extra = self.build_extra_params(kwargs)
 
-        messages = self._build_messages(prompt, images)
-        payload = self._build_payload(messages, model, temperature, max_tokens, extra)
+        messages = self.build_messages(prompt, images)
+        payload = self.build_payload(messages, model, temperature, max_tokens, extra)
 
-        client = self._get_client()
+        client = self.get_client()
         response = await client.post(
             f"{self._base_url}/chat/completions",
-            headers=self._get_headers(),
+            headers=self.get_headers(),
             json=payload,
         )
 
-        self._raise_for_status(response)
+        self.raise_for_status(response)
         result: str = response.json()["choices"][0]["message"]["content"] or ""
         return await self.after_inference(prompt, result)
 
@@ -199,20 +199,20 @@ class GrokProvider(AIProvider):
         )
         max_tokens = kwargs.pop("max_tokens", self.config.get("max_tokens"))
         images = kwargs.pop("images", None)
-        extra = self._build_extra_params(kwargs)
+        extra = self.build_extra_params(kwargs)
 
-        messages = self._build_messages(prompt, images)
+        messages = self.build_messages(prompt, images)
         extra["stream"] = True
-        payload = self._build_payload(messages, model, temperature, max_tokens, extra)
+        payload = self.build_payload(messages, model, temperature, max_tokens, extra)
 
-        client = self._get_client()
+        client = self.get_client()
         async with client.stream(
             "POST",
             f"{self._base_url}/chat/completions",
-            headers=self._get_headers(),
+            headers=self.get_headers(),
             json=payload,
         ) as response:
-            self._raise_for_status(response)
+            self.raise_for_status(response)
             async for line in response.aiter_lines():
                 if not line.startswith("data: "):
                     continue

@@ -11,6 +11,10 @@ const props = defineProps<{
   model: ModelConfig
 }>()
 
+const emit = defineEmits<{
+  'goToHistory': []
+}>()
+
 const adminStore = useAdminStore()
 const history = ref<ChangeHistoryEntry[]>([])
 const loadingHistory = ref(false)
@@ -87,7 +91,7 @@ defineExpose({ fetchHistory })
           </svg>
           Audit Log
         </span>
-        <button v-if="history.length > 0" @click="$emit('goToHistory')" class="text-xs text-primary-600 hover:text-primary-700 font-medium">View All</button>
+        <button v-if="history.length > 0" @click="emit('goToHistory')" class="text-xs text-primary-600 hover:text-primary-700 font-medium">View All</button>
       </h3>
 
       <div v-if="loadingHistory" class="flex justify-center py-4">

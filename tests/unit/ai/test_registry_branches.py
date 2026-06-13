@@ -129,7 +129,7 @@ class TestLoadFromSettings:
             patch("openviper.ai.registry.logger") as mock_logger,
         ):
             mock_settings.AI_PROVIDERS = ai_providers
-            reg._load_from_settings()
+            reg.load_from_settings()
 
         assert reg.get_by_model("m") is not None
         assert reg.get_by_model("x") is not None
@@ -137,9 +137,9 @@ class TestLoadFromSettings:
 
     def test_ensure_loaded_calls_load_once(self) -> None:
         reg = ProviderRegistry()
-        with patch.object(ProviderRegistry, "_load_from_settings") as mock_load:
-            reg._ensure_loaded()
-            reg._ensure_loaded()
+        with patch.object(ProviderRegistry, "load_from_settings") as mock_load:
+            reg.ensure_loaded()
+            reg.ensure_loaded()
         mock_load.assert_called_once()
 
 

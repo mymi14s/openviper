@@ -68,14 +68,19 @@ class ModelFactory[ModelT: Model]:
             cls.resolved_attrs = cls.resolve_attributes()
 
     @classmethod
+    def iter_factory_classes(cls) -> t.Iterator[type]:
+        """Yield non-base classes from the MRO in resolution order."""
+        for klass in reversed(cls.mro()):
+            if klass not in {ModelFactory, object}:
+                yield klass
+
+    @classmethod
     def resolve_attributes(cls) -> dict[str, object]:
         """Walk the MRO once and collect factory field descriptors."""
         attributes: dict[str, object] = {}
-        for klass in reversed(cls.mro()):
-            if klass in {ModelFactory, object}:
-                continue
+        for klass in cls.iter_factory_classes():
             for name, value in vars(klass).items():
-                if name.startswith("_") or name == "Meta" or callable(value):
+                if name.startswith("_") or name in {"Meta", "resolved_attrs"} or callable(value):
                     continue
                 if isinstance(value, (classmethod, staticmethod, PostGeneration)):
                     continue
@@ -122,9 +127,7 @@ class ModelFactory[ModelT: Model]:
 
     @classmethod
     async def run_post_generation(cls, instance: Model, created: bool) -> None:
-        for klass in reversed(cls.mro()):
-            if klass in {ModelFactory, object}:
-                continue
+        for klass in cls.iter_factory_classes():
             for value in vars(klass).values():
                 if isinstance(value, PostGeneration):
                     result = value.callback(instance, created)
@@ -140,9 +143,6 @@ def evaluate_factory_value(value: object, attributes: dict[str, object]) -> obje
     if isinstance(value, RelatedFactory):
         return value.build()
     return value
-
-
-# Pre-built factories for OpenViper models.
 
 
 class UserFactory(ModelFactory[Model]):

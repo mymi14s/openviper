@@ -8,10 +8,6 @@ from echo_provider.provider import EchoProvider, get_providers
 from openviper.ai.base import AIProvider
 from openviper.ai.registry import ProviderRegistry
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def provider():
@@ -24,11 +20,6 @@ def provider():
             },
         }
     )
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_provider_name(provider):

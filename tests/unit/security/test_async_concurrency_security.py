@@ -16,10 +16,6 @@ from openviper.middleware.ratelimit import SlidingWindowCounter
 
 from .conftest import MockUser, make_scope
 
-# ---------------------------------------------------------------------------
-# ASYNC-001: Concurrent requests do not share mutable state
-# ---------------------------------------------------------------------------
-
 
 class TestConcurrentRequestIsolation:
     """Concurrent requests must not share mutable state."""
@@ -66,11 +62,6 @@ class TestConcurrentRequestIsolation:
         assert results["c"] == 3
 
 
-# ---------------------------------------------------------------------------
-# ASYNC-002: Cancelled requests clean up resources
-# ---------------------------------------------------------------------------
-
-
 class TestCancelledRequestCleanup:
     """Cancelled requests must clean up resources."""
 
@@ -99,11 +90,6 @@ class TestCancelledRequestCleanup:
             assert ignore_permissions_ctx.get() is True
 
         assert ignore_permissions_ctx.get() is False
-
-
-# ---------------------------------------------------------------------------
-# ASYNC-003: Background tasks preserve correct security context
-# ---------------------------------------------------------------------------
 
 
 class TestBackgroundTaskSecurityContext:
@@ -135,11 +121,6 @@ class TestBackgroundTaskSecurityContext:
         result = await process_data(user_id=42, data={"key": "value"})
         assert result["user_id"] == 42
         assert result["processed"] is True
-
-
-# ---------------------------------------------------------------------------
-# ASYNC-004: Race-sensitive operations are protected
-# ---------------------------------------------------------------------------
 
 
 class TestRaceConditionProtection:

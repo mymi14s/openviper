@@ -3,24 +3,23 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
-import getpass
 import re
 
 from openviper.auth.utils import get_user_model
 from openviper.core.management.base import BaseCommand, CommandError
+from openviper.core.management.utils import model_field_names, prompt_password, run_async_command
 
 # Username: letters, digits, underscores, hyphens, dots - 1-150 chars.
-_USERNAME_RE = re.compile(r"^[\w.@+-]{1,150}$")
+USERNAME_RE = re.compile(r"^[\w.@+-]{1,150}$")
 # Simplified RFC-5322-ish check - good enough for interactive prompts.
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def validate_username(value: str) -> str | None:
     """Return an error message if *value* is not a valid username, else None."""
     if not value:
         return "Username cannot be blank."
-    if not _USERNAME_RE.match(value):
+    if not USERNAME_RE.match(value):
         return (
             "Invalid username. Use only letters, digits, and @/./+/-/_ characters "
             "(1-150 characters)."
@@ -32,21 +31,9 @@ def validate_email(value: str) -> str | None:
     """Return an error message if *value* is not a valid email, else None."""
     if not value:
         return "Email cannot be blank."
-    if not _EMAIL_RE.match(value):
+    if not EMAIL_RE.match(value):
         return "Enter a valid email address."
     return None
-
-
-def model_field_names(user_model: type) -> set[str]:
-    """Return declared field names for *user_model*.
-
-    Falls back to the built-in auth contract when model metadata is unavailable,
-    which keeps the command tests and simple mock models working.
-    """
-    fields = getattr(user_model, "_fields", None)
-    if isinstance(fields, dict) and fields:
-        return set(fields)
-    return {"username", "email", "is_superuser", "is_staff", "is_active"}
 
 
 def build_user_kwargs(field_names: set[str], username: str, email: str) -> dict[str, object]:
@@ -82,7 +69,7 @@ class Command(BaseCommand):
         )
         parser.add_argument("--no-input", action="store_true", help="Skip interactive prompts")
 
-    def _prompt_username(self, preset: str | None) -> str:
+    def prompt_username(self, preset: str | None) -> str:
         """Prompt until a syntactically valid username is entered."""
         if preset:
             err = validate_username(preset)
@@ -97,7 +84,7 @@ class Command(BaseCommand):
                 continue
             return value
 
-    def _prompt_email(self, preset: str | None) -> str:
+    def prompt_email(self, preset: str | None) -> str:
         """Prompt until a syntactically valid email is entered."""
         if preset:
             err = validate_email(preset)
@@ -112,24 +99,25 @@ class Command(BaseCommand):
                 continue
             return value
 
-    def _prompt_password(self, preset: str | None) -> str:
+    def prompt_password(self, preset: str | None) -> str:
         """Prompt for matching password pair."""
         if preset:
             return preset
-        while True:
-            password = getpass.getpass("Password: ")
-            if not password:
-                self.stderr(self.style_error("Password cannot be blank."))
-                continue
-            confirm = getpass.getpass("Password (again): ")
-            if password != confirm:
-                self.stderr(self.style_error("Passwords do not match. Try again."))
-                continue
-            return password
+        return prompt_password(self, "Password: ", "Password (again): ")
 
     def handle(self, **options) -> None:  # type: ignore[override]
 
         User = get_user_model()  # noqa: N806
+
+        if not hasattr(User, "objects"):
+            raise CommandError(
+                f"The User model '{User.__module__}.{User.__qualname__}' has no "
+                f"'objects' manager. This usually means the model has not been "
+                f"properly initialised by the ORM metaclass. Ensure the model "
+                f"subclass inherits from openviper.db.models.Model and is not "
+                f"abstract, and that the app containing it is listed in INSTALLED_APPS."
+            )
+
         field_names = model_field_names(User)
 
         no_input = options.get("no_input", False)
@@ -157,9 +145,9 @@ class Command(BaseCommand):
             if err:
                 raise CommandError(err)
         else:
-            username = self._prompt_username(options.get("username"))
-            email = self._prompt_email(options.get("email"))
-            password = self._prompt_password(options.get("password"))
+            username = self.prompt_username(options.get("username"))
+            email = self.prompt_email(options.get("email"))
+            password = self.prompt_password(options.get("password"))
 
         async def create() -> None:
             username_lookup = None
@@ -199,9 +187,4 @@ class Command(BaseCommand):
             await user.save()
             self.stdout(self.style_success(f"Superuser '{username}' created successfully."))
 
-        try:
-            asyncio.run(create())
-        except CommandError:
-            raise
-        except Exception as exc:
-            raise CommandError(str(exc)) from exc
+        run_async_command(create())

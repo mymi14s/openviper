@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from openviper.contrib.countries import CountryField, search_country, validate_country
+from openviper.contrib.fields.countries import CountryField, search_country, validate_country
 from openviper.http.response import JSONResponse
 from openviper.http.views import View
 from openviper.routing import Router
@@ -22,8 +22,6 @@ if TYPE_CHECKING:
     from openviper.http.request import Request
 
 router = Router(prefix="/profiles")
-
-_country_field = CountryField(null=True)
 
 
 class ProfileListView(View):

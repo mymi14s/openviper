@@ -44,21 +44,11 @@ def login_redirect() -> RedirectResponse:
     return RedirectResponse("/login", status_code=302)
 
 
-# ---------------------------------------------------------------------------
-# Home / Landing
-# ---------------------------------------------------------------------------
-
-
 async def home(request: Request) -> Response:
     """Public landing page."""
     if is_authenticated_request(request):
         return RedirectResponse("/dashboard", status_code=302)
     return HTMLResponse(template="home.html", context={"title": "AI Smart Recipe Generator"})
-
-
-# ---------------------------------------------------------------------------
-# Auth Views
-# ---------------------------------------------------------------------------
 
 
 async def register_page(request: Request) -> Response:
@@ -145,11 +135,6 @@ async def logout_page(request: Request) -> Response:
     return response
 
 
-# ---------------------------------------------------------------------------
-# Dashboard
-# ---------------------------------------------------------------------------
-
-
 async def dashboard(request: Request) -> Response:
     """User dashboard - session protected."""
     # The user might not have the cookie yet on immediate redirect after login,
@@ -172,11 +157,6 @@ async def dashboard(request: Request) -> Response:
             "meal_plan_count": len(meal_plans),
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# Ingredients
-# ---------------------------------------------------------------------------
 
 
 async def ingredients_page(request: Request) -> Response:
@@ -208,11 +188,6 @@ async def ingredients_page(request: Request) -> Response:
             "saved_ingredients": saved.ingredients if saved else "",
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# Recipe Generation
-# ---------------------------------------------------------------------------
 
 
 async def generate_recipes(request: Request) -> Response:
@@ -270,11 +245,6 @@ async def generate_recipes(request: Request) -> Response:
             "show_results": bool(recipes),
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# Recipes
-# ---------------------------------------------------------------------------
 
 
 async def recipes_list(request: Request) -> Response:
@@ -359,11 +329,6 @@ async def recipe_nutrition(request: Request, recipe_id: int) -> Response:
         await info.save()
 
     return RedirectResponse(f"/recipes/{recipe_id}", status_code=302)
-
-
-# ---------------------------------------------------------------------------
-# Meal Plans
-# ---------------------------------------------------------------------------
 
 
 async def mealplan_page(request: Request) -> Response:
@@ -456,11 +421,6 @@ async def mealplan_detail(request: Request, plan_id: int) -> Response:
     )
 
 
-# ---------------------------------------------------------------------------
-# Shopping List
-# ---------------------------------------------------------------------------
-
-
 async def shopping_list(request: Request) -> Response:
     """View all shopping lists - session protected."""
     if not is_authenticated_request(request):
@@ -484,11 +444,6 @@ async def shopping_list(request: Request) -> Response:
             "shopping_lists": parsed_lists,
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# Profile
-# ---------------------------------------------------------------------------
 
 
 async def profile_page(request: Request) -> Response:

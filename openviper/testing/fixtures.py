@@ -8,9 +8,10 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
-import dramatiq
 import pytest
 import pytest_asyncio
+
+from openviper.testing.tasks import TaskQueue, require_dramatiq
 
 if t.TYPE_CHECKING:
     import httpx
@@ -39,6 +40,7 @@ from openviper.testing.events import EventRecorder
 from openviper.testing.factories import SuperuserFactory, UserFactory
 from openviper.testing.mail import TestEmail
 from openviper.testing.settings import (
+    DatabaseIsolation,
     OpenViperTestConfig,
     PytestConfigProtocol,
     load_app,
@@ -47,7 +49,6 @@ from openviper.testing.settings import (
 )
 from openviper.testing.snapshot import Snapshot
 from openviper.testing.storage import uploaded_file as build_uploaded_file
-from openviper.testing.tasks import EagerTaskRunner, TaskQueue
 
 
 @dataclasses.dataclass(slots=True)
@@ -89,14 +90,24 @@ async def client(app: OpenViper) -> AsyncIterator[httpx.AsyncClient]:
         yield test_client
 
 
-@pytest_asyncio.fixture
-async def db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
+async def build_and_enter_database(
+    openviper_test_config: OpenViperTestConfig,
+    isolation: DatabaseIsolation | None = None,
+    migrate: bool | None = None,
+) -> AsyncIterator[TestDatabase]:
+    """Shared helper for database fixtures to eliminate duplicated setup logic."""
     database = build_test_database(
         openviper_test_config.database_url,
-        openviper_test_config.database_isolation,
-        openviper_test_config.migrate,
+        isolation or openviper_test_config.database_isolation,
+        migrate if migrate is not None else openviper_test_config.migrate,
     )
     async with database_context(database) as test_database:
+        yield test_database
+
+
+@pytest_asyncio.fixture
+async def db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
+    async for test_database in build_and_enter_database(openviper_test_config):
         yield test_database
 
 
@@ -104,34 +115,23 @@ async def db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDa
 async def transactional_db(
     openviper_test_config: OpenViperTestConfig,
 ) -> AsyncIterator[TestDatabase]:
-    database = build_test_database(
-        openviper_test_config.database_url,
-        "recreate",
-        openviper_test_config.migrate,
-    )
-    async with database_context(database) as test_database:
+    async for test_database in build_and_enter_database(
+        openviper_test_config, isolation="recreate"
+    ):
         yield test_database
 
 
 @pytest_asyncio.fixture
 async def migrated_db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
-    database = build_test_database(
-        openviper_test_config.database_url,
-        openviper_test_config.database_isolation,
-        migrate=True,
-    )
-    async with database_context(database) as test_database:
+    async for test_database in build_and_enter_database(openviper_test_config, migrate=True):
         yield test_database
 
 
 @pytest_asyncio.fixture
 async def isolated_db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
-    database = build_test_database(
-        openviper_test_config.database_url,
-        "recreate",
-        migrate=True,
-    )
-    async with database_context(database) as test_database:
+    async for test_database in build_and_enter_database(
+        openviper_test_config, isolation="recreate", migrate=True
+    ):
         yield test_database
 
 
@@ -221,40 +221,6 @@ def create_event_recorder() -> tuple[EventRecorder, contextlib.ExitStack]:
 
 
 @pytest.fixture
-def task_queue() -> Iterator[TaskQueue]:
-    """Capture Dramatiq tasks into a queue without enqueuing to the broker."""
-    queue, patches = create_task_queue()
-    with patches:
-        yield queue
-    queue.clear()
-
-
-def create_task_queue() -> tuple[TaskQueue, contextlib.ExitStack]:
-    """Return ``(queue, patches)``. Patches ``Actor.send_with_options`` to capture tasks."""
-    queue = TaskQueue()
-
-    def capturing_send(self: dramatiq.Actor, *, args: tuple, kwargs: dict, **opts: object) -> None:
-        queue.add(self.actor_name, *args, **kwargs)
-
-    patches = contextlib.ExitStack()
-    patches.enter_context(patch.object(dramatiq.Actor, "send_with_options", capturing_send))
-    return queue, patches
-
-
-@pytest.fixture
-def task_runner() -> EagerTaskRunner:
-    return EagerTaskRunner()
-
-
-@pytest.fixture
-def disable_tasks() -> Iterator[TaskQueue]:
-    """Prevent any Dramatiq task from being enqueued during the test."""
-    queue, patches = create_task_queue()
-    with patches:
-        yield queue
-
-
-@pytest.fixture
 def cache() -> Iterator[InMemoryCache]:
     """Isolated in-memory cache replacing the global default backend for the test."""
     instance, restore = setup_test_cache()
@@ -276,6 +242,24 @@ def setup_test_cache() -> tuple[InMemoryCache, Callable[[], None]]:
         cache_module.cache_instances.update(previous)
 
     return instance, restore
+
+
+def create_task_queue() -> tuple[TaskQueue, contextlib.ExitStack]:
+    """Return ``(queue, patches)``. Intercepts ``dramatiq.Actor.send_with_options``.
+
+    Use as a context manager::
+
+        queue, patches = create_task_queue()
+        with patches:
+            my_task.send(1, 2)
+        assert_task_queued(queue, "my_task")
+    """
+    require_dramatiq("create_task_queue()")
+
+    queue = TaskQueue()
+    patches = contextlib.ExitStack()
+    patches.enter_context(queue.patch())
+    return queue, patches
 
 
 @pytest.fixture
@@ -393,9 +377,9 @@ def snapshot(tmp_path: Path) -> Snapshot:
 
 async def run_lifespan_event(app: OpenViper, event_type: str) -> None:
     if event_type == "lifespan.startup":
-        app._get_middleware_app()
+        app.get_middleware_app()
         app.get_openapi_schema()
-        await app._call_installed_app_ready_hooks()
+        await app.call_installed_app_ready_hooks()
         handlers = app._startup_handlers
     elif event_type == "lifespan.shutdown":
         handlers = app._shutdown_handlers

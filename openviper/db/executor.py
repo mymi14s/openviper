@@ -12,7 +12,7 @@ import time
 import traceback
 import uuid
 from collections import OrderedDict
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, cast
@@ -32,8 +32,7 @@ from sqlalchemy.sql.sqltypes import Uuid
 
 from openviper.auth.permission_core import check_permission_for_model
 from openviper.conf import settings
-from openviper.db import _model_registry
-from openviper.db._traversal import TraversalLookup
+from openviper.db import model_registry
 from openviper.db.connection import (
     _request_conn,
     _transaction_alias,
@@ -69,15 +68,16 @@ from openviper.db.fields import (
 )
 from openviper.db.migrations.executor import get_soft_removed_table
 from openviper.db.routing.resolver import resolver
-from openviper.db.utils import get_per_loop_lock
+from openviper.db.traversal import TraversalLookup
+from openviper.db.utils import enforce_single_model_constraint, get_per_loop_lock
 from openviper.exceptions import FieldError, TableNotFound
 
 _SAFE_TABLE_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-# Maximum length for regex lookup patterns to prevent ReDoS attacks.
+# Cap regex length to mitigate ReDoS attack surface.
 _MAX_REGEX_LENGTH: int = 500
 
-# Nested quantifiers like (a+)+, (a*)*, (a+)* etc. are the primary vector.
+# Nested quantifiers are the primary ReDoS vector.
 _REDoS_PATTERN: re.Pattern[str] = re.compile(
     r"""
     \([^)]*[+*][^)]*\)\s*[+*]       # Nested quantifiers: (a+)+, (a*)*, etc.
@@ -86,6 +86,17 @@ _REDoS_PATTERN: re.Pattern[str] = re.compile(
     | \(\?P?<[a-zA-Z]+>[^)]*[+*]    # Named group with quantifier: (?P<name>a+)
     """,
     re.VERBOSE,
+)
+
+# Reject regex operators that have no legitimate use in simple DB lookups
+# and could enable ReDoS or DB-specific behavior exploitation.
+_UNSAFE_REGEX_CHARS: frozenset[str] = frozenset(
+    {
+        "\x00",  # Null byte injection.
+        "\n",  # Newline injection.
+        "\r",  # Carriage return injection.
+        "\x1a",  # DB-specific sentinel characters.
+    }
 )
 
 
@@ -104,6 +115,8 @@ def validate_regex_pattern(pattern: str) -> None:
         raise FieldError(
             f"Regex pattern contains potentially catastrophic nested quantifiers: {pattern!r}"
         )
+    if any(char in _UNSAFE_REGEX_CHARS for char in pattern):
+        raise FieldError(f"Regex pattern contains disallowed characters: {pattern!r}")
 
 
 def assert_safe_table_name(name: str) -> None:
@@ -112,7 +125,7 @@ def assert_safe_table_name(name: str) -> None:
         raise ValueError(f"Unsafe table name: {name!r}")
 
 
-# Field names that commonly hold sensitive data and should be redacted in logs.
+# Redact common PII/credential field names from log output.
 _SENSITIVE_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "password",
@@ -144,7 +157,6 @@ def redact_filters(
     for f in filters:
         entry: dict[str, str] = {}
         for key, value in f.items():
-            # Extract the base field name (before __lookup suffix).
             base = key.split("__")[0]
             entry[key] = "[REDACTED]" if base in _SENSITIVE_FIELD_NAMES else repr(value)
         redacted.append(entry)
@@ -159,7 +171,6 @@ def redact_values(values: dict[str, object]) -> dict[str, str]:
     return result
 
 
-# Patterns reported by different DB backends when a table is missing.
 _TABLE_MISSING_RE: re.Pattern[str] = re.compile(
     r"no such table|doesn't exist|does not exist|undefined table",
     re.IGNORECASE,
@@ -193,13 +204,11 @@ def is_data_error(exc: SADBAPIError) -> bool:
     return "DataError" in type(exc).__name__ or "invalid input" in str(exc).lower()
 
 
-# Patterns reported by different DB backends when a column/field is missing.
 _FIELD_MISSING_RE: re.Pattern[str] = re.compile(
     r"column[^\n]*does not exist|no such column|undefined column",
     re.IGNORECASE,
 )
 
-# Pattern to extract the field/column name from database error messages.
 _FIELD_NAME_EXTRACT_RE: re.Pattern[str] = re.compile(
     r"""
     (?:column\s+["']?([^"'\s().]+)["']?\s+does\s+not\s+exist)|  # PostgreSQL
@@ -217,7 +226,6 @@ def extract_field_names(error_msg: str) -> list[str]:
     for match in _FIELD_NAME_EXTRACT_RE.finditer(error_msg):
         field = next((g for g in match.groups() if g), None)
         if field:
-            # Strip table prefix if present (e.g., "table.column" -> "column")
             field = field.split(".")[-1]
             if field not in fields:
                 fields.append(field)
@@ -235,7 +243,6 @@ def check_field_missing(exc: Exception, model_cls: type) -> None:
         error_msg = str(exc)
         unknown_fields = extract_field_names(error_msg)
 
-        # Log the raw database error for debugging
         logger.debug("Database error for %s: %s", model_cls.__name__, error_msg)
 
         if unknown_fields:
@@ -252,17 +259,18 @@ def check_field_missing(exc: Exception, model_cls: type) -> None:
             ) from None
 
 
+def check_schema_error(exc: Exception, model_cls: type) -> None:
+    """Check for missing table or column errors and re-raise as domain errors."""
+    check_table_missing(exc, model_cls)
+    check_field_missing(exc, model_cls)
+
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
 
     from openviper.db.models import Model, QuerySet
-
-# Optional row cap applied to execute_select / execute_values when no
-# explicit .limit() is set on the QuerySet.
-# Set MAX_QUERY_ROWS in your project settings to enable a default cap.
-# When unset (the default) no automatic limit is applied.
 
 
 def max_query_rows() -> int | None:
@@ -302,7 +310,7 @@ class _QueryCache:
             return None
         expire, rows = entry
         if time.monotonic() > expire:
-            self._remove_key(key)
+            self.remove_key(key)
             return None
         self._store.move_to_end(key)
         return rows
@@ -323,9 +331,9 @@ class _QueryCache:
         table_name = key.split(":", 1)[0]
         self._table_index.setdefault(table_name, set()).add(key)
         while len(self._store) > self._max_size:
-            self._pop_oldest()
+            self.pop_oldest()
 
-    def _remove_key(self, key: str) -> None:
+    def remove_key(self, key: str) -> None:
         """Remove a key from the store and secondary index."""
         self._store.pop(key, None)
         table_name = key.split(":", 1)[0]
@@ -335,7 +343,7 @@ class _QueryCache:
             if not bucket:
                 del self._table_index[table_name]
 
-    def _pop_oldest(self) -> None:
+    def pop_oldest(self) -> None:
         """Evict the oldest entry from the store and secondary index."""
         key, _ = self._store.popitem(last=False)
         table_name = key.split(":", 1)[0]
@@ -392,8 +400,8 @@ def invalidate_query_cache(table_name: str | None = None) -> None:
     else:
         cache.clear()
 
-    # Clear schema introspection cache to ensure migrations are reflected
-    # immediately without requiring a process restart.
+    # Schema cache must be cleared so migration DDL is visible
+    # without a process restart.
     if table_name:
         _REAL_COLUMNS_CACHE.pop(table_name, None)
     else:
@@ -413,10 +421,7 @@ def cache_key_for_stmt(table_name: str, stmt: Any) -> str:
     return f"{table_name}:{digest}"
 
 
-# ContextVar that, when True, bypasses permission checks for the current task.
-# Use bypass_permissions() context manager to set this for a scoped block.
-# This is safer than passing ignore_permissions=True everywhere because it's
-# explicitly scoped and cannot be accidentally left enabled.
+# Scoped permission bypass via ContextVar is safer than boolean flags
 _bypass_permissions: ContextVar[bool] = ContextVar("_bypass_permissions", default=False)
 
 
@@ -440,7 +445,6 @@ def bypass_permissions(*, reason: str | None = None) -> Generator[None]:
         with bypass_permissions(reason="bulk import script"):
             await user.save()          # Permission check skipped
             await sensitive.delete()   # Permission check skipped
-        # Permissions enforced again here
     """
     token = _bypass_permissions.set(True)
     reason_str = f" Reason: {reason}" if reason else ""
@@ -455,15 +459,12 @@ def bypass_permissions(*, reason: str | None = None) -> Generator[None]:
         _bypass_permissions.reset(token)
 
 
-# Alias the shared cache dict for local use in executor functions.
-# The dict object is shared with _model_registry so clearing one clears both.
-SOFT_REMOVED_CACHE = _model_registry.soft_removed_cache
+SOFT_REMOVED_CACHE = model_registry.soft_removed_cache
 _soft_removed_lock: asyncio.Lock | None = None
 
-# Cache for actual column names in the database to handle legacy/mismatched schemas
 _REAL_COLUMNS_CACHE: dict[str, frozenset[str]] = {}
 
-# Per-event-loop lock caches to prevent "bound to a different event loop" errors
+# Per-event-loop locks avoid "bound to a different event loop" errors.
 _real_columns_lock_per_loop: dict[int, asyncio.Lock] = {}
 _soft_removed_lock_per_loop: dict[int, asyncio.Lock] = {}
 
@@ -489,12 +490,10 @@ async def get_real_columns(conn: Any, table_name: str) -> frozenset[str] | None:
 
         try:
             if "sqlite" in dialect:
-                # SQLite PRAGMA does not support parameterized queries - the
-                # table name must be a literal identifier.  assert_safe_table_name
-                # validates the name against ^[A-Za-z_][A-Za-z0-9_$]*$ to
-                # prevent SQL injection via table_name.  Double-quoting the
-                # identifier provides an additional defence-in-depth layer against
-                # injection even if the regex were bypassed.
+                # SQLite PRAGMA requires a literal identifier, not a
+                # parameterized value. assert_safe_table_name validates the name
+                # against ^[A-Za-z_][A-Za-z0-9_$]*$ to prevent SQL injection.
+                # Double-quoting provides defence-in-depth if the regex is bypassed.
                 assert_safe_table_name(table_name)
                 quoted = f'"{table_name}"'
                 result = await conn.execute(sa.text(f"PRAGMA table_info({quoted})"))
@@ -548,13 +547,12 @@ async def preload_table_schemas() -> None:
     async with engine.connect() as conn:
         table_names = [
             str(cast("Any", model_cls)._table_name)
-            for model_cls in _model_registry.registry.values()
+            for model_cls in model_registry.registry.values()
         ]
         await get_real_columns_bulk(conn, table_names)
 
 
-# Sentinel stored in cache when a lookup failed, so we don't
-# re-raise FieldError (and re-construct TraversalLookup) on every query.
+# Sentinel for traversal lookup failure.
 _TRAVERSAL_FAILURE: object = object()
 
 
@@ -567,7 +565,8 @@ def parse_traversal_cached(key: str, model_cls: type) -> Any:
     try:
         return TraversalLookup(key, model_cls)
     except FieldError:
-        # Cache the failure sentinel so we don't retry parsing
+        # Cache the failure sentinel to avoid repeated FieldError
+        # construction on every call.
         return _TRAVERSAL_FAILURE
 
 
@@ -674,13 +673,13 @@ async def load_soft_removed_columns() -> None:
     without acquiring the lock.  Only when the flag is ``False`` do we acquire
     and re-check inside the lock.
     """
-    # Fast path - already loaded, no lock needed.
-    if _model_registry.soft_removed_loaded:
+    # Avoid lock acquisition on the hot path when data is already loaded.
+    if model_registry.soft_removed_loaded:
         return
 
     lock = get_soft_removed_lock()
     async with lock:
-        if _model_registry.soft_removed_loaded:
+        if model_registry.soft_removed_loaded:
             return
         try:
             engine = await get_engine()
@@ -690,27 +689,27 @@ async def load_soft_removed_columns() -> None:
                     lambda sync_conn: sa.inspect(sync_conn).has_table(soft_table.name)
                 )
                 if not exists:
-                    _model_registry.soft_removed_loaded = True
+                    model_registry.soft_removed_loaded = True
                     return
                 result = await conn.execute(
                     sa.select(soft_table.c.table_name, soft_table.c.column_name)
                 )
-                # Collect into a regular dict first, then convert to frozensets
-                # so all writes happen atomically before the cache is updated.
+                # Stage writes in a mutable dict first so the frozenset
+                # assignment to the cache is atomic, preventing partial reads.
                 staging: dict[str, set[str]] = {}
                 for row in result:
                     staging.setdefault(row.table_name, set()).add(row.column_name)
                 for tname, cols in staging.items():
                     SOFT_REMOVED_CACHE[tname] = frozenset(cols)
-            _model_registry.soft_removed_loaded = True
+            model_registry.soft_removed_loaded = True
         except Exception:
             logger.debug("Soft-removed columns load failed; treating as empty", exc_info=True)
-            _model_registry.soft_removed_loaded = True
+            model_registry.soft_removed_loaded = True
 
 
 def invalidate_soft_removed_cache() -> None:
     """Clear the soft-removed column cache (call after migrations)."""
-    _model_registry.invalidate_soft_removed_cache()
+    model_registry.invalidate_soft_removed_cache()
     build_table.cache_clear()
 
 
@@ -755,15 +754,17 @@ def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) ->
         except Exception:
             logger.debug("FK callable resolution failed for %s", target_str, exc_info=True)
 
-    # Ensure target_str is a string for registry lookups and string operations
     if not isinstance(target_str, str):
         target_str = str(target_str)
 
-    if target_str in _model_registry.registry:
-        target_model_cls = cast("type", _model_registry.registry[target_str])
+    if target_str in model_registry.registry:
+        target_model_cls = cast("type", model_registry.registry[target_str])
         return str(getattr(target_model_cls, "_table_name", ""))
 
-    camel_to_snake = _model_registry.model_meta_cls._camel_to_snake  # type: ignore[union-attr]
+    model_meta_cls = model_registry.model_meta_cls
+    if model_meta_cls is None:
+        raise RuntimeError("Model metadata registry is not initialised.")
+    camel_to_snake = cast("Callable[[str], str]", model_meta_cls.camel_to_snake)
 
     if "." in target_str:
         parts = target_str.split(".")
@@ -784,8 +785,8 @@ def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) ->
         ]
 
         for key in registry_keys:
-            if key in _model_registry.registry:
-                target_model_cls = cast("type", _model_registry.registry[key])
+            if key in model_registry.registry:
+                target_model_cls = cast("type", model_registry.registry[key])
                 return str(getattr(target_model_cls, "_table_name", ""))
 
         model_snake = camel_to_snake(model_name)
@@ -821,7 +822,7 @@ def build_table(table_name: str, model_cls: type) -> sa.Table:
     columns: list[sa.Column[Any]] = []
     added_columns: set[str] = set()
     for _name, field in cast("Any", model_cls)._fields.items():
-        if field._column_type == "":
+        if field.column_type == "":
             continue  # ManyToMany - no column
 
         col_name = field.column_name
@@ -831,7 +832,6 @@ def build_table(table_name: str, model_cls: type) -> sa.Table:
         col_type = sa_type(field)
         args: list[Any] = [col_name, col_type]
 
-        # Add ForeignKey constraint if applicable
         if isinstance(field, (ForeignKey, OneToOneField)):
             related_table = resolve_fk_table_name(field, model_cls)
             if related_table:
@@ -853,7 +853,6 @@ def build_table(table_name: str, model_cls: type) -> sa.Table:
         columns.append(col)
         added_columns.add(col_name)
 
-    # Add composite indexes and unique constraints from Meta
     table_args: list[Any] = list(columns)
     for idx in getattr(model_cls, "_meta_indexes", []):
         col_names = [
@@ -884,7 +883,8 @@ def sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if isinstance(field, BinaryField):
         return sa.LargeBinary()
     if isinstance(field, (ForeignKey, OneToOneField)):
-        # Resolve the target model's PK type so FK column uses a matching SA type
+        # FK column type must match the target model's PK type to
+        # satisfy referential integrity constraints.
         target_model = field.resolve_target()
         if target_model:
             target_fields = getattr(target_model, "_fields", {})
@@ -942,41 +942,33 @@ def build_traversal_joins(
     join_steps = traversal.get_joins_needed()
 
     if not join_steps:
-        # No traversal, just return base
         return from_clause, base_table
 
-    # Track the "left" table for each step - the table that owns the FK column.
-    # For the first step this is the base table; for subsequent steps it is
-    # the target table resolved by the previous step.  This avoids ambiguous
-    # column lookups on SQLAlchemy JOIN objects where multiple tables may
-    # share column names (e.g. "id" or "reporter_id").
+    # Track the "left" table across join steps to avoid ambiguous
+    # column lookups on SQLAlchemy JOIN objects where multiple tables share
+    # column names (e.g. "id" or "reporter_id").
     left_table: sa.Table = base_table
 
-    # Build JOINs for each FK step
     for _i, step in enumerate(join_steps):
-        # Get the FK field's column on the left (owning) table
         fk_column = step.field.column_name
         if fk_column not in left_table.c:
-            # Try with _id suffix if needed
             if f"{step.field.name}_id" in left_table.c:
                 fk_column = f"{step.field.name}_id"
             else:
                 raise ValueError(f"Cannot find FK column '{fk_column}' on table")
 
-        # Get the related model's table
         related_model = step.field.resolve_target()
         related_table = get_table(related_model)
 
-        # Build JOIN condition: left_table.fk_id == related_table.id
         join_condition = left_table.c[fk_column] == related_table.c.id
 
-        # Create LEFT OUTER JOIN to support NULL foreign keys
+        # LEFT OUTER JOIN preserves rows whose foreign key is NULL.
         from_clause = from_clause.outerjoin(related_table, join_condition)
 
-        # Next step's FK column lives in this step's target table
+        # Each join step's FK column resides in the previous step's
+        # target table, not the original base.
         left_table = related_table
 
-    # Get final table (last target in the traversal)
     return from_clause, get_table(traversal.final_model)
 
 
@@ -998,11 +990,9 @@ def compile_traversal_filter(
     try:
         lookup_obj = cached_traversal_lookup(key, model_cls)
     except FieldError:
-        # Invalid traversal, return None (filter ignored)
         return None, []
 
     if lookup_obj.is_simple_field():
-        # Not a traversal, compile normally
         col_name = lookup_obj.final_field.column_name
         if col_name not in base_table.c and f"{col_name}_id" in base_table.c:
             col_name = f"{col_name}_id"
@@ -1010,22 +1000,20 @@ def compile_traversal_filter(
         where_clause = apply_lookup(col, "", value, field=lookup_obj.final_field)
         return where_clause, []
 
-    # Build JOINs for traversal
     from_clause, final_table = build_traversal_joins(lookup_obj, base_table)
 
-    # Extract lookup operator from the final part
-    # e.g., "author__username__contains" -> lookup="contains"
+    # The final __-delimited segment may be a lookup operator
+    # (e.g. "contains"), not a field name.
     parts = key.split("__")
     lookup = ""  # infer from final parts if available
 
-    # The lookup is anything after all the FK traversals.
-    # Join steps consume one segment each (fk field name), plus the final field name.
-    # Any remaining segment is the lookup operator.
+    # Join steps consume one segment each (FK field name), plus one
+    # for the final field. Any remaining segment is the lookup operator,
+    # not a traversal step.
     traversal_depth = len(lookup_obj.get_joins_needed()) + 1  # fk steps + final field
     if len(parts) > traversal_depth:
         lookup = parts[traversal_depth]
 
-    # Get final column
     final_field = lookup_obj.final_field
     col_name = final_field.name
     if hasattr(final_field, "column_name") and final_field.column_name != final_field.name:
@@ -1034,8 +1022,6 @@ def compile_traversal_filter(
     col = final_table.c[col_name]
     where_clause = apply_lookup(col, lookup, value, field=final_field)
 
-    # Collect all JOINs from the from_clause
-    # The from_clause is a join with multiple tables, we need to extract it
     joins = [from_clause] if from_clause != base_table else []
 
     return where_clause, joins
@@ -1048,16 +1034,23 @@ def escape_like(value: object) -> str:
     match all rows or '%%' could cause expensive pattern matching.
     """
     str_value: str = value if isinstance(value, str) else str(value)
-    # Escape backslash first (it's the escape character), then % and _
+    # Process backslash escapes first to prevent double-escaping.
     return str_value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def resolve_lookup_value(v: object) -> object:
+    """Extract the PK or raw ID from a filter value for IN/NOT_IN lookups."""
+    if isinstance(v, LazyFK):
+        return v.fk_id
+    if hasattr(v.__class__, "_fields"):
+        return getattr(v, "id", v)
+    return v
 
 
 def apply_lookup(
     col: sa.ColumnElement[Any], lookup: str, value: object, field: object = None
 ) -> sa.ColumnElement[Any]:
     """Apply a lookup operator to a column."""
-    # Use Field.to_db() if available to prepare the value for the database.
-    # This respects field-specific logic like DateTime timezones or Boolean mappings.
     if field is not None:
         try:
             if lookup in ("in", "not_in") and isinstance(value, (list, tuple)):
@@ -1069,26 +1062,28 @@ def apply_lookup(
         except TypeError:
             return sa.false()
 
-    # Unwrap LazyFK values to raw IDs for SQL binding
+    # LazyFK wraps a deferred FK load - bind the raw ID instead.
     if isinstance(value, LazyFK):
         value = value.fk_id
-    # Unwrap Model instances to their primary key for FK filter comparisons
+    # Model instances in filters are compared by PK, not by value.
     if hasattr(value, "_meta_table_name") or (
         hasattr(value, "__class__") and hasattr(value.__class__, "_fields")
     ):
         value = getattr(value, "id", value)
-    # Intercept UUID columns to ensure they get a uuid.UUID object
+    # UUID columns require uuid.UUID objects for SQLAlchemy type matching.
 
     is_uuid_col = (
         hasattr(col, "type") and isinstance(col.type, Uuid) and getattr(col.type, "as_uuid", True)
     )
 
     if is_uuid_col:
-        if isinstance(value, str):
+        if isinstance(value, (list, tuple)):
+            value = [uuid.UUID(v) if isinstance(v, str) else v for v in value]
+        elif isinstance(value, str):
             with contextlib.suppress(ValueError):
                 value = uuid.UUID(value)
     else:
-        # For non-UUID columns, convert UUID objects to strings for database comparison
+        # Non-UUID columns store UUIDs as strings - convert for comparison.
         if isinstance(value, uuid.UUID):
             value = str(value)
 
@@ -1124,30 +1119,17 @@ def apply_lookup(
         return col < value
     if lookup == "lte":
         return col <= value
-    if lookup == "in":
+    if lookup in ("in", "not_in"):
         if isinstance(value, (list, tuple)):
-            unwrapped = [
-                (
-                    v.fk_id
-                    if isinstance(v, LazyFK)
-                    else getattr(v, "id", v) if hasattr(v.__class__, "_fields") else v
-                )
-                for v in value
-            ]
-            return col.in_(unwrapped)
-        return col.in_(cast("list[object]", value))
-    if lookup == "not_in":
-        if isinstance(value, (list, tuple)):
-            unwrapped = [
-                (
-                    v.fk_id
-                    if isinstance(v, LazyFK)
-                    else getattr(v, "id", v) if hasattr(v.__class__, "_fields") else v
-                )
-                for v in value
-            ]
-            return col.notin_(unwrapped)
-        return col.notin_(cast("list[object]", value))
+            unwrapped = [resolve_lookup_value(v) for v in value]
+            if is_uuid_col:
+                unwrapped = [uuid.UUID(v) if isinstance(v, str) else v for v in unwrapped]
+            return col.in_(unwrapped) if lookup == "in" else col.notin_(unwrapped)
+        return (
+            col.in_(cast("list[object]", value))
+            if lookup == "in"
+            else col.notin_(cast("list[object]", value))
+        )
     if lookup == "isnull":
         return col.is_(None) if value else col.isnot(None)
     if lookup == "range":
@@ -1194,12 +1176,12 @@ def compile_single_filter(
     col_name = parts[0]
     lookup = parts[1] if len(parts) > 1 else "exact"
 
-    # Resolve 'pk' to the actual primary key column name
+    # 'pk' is a universal alias for the primary key column.
     if col_name == "pk":
         pk_cols = list(table.primary_key.columns)
         col_name = pk_cols[0].name if pk_cols else "id"
 
-    # Support FK _id column aliases (e.g. filter(author=5) -> author_id column)
+    # FK _id column aliases (e.g. filter(author=5) -> author_id).
     if col_name not in table.c and f"{col_name}_id" in table.c:
         col_name = f"{col_name}_id"
 
@@ -1208,10 +1190,10 @@ def compile_single_filter(
 
     col = table.c[col_name]
 
-    # Resolve the field from model_cls if available to enable field-aware prep in apply_lookup
+    # Resolve field for type-aware value coercion in apply_lookup.
     field = None
     if model_cls and hasattr(model_cls, "_fields"):
-        # For FKs, the column might be 'author_id' but the field is 'author'
+        # FK column 'author_id' maps back to field 'author'.
         lookup_name = col_name
         if lookup_name not in model_cls._fields and lookup_name.endswith("_id"):
             base_name = lookup_name[:-3]
@@ -1383,24 +1365,18 @@ def build_where_clause_with_traversals(
 
     parts: list[sa.ColumnElement[Any]] = []
     from_clause = initial_from_clause if initial_from_clause is not None else base_table
-    # Maps join key → (from_clause, final_table) to avoid rebuilding duplicate JOINs
     collected_joins: dict[str, tuple[sa.FromClause, sa.Table]] = {}
 
-    # Process filters with traversal support
     for filters in filter_dicts:
         for key, value in filters.items():
-            # Try traversal parsing
             try:
                 traversal = cached_traversal_lookup(key, model_cls)
                 if not traversal.is_simple_field():
-                    # Check join cache before building to avoid redundant work
                     if key in collected_joins:
                         traversal_from, final_table = collected_joins[key]
                     else:
                         traversal_from, final_table = build_traversal_joins(traversal, base_table)
                         collected_joins[key] = (traversal_from, final_table)
-                        # Accumulate traversal JOINs into the shared from_clause
-                        # so that multiple FK traversals are all present.
                         if traversal_from is not base_table:
                             from_clause = (
                                 from_clause.join(
@@ -1415,7 +1391,6 @@ def build_where_clause_with_traversals(
                                 else traversal_from
                             )
 
-                    # Compile filter on final table
                     col = final_table.c[traversal.final_field.column_name]
                     clause = apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
@@ -1424,7 +1399,6 @@ def build_where_clause_with_traversals(
             except FieldError:
                 pass
 
-            # Normal field compilation fallback
             fallback_clause = compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_clause is None:
                 available = ", ".join(sorted(model_cls._fields))
@@ -1435,7 +1409,6 @@ def build_where_clause_with_traversals(
                 )
             parts.append(fallback_clause)
 
-    # Process excludes (can also use traversals)
     for excludes in exclude_dicts:
         for key, value in excludes.items():
             try:
@@ -1468,7 +1441,6 @@ def build_where_clause_with_traversals(
             except FieldError:
                 pass
 
-            # Normal exclude fallback
             fallback_exclude = compile_single_filter(base_table, key, value, model_cls=model_cls)
             if fallback_exclude is None:
                 available = ", ".join(sorted(model_cls._fields))
@@ -1479,7 +1451,6 @@ def build_where_clause_with_traversals(
                 )
             parts.append(sa.not_(fallback_exclude))
 
-    # Q objects - with traversal support
     for q_obj in q_filters:
         from_clause_box: list[sa.FromClause] = [from_clause]
         q_clause = compile_q_with_traversals(
@@ -1509,7 +1480,7 @@ def f_expr_as_sa(table: sa.Table, expr: object) -> sa.ColumnElement[Any] | None:
     Duck-typed: works without importing F / _FExpr from models to avoid circulars.
     Returns ``None`` when the field cannot be resolved.
     """
-    # _FExpr (has lhs/op/rhs)
+    # _FExpr carries lhs/op/rhs for arithmetic expressions.
     if hasattr(expr, "lhs") and hasattr(expr, "op") and hasattr(expr, "rhs"):
         lhs = f_expr_as_sa(table, expr.lhs) if is_f_like(expr.lhs) else expr.lhs
         rhs = f_expr_as_sa(table, expr.rhs) if is_f_like(expr.rhs) else expr.rhs
@@ -1525,7 +1496,7 @@ def f_expr_as_sa(table: sa.Table, expr: object) -> sa.ColumnElement[Any] | None:
             return lhs / rhs
         return None
 
-    # F reference (has name, no lhs, no func)
+    # F reference carries a column name without lhs or func.
     if hasattr(expr, "name") and not hasattr(expr, "lhs") and not hasattr(expr, "func"):
         col_name: str = expr.name
         if col_name in table.c:
@@ -1542,7 +1513,7 @@ def ann_expr_as_sa(table: sa.Table, expr: object) -> sa.ColumnElement[Any] | Non
 
     Returns ``None`` for unsupported types.
     """
-    # _Aggregate subclass (has func + field)
+    # _Aggregate carries a SQL func name and target field.
     if hasattr(expr, "func") and hasattr(expr, "field"):
         col_name: str = expr.field
         if col_name not in table.c:
@@ -1558,26 +1529,47 @@ def ann_expr_as_sa(table: sa.Table, expr: object) -> sa.ColumnElement[Any] | Non
             return None
         return cast("sa.ColumnElement[Any]", sa_func(col))
 
-    # F or _FExpr
+    # F or _FExpr delegates to f_expr_as_sa.
     if is_f_like(expr):
         return f_expr_as_sa(table, expr)
 
     return None
 
 
+def apply_order_limit_offset(
+    stmt: sa.Select, qs: QuerySet, table: sa.Table, *, apply_limit: bool = True
+) -> sa.Select:
+    """Apply ORDER BY, LIMIT, and OFFSET from a QuerySet to a SELECT statement.
+
+    When *apply_limit* is False, only ORDER BY is applied.  This allows callers
+    like ``execute_select`` to apply DISTINCT before their own limit logic.
+    """
+    for field_name in qs._order:
+        desc = field_name.startswith("-")
+        col_name = field_name.lstrip("-")
+        if col_name in table.c:
+            col = table.c[col_name]
+            stmt = stmt.order_by(col.desc() if desc else col.asc())
+
+    if apply_limit:
+        if qs._limit is not None:
+            stmt = stmt.limit(qs._limit)
+        if qs._offset is not None:
+            stmt = stmt.offset(qs._offset)
+
+    return stmt
+
+
 async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
     model_cls = qs._model
     table = get_table(model_cls)
 
-    # ── Column selection (only / defer) ───────────────────────────────────
     only_fields: set[str] = set(getattr(qs, "_only_fields", []))
     defer_fields: set[str] = set(getattr(qs, "_defer_fields", []))
 
-    # ── select_related JOINs ──────────────────────────────────────────────
     from_clause: Any = table
     extra_cols: list[Any] = []
 
-    # Collect related tables first so all column checks share one connection.
     related_info: list[tuple[str, Any]] = []
     for field_name in qs._select_related:
         if field_name not in model_cls._fields:
@@ -1596,7 +1588,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
         )
         related_info.append((field_name, related_table))
 
-    # ── WHERE + traversal JOINs (chains off any select_related joins) ─────
     q_filters = getattr(qs, "_q_filters", [])
     where, from_clause = build_where_clause_with_traversals(
         model_cls,
@@ -1607,17 +1598,13 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
         initial_from_clause=from_clause,
     )
 
-    # Use a single connection for all schema-resilience checks and query execution.
     async with connect(qs._db_alias, model_cls) as conn:
-        # Parallel schema resilience: check all table columns at once
         all_table_names = [related_table.name for _, related_table in related_info] + [table.name]
         schema_results = await get_real_columns_bulk(conn, all_table_names)
 
-        # Schema resilience: check related table columns
         for field_name, related_table in related_info:
             real_cols = schema_results.get(related_table.name)
 
-            # Respect only/defer for related columns if specified via "relation__field"
             prefix = f"{field_name}__"
             for col in related_table.c:
                 if real_cols is not None and col.name not in real_cols:
@@ -1634,7 +1621,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
                     continue
                 extra_cols.append(col.label(label))
 
-        # Schema resilience: base table columns
         base_real_cols = schema_results.get(table.name)
 
         if only_fields:
@@ -1660,8 +1646,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
                 col for col in table.c if base_real_cols is None or col.name in base_real_cols
             ]
 
-        # ── Build SELECT statement once with the final from_clause ────────────
-        # Avoids rebuilding sa.select() multiple times as JOINs are discovered.
         all_sel = [*base_cols, *extra_cols]
         stmt = (
             sa.select(*all_sel).select_from(from_clause)
@@ -1669,7 +1653,6 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             else sa.select(*all_sel)
         )
 
-        # ── Annotations ───────────────────────────────────────────────────────
         annotations: dict[str, Any] = getattr(qs, "_annotations", {})
         if annotations:
             ann_cols = [
@@ -1680,37 +1663,25 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             if ann_cols:
                 stmt = stmt.add_columns(*ann_cols)
 
-        # ── WHERE ─────────────────────────────────────────────────────────────
         if where is not None:
             stmt = stmt.where(where)
 
-        # ── ORDER BY ─────────────────────────────────────────────────────────
-        for field_name in qs._order:
-            desc = field_name.startswith("-")
-            col_name = field_name.lstrip("-")
-            if col_name in table.c:
-                col = table.c[col_name]
-                stmt = stmt.order_by(col.desc() if desc else col.asc())
+        stmt = apply_order_limit_offset(stmt, qs, table, apply_limit=False)
 
-        # ── DISTINCT ─────────────────────────────────────────────────────────
         if getattr(qs, "_distinct", False):
             stmt = stmt.distinct()
 
-        # ── LIMIT / OFFSET ───────────────────────────────────────────────────
         _effective_limit = qs._limit if qs._limit is not None else max_query_rows()
         if _effective_limit is not None:
             stmt = stmt.limit(_effective_limit)
         if qs._offset is not None:
             stmt = stmt.offset(qs._offset)
 
-        # ── SELECT FOR UPDATE ─────────────────────────────────────────────────
         if getattr(qs, "_for_update", False):
             nowait: bool = getattr(qs, "_for_update_nowait", False)
             skip_locked: bool = getattr(qs, "_for_update_skip_locked", False)
             stmt = stmt.with_for_update(nowait=nowait, skip_locked=skip_locked)
 
-        # ── Query result cache ────────────────────────────────────────────────
-        # Only cache read-only queries (no FOR UPDATE) on models with cache_ttl.
         cache_ttl: float = getattr(model_cls, "_cache_ttl", 0)
         cache_key: str | None = None
         if cache_ttl > 0 and not getattr(qs, "_for_update", False):
@@ -1730,11 +1701,9 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
                 get_query_cache().put(cache_key, rows, cache_ttl)
             return rows
         except SADBAPIError as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
-            # Invalid parameter values (e.g. malformed UUID, wrong type) mean no
-            # matching row can exist - treat as an empty result set rather than
-            # propagating a 500 error.
+            check_schema_error(e, model_cls)
+            # Invalid parameter values (e.g. malformed UUID) mean no
+            # matching row can exist - return empty result instead of a 500.
             if is_data_error(e):
                 logger.debug(
                     "SELECT query returned no results due to invalid parameter for model %s: %s",
@@ -1755,8 +1724,7 @@ async def execute_select(qs: QuerySet) -> list[dict[str, Any]]:
             )
             raise
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             logger.error(
                 "SELECT query failed for model %s: %s",
                 model_cls.__name__,
@@ -1792,8 +1760,7 @@ async def execute_count(qs: QuerySet) -> int:
         try:
             result = await conn.execute(stmt)
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             raise
         return int(result.scalar_one())
 
@@ -1815,8 +1782,7 @@ async def execute_exists(qs: QuerySet) -> bool:
         try:
             result = await conn.execute(stmt)
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             raise
         return result.first() is not None
 
@@ -1837,8 +1803,7 @@ async def execute_delete(qs: QuerySet) -> int:
             get_query_cache().invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
-        check_table_missing(e, model_cls)
-        check_field_missing(e, model_cls)
+        check_schema_error(e, model_cls)
         logger.error(
             "Bulk DELETE failed for model %s: %s",
             model_cls.__name__,
@@ -1865,7 +1830,7 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
     for k, v in values.items():
         field_def = field_defs.get(k)
         if is_f_like(v):
-            # F / _FExpr - resolve column reference(s) directly
+            # F/_FExpr resolves column references directly in SQL.
             col_name = field_def.column_name if field_def else k
             sa_expr = f_expr_as_sa(table, v)
             if sa_expr is not None:
@@ -1888,8 +1853,7 @@ async def execute_update(qs: QuerySet, values: dict[str, Any]) -> int:
             get_query_cache().invalidate_model(model_cls._table_name)
             return int(result.rowcount)
     except Exception as e:
-        check_table_missing(e, model_cls)
-        check_field_missing(e, model_cls)
+        check_schema_error(e, model_cls)
         logger.error(
             "Bulk UPDATE failed for model %s: %s",
             model_cls.__name__,
@@ -1920,28 +1884,31 @@ async def execute_save(
     """
     model_cls = type(instance)
     action = "update" if getattr(instance, "pk", None) else "create"
-    # Honour both the ContextVar (preferred) and the legacy flag
+    # ContextVar is preferred over the legacy ignore_permissions flag.
     skip = ignore_permissions or _bypass_permissions.get()
     await check_permission_for_model(model_cls, action, ignore_permissions=skip)
 
-    table = get_table(model_cls)
-    instance._apply_auto_fields()
+    # Defense-in-depth: enforce the singleton constraint at the SQL
+    # execution layer in case save() is reached without the Manager check.
+    is_new = not getattr(instance, "_persisted", False)
+    if is_new and model_cls._meta.single:
+        await enforce_single_model_constraint(model_cls)
 
-    # Load soft-removed columns so we can skip them during save.
+    table = get_table(model_cls)
+    instance.apply_auto_fields()
+
     await load_soft_removed_columns()
     soft_removed = get_soft_removed_columns(model_cls._table_name)
 
-    # Fast path: if no soft-removed columns, avoid membership checks in loop
     has_soft_removed = bool(soft_removed)
 
-    # Validate update_fields names before touching the DB.
     if update_fields is not None:
         unknown = [f for f in update_fields if f not in model_cls._fields]
         if unknown:
             raise ValueError(
                 f"update_fields contains unknown field(s) for {model_cls.__name__}: {unknown!r}"
             )
-        # Normalise to a frozenset for O(1) membership checks below.
+        # frozenset enables O(1) membership checks below.
         _update_fields: frozenset[str] | None = frozenset(update_fields)
     else:
         _update_fields = None
@@ -1953,22 +1920,27 @@ async def execute_save(
 
         val = getattr(instance, name)
         await field.pre_save(instance, val)
-        # Re-fetch value in case pre_save modified it (e.g. UploadFile -> str path)
+        # pre_save may mutate the value (e.g. UploadFile -> str path).
         val = getattr(instance, name)
 
-        if field.primary_key and field.auto_increment and val is None:
-            continue
+        if field.primary_key and val is None:
+            if field.auto_increment:
+                continue
+            default = getattr(field, "default", None)
+            if callable(default):
+                val = default()
+                setattr(instance, name, val)
+            elif default is not None:
+                val = default
+                setattr(instance, name, val)
         if has_soft_removed and field.column_name in soft_removed:
             continue
-        # When update_fields is set on an UPDATE, skip fields not in the list.
-        # Always include all fields for INSERT.
         if _update_fields is not None and name not in _update_fields:
             continue
         data[field.column_name] = field.to_db(val)
 
     pk_val = getattr(instance, "id", None)
-    # _persisted is authoritative: False means the instance has never been saved,
-    # regardless of whether a PK is already set (UUID, string, user-assigned int).
+    # _persisted is authoritative for INSERT vs UPDATE.
     is_new = not getattr(instance, "_persisted", False)
 
     if is_new:
@@ -1976,14 +1948,12 @@ async def execute_save(
         try:
             async with begin(model_class=model_cls) as conn:
                 result = await conn.execute(stmt)
-                # Only update instance.id if it's not already set (for auto-increment)
                 if pk_val is None:
                     instance.id = cast("Any", result).inserted_primary_key[0]
             instance._persisted = True
             get_query_cache().invalidate_model(model_cls._table_name)
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             logger.error(
                 "INSERT failed for model %s: %s",
                 model_cls.__name__,
@@ -1992,20 +1962,17 @@ async def execute_save(
             )
             raise
     else:
-        # Primary key columns must never appear in the SET clause - they belong
-        # only in the WHERE predicate.  Remove them regardless of how they ended
-        # up in `data` (e.g. UUID PKs are not auto-increment so the loop above
-        # does not skip them).
+        # PK columns belong only in the WHERE predicate, never in SET.
+        # UUID PKs are not auto-increment so the loop above does not skip them.
         pk_columns = {f.column_name for f in model_cls._fields.values() if f.primary_key}
         update_data = {k: v for k, v in data.items() if k not in pk_columns}
         upd_stmt = sa.update(table).where(table.c.id == pk_val).values(**update_data)
         try:
             async with begin(model_class=model_cls) as conn:
                 result = await conn.execute(upd_stmt)
-                # When no rows were updated and no specific fields were requested,
-                # the row may have been deleted between the SELECT and UPDATE.
-                # Do NOT fall back to INSERT - that would bypass row-level
-                # security policies and could resurrect deleted rows.
+                # 0 rows updated without specific fields means the row
+                # was deleted concurrently - do NOT fall back to INSERT as that
+                # would bypass row-level security and could resurrect deleted rows.
                 if result.rowcount == 0 and _update_fields is None:
                     logger.warning(
                         "UPDATE matched 0 rows for %s pk=%s; "
@@ -2016,8 +1983,7 @@ async def execute_save(
             instance._persisted = True
             get_query_cache().invalidate_model(model_cls._table_name)
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             logger.error(
                 "UPDATE failed for model %s (pk=%s): %s",
                 model_cls.__name__,
@@ -2031,7 +1997,7 @@ async def execute_save(
 async def execute_delete_instance(instance: Model, ignore_permissions: bool = False) -> None:
     """Delete a single model instance by primary key."""
     model_cls = type(instance)
-    # Honour both the ContextVar (preferred) and the legacy flag
+    # ContextVar is preferred over the legacy ignore_permissions flag.
     skip = ignore_permissions or _bypass_permissions.get()
     await check_permission_for_model(model_cls, "delete", ignore_permissions=skip)
 
@@ -2043,8 +2009,7 @@ async def execute_delete_instance(instance: Model, ignore_permissions: bool = Fa
             await conn.execute(sa.delete(table).where(table.c.id == pk_val))
         get_query_cache().invalidate_model(model_cls._table_name)
     except Exception as e:
-        check_table_missing(e, model_cls)
-        check_field_missing(e, model_cls)
+        check_schema_error(e, model_cls)
         logger.error(
             "DELETE failed for model %s (pk=%s): %s",
             model_cls.__name__,
@@ -2084,8 +2049,8 @@ async def execute_values(
 
     annotations: dict[str, Any] = getattr(qs, "_annotations", {})
 
-    # ── Classify fields into simple / traversal / annotation ──────────────
     traversal_fields: list[str] = []
+    traversal_fields_set: set[str] = set()
     simple_fields: list[str] = []
     has_traversal = False
 
@@ -2095,28 +2060,23 @@ async def execute_values(
                 continue  # annotation - handled below
             if "__" in fname:
                 traversal_fields.append(fname)
+                traversal_fields_set.add(fname)
                 has_traversal = True
             else:
                 simple_fields.append(fname)
 
-    # Detect traversal in order_by that isn't covered by field traversal.
     order_traversal_fields: list[str] = []
     for ofield in qs._order:
         col_name = ofield.lstrip("-")
-        if "__" in col_name and col_name not in traversal_fields:
+        if "__" in col_name and col_name not in traversal_fields_set:
             order_traversal_fields.append(col_name)
             has_traversal = True
 
-    # ── Build JOINs & column list ─────────────────────────────────────────
     from_clause: sa.FromClause = table
     wanted_cols: list[Any] = []
 
-    # Track joined FK paths to avoid duplicate JOINs when multiple traversal
-    # fields share the same FK prefix (e.g. "user__username" and "user__email").
-    # Key: (left_table_name, fk_column_name) → right_table
     joined_fks: dict[tuple[str, str], sa.Table] = {}
 
-    # All traversal paths that need JOINs (from both fields and order_by).
     all_traversal: list[str] = sorted(
         set(traversal_fields) | set(order_traversal_fields),
         key=lambda k: k.count("__"),
@@ -2124,8 +2084,6 @@ async def execute_values(
     traversal_lookups: dict[str, Any] = {}
 
     if all_traversal:
-        # Parse and validate traversal fields (sorted by depth so
-        # shallower paths are joined before deeper ones that depend on them).
         for fname in all_traversal:
             try:
                 traversal = cached_traversal_lookup(fname, model_cls)
@@ -2137,7 +2095,6 @@ async def execute_values(
                 ) from None
             traversal_lookups[fname] = traversal
 
-            # Build JOINs for each FK step in the traversal path.
             left_table: sa.Table = table
             for step in traversal.get_joins_needed():
                 fk_key = (left_table.name, step.field.column_name)
@@ -2167,7 +2124,6 @@ async def execute_values(
                 left_table = related_table
 
     if fields:
-        # Build the SELECT column list.
         field_defs = model_cls._fields
         available = sorted(field_defs.keys())
         for fname in fields:
@@ -2175,12 +2131,11 @@ async def execute_values(
                 sa_expr = ann_expr_as_sa(table, annotations[fname])
                 if sa_expr is not None:
                     wanted_cols.append(sa_expr.label(fname))
-            elif fname in traversal_fields:
+            elif fname in traversal_fields_set:
                 traversal = traversal_lookups[fname]
                 final_table = get_table(traversal.final_model)
                 col_name = traversal.final_field.column_name
                 if col_name not in final_table.c:
-                    # Try the field name itself as fallback
                     if traversal.final_field.name in final_table.c:
                         col_name = traversal.final_field.name
                     else:
@@ -2210,7 +2165,6 @@ async def execute_values(
         ]
         stmt = sa.select(*table.c, *ann_cols) if ann_cols else sa.select(table)
 
-    # ── WHERE clause - use traversal-aware builder when JOINs are present ─
     q_filters = getattr(qs, "_q_filters", [])
     if has_traversal or from_clause is not table:
         where, from_clause = build_where_clause_with_traversals(
@@ -2222,8 +2176,6 @@ async def execute_values(
             initial_from_clause=from_clause,
         )
         if from_clause is not table and fields is None:
-            # Re-build select with the correct from_clause when WHERE
-            # traversals added JOINs but no explicit fields were given.
             ann_cols = [
                 sa_expr.label(alias)
                 for alias, expr in annotations.items()
@@ -2235,8 +2187,6 @@ async def execute_values(
                 else sa.select(table).select_from(from_clause)
             )
         elif from_clause is not table and fields is not None:
-            # The from_clause may have been extended by the WHERE traversal
-            # builder - rebuild the statement with the updated from_clause.
             stmt = (
                 sa.select(*wanted_cols).select_from(from_clause)
                 if wanted_cols
@@ -2274,8 +2224,7 @@ async def execute_values(
         try:
             result = await conn.execute(stmt)
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             raise
         return [dict(row) for row in result.mappings()]
 
@@ -2308,8 +2257,7 @@ async def execute_aggregate(qs: QuerySet, agg_kwargs: dict[str, Any]) -> dict[st
         try:
             result = await conn.execute(stmt)
         except Exception as e:
-            check_table_missing(e, model_cls)
-            check_field_missing(e, model_cls)
+            check_schema_error(e, model_cls)
             raise
         row = result.mappings().first()
         return dict(row) if row else {}
@@ -2334,26 +2282,15 @@ async def execute_explain(qs: QuerySet) -> str:
     if where is not None:
         stmt = stmt.where(where)
 
-    for field_name in qs._order:
-        desc = field_name.startswith("-")
-        col_name = field_name.lstrip("-")
-        if col_name in table.c:
-            col = table.c[col_name]
-            stmt = stmt.order_by(col.desc() if desc else col.asc())
-
-    if qs._limit is not None:
-        stmt = stmt.limit(qs._limit)
-    if qs._offset is not None:
-        stmt = stmt.offset(qs._offset)
+    stmt = apply_order_limit_offset(stmt, qs, table)
 
     engine = await get_engine()
     dialect_name: str = engine.dialect.name
 
     async with connect(qs._db_alias, model_cls) as conn:
         if dialect_name == "postgresql":
-            # PostgreSQL supports EXPLAIN as a prefix to SELECT.
-            # Use parameterized compilation to avoid baking sensitive filter
-            # values (emails, tokens, PII) into the SQL string.
+            # PostgreSQL EXPLAIN prefix with parameterized compilation
+            # to avoid baking sensitive filter values into the SQL string.
             compiled = stmt.compile(
                 dialect=_pg_dialect.dialect(),
                 compile_kwargs={"literal_binds": False},
@@ -2361,13 +2298,11 @@ async def execute_explain(qs: QuerySet) -> str:
             result = await conn.execute(sa.text(f"EXPLAIN {compiled}"))
             lines = [str(row[0]) for row in result]
         elif dialect_name == "sqlite":
-            # SQLite EXPLAIN QUERY PLAN is a read-only introspection command.
-            # Use parameterized compilation - placeholder values are shown as
-            # bound parameters rather than raw literals.
+            # SQLite EXPLAIN QUERY PLAN with parameterized compilation
+            # to show bound parameters rather than raw literals.
             compiled = stmt.compile(compile_kwargs={"literal_binds": False})
             lines = [f"EXPLAIN QUERY PLAN {compiled}"]
         else:
-            # Generic fallback - compile with parameter placeholders only.
             compiled = stmt.compile(compile_kwargs={"literal_binds": False})
             lines = [f"EXPLAIN {compiled}"]
 
@@ -2395,33 +2330,31 @@ async def execute_bulk_update(
     table = get_table(model_cls)
     field_defs = cast("Any", model_cls)._fields
 
-    # Resolve field → column name mapping once.
+    # Precompute the mapping from requested field names to column names and
+    # field definitions once, avoiding repeated dict lookups in the per-object
+    # inner loop below.
+    prepared_fields: list[tuple[str, Any, str]] = []
     col_map: dict[str, str] = {}
     for fname in fields:
-        if fname in field_defs:
-            col_map[fname] = field_defs[fname].column_name
-        else:
-            col_map[fname] = fname
+        field_def = field_defs.get(fname)
+        col_name = field_def.column_name if field_def else fname
+        col_map[fname] = col_name
+        prepared_fields.append((fname, field_def, col_name))
 
-    # Build parameter dicts (one per object).
     param_rows: list[dict[str, Any]] = []
     for obj in objs:
         pk_val = getattr(obj, "id", None) or getattr(obj, "pk", None)
         if pk_val is None:
             continue
         params: dict[str, Any] = {"_pk": pk_val}
-        for fname in fields:
+        for fname, field_def, col_name in prepared_fields:
             raw_val = getattr(obj, fname, None)
-            if fname in field_defs:
-                params[col_map[fname]] = field_defs[fname].to_db(raw_val)
-            else:
-                params[col_map[fname]] = raw_val
+            params[col_name] = field_def.to_db(raw_val) if field_def else raw_val
         param_rows.append(params)
 
     if not param_rows:
         return 0
 
-    # Build a single parameterised UPDATE statement.
     set_clause: dict[str, Any] = {col_map[f]: sa.bindparam(col_map[f]) for f in fields}
     upd_stmt = sa.update(table).where(table.c.id == sa.bindparam("_pk")).values(**set_clause)
 
@@ -2460,17 +2393,7 @@ async def execute_select_stream(
     if where is not None:
         stmt = stmt.where(where)
 
-    for field_name in qs._order:
-        desc = field_name.startswith("-")
-        col_name = field_name.lstrip("-")
-        if col_name in table.c:
-            col = table.c[col_name]
-            stmt = stmt.order_by(col.desc() if desc else col.asc())
-
-    if qs._limit is not None:
-        stmt = stmt.limit(qs._limit)
-    if qs._offset is not None:
-        stmt = stmt.offset(qs._offset)
+    stmt = apply_order_limit_offset(stmt, qs, table)
 
     async with connect(qs._db_alias, model_cls) as conn:
         result = await conn.stream(stmt)

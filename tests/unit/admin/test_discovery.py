@@ -1,6 +1,8 @@
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from openviper.admin.discovery import (
     autodiscover,
     discover_admin_modules,
@@ -44,8 +46,8 @@ class TestImportAdminModule:
             if "test_app.admin" in sys.modules:
                 del sys.modules["test_app.admin"]
 
-    def test_import_error_handling(self):
-        """Test that import errors are handled gracefully."""
+    def test_import_error_raises_when_module_exists(self):
+        """Test that ImportError is raised when admin.py exists but fails to import."""
         with patch("openviper.admin.discovery.importlib.util.find_spec") as mock_spec:
             mock_spec.return_value = MagicMock()
             mock_spec.return_value.origin = "/fake/path"
@@ -53,19 +55,30 @@ class TestImportAdminModule:
             with patch("openviper.admin.discovery.importlib.import_module") as mock_import:
                 mock_import.side_effect = ImportError("Test error")
 
-                result = import_admin_module("failing_app")
-                assert result is False
+                with pytest.raises(ImportError, match="Test error"):
+                    import_admin_module("failing_app")
 
-    def test_unexpected_error_handling(self):
-        """Test that unexpected errors are handled gracefully."""
+    def test_unexpected_error_raises(self):
+        """Test that unexpected errors are raised to halt startup."""
         with patch("openviper.admin.discovery.importlib.util.find_spec") as mock_spec:
             mock_spec.return_value = MagicMock()
 
             with patch("openviper.admin.discovery.importlib.import_module") as mock_import:
                 mock_import.side_effect = RuntimeError("Unexpected error")
 
-                result = import_admin_module("broken_app")
-                assert result is False
+                with pytest.raises(RuntimeError, match="Unexpected error"):
+                    import_admin_module("broken_app")
+
+    def test_syntax_error_raises(self):
+        """Test that SyntaxError in admin.py is raised to halt startup."""
+        with patch("openviper.admin.discovery.importlib.util.find_spec") as mock_spec:
+            mock_spec.return_value = MagicMock()
+
+            with patch("openviper.admin.discovery.importlib.import_module") as mock_import:
+                mock_import.side_effect = SyntaxError("invalid syntax")
+
+                with pytest.raises(SyntaxError, match="invalid syntax"):
+                    import_admin_module("syntax_error_app")
 
     def test_import_spec_is_none(self):
         """Test when find_spec returns None."""
@@ -117,6 +130,28 @@ class TestDiscoverAdminModules:
 
                 discover_admin_modules()
                 assert mock_import.call_count == 3
+
+    def test_discover_propagates_syntax_error(self):
+        """Test that discovery propagates SyntaxError from import_admin_module."""
+        with patch("openviper.admin.discovery.settings") as mock_settings:
+            mock_settings.INSTALLED_APPS = ["broken_app"]
+
+            with patch("openviper.admin.discovery.import_admin_module") as mock_import:
+                mock_import.side_effect = SyntaxError("bad syntax")
+
+                with pytest.raises(SyntaxError, match="bad syntax"):
+                    discover_admin_modules()
+
+    def test_discover_propagates_import_error(self):
+        """Test that discovery propagates ImportError when admin.py exists but fails."""
+        with patch("openviper.admin.discovery.settings") as mock_settings:
+            mock_settings.INSTALLED_APPS = ["broken_app"]
+
+            with patch("openviper.admin.discovery.import_admin_module") as mock_import:
+                mock_import.side_effect = ImportError("missing dependency")
+
+                with pytest.raises(ImportError, match="missing dependency"):
+                    discover_admin_modules()
 
 
 class TestDiscoverExtensions:

@@ -39,18 +39,13 @@ def assert_json_contains(response: httpx.Response, expected: Mapping[str, object
 
 
 def assert_redirects(response: httpx.Response, expected_location: str | None = None) -> None:
-    assert response.status_code in {
-        301,
-        302,
-        303,
-        307,
-        308,
-    }, f"Expected redirect status, got {response.status_code}."
+    redirect_codes = {301, 302, 303, 307, 308}
+    is_redirect = response.status_code in redirect_codes
+    assert is_redirect, f"Expected redirect status, got {response.status_code}."
     if expected_location is not None:
         actual = response.headers.get("location")
-        assert (
-            actual == expected_location
-        ), f"Expected redirect to {expected_location!r}, got {actual!r}."
+        msg = f"Expected redirect to {expected_location!r}, got {actual!r}."
+        assert actual == expected_location, msg
 
 
 def assert_json_path(payload: Mapping[str, object], path: str, expected: object) -> None:
@@ -65,9 +60,8 @@ def assert_json_path(payload: Mapping[str, object], path: str, expected: object)
 
 def assert_validation_error(response: httpx.Response, field: str) -> None:
     payload = response.json()
-    assert contains_validation_field(
-        payload, field
-    ), f"Expected validation error for field {field!r}, got {payload!r}."
+    msg = f"Expected validation error for {field!r}, got {payload!r}."
+    assert contains_validation_field(payload, field), msg
 
 
 def assert_field_error(response: httpx.Response, field: str) -> None:
@@ -76,23 +70,26 @@ def assert_field_error(response: httpx.Response, field: str) -> None:
 
 def assert_error_code(response: httpx.Response, code: str) -> None:
     payload = response.json()
-    assert contains_validation_field(
-        payload, code
-    ), f"Expected error code {code!r}, got {payload!r}."
+    msg = f"Expected error code {code!r}, got {payload!r}."
+    assert contains_validation_field(payload, code), msg
 
 
-async def assert_model_exists(model_class: type[object], **filters: object) -> None:
+def get_objects_manager(model_class: type[object]) -> object:
+    """Retrieve the ``objects`` manager from a model class or raise ``AttributeError``."""
     manager = getattr(model_class, "objects", None)
     if manager is None:
         raise AttributeError(f"{model_class!r} has no 'objects' manager.")
+    return manager
+
+
+async def assert_model_exists(model_class: type[object], **filters: object) -> None:
+    manager = get_objects_manager(model_class)
     found = await manager.filter(**filters).exists()
     assert found, f"Expected {model_class!r} matching {filters!r} to exist."
 
 
 async def assert_model_count(model_class: type[object], expected: int, **filters: object) -> None:
-    manager = getattr(model_class, "objects", None)
-    if manager is None:
-        raise AttributeError(f"{model_class!r} has no 'objects' manager.")
+    manager = get_objects_manager(model_class)
     queryset = manager.filter(**filters) if filters else manager.all()
     actual = await queryset.count()
     assert actual == expected, f"Expected {expected} {model_class!r} rows, got {actual}."

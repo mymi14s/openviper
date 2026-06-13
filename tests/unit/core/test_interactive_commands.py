@@ -20,13 +20,9 @@ from openviper.core.management.commands.createsuperuser import (
 )
 from openviper.db.models import Model
 
-# ---------------------------------------------------------------------------
-# Console command tests
-# ---------------------------------------------------------------------------
-
 
 class TestConsoleModelDiscovery:
-    """Test console command _discover_models method."""
+    """Test console command discover_models method."""
 
     @pytest.fixture
     def console_command(self):
@@ -34,7 +30,7 @@ class TestConsoleModelDiscovery:
         return ShellCommand()
 
     def test_discover_models_import_error(self, console_command):
-        """Test _discover_models handles ImportError gracefully."""
+        """Test discover_models handles ImportError gracefully."""
         with patch("openviper.core.management.commands.console.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = ["nonexistent_app"]
 
@@ -47,13 +43,13 @@ class TestConsoleModelDiscovery:
                     side_effect=ImportError("No module"),
                 ):
                     with patch.object(console_command, "stdout"):
-                        models = console_command._discover_models()
+                        models = console_command.discover_models()
 
                         # Should return empty dict, not raise
                         assert models == {}
 
     def test_discover_models_subclass_check(self, console_command):
-        """Test _discover_models handles issubclass checks."""
+        """Test discover_models handles issubclass checks."""
 
         # Create a real Model subclass with proper module
         class FakeModel(Model):
@@ -68,20 +64,14 @@ class TestConsoleModelDiscovery:
                 side_effect=RuntimeError("No user model"),
             ):
                 with patch.object(console_command, "stdout"):
-                    models = console_command._discover_models()
+                    models = console_command.discover_models()
                     # With no apps and user model error, should be empty
                     assert models == {}
 
     def test_discover_models_type_error_in_issubclass(self, console_command):
-        """Test _discover_models catches TypeError from issubclass."""
+        """Test discover_models catches TypeError from issubclass."""
         mock_module = MagicMock()
         mock_module.__name__ = "myapp.models"
-
-        # Create members that will cause TypeError in issubclass
-        members = [
-            ("SomeClass", object),
-            ("AnotherClass", type("Test", (), {})),
-        ]
 
         with patch("openviper.core.management.commands.console.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = ["myapp"]
@@ -91,30 +81,21 @@ class TestConsoleModelDiscovery:
                 return_value=mock_module,
             ):
                 with patch(
-                    "openviper.core.management.commands.console.inspect.getmembers",
-                    return_value=members,
+                    "openviper.core.management.commands.console.discover_models_in_module",
+                    return_value=[],
                 ):
-                    with patch("openviper.core.management.commands.console.Model"):
-                        with patch.object(console_command, "stdout"):
-                            # Force TypeError in issubclass
-                            def raising_issubclass(cls, parent):
-                                raise TypeError("not a class")
-
-                            with patch("builtins.issubclass", side_effect=raising_issubclass):
-                                models = console_command._discover_models()
-                                # Should not raise, returns empty dict
-                                assert isinstance(models, dict)
+                    with patch.object(console_command, "stdout"):
+                        models = console_command.discover_models()
+                        assert isinstance(models, dict)
 
     def test_discover_models_output_count(self, console_command):
-        """Test _discover_models outputs model count when found."""
-        mock_module = MagicMock()
-        mock_module.__name__ = "myapp.models"
+        """Test discover_models outputs model count when found."""
 
-        # Create a real subclass
         class FakeModel(Model):
             __module__ = "myapp.models"
 
-        members = [("FakeModel", FakeModel)]
+        mock_module = MagicMock()
+        mock_module.__name__ = "myapp.models"
 
         with patch("openviper.core.management.commands.console.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = ["myapp"]
@@ -124,17 +105,15 @@ class TestConsoleModelDiscovery:
                 return_value=mock_module,
             ):
                 with patch(
-                    "openviper.core.management.commands.console.inspect.getmembers",
-                    return_value=members,
+                    "openviper.core.management.commands.console.discover_models_in_module",
+                    return_value=[FakeModel],
                 ):
                     with patch.object(console_command, "stdout") as mock_stdout:
-                        console_command._discover_models()
-
-                        # Should output count
+                        console_command.discover_models()
                         assert mock_stdout.called
 
     def test_discover_models_user_model_exception(self, console_command):
-        """Test _discover_models handles get_user_model exception."""
+        """Test discover_models handles get_user_model exception."""
         with patch("openviper.core.management.commands.console.settings") as mock_settings:
             mock_settings.INSTALLED_APPS = []
 
@@ -144,13 +123,13 @@ class TestConsoleModelDiscovery:
                 mock_get_user.side_effect = RuntimeError("User model not configured")
 
                 with patch.object(console_command, "stdout"):
-                    models = console_command._discover_models()
+                    models = console_command.discover_models()
 
                     # Should not raise, should return empty dict
                     assert models == {}
 
     def test_discover_models_adds_user_model(self, console_command):
-        """Test _discover_models adds user model if not already present."""
+        """Test discover_models adds user model if not already present."""
         mock_user = MagicMock()
         mock_user.__name__ = "CustomUser"
 
@@ -161,15 +140,10 @@ class TestConsoleModelDiscovery:
                 "openviper.core.management.commands.console.get_user_model", return_value=mock_user
             ):
                 with patch.object(console_command, "stdout") as mock_stdout:
-                    models = console_command._discover_models()
+                    models = console_command.discover_models()
 
                     assert "CustomUser" in models
                     assert mock_stdout.called
-
-
-# ---------------------------------------------------------------------------
-# Changepassword command tests
-# ---------------------------------------------------------------------------
 
 
 class TestChangepasswordBranches:
@@ -267,11 +241,6 @@ class TestChangepasswordBranches:
         assert error_shown
 
 
-# ---------------------------------------------------------------------------
-# Createsuperuser command tests
-# ---------------------------------------------------------------------------
-
-
 class TestCreatesuperuserBranches:
     """Test createsuperuser command uncovered branches."""
 
@@ -290,7 +259,7 @@ class TestCreatesuperuserBranches:
         assert "valid email" in err
 
         with pytest.raises(CommandError):
-            createsuperuser_command._prompt_email(preset)
+            createsuperuser_command.prompt_email(preset)
 
     def test_prompt_email_shows_error_and_retries(self, createsuperuser_command):
         """Test _prompt_email shows error and continues on invalid input."""
@@ -406,7 +375,7 @@ class TestCreatesuperuserBranches:
 
     def test_prompt_username_preset_valid(self, createsuperuser_command):
         """Test _prompt_username with valid preset returns it."""
-        result = createsuperuser_command._prompt_username("validuser")
+        result = createsuperuser_command.prompt_username("validuser")
         assert result == "validuser"
 
     def test_prompt_username_preset_invalid(self, createsuperuser_command):
@@ -418,13 +387,8 @@ class TestCreatesuperuserBranches:
 
     def test_prompt_password_preset(self, createsuperuser_command):
         """Test _prompt_password with preset returns it."""
-        result = createsuperuser_command._prompt_password("secretpass")
+        result = createsuperuser_command.prompt_password("secretpass")
         assert result == "secretpass"
-
-
-# ---------------------------------------------------------------------------
-# Additional integration tests
-# ---------------------------------------------------------------------------
 
 
 class TestCommandIntegration:
@@ -482,9 +446,9 @@ class TestCommandIntegration:
                 mock_settings.PROJECT_NAME = "test"
 
                 with (
-                    patch("openviper.core.management.commands.console._ipython_embed", None),
+                    patch("openviper.core.management.commands.console.ipython_embed", None),
                     patch(
-                        "openviper.core.management.commands.console._INITIAL_INTERACTIVE_SHELL_EMBED",
+                        "openviper.core.management.commands.console.INITIAL_INTERACTIVE_SHELL_EMBED",
                         None,
                     ),
                 ):

@@ -71,6 +71,7 @@ from openviper.db.fields import (
     FloatField,
     ForeignKey,
     GenericIPAddressField,
+    HTMLField,
     ImageField,
     IntegerField,
     IPAddressField,
@@ -121,7 +122,6 @@ from openviper.db.routing.resolver import DefaultRouterResolver, RouterResolver
 from openviper.exceptions import TableNotFound
 
 __all__ = [
-    # Connection management
     "atomic",
     "close_db",
     "configure_db",
@@ -164,6 +164,7 @@ __all__ = [
     "FloatField",
     "ForeignKey",
     "GenericIPAddressField",
+    "HTMLField",
     "IPAddressField",
     "ImageField",
     "IntegerField",
@@ -190,7 +191,6 @@ __all__ = [
     "escape_like",
     "invalidate_query_cache",
     "preload_table_schemas",
-    # Connections
     "ConnectionManager",
     "connections",
     # Events

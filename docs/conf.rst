@@ -134,22 +134,19 @@ Key Classes & Functions
         - ``False`` - log all SQL statements
       * - ``DATABASE_POOL_SIZE``
         - ``int``
-        - ``5``
+        - ``20``
       * - ``DATABASE_MAX_OVERFLOW``
         - ``int``
-        - ``10``
+        - ``80``
       * - ``DATABASE_POOL_RECYCLE``
         - ``int``
-        - ``3600`` - seconds before a connection is recycled
+        - ``900`` - seconds before a connection is recycled
+      * - ``DATABASE_POOL_TIMEOUT``
+        - ``int``
+        - ``10`` - seconds to wait for a pool connection
       * - ``DATABASES``
         - ``ConfigMap``
-        - ``{}`` - multi-database config; each alias maps to a dict with at least ``URL``
-      * - ``DATABASE_ROUTERS``
-        - ``list[str]``
-        - ``[]`` - dotted paths to database router classes
-      * - ``DATABASE_ROUTING``
-        - ``ConfigMap``
-        - ``{}`` - global routing behaviour options
+        - Multi-database config; each alias maps to a dict with ``OPTIONS`` (``BACKEND`` is optional, defaults to ``DefaultDatabaseBackend``). Top-level ``ROUTERS`` and ``ROUTING`` keys control routing.
 
    **Cache**
 
@@ -160,18 +157,9 @@ Key Classes & Functions
       * - Field
         - Type
         - Default / Notes
-      * - ``CACHE_BACKEND``
-        - ``str``
-        - ``"memory"`` - ``"memory"`` or ``"redis"``
-      * - ``CACHE_URL``
-        - ``str``
-        - ``""`` - Redis URL when using the Redis backend
-      * - ``CACHE_TTL``
-        - ``int``
-        - ``300`` - default TTL in seconds
       * - ``CACHES``
         - ``ConfigMap``
-        - ``{}`` - alias-keyed cache backend config (see :ref:`cache`)
+        - Alias-keyed cache backend config with ``BACKEND`` and ``OPTIONS`` (see :ref:`cache`)
 
    **Authentication & Session**
 
@@ -385,7 +373,7 @@ Key Classes & Functions
         - ``ConfigMap``
         - Backend config dict; keys: ``backend``, ``host``, ``port``, ``use_tls``,
           ``use_ssl``, ``timeout``, ``username``, ``password``, ``from``,
-          ``default_sender``, ``fail_silently``, ``use_background_worker``
+          ``default_sender``, ``fail_silently``, ``background``
 
    **Rate Limiting**
 
@@ -420,7 +408,7 @@ Key Classes & Functions
         - Default / Notes
       * - ``TASKS``
         - ``ConfigMap``
-        - ``{}`` - Dramatiq broker/worker configuration
+        - ``{}`` - Dramatiq broker/worker configuration (see :doc:`tasks`)
 
    **Model Events**
 
@@ -501,7 +489,7 @@ Key Classes & Functions
       * - ``COUNTRY_FIELD``
         - ``ConfigMap``
         - ``{"EXTRA_COUNTRIES": {}, "ENABLE_CACHE": True, "STRICT": True}``
-          - configuration for :class:`~openviper.contrib.countries.CountryField`
+          - configuration for :class:`~openviper.contrib.fields.countries.CountryField`
 
    .. py:method:: as_dict(mask_sensitive=True) -> ConfigMap
 
@@ -600,13 +588,24 @@ Defining Settings
     @dataclasses.dataclass(frozen=True)
     class MySettings(Settings):
         PROJECT_NAME: str = "MyBlog"
-        DATABASE_URL: str = "sqlite+aiosqlite:///db.sqlite3"
         DEBUG: bool = False
         SECRET_KEY: str = ""          # set via OPENVIPER_SECRET_KEY env var
         INSTALLED_APPS: tuple = (
             "myproject.blog",
             "myproject.users",
         )
+
+    # Database configuration (nested format recommended):
+    DATABASES = {
+        "default": {
+            "OPTIONS": {
+                "URL": "sqlite+aiosqlite:///db.sqlite3",
+            },
+        },
+    }
+
+    # Or use the legacy flat format:
+    # DATABASE_URL = "sqlite+aiosqlite:///db.sqlite3"
 
 Then configure the environment:
 
@@ -623,7 +622,7 @@ Accessing Settings
     from openviper.conf import settings
 
     print(settings.DEBUG)           # False
-    print(settings.DATABASE_URL)    # sqlite+aiosqlite:///db.sqlite3
+    print(settings.DATABASES)       # {"default": {"OPTIONS": {"URL": "..."}}}
 
 Programmatic Configuration (Tests)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -635,7 +634,11 @@ Programmatic Configuration (Tests)
     from openviper.conf.settings import settings
 
     settings.configure(Settings(
-        DATABASE_URL="sqlite+aiosqlite:///:memory:",
+        DATABASES={
+            "default": {
+                "OPTIONS": {"URL": "sqlite+aiosqlite:///:memory:"},
+            },
+        },
         SECRET_KEY="test-only-secret",
         DEBUG=True,
     ))

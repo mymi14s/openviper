@@ -13,10 +13,6 @@ from openviper.middleware.csrf import (
     verify_csrf_token,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(method="POST", path="/update", headers=None):
     return {"type": "http", "method": method, "path": path, "headers": list(headers or [])}
@@ -32,11 +28,6 @@ async def collect_status(mw, scope):
     return messages[0]["status"] if messages else None
 
 
-# ---------------------------------------------------------------------------
-# Token generation
-# ---------------------------------------------------------------------------
-
-
 class TestCSRFTokenGeneration:
     def test_generates_hex_string(self):
         token = generate_csrf_token()
@@ -46,11 +37,6 @@ class TestCSRFTokenGeneration:
     def test_unique_tokens(self):
         tokens = {generate_csrf_token() for _ in range(100)}
         assert len(tokens) == 100
-
-
-# ---------------------------------------------------------------------------
-# Masking / verification
-# ---------------------------------------------------------------------------
 
 
 class TestCSRFTokenMasking:
@@ -100,11 +86,6 @@ class TestCSRFTokenMasking:
         assert len(masked) == 96  # 32 hex (16 bytes salt) + 64 hex (SHA256)
 
 
-# ---------------------------------------------------------------------------
-# Cookie extraction
-# ---------------------------------------------------------------------------
-
-
 class TestCookieExtraction:
     def test_extracts_correct_cookie(self):
         assert (
@@ -130,11 +111,6 @@ class TestCookieExtraction:
 
     def test_only_matching_cookie(self):
         assert extract_cookie_value("csrftoken=solo", "csrftoken") == "solo"
-
-
-# ---------------------------------------------------------------------------
-# Middleware: safe methods
-# ---------------------------------------------------------------------------
 
 
 class TestCSRFMiddlewareSafeMethods:
@@ -201,11 +177,6 @@ class TestCSRFMiddlewareSafeMethods:
         assert "app" in calls
 
 
-# ---------------------------------------------------------------------------
-# Middleware: exempt paths
-# ---------------------------------------------------------------------------
-
-
 class TestCSRFExemptPaths:
     @pytest.mark.asyncio
     async def test_exempt_path_skips_validation(self):
@@ -238,11 +209,6 @@ class TestCSRFExemptPaths:
             await mw(make_scope(path=path), None, None)
         assert "/a" in calls
         assert "/b" in calls
-
-
-# ---------------------------------------------------------------------------
-# Middleware: POST without token → 403
-# ---------------------------------------------------------------------------
 
 
 class TestCSRFMiddlewareValidation:
@@ -328,11 +294,6 @@ class TestCSRFMiddlewareValidation:
         assert status == 403
 
 
-# ---------------------------------------------------------------------------
-# Header case-insensitivity
-# ---------------------------------------------------------------------------
-
-
 class TestCSRFHeaderCaseInsensitivity:
     @pytest.mark.asyncio
     async def test_mixed_case_header_accepted(self):
@@ -371,11 +332,6 @@ class TestCSRFHeaderCaseInsensitivity:
         )
         await CSRFMiddleware(app, secret=secret)(scope, None, None)
         assert "app" in calls
-
-
-# ---------------------------------------------------------------------------
-# Secret resolution
-# ---------------------------------------------------------------------------
 
 
 class TestCSRFSecretFallback:
@@ -455,11 +411,6 @@ class TestCSRFSecretFallback:
             ms.SECRET_KEY = secret
             await CSRFMiddleware(app, secret="")(scope, None, None)
         assert "ok" in calls
-
-
-# ---------------------------------------------------------------------------
-# 403 response body
-# ---------------------------------------------------------------------------
 
 
 class TestCSRFDeniedResponse:

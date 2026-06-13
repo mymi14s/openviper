@@ -102,48 +102,40 @@ import threading
 from collections.abc import Callable
 from typing import Any, cast
 
-# Module-level reference so tests can patch ``openviper.db.events.settings``
-# without having to reach into ``openviper.conf.settings``.
 from openviper.conf.settings import settings
 
 logger = logging.getLogger("openviper.db")
 
-# Sentinel for "not yet initialised" - avoids confusing None (disabled) with
-# "not yet set".
-_UNSET: object = object()
+# Sentinel distinguishing "not yet built" from "built but disabled".
+UNSET: object = object()
 _init_lock = threading.Lock()
 
-# Module-level dispatcher cache.  _UNSET = never built; None = built but disabled.
-_dispatcher_cache: object = _UNSET
+_dispatcher_cache: object = UNSET
 
-# Background task tracking to prevent garbage collection and log exceptions.
+# Prevent GC of background tasks and log exceptions.
 _background_tasks: set[asyncio.Task[Any]] = set()
 _MAX_BACKGROUND_TASKS: int = 1024
 
-# Populated by @model_event.trigger(...).  Keyed by model_path → event_name
-# → list of callables.  Intentionally separate from the settings-based
-# dispatcher so that decorator-registered handlers fire even when
-# MODEL_EVENTS is empty.
+# Decorator-registered event handlers keyed by model_path.
 _decorator_registry: dict[str, dict[str, list[Callable[..., None]]]] = {}
 _dec_registry_lock = threading.Lock()
 
 # All Model lifecycle hook names that the dispatcher understands.
 SUPPORTED_EVENTS: frozenset[str] = frozenset(
     {
-        # save() - validation (create + update)
+        # Validation phase (before any DB write).
         "before_validate",
         "validate",
-        # save() - pre-write (create + update)
-        "before_insert",  # create only
+        # Pre-write phase - modify instance before INSERT/UPDATE.
+        "before_insert",
         "before_save",
-        # save() - post-write (create + update)
-        "after_insert",  # create only
-        "on_update",  # update only
-        "on_change",  # create (all fields) or update (changed fields only)
-        # delete()
+        # Post-write phase - side effects after DB persist.
+        "after_insert",
+        "on_update",
+        "on_change",
         "on_delete",
         "after_delete",
-        # bulk operations (Manager.bulk_create / Manager.bulk_update)
+        # Bulk operation phases (Manager.bulk_create / Manager.bulk_update).
         "pre_bulk_create",
         "post_bulk_create",
         "pre_bulk_update",
@@ -203,10 +195,8 @@ class ModelEventDispatcher:
             if resolved:
                 handlers[model_path] = resolved
 
-        # Freeze into a plain dict for minimal attribute-access overhead.
+        # Freeze handlers dict to avoid per-lookup attribute overhead.
         self._handlers: dict[str, dict[str, list[Any]]] = handlers
-
-    # ------------------------------------------------------------------
 
     def trigger(
         self,
@@ -228,7 +218,6 @@ class ModelEventDispatcher:
             instance:   The model instance that triggered the event.
             **kwargs:   Extra context forwarded verbatim to every handler.
         """
-        # Dispatch settings-based handlers (MODEL_EVENTS).
         event_map = self._handlers.get(model_path)
         if event_map:
             handlers = event_map.get(event_name)
@@ -246,7 +235,6 @@ class ModelEventDispatcher:
                             exc,
                         )
 
-        # Dispatch decorator-registered handlers (from @model_event.trigger).
         dispatch_decorator_handlers(model_path, event_name, instance, **kwargs)
 
     def __bool__(self) -> bool:
@@ -272,13 +260,13 @@ def get_dispatcher() -> ModelEventDispatcher | None:
         is empty or no handlers can be resolved.
     """
     global _dispatcher_cache
-    # Fast path (lock-free): already built (None or a dispatcher).
-    if _dispatcher_cache is not _UNSET:
+    # Avoid lock on the hot path once the dispatcher is built.
+    if _dispatcher_cache is not UNSET:
         return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
     with _init_lock:
-        # Double-check after acquiring the lock.
-        if _dispatcher_cache is not _UNSET:
+        # Double-checked locking - another thread may have built while we waited.
+        if _dispatcher_cache is not UNSET:
             return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
         _dispatcher_cache = build_dispatcher()
@@ -293,7 +281,7 @@ def reset_dispatcher() -> None:
     moment.
     """
     global _dispatcher_cache
-    _dispatcher_cache = _UNSET
+    _dispatcher_cache = UNSET
 
 
 def build_dispatcher() -> ModelEventDispatcher | None:
@@ -330,11 +318,11 @@ def is_safe_module_path(module_path: str) -> bool:
     """
     root_module = module_path.split(".")[0]
 
-    # Always allow openviper internals
+    # Framework internals are always trusted.
     if root_module in _ALLOWED_MODULE_PREFIXES:
         return True
 
-    # Allow project apps registered in INSTALLED_APPS
+    # Project apps registered in INSTALLED_APPS are trusted.
     installed = getattr(settings, "INSTALLED_APPS", ())
     for app in installed:
         app_root = app.split(".")[0]
@@ -369,7 +357,7 @@ def resolve_dotted(path: str | Callable[..., Any]) -> Any | None:
 
     module_path, _, attr = path.rpartition(".")
 
-    # prevent importing dangerous system modules
+    # Block dangerous system modules to prevent arbitrary code execution.
     if not is_safe_module_path(module_path):
         logger.error(
             "MODEL_EVENTS: blocked attempt to import dangerous module %r. "
@@ -414,9 +402,9 @@ def call_handler(handler: Any, instance: Any, event_name: str, **kwargs: Any) ->
         try:
             loop = asyncio.get_running_loop()
             task = loop.create_task(handler(instance, event=event_name, **kwargs))
-            # Track task to prevent garbage collection
+            # Prevent GC from collecting the task before it completes.
             _background_tasks.add(task)
-            # Clean up when done and log any exceptions
+            # Clean up and log exceptions when the task finishes.
             task.add_done_callback(task_done_callback)
         except RuntimeError:
             logger.warning(
@@ -431,7 +419,7 @@ def task_done_callback(task: asyncio.Task[Any]) -> None:
     """Clean up completed background task and log exceptions."""
     _background_tasks.discard(task)
     try:
-        # Retrieve exception if any (prevents "Task exception was never retrieved" warnings)
+        # Retrieve exception to suppress "never retrieved" warnings.
         exc = task.exception()
         if exc is not None:
             logger.exception(
@@ -452,7 +440,7 @@ def dispatch_decorator_handlers(
     *model_path* / *event_name*.
 
     Called both from :meth:`ModelEventDispatcher.trigger` (settings on) and
-    directly from ``Model._trigger_event`` (settings off), so decorator
+    directly from ``Model.trigger_event`` (settings off), so decorator
     handlers always fire.
     """
     event_map = _decorator_registry.get(model_path)
@@ -531,10 +519,10 @@ class _ModelEventProxy:
 
     def __getattr__(self, name: str) -> Any:
         if name in SUPPORTED_EVENTS:
-            return self._make_shortcut_decorator(name)
+            return self.make_shortcut_decorator(name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute {name!r}")
 
-    def _make_shortcut_decorator(self, event_name: str) -> Callable[[str], Any]:
+    def make_shortcut_decorator(self, event_name: str) -> Callable[[str], Any]:
         def decorator_factory(model_path: str) -> Any:
             def decorator(fn: Any) -> Any:
                 with _dec_registry_lock:

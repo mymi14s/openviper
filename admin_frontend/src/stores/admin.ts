@@ -7,7 +7,9 @@ import type {
   DashboardStats,
   ChangeHistoryEntry,
   AdminConfig,
-  FilterOption
+  FilterOption,
+  BulkActionResult,
+  ExportFormat
 } from '@/types/admin'
 import { modelsApi, dashboardApi, historyApi, searchApi } from '@/api/client'
 import { useAlertsStore } from '@/stores/alerts'
@@ -35,7 +37,7 @@ export const useAdminStore = defineStore('admin', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const filterOptions = ref<FilterOption[]>([])
-  const activeFilters = ref<Record<string, any>>({})
+  const activeFilters = ref<Record<string, unknown>>({})
   const filterSidebarOpen = ref(false)
   const filterLoading = ref(false)
 
@@ -61,8 +63,9 @@ export const useAdminStore = defineStore('admin', () => {
     error.value = null
     try {
       models.value = await modelsApi.getModels()
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch models'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to fetch models'
     }
   }
 
@@ -70,8 +73,9 @@ export const useAdminStore = defineStore('admin', () => {
     error.value = null
     try {
       currentModel.value = await modelsApi.getModel(appLabel, modelName)
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch model'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to fetch model'
       currentModel.value = null
     }
   }
@@ -84,7 +88,7 @@ export const useAdminStore = defineStore('admin', () => {
       perPage?: number
       search?: string
       ordering?: string
-      filters?: Record<string, any>
+      filters?: Record<string, unknown>
     } = {}
   ): Promise<void> {
     error.value = null
@@ -113,8 +117,9 @@ export const useAdminStore = defineStore('admin', () => {
         permissionDenied.value = true
         permissionMessage.value = response.permission_message ?? null
       }
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch instances'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to fetch instances'
       instances.value = []
       showOperationalError(error.value ?? 'Failed to fetch instances')
     }
@@ -128,8 +133,9 @@ export const useAdminStore = defineStore('admin', () => {
     error.value = null
     try {
       currentInstance.value = await modelsApi.getModelInstance(appLabel, modelName, id)
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch instance'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to fetch instance'
       currentInstance.value = null
       showOperationalError(error.value ?? 'Failed to fetch instance')
     }
@@ -138,20 +144,18 @@ export const useAdminStore = defineStore('admin', () => {
   async function createInstance(
     appLabel: string,
     modelName: string,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<ModelInstance | null> {
     try {
       const instance = await modelsApi.createModelInstance(appLabel, modelName, data)
       return instance
-    } catch (err: any) {
-      // Re-throw 409 Conflict and 422 Unprocessable Entity so the caller can handle them.
-      if (err.response?.status === 409 || err.response?.status === 422) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string } } }
+      if (axiosErr.response?.status === 409 || axiosErr.response?.status === 422) {
         throw err
       }
-      error.value = err.response?.data?.error || 'Failed to create instance'
+      error.value = axiosErr.response?.data?.error || 'Failed to create instance'
       return null
-    } finally {
-      // Don't set loading.value = false here if we didn't set it to true
     }
   }
 
@@ -159,22 +163,20 @@ export const useAdminStore = defineStore('admin', () => {
     appLabel: string,
     modelName: string,
     id: string | number,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<ModelInstance | null> {
     try {
       const instance = await modelsApi.updateModelInstance(appLabel, modelName, id, data)
       currentInstance.value = instance
       return instance
-    } catch (err: any) {
-      // Re-throw 422 Unprocessable Entity so the caller can display field-level errors.
-      if (err.response?.status === 422) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string } } }
+      if (axiosErr.response?.status === 422) {
         throw err
       }
-      error.value = err.response?.data?.error || 'Failed to update instance'
+      error.value = axiosErr.response?.data?.error || 'Failed to update instance'
       showOperationalError(error.value ?? 'Failed to update instance')
       return null
-    } finally {
-      // Don't set loading.value = false here
     }
   }
 
@@ -191,8 +193,9 @@ export const useAdminStore = defineStore('admin', () => {
         currentInstance.value = null
       }
       return true
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to delete instance'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to delete instance'
       showOperationalError(error.value ?? 'Failed to delete instance')
       return false
     }
@@ -203,7 +206,7 @@ export const useAdminStore = defineStore('admin', () => {
     modelName: string,
     action: string,
     ids: Array<string | number>
-  ): Promise<{ success: boolean; affected: number }> {
+  ): Promise<BulkActionResult> {
     error.value = null
     try {
       const result = await modelsApi.bulkAction(appLabel, modelName, { action, ids })
@@ -211,10 +214,11 @@ export const useAdminStore = defineStore('admin', () => {
         await fetchInstances(appLabel, modelName)
       }
       return result
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to perform bulk action'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to perform bulk action'
       showOperationalError(error.value ?? 'Failed to perform bulk action')
-      return { success: false, affected: 0 }
+      return { success: false, count: 0, message: error.value, errors: null }
     }
   }
 
@@ -224,15 +228,16 @@ export const useAdminStore = defineStore('admin', () => {
       const data = await dashboardApi.getStats()
       dashboardStats.value = data
       recentActivity.value = data.recent_activity || []
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch dashboard'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to fetch dashboard'
     }
   }
 
   async function fetchConfig(): Promise<void> {
     try {
       config.value = await dashboardApi.getConfig()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to fetch admin config:', err)
     }
   }
@@ -279,8 +284,9 @@ export const useAdminStore = defineStore('admin', () => {
     error.value = null
     try {
       currentInstance.value = await modelsApi.getSingleInstance(appLabel, modelName)
-    } catch (err: any) {
-      error.value = err.response?.data?.error || 'Failed to fetch instance'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      error.value = axiosErr.response?.data?.error || 'Failed to fetch instance'
       currentInstance.value = null
       showOperationalError(error.value ?? 'Failed to fetch instance')
     }
@@ -289,17 +295,18 @@ export const useAdminStore = defineStore('admin', () => {
   async function updateSingleInstance(
     appLabel: string,
     modelName: string,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<ModelInstance | null> {
     try {
       const instance = await modelsApi.updateSingleInstance(appLabel, modelName, data)
       currentInstance.value = instance
       return instance
-    } catch (err: any) {
-      if (err.response?.status === 422) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string } } }
+      if (axiosErr.response?.status === 422) {
         throw err
       }
-      error.value = err.response?.data?.error || 'Failed to update instance'
+      error.value = axiosErr.response?.data?.error || 'Failed to update instance'
       showOperationalError(error.value ?? 'Failed to update instance')
       return null
     }
@@ -316,7 +323,7 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  function setActiveFilter(fieldName: string, value: any): void {
+  function setActiveFilter(fieldName: string, value: unknown): void {
     if (value === undefined || value === null || value === '') {
       const updated = { ...activeFilters.value }
       delete updated[fieldName]
@@ -328,6 +335,10 @@ export const useAdminStore = defineStore('admin', () => {
 
   function clearAllFilters(): void {
     activeFilters.value = {}
+  }
+
+  function setPerPage(perPage: number): void {
+    pagination.value = { ...pagination.value, perPage }
   }
 
   function toggleFilterSidebar(): void {
@@ -373,7 +384,7 @@ export const useAdminStore = defineStore('admin', () => {
     modelName: string,
     query: string,
     limit: number = 20
-  ): Promise<ModelInstance[]> {
+  ): Promise<Array<{ value: string | number | boolean; label: string }>> {
     return modelsApi.searchForeignKey(appLabel, modelName, query, limit)
   }
 
@@ -400,10 +411,10 @@ export const useAdminStore = defineStore('admin', () => {
   async function exportData(
     appLabel: string,
     modelName: string,
-    format: string,
-    params: Record<string, unknown> = {}
+    format: ExportFormat,
+    params: { ids?: Array<string | number> } = {}
   ): Promise<Blob> {
-    return modelsApi.exportData(appLabel, modelName, format, params)
+    return modelsApi.exportData(appLabel, modelName, format, params.ids)
   }
 
   return {
@@ -417,6 +428,7 @@ export const useAdminStore = defineStore('admin', () => {
     fetchFilterOptions,
     setActiveFilter,
     clearAllFilters,
+    setPerPage,
     toggleFilterSidebar,
     closeFilterSidebar,
     clearCache,

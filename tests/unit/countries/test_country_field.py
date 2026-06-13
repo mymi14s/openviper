@@ -1,10 +1,10 @@
-"""Unit tests for openviper.contrib.countries."""
+"""Unit tests for openviper.contrib.fields.countries."""
 
 from __future__ import annotations
 
 import pytest
 
-from openviper.contrib.countries import (
+from openviper.contrib.fields.countries import (
     CountryField,
     get_country_choices,
     get_country_name,
@@ -12,8 +12,8 @@ from openviper.contrib.countries import (
     search_country,
     validate_country,
 )
-from openviper.contrib.countries.cache import get_countries, get_country, invalidate_cache
-from openviper.contrib.countries.data import COUNTRIES, COUNTRY_CODES
+from openviper.contrib.fields.countries.cache import get_countries, get_country, invalidate_cache
+from openviper.contrib.fields.countries.data import COUNTRIES, COUNTRY_CODES
 
 
 class TestCountryData:
@@ -227,11 +227,11 @@ class TestCountryField:
 
     def test_column_type_includes_length(self) -> None:
         field = CountryField()
-        assert field._column_type == "CHAR(2)"
+        assert field.column_type == "CHAR(2)"
 
     def test_column_type_respects_custom_max_length(self) -> None:
         field = CountryField(max_length=3, strict=False)
-        assert field._column_type == "CHAR(3)"
+        assert field.column_type == "CHAR(3)"
 
     def test_to_python_uppercase(self) -> None:
         field = CountryField()

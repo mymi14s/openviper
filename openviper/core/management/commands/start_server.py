@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import atexit
 import concurrent.futures
 import importlib
@@ -13,9 +12,8 @@ import shutil
 from pathlib import Path
 
 from openviper.conf import settings
-from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
-from openviper.core.management.utils import get_banner
+from openviper.core.management.utils import get_banner, resolve_installed_apps, run_async_command
 from openviper.db.migrations.executor import MigrationExecutor, discover_migrations
 from openviper.utils.logging import get_uvicorn_log_config
 
@@ -31,7 +29,7 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger("openviper.start-server")
 
-_LEVEL_RANK: dict[str, int] = {
+LEVEL_RANK: dict[str, int] = {
     "debug": 0,
     "info": 1,
     "warning": 2,
@@ -85,16 +83,16 @@ class Command(BaseCommand):
             self.stderr(self.style_error("uvicorn is required: pip install uvicorn"))
             return
 
-        migration_future = MIGRATION_THREAD_POOL.submit(self._check_pending_migrations)
+        migration_future = MIGRATION_THREAD_POOL.submit(self.check_pending_migrations)
 
-        app_path = self._resolve_app_path(options)
+        app_path = self.resolve_app_path(options)
         host = options["host"]
         port = options["port"]
         reload = options["reload"]
         workers = options.get("workers", 1)
 
         settings_level = getattr(settings, "LOG_LEVEL", "INFO").lower()
-        log_level = settings_level if _LEVEL_RANK.get(settings_level, 1) <= 1 else "info"
+        log_level = settings_level if LEVEL_RANK.get(settings_level, 1) <= 1 else "info"
 
         get_banner(self, host, port)
 
@@ -108,7 +106,7 @@ class Command(BaseCommand):
         log_config = get_uvicorn_log_config()
 
         if reload:
-            self._run_with_cache_clear(uvicorn, app_path, host, port, log_level, log_config)
+            self.run_with_cache_clear(uvicorn, app_path, host, port, log_level, log_config)
         else:
             uvicorn.run(
                 app_path,
@@ -120,7 +118,7 @@ class Command(BaseCommand):
                 log_config=log_config,
             )
 
-    def _reload_dirs(self, root: str) -> list[str]:
+    def reload_dirs(self, root: str) -> list[str]:
         """Return directories uvicorn should watch for file changes.
 
         Always includes the project root.  If the ``openviper`` package is a local
@@ -135,7 +133,7 @@ class Command(BaseCommand):
                 dirs.append(pkg_parent)
         return dirs
 
-    def _run_with_cache_clear(
+    def run_with_cache_clear(
         self,
         uvicorn,
         app_path: str,
@@ -152,7 +150,7 @@ class Command(BaseCommand):
         supervisor right before the worker process is restarted.
         """
         root = os.getcwd()
-        reload_dirs = self._reload_dirs(root)
+        reload_dirs = self.reload_dirs(root)
 
         for supervisor_fqn in (
             "uvicorn.supervisors.ChangeReload",
@@ -162,15 +160,20 @@ class Command(BaseCommand):
             try:
                 mod = importlib.import_module(module_name)
                 cls = getattr(mod, class_name)
-                _orig = cls.restart
+                original_restart = cls.restart
 
-                def _patched(self_reloader, _orig=_orig, _root=root, _cls=cls):
+                def patched_restart(
+                    self_reloader,
+                    original_restart=original_restart,
+                    _root=root,
+                    _cls=cls,
+                ):
                     clear_pycache(_root)
                     if not isinstance(self_reloader, _cls):
                         return
-                    _orig(self_reloader)
+                    original_restart(self_reloader)
 
-                cls.restart = _patched  # type: ignore[method-assign]
+                cls.restart = patched_restart  # type: ignore[method-assign]
             except ImportError, AttributeError:
                 pass
 
@@ -184,7 +187,7 @@ class Command(BaseCommand):
             log_config=log_config,
         )
 
-    def _resolve_app_path(self, options: dict) -> str:
+    def resolve_app_path(self, options: dict) -> str:
         """Return the dotted ASGI app path (e.g. ``myproject.asgi:app``)."""
         app_path: str | None = options.get("app")
         if app_path is not None:
@@ -192,30 +195,41 @@ class Command(BaseCommand):
 
         settings_module = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
         package = settings_module.split(".")[0] if settings_module else None
+
         if package:
+            try:
+                pkg_module = importlib.import_module(package)
+                has_file = hasattr(pkg_module, "__file__") and pkg_module.__file__
+                pkg_dir = Path(pkg_module.__file__).parent if has_file else None
+            except ImportError:
+                pkg_dir = None
+
+            if pkg_dir is not None:
+                if (pkg_dir / "asgi.py").is_file():
+                    return f"{package}.asgi:app"
+                if (pkg_dir / "app.py").is_file():
+                    return f"{package}.app:app"
+
             return f"{package}.asgi:app"
 
         cwd_name = os.path.basename(os.getcwd())
         return f"{cwd_name}.asgi:app"
 
-    def _check_pending_migrations(self) -> None:
+    def check_pending_migrations(self) -> None:
         """Detect unapplied migrations and print a red warning at startup.
 
         This runs in a background thread to avoid blocking server startup.
         """
         try:
-            resolver = AppResolver()
-            installed_apps = getattr(settings, "INSTALLED_APPS", [])
-            resolved = resolver.resolve_all_apps(installed_apps)
-            resolved_apps = resolved.get("found", {})
+            resolver, resolved_apps = resolve_installed_apps()
             if not isinstance(resolved_apps, dict):
                 resolved_apps = {}
 
-            async def _get_pending() -> list[str]:
+            async def get_pending() -> list[str]:
                 executor = MigrationExecutor(resolved_apps=resolved_apps)
                 try:
-                    await executor._ensure_migration_table()
-                    applied = await executor._applied_migrations()
+                    await executor.ensure_migration_table()
+                    applied = await executor.applied_migrations()
                 except Exception:
                     # Fresh or missing database - treat all migrations as pending.
                     applied = set()
@@ -226,11 +240,7 @@ class Command(BaseCommand):
                     if (rec.app, rec.name) not in applied
                 ]
 
-            pending_coro = _get_pending()
-            try:
-                pending = asyncio.run(pending_coro)
-            finally:
-                pending_coro.close()
+            pending = run_async_command(get_pending())
 
             if pending:
                 self.stdout("")

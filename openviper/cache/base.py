@@ -2,10 +2,29 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
+import orjson
+
 from openviper.cache.validation import validate_cache_key
+
+logger = logging.getLogger("openviper.cache")
+
+
+def deserialize_cache_value(raw: bytes | str, key: str) -> Any:
+    """Deserialize a cached value from JSON bytes, returning *raw* on failure.
+
+    All cache backends use orjson for serialization; this helper
+    centralises the ``orjson.loads`` call and the graceful fallback
+    so each backend does not repeat the try/except boilerplate.
+    """
+    try:
+        return orjson.loads(raw)
+    except ValueError, TypeError:
+        logger.debug("Failed to deserialize cached value for key %r", key, exc_info=True)
+        return raw
 
 
 class BaseCache(ABC):

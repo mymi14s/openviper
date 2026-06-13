@@ -26,18 +26,9 @@ from openviper.storage.base import (
     generate_unique_name,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_fs(tmp_path: Path, **kwargs) -> FileSystemStorage:
     return FileSystemStorage(location=str(tmp_path), base_url="/media/", **kwargs)
-
-
-# ---------------------------------------------------------------------------
-# Storage abstract base
-# ---------------------------------------------------------------------------
 
 
 class TestStorageAbstract:
@@ -88,101 +79,82 @@ class TestStorageAbstract:
         assert result != "Makefile"
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage._validate_name (security)
-# ---------------------------------------------------------------------------
-
-
 class TestValidateName:
     @pytest.fixture(autouse=True)
-    def fs(self):
-        # pylint: disable=attribute-defined-outside-init
-        self._fs = FileSystemStorage(location="/tmp/media", base_url="/media/")
+    def setup_fs(self):
+        self.fs = FileSystemStorage(location="/tmp/media", base_url="/media/")
 
-    def _v(self, name: str) -> str:
-        # pylint: disable=protected-access
-        return self._fs._validate_name(name)
+    def v(self, name: str) -> str:
+        return self.fs.validate_name(name)
 
     def test_simple_name_passes(self):
-        assert self._v("photo.jpg") == "photo.jpg"
+        assert self.v("photo.jpg") == "photo.jpg"
 
     def test_subdirectory_passes(self):
-        assert self._v("uploads/2024/photo.jpg") == "uploads/2024/photo.jpg"
+        assert self.v("uploads/2024/photo.jpg") == "uploads/2024/photo.jpg"
 
     def test_empty_name_raises(self):
         with pytest.raises(ValueError, match="empty"):
-            self._v("")
+            self.v("")
 
     def test_null_byte_raises(self):
         with pytest.raises(ValueError, match="null bytes"):
-            self._v("file\x00.txt")
+            self.v("file\x00.txt")
 
     def test_traversal_dot_dot_stripped(self):
-        result = self._v("../../etc/passwd")
+        result = self.v("../../etc/passwd")
         assert ".." not in result
         assert result == "etc/passwd"
 
     def test_traversal_absolute_path_stripped(self):
-        result = self._v("/etc/shadow")
+        result = self.v("/etc/shadow")
         assert result == "etc/shadow"
 
     def test_traversal_mixed_stripped(self):
-        result = self._v("uploads/../../../secret")
+        result = self.v("uploads/../../../secret")
         assert ".." not in result
         assert result in {"uploads/secret", "secret"}
 
     def test_resolves_to_empty_raises(self):
         with pytest.raises(ValueError, match="resolves to an empty path"):
-            self._v("../../..")
+            self.v("../../..")
 
     def test_long_component_truncated(self):
         long_name = "a" * 300 + ".txt"
-        result = self._v(long_name)
+        result = self.v(long_name)
         component = result.rsplit("/", maxsplit=1)[-1]
         assert len(component) <= 255
 
     def test_windows_backslash_normalised(self):
-        result = self._v("uploads\\2024\\photo.jpg")
+        result = self.v("uploads\\2024\\photo.jpg")
         assert "\\" not in result
         assert "photo.jpg" in result
 
     def test_hidden_filename_sanitized(self):
         """Hidden filenames (leading dot) must be replaced with underscore prefix."""
-        assert self._v(".htaccess") == "_htaccess"
-        assert self._v(".env") == "_env"
-        assert self._v(".gitignore") == "_gitignore"
+        assert self.v(".htaccess") == "_htaccess"
+        assert self.v(".env") == "_env"
+        assert self.v(".gitignore") == "_gitignore"
 
     def test_hidden_filename_in_subdirectory(self):
         """Hidden filenames in subdirectories must also be sanitized."""
-        result = self._v("uploads/.env")
+        result = self.v("uploads/.env")
         assert result == "uploads/_env"
         assert "/." not in result
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage._full_path (path-escape guard)
-# ---------------------------------------------------------------------------
 
 
 class TestFullPath:
     def test_path_inside_root_ok(self, tmp_path):
         fs = make_fs(tmp_path)
-        # pylint: disable=protected-access
-        full = fs._full_path("uploads/photo.jpg")
+        full = fs.full_path("uploads/photo.jpg")
         assert str(full).startswith(str(tmp_path.resolve()))
 
     def test_path_escape_raises(self, tmp_path):
-        """_full_path is a defence-in-depth guard after _validate_name."""
+        """full_path is a defence-in-depth guard after validate_name."""
         fs = FileSystemStorage(location=str(tmp_path), base_url="/media/")
-        # Bypass _validate_name by calling _full_path directly.
+        # Bypass validate_name by calling full_path directly.
         with pytest.raises(ValueError, match="escapes the storage root"):
-            # pylint: disable=protected-access
-            fs._full_path("../outside/secret.txt")
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage.save - content types
-# ---------------------------------------------------------------------------
+            fs.full_path("../outside/secret.txt")
 
 
 class TestSaveContentTypes:
@@ -253,11 +225,6 @@ class TestSaveContentTypes:
         assert "photo" in name
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage.save - path traversal rejected end-to-end
-# ---------------------------------------------------------------------------
-
-
 class TestSavePathTraversal:
     @pytest.mark.asyncio
     async def test_traversal_name_sanitised_to_root(self, tmp_path):
@@ -280,11 +247,6 @@ class TestSavePathTraversal:
         fs = make_fs(tmp_path)
         with pytest.raises(ValueError, match="must not be empty"):
             await fs.save("", b"data")
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage.save - collision avoidance
-# ---------------------------------------------------------------------------
 
 
 class TestSaveCollision:
@@ -311,11 +273,6 @@ class TestSaveCollision:
         n2 = await fs.save("b.txt", b"b")
         assert n1 == "a.txt"
         assert n2 == "b.txt"
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage - exists / delete / size
-# ---------------------------------------------------------------------------
 
 
 class TestExistsDeleteSize:
@@ -356,11 +313,6 @@ class TestExistsDeleteSize:
         assert not await fs.exists(name)
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage - read size limit
-# ---------------------------------------------------------------------------
-
-
 class TestReadSizeLimit:
     @pytest.mark.asyncio
     async def test_read_small_file(self, tmp_path):
@@ -378,11 +330,6 @@ class TestReadSizeLimit:
         big_path.write_bytes(b"x" * (MAX_READ_SIZE + 1))
         with pytest.raises(ValueError, match="exceeding the maximum read size"):
             await fs.read("big.bin")
-
-
-# ---------------------------------------------------------------------------
-# FileSystemStorage.url - percent-encoding
-# ---------------------------------------------------------------------------
 
 
 class TestUrl:
@@ -408,11 +355,6 @@ class TestUrl:
         assert make_fs(tmp_path).url("a/b/c/d.jpg") == "/media/a/b/c/d.jpg"
 
 
-# ---------------------------------------------------------------------------
-# FileSystemStorage - settings fallback
-# ---------------------------------------------------------------------------
-
-
 class TestSettingsFallback:
     def test_location_falls_back_to_settings(self):
         loc = FileSystemStorage().location
@@ -433,23 +375,16 @@ class TestSettingsFallback:
         assert fs.base_url == "/files/"
 
 
-# ---------------------------------------------------------------------------
-# DefaultStorage lazy proxy
-# ---------------------------------------------------------------------------
-
-
 class TestDefaultStorage:
     def test_lazy_creates_filesystem_storage(self):
         ds = DefaultStorage()
-        # pylint: disable=protected-access
-        assert isinstance(ds._get_storage(), FileSystemStorage)
+        assert isinstance(ds.get_storage(), FileSystemStorage)
 
     def test_configure_sets_instance(self):
         ds = DefaultStorage()
         fs = FileSystemStorage(location="/tmp", base_url="/media/")
         ds.configure(fs)
-        # pylint: disable=protected-access
-        assert ds._get_storage() is fs
+        assert ds.get_storage() is fs
 
     def test_proxy_delegates_url(self):
         ds = DefaultStorage()
@@ -463,10 +398,9 @@ class TestDefaultStorage:
         custom = FileSystemStorage(location="/custom/")
         ds1.configure(custom)
         # ds2 must be lazily initialised independently.
-        # pylint: disable=protected-access
         assert ds2._instance is None
-        assert isinstance(ds2._get_storage(), FileSystemStorage)
-        assert ds2._get_storage() is not custom
+        assert isinstance(ds2.get_storage(), FileSystemStorage)
+        assert ds2.get_storage() is not custom
 
     def test_default_storage_module_level_is_proxy(self):
         assert isinstance(default_storage, DefaultStorage)
@@ -477,21 +411,15 @@ class TestDefaultStorage:
 
     def test_repeated_get_storage_returns_same_instance(self):
         ds = DefaultStorage()
-        # pylint: disable=protected-access
-        a = ds._get_storage()
-        b = ds._get_storage()
+        a = ds.get_storage()
+        b = ds.get_storage()
         assert a is b
-
-
-# ---------------------------------------------------------------------------
-# Additional branch coverage
-# ---------------------------------------------------------------------------
 
 
 class TestMkdirAsyncRaceCondition:
     @pytest.mark.asyncio
     async def test_file_exists_error_is_swallowed(self, tmp_path):
-        """_mkdir_async swallows FileExistsError (race condition guard)."""
+        """mkdir_async swallows FileExistsError (race condition guard)."""
 
         storage = make_fs(tmp_path)
         with patch(
@@ -499,7 +427,7 @@ class TestMkdirAsyncRaceCondition:
             new=AsyncMock(side_effect=FileExistsError),
         ):
             # Must not raise
-            await storage._mkdir_async(tmp_path / "subdir")
+            await storage.mkdir_async(tmp_path / "subdir")
 
 
 class TestFileLikeNonBytesChunk:
@@ -508,7 +436,7 @@ class TestFileLikeNonBytesChunk:
         """bytes(chunk) conversion fires when file-like read returns non-bytes."""
         storage = make_fs(tmp_path)
 
-        class _ByteArrayReader:
+        class ByteArrayReader:
             def __init__(self, data: bytes):
                 self._data = data
                 self._pos = 0
@@ -520,7 +448,7 @@ class TestFileLikeNonBytesChunk:
                     return bytearray()  # EOF as bytearray
                 return bytearray(chunk)
 
-        reader = _ByteArrayReader(b"hello world")
+        reader = ByteArrayReader(b"hello world")
         name = await storage.save("test.bin", reader)
         # Verify the file was written correctly
         written = (tmp_path / name).read_bytes()

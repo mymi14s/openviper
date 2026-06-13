@@ -25,22 +25,25 @@ from openviper.db.connection import (
     request_connection,
     validate_pool_config,
 )
+from openviper.db.connections import connections
 
 
 @pytest.fixture(autouse=True)
 async def reset_engine():
-    """Reset module-level _engine before and after each test to prevent state leaks."""
+    """Reset module-level _engine and ConnectionManager state to prevent state leaks."""
     old = mod._engine
+    old_initialized = connections.initialized
+    old_backends = dict(connections.backends)
     mod._engine = None
+    connections.initialized = False
+    connections.backends.clear()
     yield
     if mod._engine is not None and mod._engine is not old:
         await mod._engine.dispose()
     mod._engine = old
-
-
-# ---------------------------------------------------------------------------
-# get_metadata
-# ---------------------------------------------------------------------------
+    connections.initialized = old_initialized
+    connections.backends.clear()
+    connections.backends.update(old_backends)
 
 
 class TestGetMetadata:
@@ -50,11 +53,6 @@ class TestGetMetadata:
 
     def test_same_object_each_call(self):
         assert get_metadata() is get_metadata()
-
-
-# ---------------------------------------------------------------------------
-# get_engine_lock
-# ---------------------------------------------------------------------------
 
 
 class TestGetEngineLock:
@@ -74,11 +72,6 @@ class TestGetEngineLock:
         l1 = get_engine_lock()
         l2 = get_engine_lock()
         assert l1 is l2
-
-
-# ---------------------------------------------------------------------------
-# validate_pool_config
-# ---------------------------------------------------------------------------
 
 
 class TestValidatePoolConfig:
@@ -113,11 +106,6 @@ class TestValidatePoolConfig:
     def test_exact_max_boundary(self):
         result = validate_pool_config(100, "POOL_SIZE", 1, 100, 20)
         assert result == 100
-
-
-# ---------------------------------------------------------------------------
-# create_engine
-# ---------------------------------------------------------------------------
 
 
 class TestCreateEngine:
@@ -178,11 +166,6 @@ class TestCreateEngine:
         await engine.dispose()
 
 
-# ---------------------------------------------------------------------------
-# get_engine (lazy init + double-checked locking)
-# ---------------------------------------------------------------------------
-
-
 class TestGetEngine:
     @pytest.mark.asyncio
     async def test_returns_engine(self):
@@ -235,11 +218,6 @@ class TestGetEngine:
             mod._engine = old
 
 
-# ---------------------------------------------------------------------------
-# get_connection
-# ---------------------------------------------------------------------------
-
-
 class TestGetConnection:
     @pytest.mark.asyncio
     async def test_returns_request_conn_when_set(self):
@@ -267,11 +245,6 @@ class TestGetConnection:
                 assert conn is mock_conn
         finally:
             _request_conn.reset(token)
-
-
-# ---------------------------------------------------------------------------
-# request_connection context manager
-# ---------------------------------------------------------------------------
 
 
 class TestRequestConnection:
@@ -306,11 +279,6 @@ class TestRequestConnection:
                     raise ValueError("inner error")
 
         assert _request_conn.get() is None
-
-
-# ---------------------------------------------------------------------------
-# init_db
-# ---------------------------------------------------------------------------
 
 
 class TestInitDb:
@@ -349,11 +317,6 @@ class TestInitDb:
             assert mock_conn.run_sync.await_count == 2
 
 
-# ---------------------------------------------------------------------------
-# close_db
-# ---------------------------------------------------------------------------
-
-
 class TestCloseDb:
     @pytest.mark.asyncio
     async def test_close_disposes_engine(self):
@@ -378,11 +341,6 @@ class TestCloseDb:
             await close_db()
         finally:
             mod._engine = old
-
-
-# ---------------------------------------------------------------------------
-# configure_db
-# ---------------------------------------------------------------------------
 
 
 class TestConfigureDb:
@@ -412,11 +370,6 @@ class TestConfigureDb:
             if mod._engine and mod._engine is not old_engine:
                 await mod._engine.dispose()
             mod._engine = old
-
-
-# ---------------------------------------------------------------------------
-# atomic context manager
-# ---------------------------------------------------------------------------
 
 
 class TestAtomic:

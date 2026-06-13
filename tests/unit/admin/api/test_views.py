@@ -535,7 +535,7 @@ class TestAdminAPIViews:
             ma = MagicMock()
             ma.get_search_fields.return_value = ["username"]
             mock_admin.get_all_models.return_value = [(MockModel, ma)]
-            mock_admin._get_app_label.return_value = "test_app"
+            mock_admin.get_app_label.return_value = "test_app"
 
             mock_qs = MockModel.setup_mock_objects()
             mock_qs.all.return_value = [MockModel(id=1, username="test")]
@@ -1770,7 +1770,10 @@ class TestCurrentUserPermission:
     @pytest.mark.asyncio
     async def test_no_access_raises(self, router, mock_request):
         handler = find_handler(router, "/auth/me/", "GET")
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+        with patch(
+            "openviper.admin.api.views.require_admin_access",
+            side_effect=PermissionDenied("Admin access required."),
+        ):
             with pytest.raises(PermissionDenied):
                 await handler(mock_request)
 
@@ -3256,7 +3259,10 @@ class TestListPlugins:
     @pytest.mark.asyncio
     async def test_no_access_raises(self, router, mock_request):
         handler = find_handler(router, "/plugins/", "GET")
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+        with patch(
+            "openviper.admin.api.views.require_admin_access",
+            side_effect=PermissionDenied("Admin access required."),
+        ):
             with pytest.raises(PermissionDenied):
                 await handler(mock_request)
 
@@ -3322,7 +3328,7 @@ class TestGlobalSearchEdgeCases:
             ma = MagicMock()
             ma.get_search_fields.return_value = []
             mock_admin.get_all_models.return_value = [(mc, ma)]
-            mock_admin._get_app_label.return_value = "blog"
+            mock_admin.get_app_label.return_value = "blog"
 
             resp = await handler(mock_request)
             data = json.loads(resp.body)
@@ -3370,7 +3376,7 @@ class TestGlobalSearchEdgeCases:
             ma = MagicMock()
             ma.get_search_fields.return_value = ["name"]
             mock_admin.get_all_models.return_value = [(mc, ma)]
-            mock_admin._get_app_label.return_value = "app"
+            mock_admin.get_app_label.return_value = "app"
 
             resp = await handler(mock_request)
             data = json.loads(resp.body)
@@ -3422,7 +3428,10 @@ class TestCheckAdminAccessCoverage:
     ):
         handler = find_handler(router, path, method)
         if callable(handler):
-            with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+            with patch(
+                "openviper.admin.api.views.require_admin_access",
+                side_effect=PermissionDenied("Admin access required."),
+            ):
                 route_params: dict = {}
                 if not kwargs:
                     if "/x/y/" in path:
@@ -3793,11 +3802,6 @@ class TestOtherExceptionEdges:
                 await handler(mock_request, model_name="x", obj_id=1)
 
 
-# ---------------------------------------------------------------------------
-# correctness tests for admin fixes
-# ---------------------------------------------------------------------------
-
-
 def find_handler_by_path_method(router, path, method):
     for route in router.routes:
         if route.path == path and method in route.methods:
@@ -4063,7 +4067,10 @@ class TestAdminAccessPermissionBranches:
             return_value={"new_password": "newpass123", "confirm_password": "newpass123"}
         )
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+        with patch(
+            "openviper.admin.api.views.require_admin_access",
+            side_effect=PermissionDenied("Admin access required."),
+        ):
             with pytest.raises(PermissionDenied, match="Admin access required"):
                 await handler(mock_request, user_id="1")
 
@@ -4073,7 +4080,10 @@ class TestAdminAccessPermissionBranches:
         handler = find_handler_by_path_method(router, "/models/{app_label}/{model_name}/", "GET")
         assert handler is not None
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+        with patch(
+            "openviper.admin.api.views.require_admin_access",
+            side_effect=PermissionDenied("Admin access required."),
+        ):
             with pytest.raises(PermissionDenied, match="Admin access required"):
                 await handler(mock_request, app_label="app", model_name="model")
 
@@ -4085,7 +4095,10 @@ class TestAdminAccessPermissionBranches:
         )
         assert handler is not None
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+        with patch(
+            "openviper.admin.api.views.require_admin_access",
+            side_effect=PermissionDenied("Admin access required."),
+        ):
             with pytest.raises(PermissionDenied, match="Admin access required"):
                 await handler(mock_request, app_label="app", model_name="model")
 
@@ -4097,7 +4110,10 @@ class TestAdminAccessPermissionBranches:
 
         mock_request.json = AsyncMock(return_value={"name": "test"})
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+        with patch(
+            "openviper.admin.api.views.require_admin_access",
+            side_effect=PermissionDenied("Admin access required."),
+        ):
             with pytest.raises(PermissionDenied, match="Admin access required"):
                 await handler(mock_request, app_label="app", model_name="model")
 
@@ -4124,7 +4140,7 @@ class TestFormDataJsonParsing:
         mock_instance.id = 1
         mock_instance.save = AsyncMock()
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+        with patch("openviper.admin.api.views.require_admin_access"):
             with patch("openviper.admin.api.views.admin") as mock_admin:
                 ma = MagicMock()
                 ma.has_add_permission.return_value = True
@@ -4168,7 +4184,7 @@ class TestFormDataJsonParsing:
         mock_instance.to_dict = MagicMock(return_value={"name": "old"})
         mock_instance.save = AsyncMock()
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+        with patch("openviper.admin.api.views.require_admin_access"):
             with patch("openviper.admin.api.views.admin") as mock_admin:
                 ma = MagicMock()
                 ma.has_change_permission.return_value = True
@@ -4214,7 +4230,7 @@ class TestUpdateViewExceptionHandling:
         # Make the save raise ValueError
         mock_instance.save = AsyncMock(side_effect=ValueError("Invalid field value"))
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+        with patch("openviper.admin.api.views.require_admin_access"):
             with patch("openviper.admin.api.views.admin") as mock_admin:
                 ma = MagicMock()
                 ma.has_change_permission.return_value = True
@@ -4259,7 +4275,7 @@ class TestUpdateViewExceptionHandling:
         integrity_error.orig = orig_exc
         mock_instance.save = AsyncMock(side_effect=integrity_error)
 
-        with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+        with patch("openviper.admin.api.views.require_admin_access"):
             with patch("openviper.admin.api.views.admin") as mock_admin:
                 ma = MagicMock()
                 ma.has_change_permission.return_value = True

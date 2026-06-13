@@ -33,7 +33,7 @@ class OpenAIProvider(AIProvider):
         super().__init__(config)
         self._client: AsyncOpenAI | None = None
 
-    def _get_client(self) -> AsyncOpenAI:
+    def get_client(self) -> AsyncOpenAI:
         """Get or create a persistent OpenAI client."""
         if self._client is None:
             if AsyncOpenAI is None:
@@ -52,7 +52,7 @@ class OpenAIProvider(AIProvider):
 
     async def generate(self, prompt: str, **kwargs: object) -> str:
         prompt, kwargs = await self.before_inference(prompt, kwargs)
-        client = self._get_client()
+        client = self.get_client()
         model = kwargs.pop("model", self.default_model) or ""
         temperature = clamp_temperature(kwargs.pop("temperature", self.config.get("temperature")))
         max_tokens = kwargs.pop("max_tokens", self.config.get("max_tokens"))
@@ -70,7 +70,7 @@ class OpenAIProvider(AIProvider):
 
     async def stream(self, prompt: str, **kwargs: object) -> AsyncIterator[str]:
         prompt, kwargs = await self.before_inference(prompt, kwargs)
-        client = self._get_client()
+        client = self.get_client()
         model = kwargs.pop("model", self.default_model) or ""
         temperature = clamp_temperature(kwargs.pop("temperature", self.config.get("temperature")))
         extra = filter_kwargs(kwargs, ALLOWED_STREAM_KWARGS, provider="OpenAIProvider")
@@ -88,7 +88,7 @@ class OpenAIProvider(AIProvider):
                 yield delta
 
     async def embed(self, text: str, **kwargs: object) -> list[float]:
-        client = self._get_client()
+        client = self.get_client()
         model = kwargs.pop("model", self.config.get("embed_model"))
         response = await client.embeddings.create(input=text, model=model)
         return response.data[0].embedding

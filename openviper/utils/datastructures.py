@@ -13,6 +13,9 @@ from collections.abc import Iterator
 
 from multidict import CIMultiDict, MultiDict
 
+if t.TYPE_CHECKING:
+    from openviper.http.uploads import UploadFile
+
 __all__ = [
     "Headers",
     "QueryParams",
@@ -121,7 +124,7 @@ class MutableHeaders(Headers):
         check_no_crlf(value, "Header value")
         bkey = key.lower().encode("latin-1")
         bval = value.encode("latin-1")
-        # Rebuild _list: keep first occurrence position, drop the rest.
+        # Preserve first-occurrence position in _list for stable iteration order.
         found = False
         new_list: list[tuple[bytes, bytes]] = []
         for k, v in self._list:
@@ -129,13 +132,12 @@ class MutableHeaders(Headers):
                 if not found:
                     new_list.append((bkey, bval))
                     found = True
-                # else drop duplicate
             else:
                 new_list.append((k, v))
         if not found:
             new_list.append((bkey, bval))
         self._list = new_list
-        # CIMultiDict.__setitem__ replaces ALL occurrences.
+        # CIMultiDict.__setitem__ replaces ALL occurrences atomically.
         self._store[key] = value
 
     def append(self, key: str, value: str) -> None:
@@ -212,16 +214,16 @@ class ImmutableMultiDict:
     Backed by ``multidict.MultiDict`` (C extension).
     """
 
-    def __init__(self, items: list[tuple[str, str]]) -> None:
-        self._store: MultiDict[str] = MultiDict(items)
+    def __init__(self, items: list[tuple[str, str | UploadFile]]) -> None:
+        self._store: MultiDict[str | UploadFile] = MultiDict(items)
 
-    def get(self, key: str, default: str | None = None) -> str | None:
+    def get(self, key: str, default: str | UploadFile | None = None) -> str | UploadFile | None:
         return self._store.get(key, default)
 
-    def getlist(self, key: str) -> list[str]:
+    def getlist(self, key: str) -> list[str | UploadFile]:
         return self._store.getall(key, [])
 
-    def __getitem__(self, key: str) -> str:
+    def __getitem__(self, key: str) -> str | UploadFile:
         return self._store[key]
 
     def __contains__(self, key: object) -> bool:
@@ -234,16 +236,16 @@ class ImmutableMultiDict:
                 seen.add(k)
                 yield k
 
-    def items(self) -> list[tuple[str, str]]:
+    def items(self) -> list[tuple[str, str | UploadFile]]:
         seen: set[str] = set()
-        result: list[tuple[str, str]] = []
+        result: list[tuple[str, str | UploadFile]] = []
         for k, v in self._store.items():
             if k not in seen:
                 seen.add(k)
                 result.append((k, v))
         return result
 
-    def multi_items(self) -> list[tuple[str, str]]:
+    def multi_items(self) -> list[tuple[str, str | UploadFile]]:
         return list(self._store.items())
 
     def __len__(self) -> int:

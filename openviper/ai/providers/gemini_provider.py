@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 import sys
@@ -60,8 +61,8 @@ def resolve_google_genai_modules() -> tuple[ModuleType, ModuleType]:
     global google_genai, google_genai_types
     if google_genai is None or google_genai_types is None:
         try:
-            from google import genai as loaded_genai
-            from google.genai import types as loaded_types
+            loaded_genai = importlib.import_module("google.genai")
+            loaded_types = importlib.import_module("google.genai.types")
         except ImportError as exc:
             raise ImportError(
                 "The 'google-genai' package is required for GeminiProvider. "
@@ -147,7 +148,7 @@ class GeminiProvider(AIProvider):
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
             log.warning("GeminiProvider: rate limit error (details suppressed).")
             return GeminiRateLimitError("Gemini rate limit exceeded. Retry after backoff.")
-        # Truncate the raw message to limit information leakage in generic errors.
+        # Truncate raw message to limit information leakage.
         safe_msg = msg[:200] if msg else "unknown error"
         return GeminiError(f"Gemini API error: {safe_msg}")
 
@@ -156,7 +157,7 @@ class GeminiProvider(AIProvider):
         model_name = kwargs.pop("model", self._default_model)
         images = kwargs.pop("images", None)
 
-        # Accept max_tokens as an alias for max_output_tokens (common cross-provider name)
+        # max_tokens alias for max_output_tokens.
         if "max_tokens" in kwargs and "max_output_tokens" not in kwargs:
             kwargs["max_output_tokens"] = kwargs.pop("max_tokens")
         else:

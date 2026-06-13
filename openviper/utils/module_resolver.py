@@ -63,24 +63,64 @@ def resolve_root(cwd: Path) -> ResolvedModule:
     has_models = (resolved_cwd / "models.py").is_file()
     has_routes = (resolved_cwd / "routes.py").is_file()
 
-    if not has_models and not has_routes:
-        raise click.ClickException(
-            f"Target '.' resolved to '{resolved_cwd}' but it contains "
-            "neither models.py nor routes.py."
+    if has_models or has_routes:
+        app_label = resolved_cwd.name
+        if not app_label.isidentifier():
+            raise click.ClickException(
+                f"CWD directory name '{app_label}' is not a valid Python "
+                "identifier. Rename the directory or use a module target instead."
+            )
+        return ResolvedModule(
+            app_label=app_label,
+            app_path=resolved_cwd,
+            is_root=True,
+            models_module=f"{app_label}.models",
         )
 
-    app_label = resolved_cwd.name
-    if not app_label.isidentifier():
-        raise click.ClickException(
-            f"CWD directory name '{app_label}' is not a valid Python "
-            "identifier. Rename the directory or use a module target instead."
+    # CWD has no models.py/routes.py: look for a single package
+    # subdirectory that contains settings.py + (models.py or routes.py).
+    # This handles module-organized projects where the CWD holds
+    candidates: list[tuple[str, Path]] = []
+    for child in sorted(resolved_cwd.iterdir()):
+        if not child.is_dir():
+            continue
+        if child.name.startswith(".") or child.name.startswith("_"):
+            continue
+        if child.name in ("migrations", "static", "templates", "media", "logs", "tests"):
+            continue
+        if not (child / "__init__.py").is_file():
+            continue
+        if not (child / "settings.py").is_file():
+            continue
+        child_has_models = (child / "models.py").is_file()
+        child_has_routes = (child / "routes.py").is_file()
+        if not child_has_models and not child_has_routes:
+            continue
+        candidates.append((child.name, child))
+
+    if len(candidates) == 1:
+        app_label, app_path = candidates[0]
+        return ResolvedModule(
+            app_label=app_label,
+            app_path=app_path,
+            is_root=False,
+            models_module=f"{app_label}.models",
         )
 
-    return ResolvedModule(
-        app_label=app_label,
-        app_path=resolved_cwd,
-        is_root=True,
-        models_module=f"{app_label}.models",
+    if len(candidates) > 1:
+        names = ", ".join(name for name, _ in candidates)
+        raise click.ClickException(
+            f"Target '.' resolved to '{resolved_cwd}' which contains "
+            f"multiple app packages: {names}. "
+            "Specify the target explicitly, e.g. 'openviper viperctl "
+            f"migrate {candidates[0][0]}'."
+        )
+
+    raise click.ClickException(
+        f"Target '.' resolved to '{resolved_cwd}' but it contains "
+        "neither models.py nor routes.py, and no app package was found. "
+        "Specify the target explicitly, e.g. 'openviper viperctl "
+        "migrate myapp'."
     )
 
 
@@ -96,7 +136,7 @@ def resolve_module(target: str, cwd: Path) -> ResolvedModule:
 
     app_path = cwd.joinpath(*target_parts)
 
-    # Verify the resolved path is still within cwd (defense-in-depth).
+    # Prevent path-traversal outside the project directory.
     try:
         app_path.resolve().relative_to(cwd.resolve())
     except ValueError:

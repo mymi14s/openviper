@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 from openviper.db.backends.database import DatabaseBackend
 from openviper.db.backends.features import DatabaseFeatures
 from openviper.db.backends.introspection import DatabaseIntrospection
-from openviper.db.utils import BoundedDict, _cleanup_stale_locks, get_per_loop_lock
+from openviper.db.utils import BoundedDict, cleanup_stale_locks_for_cache, get_per_loop_lock
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class DefaultDatabaseBackend(DatabaseBackend):
     def build_engine(self) -> AsyncEngine:
         """Build the async engine from the configured URL."""
         url = self.url
-        echo = bool(self.config.get("ECHO", False))
+        echo = bool(self.get_option("ECHO", False))
         async_url = self.operations.normalize_url(url)
         kwargs: dict[str, object] = {"echo": echo}
         is_memory = ":memory:" in async_url
@@ -118,7 +118,7 @@ class DefaultDatabaseBackend(DatabaseBackend):
                 ("POOL_RECYCLE", "pool_recycle"),
                 ("POOL_TIMEOUT", "pool_timeout"),
             ):
-                value = self.config.get(config_key)
+                value = self.get_option(config_key)
                 if isinstance(value, (str, bytes, bytearray)) or hasattr(value, "__int__"):
                     kwargs[kwarg] = int(cast("str | bytes | bytearray | SupportsInt", value))
 
@@ -156,7 +156,7 @@ class DefaultDatabaseBackend(DatabaseBackend):
         if self.engine is not None:
             await self.engine.dispose()
             self.engine = None
-        _cleanup_stale_locks(self.engine_lock_per_loop)
+        cleanup_stale_locks_for_cache(self.engine_lock_per_loop)
 
     async def execute(
         self,

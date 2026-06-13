@@ -17,10 +17,6 @@ from openviper.ai.registry import (
 )
 from openviper.exceptions import ModelCollisionError, ModelNotFoundError
 
-# ---------------------------------------------------------------------------
-# Concrete stub
-# ---------------------------------------------------------------------------
-
 
 class FakeProvider(AIProvider):
     name = "fake"
@@ -31,11 +27,6 @@ class FakeProvider(AIProvider):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         return "fake"
-
-
-# ---------------------------------------------------------------------------
-# ProviderConfig dataclass
-# ---------------------------------------------------------------------------
 
 
 class TestProviderConfig:
@@ -51,11 +42,6 @@ class TestProviderConfig:
         assert cfg.models == ()
         assert cfg.base_url == ""
         assert cfg.extra == {}
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - register_provider
-# ---------------------------------------------------------------------------
 
 
 class TestRegisterProvider:
@@ -95,11 +81,6 @@ class TestRegisterProvider:
         self.registry.register_provider(p, allow_override=False)  # same instance, no error
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - get_by_model / list_models / list_provider_names
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryQueries:
     def setup_method(self):
         self.registry = ProviderRegistry()
@@ -124,11 +105,6 @@ class TestRegistryQueries:
         assert "beta" in names
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - reset
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryReset:
     def test_reset_clears_models(self):
         registry = ProviderRegistry()
@@ -136,14 +112,9 @@ class TestRegistryReset:
         registry.register_provider(FakeProvider({"model": "m1"}))
         assert registry.list_models() == ["m1"]
         registry.reset()
-        # After reset, _loaded is False - set it back to skip _load_from_settings
+        # After reset, _loaded is False - set it back to skip load_from_settings
         registry._loaded = True
         assert registry.list_models() == []
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - register_from_module
-# ---------------------------------------------------------------------------
 
 
 class TestRegisterFromModule:
@@ -179,11 +150,6 @@ class TestRegisterFromModule:
         assert "from-func" in self.registry.list_models()
 
 
-# ---------------------------------------------------------------------------
-# Legacy shim
-# ---------------------------------------------------------------------------
-
-
 class TestLegacyAIRegistry:
     def test_deprecation_warning(self):
         legacy = LegacyAIRegistry()
@@ -194,11 +160,6 @@ class TestLegacyAIRegistry:
             assert len(w) == 1
             assert issubclass(w[0].category, DeprecationWarning)
             assert "deprecated" in str(w[0].message).lower()
-
-
-# ---------------------------------------------------------------------------
-# Global singleton
-# ---------------------------------------------------------------------------
 
 
 class TestGlobalSingleton:

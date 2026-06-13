@@ -42,8 +42,7 @@ def serialize_instance(
     for field_name in field_names:
         if field_name in sensitive:
             continue
-        value = getattr(instance, field_name, None)
-        result[field_name] = serialize_value(value)
+        result[field_name] = serialize_value(getattr(instance, field_name, None))
 
     return result
 
@@ -122,16 +121,7 @@ def serialize_for_detail(
         Dictionary with all field values and metadata.
     """
     fields = getattr(instance.__class__, "_fields", {})
-    sensitive = set(model_admin.get_sensitive_fields())
-    result = {"id": getattr(instance, "id", None)}
-
-    for field_name in fields:
-        if field_name in sensitive:
-            continue
-        value = getattr(instance, field_name, None)
-        result[field_name] = serialize_value(value)
-
-    return result
+    return serialize_instance(instance, model_admin, include_fields=list(fields.keys()))
 
 
 def serialize_model_info(model_admin: ModelAdmin) -> dict[str, t.Any]:

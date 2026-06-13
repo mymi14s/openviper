@@ -45,7 +45,7 @@ from openviper.auth.views.token_login import TokenLoginView
 _RouteEntry = tuple[str, object, list[str]]
 
 
-# Private named subclasses so each logout route gets a distinct handler name,
+# Named subclasses give each logout route a distinct handler name,
 # avoiding "duplicate route name" warnings from the router.
 class JWTLogoutView(LogoutView):
     pass

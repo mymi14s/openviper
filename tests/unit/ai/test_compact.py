@@ -21,10 +21,6 @@ from openviper.ai.providers.gemini_provider import (
 from openviper.ai.providers.grok_provider import GrokError, GrokProvider
 from openviper.ai.registry import ProviderRegistry, resolve_provider_class
 
-# ---------------------------------------------------------------------------
-# Stub provider for testing
-# ---------------------------------------------------------------------------
-
 
 class StubProvider(AIProvider):
     name = "stub"
@@ -34,11 +30,6 @@ class StubProvider(AIProvider):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         return "stub response"
-
-
-# ---------------------------------------------------------------------------
-# AIProvider.moderate()(generic ``` code fence)
-# ---------------------------------------------------------------------------
 
 
 class TestModerateGenericCodeFence:
@@ -57,11 +48,6 @@ class TestModerateGenericCodeFence:
         result = await p.moderate("hello")
         assert result["classification"] == "safe"
         assert result["confidence"] == 0.9
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - load_plugins
-# ---------------------------------------------------------------------------
 
 
 class TestRegistryLoadPlugins:
@@ -124,11 +110,6 @@ class TestRegistryLoadPlugins:
         assert parent not in sys.path or len(sys.path) == original_path_len
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - discover_entrypoints
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryDiscoverEntrypoints:
     """Test ProviderRegistry.discover_entrypoints() branches."""
 
@@ -183,16 +164,11 @@ class TestRegistryDiscoverEntrypoints:
         assert count == 0
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - _load_from_settings
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryLoadFromSettings:
-    """Test ProviderRegistry._load_from_settings() branches."""
+    """Test ProviderRegistry.load_from_settings() branches."""
 
-    def test_load_from_settings_infers_provider_type(self):
-        """Test _load_from_settings infers provider type from name."""
+    def testload_from_settings_infers_provider_type(self):
+        """Test load_from_settings infers provider type from name."""
 
         registry = ProviderRegistry()
 
@@ -211,13 +187,13 @@ class TestRegistryLoadFromSettings:
                 mock_cls.return_value = StubProvider({"model": "gpt-4o"})
                 mock_resolve.return_value = mock_cls
 
-                registry._load_from_settings()
+                registry.load_from_settings()
 
                 # Should have called resolve_provider_class with "openai"
                 mock_resolve.assert_called()
 
-    def test_load_from_settings_skips_unknown_provider(self):
-        """Test _load_from_settings skips unknown provider type."""
+    def testload_from_settings_skips_unknown_provider(self):
+        """Test load_from_settings skips unknown provider type."""
 
         registry = ProviderRegistry()
 
@@ -231,13 +207,13 @@ class TestRegistryLoadFromSettings:
 
         with patch("openviper.ai.registry.settings", mock_settings):
             with patch("openviper.ai.registry.resolve_provider_class", return_value=None):
-                registry._load_from_settings()
+                registry.load_from_settings()
 
         # Should have 0 providers
         assert len(registry.list_models()) == 0
 
-    def test_load_from_settings_handles_init_exception(self):
-        """Test _load_from_settings handles provider init exception."""
+    def testload_from_settings_handles_init_exception(self):
+        """Test load_from_settings handles provider init exception."""
 
         registry = ProviderRegistry()
 
@@ -256,10 +232,10 @@ class TestRegistryLoadFromSettings:
                 mock_resolve.return_value = mock_cls
 
                 # Should not raise
-                registry._load_from_settings()
+                registry.load_from_settings()
 
-    def test_load_from_settings_handles_settings_exception(self):
-        """Test _load_from_settings handles exception from settings."""
+    def testload_from_settings_handles_settings_exception(self):
+        """Test load_from_settings handles exception from settings."""
 
         registry = ProviderRegistry()
 
@@ -270,12 +246,7 @@ class TestRegistryLoadFromSettings:
             )
 
             # Should not raise
-            registry._load_from_settings()
-
-
-# ---------------------------------------------------------------------------
-# resolve_provider_class
-# ---------------------------------------------------------------------------
+            registry.load_from_settings()
 
 
 class TestResolveProviderClass:
@@ -312,11 +283,6 @@ class TestResolveProviderClass:
                     assert result is None
         finally:
             registry.PROVIDER_CLASS_CACHE.update(original_cache)
-
-
-# ---------------------------------------------------------------------------
-# GeminiProvider - uncovered branches
-# ---------------------------------------------------------------------------
 
 
 class TestGeminiProviderBranches:
@@ -433,11 +399,6 @@ class TestGeminiProviderBranches:
         assert rates == {"input": 1.25, "output": 5.0}
 
 
-# ---------------------------------------------------------------------------
-# GrokProvider - uncovered branches
-# ---------------------------------------------------------------------------
-
-
 class TestGrokProviderBranches:
     """Test uncovered branches in GrokProvider."""
 
@@ -466,7 +427,7 @@ class TestGrokProviderBranches:
         resp.json.side_effect = ValueError("Invalid JSON")
 
         with pytest.raises(GrokError, match="HTTP 500"):
-            GrokProvider._raise_for_status(resp)
+            GrokProvider.raise_for_status(resp)
 
     @pytest.mark.asyncio
     async def test_grok_stream_line_too_large(self):
@@ -549,16 +510,11 @@ class TestGrokProviderBranches:
         assert results == ["ok"]
 
 
-# ---------------------------------------------------------------------------
-# ProviderRegistry - _ensure_loaded
-# ---------------------------------------------------------------------------
-
-
 class TestRegistryEnsureLoaded:
-    """Test _ensure_loaded() double-checked locking."""
+    """Test ensure_loaded() double-checked locking."""
 
-    def test_ensure_loaded_only_once(self):
-        """Test _ensure_loaded only calls _load_from_settings once."""
+    def testensure_loaded_only_once(self):
+        """Test ensure_loaded only calls load_from_settings once."""
 
         registry = ProviderRegistry()
 
@@ -569,32 +525,27 @@ class TestRegistryEnsureLoaded:
         # Track calls
         call_count = {"value": 0}
 
-        original_method = ProviderRegistry._load_from_settings
+        original_method = ProviderRegistry.load_from_settings
 
         def counting_load(self):
             call_count["value"] += 1
             # Don't actually load from settings to avoid side effects
 
         # Patch at class level
-        ProviderRegistry._load_from_settings = counting_load
+        ProviderRegistry.load_from_settings = counting_load
 
         try:
             # Call multiple times
-            registry._ensure_loaded()
-            registry._ensure_loaded()
-            registry._ensure_loaded()
+            registry.ensure_loaded()
+            registry.ensure_loaded()
+            registry.ensure_loaded()
 
             # Should only have been called once due to _loaded flag
             assert call_count["value"] == 1
             assert registry._loaded is True
         finally:
             # Restore
-            ProviderRegistry._load_from_settings = original_method
-
-
-# ---------------------------------------------------------------------------
-# ProviderRegistry - register_provider default model fallback
-# ---------------------------------------------------------------------------
+            ProviderRegistry.load_from_settings = original_method
 
 
 class TestRegistryDefaultModelFallback:

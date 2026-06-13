@@ -62,24 +62,30 @@ def is_safe_redirect_url(url: str, allowed_hosts: frozenset[str] | None = None) 
 
     Validates that *url* is either a relative path starting with ``/`` (but not
     ``//``) or an absolute URL whose host appears in *allowed_hosts*.  This
-    prevents the class of open-redirect attacks.
+    prevents the class of open-redirect attacks.  The URL is decoded only once
+    so double-encoded sequences cannot bypass the path checks.
     """
     sanitized = url.strip()
     if not sanitized:
         return False
-    decoded = urllib.parse.unquote(urllib.parse.unquote(sanitized))
+    decoded = urllib.parse.unquote(sanitized)
+    # Reject protocol-relative URLs and encoded traversal sequences.
     if (
-        sanitized.startswith("/")
-        and decoded.startswith("/")
+        decoded.startswith("/")
         and not decoded.startswith("//")
         and "\\" not in decoded
         and ".." not in decoded
+        and "/../" not in decoded
+        and "%2f" not in sanitized.lower()
+        and "%5c" not in sanitized.lower()
     ):
         return True
-    parsed = urllib.parse.urlparse(sanitized)
-    if parsed.scheme not in ("http", "https"):
+    parsed = urllib.parse.urlparse(decoded)
+    if parsed.scheme not in {"http", "https"}:
         return False
-    if allowed_hosts and parsed.netloc not in allowed_hosts:
+    if "@" in parsed.netloc:
+        return False
+    if allowed_hosts and urllib.parse.unquote(parsed.netloc) not in allowed_hosts:
         return False
     return bool(allowed_hosts)
 
@@ -198,6 +204,7 @@ class BaseOAuth2InitView(View):
             httponly=True,
             samesite="lax",
             path="/",
+            secure=request.is_secure(),
         )
         return response
 

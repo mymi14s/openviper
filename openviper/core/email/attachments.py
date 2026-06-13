@@ -207,9 +207,6 @@ async def resolve_url_attachment(url: str, index: int) -> AttachmentData:
 
 ALLOWED_URL_SCHEMES = {"http", "https"}
 MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024  # 25 MB default
-# When empty, file attachments are disabled entirely to prevent path traversal.
-# Populate this list with directories that are safe for attachment resolution,
-# e.g. ["/var/app/uploads", "/tmp/attachments"].
 ATTACHMENT_ALLOWED_DIRS: list[str] = []
 
 MAGIC_SIGNATURES: list[tuple[bytes, str]] = [

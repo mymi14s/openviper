@@ -12,7 +12,7 @@ import pytest
 import openviper.db.events
 import openviper.db.events as events_mod
 from openviper.db.events import (
-    _UNSET,
+    UNSET,
     ModelEventDispatcher,
     _background_tasks,
     _decorator_registry,
@@ -31,16 +31,11 @@ from openviper.db.events import (
 @pytest.fixture(autouse=True)
 def reset_events():
     """Reset the global dispatcher and decorator registry before each test."""
-    openviper.db.events._dispatcher_cache = _UNSET
+    openviper.db.events._dispatcher_cache = UNSET
     _decorator_registry.clear()
     yield
-    openviper.db.events._dispatcher_cache = _UNSET
+    openviper.db.events._dispatcher_cache = UNSET
     _decorator_registry.clear()
-
-
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
 
 
 def make_dispatcher() -> ModelEventDispatcher:
@@ -50,11 +45,6 @@ def make_dispatcher() -> ModelEventDispatcher:
 def make_mock_model_cls(name: str = "Post", app: str = "blog") -> type:
     cls = type(name, (), {"_app_name": app, "_model_name": name})
     return cls
-
-
-# ---------------------------------------------------------------------------
-# ModelEventDispatcher
-# ---------------------------------------------------------------------------
 
 
 class TestModelEventDispatcher:
@@ -231,7 +221,7 @@ class TestGetDispatcherDoubleCheck:
             return sentinel
 
         with patch("openviper.db.events.build_dispatcher", side_effect=fake_build):
-            openviper.db.events._dispatcher_cache = _UNSET
+            openviper.db.events._dispatcher_cache = UNSET
             result = get_dispatcher()
             assert result is sentinel
 
@@ -327,7 +317,7 @@ class TestGetDispatcherDoubleCheckInLock:
 
         The second thread acquires the lock after the first has already
         populated `_dispatcher_cache`, so it hits the inner
-        `if _dispatcher_cache is not _UNSET`.
+        `if _dispatcher_cache is not UNSET`.
         """
         # First, seed the cache so the double-check branch fires.
         sentinel = ModelEventDispatcher({})
@@ -337,7 +327,7 @@ class TestGetDispatcherDoubleCheckInLock:
         # but restore it *inside* the lock before our call completes.
         # Simplest: we directly exercise the code path.
         # Reset fast path:
-        events_mod._dispatcher_cache = _UNSET
+        events_mod._dispatcher_cache = UNSET
 
         # Set cache while holding the lock so the double-check fires.
         with events_mod._init_lock:
@@ -357,7 +347,7 @@ class TestGetDispatcherDoubleCheckInLock:
 
         # Pre-build a dispatcher via first call
         with patch.object(events_mod, "build_dispatcher", return_value=None) as mock_build:
-            events_mod._dispatcher_cache = _UNSET
+            events_mod._dispatcher_cache = UNSET
             t1 = threading.Thread(target=thread_fn, args=(0,))
             t2 = threading.Thread(target=thread_fn, args=(1,))
             t1.start()

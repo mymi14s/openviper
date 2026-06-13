@@ -34,8 +34,6 @@ from openviper.db.migrations.executor import AddConstraint, RemoveConstraint, ge
 from openviper.db.models import Index, Manager, Model, ModelMeta, QuerySet
 from openviper.exceptions import DoesNotExist
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
-
 
 @pytest.fixture(autouse=True)
 def reset_model_registry():
@@ -48,13 +46,10 @@ def reset_model_registry():
     ModelMeta.name_index = old_idx
 
 
-# ── SmallIntegerField ─────────────────────────────────────────────────────────
-
-
 class TestSmallIntegerField:
     def test_column_type_is_smallint(self) -> None:
         f = SmallIntegerField()
-        assert f._column_type == "SMALLINT"
+        assert f.column_type == "SMALLINT"
 
     def test_to_python_rejects_upper_bound(self) -> None:
         f = SmallIntegerField()
@@ -78,9 +73,6 @@ class TestSmallIntegerField:
         assert issubclass(SmallIntegerField, IntegerField)
 
 
-# ── BigAutoField ──────────────────────────────────────────────────────────────
-
-
 class TestBigAutoField:
     def test_is_primary_key_with_auto_increment(self) -> None:
         f = BigAutoField()
@@ -89,7 +81,7 @@ class TestBigAutoField:
 
     def test_column_type_is_bigint(self) -> None:
         f = BigAutoField()
-        assert f._column_type == "BIGINT"
+        assert f.column_type == "BIGINT"
 
     def test_to_python_converts_int(self) -> None:
         f = BigAutoField()
@@ -106,9 +98,6 @@ class TestBigAutoField:
         f.name = "id"
         with pytest.raises(ValueError, match="bounds"):
             f.to_python(9223372036854775808)
-
-
-# ── NullBooleanField ──────────────────────────────────────────────────────────
 
 
 class TestNullBooleanField:
@@ -131,13 +120,10 @@ class TestNullBooleanField:
         assert issubclass(NullBooleanField, BooleanField)
 
 
-# ── DurationField ─────────────────────────────────────────────────────────────
-
-
 class TestDurationField:
     def test_column_type_is_bigint(self) -> None:
         f = DurationField()
-        assert f._column_type == "BIGINT"
+        assert f.column_type == "BIGINT"
 
     def test_to_python_timedelta_passthrough(self) -> None:
         f = DurationField()
@@ -165,9 +151,6 @@ class TestDurationField:
     def test_to_db_int_passthrough(self) -> None:
         f = DurationField()
         assert f.to_db(500) == 500
-
-
-# ── GenericIPAddressField ─────────────────────────────────────────────────────
 
 
 class TestGenericIPAddressField:
@@ -226,9 +209,6 @@ class TestGenericIPAddressField:
         assert result == "::1"
 
 
-# ── Constraint classes ────────────────────────────────────────────────────────
-
-
 class TestConstraint:
     def test_base_constraint_stores_name(self) -> None:
         c = Constraint(name="my_constraint")
@@ -275,9 +255,6 @@ class TestUniqueConstraint:
 
     def test_is_subclass_of_constraint(self) -> None:
         assert issubclass(UniqueConstraint, Constraint)
-
-
-# ── Meta.constraints / Meta.managed / Meta.proxy ──────────────────────────────
 
 
 class TestMetaConstraints:
@@ -345,9 +322,6 @@ class TestMetaProxy:
         assert ChildProxy._table_name == "parent_proxy_test"
 
 
-# ── Conditional Index ─────────────────────────────────────────────────────────
-
-
 class TestConditionalIndex:
     def test_index_stores_condition(self) -> None:
         idx = Index(fields=["slug"], condition="published = 1")
@@ -361,9 +335,6 @@ class TestConditionalIndex:
         idx = Index(fields=["slug"], name="idx_pub_slug", condition="published = 1")
         assert idx.name == "idx_pub_slug"
         assert idx.condition == "published = 1"
-
-
-# ── Manager.update_or_create ──────────────────────────────────────────────────
 
 
 class TestManagerUpdateOrCreate:
@@ -405,9 +376,6 @@ class TestManagerUpdateOrCreate:
         assert obj.title == "New Title"
 
 
-# ── Manager.in_bulk ───────────────────────────────────────────────────────────
-
-
 class TestManagerInBulk:
     class Article(Model):
         title = CharField(max_length=200)
@@ -444,9 +412,6 @@ class TestManagerInBulk:
             result = await Manager(self.Article).in_bulk()
 
         assert result[10] is a1
-
-
-# ── Manager.from_queryset ─────────────────────────────────────────────────────
 
 
 class TestManagerFromQueryset:
@@ -490,9 +455,6 @@ class TestManagerFromQueryset:
         assert "SpecialQS" in CustomManager.__name__
 
 
-# ── QuerySet.select_for_update ────────────────────────────────────────────────
-
-
 class TestQuerySetSelectForUpdate:
     class Item(Model):
         name = CharField(max_length=100)
@@ -521,12 +483,9 @@ class TestQuerySetSelectForUpdate:
 
     def test_clone_preserves_flags(self) -> None:
         qs = QuerySet(self.Item).select_for_update(nowait=True)
-        cloned = qs._clone()
+        cloned = qs.clone()
         assert cloned._for_update is True
         assert cloned._for_update_nowait is True
-
-
-# ── Model.full_clean ──────────────────────────────────────────────────────────
 
 
 class TestModelFullClean:
@@ -566,9 +525,6 @@ class TestModelFullClean:
             await ev.full_clean()
 
 
-# ── Model.clean ───────────────────────────────────────────────────────────────
-
-
 class TestModelClean:
     @pytest.mark.asyncio
     async def test_default_clean_is_noop(self) -> None:
@@ -580,9 +536,6 @@ class TestModelClean:
 
         obj = SimpleModel(name="test")
         await obj.clean()
-
-
-# ── Model.get_deferred_fields ─────────────────────────────────────────────────
 
 
 class TestModelGetDeferredFields:
@@ -608,9 +561,6 @@ class TestModelGetDeferredFields:
         assert "bio" in deferred
 
 
-# ── Model.__str__ ─────────────────────────────────────────────────────────────
-
-
 class TestModelStr:
     class Tag(Model):
         label = CharField(max_length=50)
@@ -630,9 +580,6 @@ class TestModelStr:
     def test_str_pk_none_before_save(self) -> None:
         t = self.Tag(label="none-pk")
         assert "None" in str(t)
-
-
-# ── AddConstraint migration operation ────────────────────────────────────────
 
 
 class TestAddConstraint:
@@ -763,9 +710,6 @@ class TestAddConstraint:
         assert "articles" in sql[0]
 
 
-# ── RemoveConstraint migration operation ─────────────────────────────────────
-
-
 class TestRemoveConstraint:
     def test_forward_unique_drops_index_postgresql(self) -> None:
         with patch("openviper.db.migrations.executor.get_dialect", return_value="postgresql"):
@@ -802,9 +746,6 @@ class TestRemoveConstraint:
             constraint_name="uq_slug",
         )
         assert op.backward_sql() == []
-
-
-# ── db/__init__.py exports ────────────────────────────────────────────────────
 
 
 class TestDbPackageExports:

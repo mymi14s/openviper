@@ -17,6 +17,7 @@ from openviper.auth.hooks import auth_hooks, build_auth_hook_context
 from openviper.auth.models import AnonymousUser
 from openviper.auth.request_state import set_auth_state
 from openviper.auth.session.store import Session, get_session_store
+from openviper.auth.session.utils import get_session_cookie_config
 from openviper.auth.sessions import delete_session
 from openviper.auth.user import get_user_by_id
 from openviper.auth.utils import get_user_model
@@ -114,7 +115,7 @@ async def authenticate(
     ).first()
 
     if user is None:
-        # Intent: Verify against a dummy hash so the response time is
+        # Verify against a dummy hash so the response time is
         # indistinguishable from a real password check, preventing user
         # enumeration via timing side-channel.
         await check_password(password, ARGON2_DUMMY_HASH)
@@ -136,7 +137,7 @@ async def authenticate(
         )
         return None
 
-    # Intent: Fire-and-forget last_login update to keep response latency low.
+    # Fire-and-forget last_login update to keep response latency low.
     update_coro = update_last_login(user)
     task = asyncio.create_task(update_coro)
     if not isinstance(task, asyncio.Task) and inspect.iscoroutine(update_coro):
@@ -173,13 +174,13 @@ def get_client_ip(request: AuthRequest) -> str:
     if trusted_proxies and direct_ip in trusted_proxies and hasattr(request, "headers"):
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            # Intent: Walk right-to-left to find the first non-trusted IP,
-            # matching the de-facto X-Forwarded-For security convention.
+            # Walk right-to-left to find the first non-trusted IP,
+            # matching the X-Forwarded-For security convention.
             ips = [ip.strip() for ip in forwarded.split(",")]
             for ip in reversed(ips):
                 if ip not in trusted_proxies:
                     return str(ip)
-            # Intent: Avoid trusting a chain made entirely of configured proxies.
+            # Avoid trusting a chain made entirely of configured proxies.
         real_ip = request.headers.get("x-real-ip")
         if real_ip:
             return str(real_ip.strip())
@@ -225,7 +226,7 @@ async def login(request: object, user: Authenticable, response: object | None = 
     )
     await auth_hooks.run_before_login(context)
 
-    # Intent: Rotate existing sessions to prevent fixation.
+    # Rotate existing sessions to prevent fixation.
     existing_session = getattr(auth_request, "_session", None)
     existing_key = existing_session.key if existing_session and existing_session.key else None
     if not existing_key:
@@ -246,26 +247,19 @@ async def login(request: object, user: Authenticable, response: object | None = 
     context.session = new_session
 
     if response is not None:
-        cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
-        cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
-        session_timeout = getattr(settings, "SESSION_TIMEOUT", datetime.timedelta(hours=1))
-        if isinstance(session_timeout, datetime.timedelta):
-            max_age_seconds = int(session_timeout.total_seconds())
-        else:
-            max_age_seconds = int(session_timeout)
-
-        expires_timestamp = int(time.time()) + max_age_seconds
+        config = get_session_cookie_config()
+        expires_timestamp = int(time.time()) + config.max_age
 
         auth_response.set_cookie(
-            key=cookie_name,
+            key=config.cookie_name,
             value=session_key,
-            max_age=max_age_seconds,
+            max_age=config.max_age,
             expires=expires_timestamp,
-            httponly=getattr(settings, "SESSION_COOKIE_HTTPONLY", True),
-            secure=getattr(settings, "SESSION_COOKIE_SECURE", True),
-            samesite=getattr(settings, "SESSION_COOKIE_SAMESITE", "lax"),
-            path=getattr(settings, "SESSION_COOKIE_PATH", "/"),
-            domain=cookie_domain,
+            httponly=config.httponly,
+            secure=config.secure,
+            samesite=config.samesite,
+            path=config.path,
+            domain=config.domain,
         )
 
     await auth_hooks.run_on_login(context)
@@ -282,9 +276,7 @@ async def logout(request: object, response: object | None = None) -> None:
         response: Optional Response object. When supplied the session cookie
             is cleared on the response automatically.
     """
-    cookie_name = "sessionid"
-    with contextlib.suppress(AttributeError):
-        cookie_name = settings.SESSION_COOKIE_NAME
+    cookie_name = get_session_cookie_config().cookie_name
 
     auth_request = cast("AuthRequest", request)
     auth_response = cast("AuthResponse", response)

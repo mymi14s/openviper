@@ -19,10 +19,6 @@ from openviper.serializers.base import Serializer
 
 from .conftest import AnonymousMockUser, MockUser, make_scope
 
-# ---------------------------------------------------------------------------
-# AUTHZ-001: Object-level authorization is enforced
-# ---------------------------------------------------------------------------
-
 
 class TestObjectLevelAuthorization:
     """Users must not be able to access other users' resources."""
@@ -52,11 +48,6 @@ class TestObjectLevelAuthorization:
 
         assert await perm.has_object_permission(request_a, None, obj) is True
         assert await perm.has_object_permission(request_b, None, obj) is False
-
-
-# ---------------------------------------------------------------------------
-# AUTHZ-002: Function-level authorization is enforced
-# ---------------------------------------------------------------------------
 
 
 class TestFunctionLevelAuthorization:
@@ -123,11 +114,6 @@ class TestFunctionLevelAuthorization:
             await admin_view(request)
 
 
-# ---------------------------------------------------------------------------
-# AUTHZ-003: Mass assignment is blocked
-# ---------------------------------------------------------------------------
-
-
 class TestMassAssignment:
     """Protected fields must not be settable through mass assignment."""
 
@@ -145,11 +131,6 @@ class TestMassAssignment:
         """ModelAdmin must define sensitive_fields to exclude passwords."""
         admin = ModelAdmin(Model)
         assert "password" in admin.sensitive_fields
-
-
-# ---------------------------------------------------------------------------
-# AUTHZ-004: Default route access is fail-closed
-# ---------------------------------------------------------------------------
 
 
 class TestDefaultRouteAccess:
@@ -177,11 +158,6 @@ class TestDefaultRouteAccess:
         request = Request(make_scope())
         request.user = MockUser(is_authenticated=True)
         assert await perm.has_permission(request, None) is True
-
-
-# ---------------------------------------------------------------------------
-# AUTHZ-005: Tenant isolation is enforced
-# ---------------------------------------------------------------------------
 
 
 class TestTenantIsolation:

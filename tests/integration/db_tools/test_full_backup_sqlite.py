@@ -21,7 +21,7 @@ class TestSQLiteFullBackupWorkflow:
         backup_dir = tmp_path / "backups"
 
         cmd = BackupDBCommand()
-        await cmd._async_handle(
+        await cmd.async_handle(
             path=str(backup_dir),
             name=None,
             db=f"sqlite:///{db_file}",
@@ -41,7 +41,7 @@ class TestSQLiteFullBackupWorkflow:
         backup_dir = tmp_path / "backups"
 
         cmd = BackupDBCommand()
-        await cmd._async_handle(
+        await cmd.async_handle(
             path=str(backup_dir),
             name="testbackup",
             db=f"sqlite:///{db_file}",
@@ -62,7 +62,7 @@ class TestSQLiteFullBackupWorkflow:
         backup_dir = tmp_path / "backups"
 
         cmd = BackupDBCommand()
-        await cmd._async_handle(
+        await cmd.async_handle(
             path=str(backup_dir),
             name="rawbackup",
             db=f"sqlite:///{db_file}",
@@ -80,7 +80,7 @@ class TestSQLiteFullRestoreWorkflow:
 
         backup_dir = tmp_path / "backups"
         cmd = BackupDBCommand()
-        await cmd._async_handle(
+        await cmd.async_handle(
             path=str(backup_dir),
             name="backup",
             db=f"sqlite:///{db_file}",
@@ -91,7 +91,7 @@ class TestSQLiteFullRestoreWorkflow:
         restore_db = tmp_path / "restored.sqlite3"
 
         restore_cmd = RestoreDBCommand()
-        await restore_cmd._async_handle(
+        await restore_cmd.async_handle(
             file=str(archive),
             force=True,
             db=f"sqlite:///{restore_db}",
@@ -107,7 +107,7 @@ class TestSQLiteFullRestoreWorkflow:
         backup_dir = tmp_path / "backups"
 
         cmd = BackupDBCommand()
-        await cmd._async_handle(
+        await cmd.async_handle(
             path=str(backup_dir),
             name="bkp",
             db=f"sqlite:///{db_file}",
@@ -120,7 +120,7 @@ class TestSQLiteFullRestoreWorkflow:
 
         restore_cmd = RestoreDBCommand()
         with pytest.raises(CommandError):
-            await restore_cmd._async_handle(
+            await restore_cmd.async_handle(
                 file=str(archive),
                 force=False,
                 db=f"sqlite:///{target_db}",

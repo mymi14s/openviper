@@ -38,47 +38,72 @@ DATABASES Configuration
 ========================
 
 The ``DATABASES`` setting is a dictionary mapping alias names to configuration
-dictionaries.  Each alias must include at least a ``URL`` key.
+dictionaries.  See :doc:`installation` for the full configuration reference
+including pool options, URL formats, and the nested vs flat config format.
+
+A minimal configuration requires only a ``URL``:
 
 .. code-block:: python
 
    DATABASES = {
        "default": {
-           "URL": "postgresql://user:pass@primary-db/app",
-           "ROLE": "primary",
-       },
-       "replica": {
-           "URL": "postgresql://user:pass@replica-db/app",
-           "ROLE": "replica",
-           "READ_ONLY": True,
+           "OPTIONS": {
+               "URL": "postgresql://user:pass@primary-db/app",
+           },
        },
    }
+
+Multi-database setups with read replicas are covered in
+:doc:`database_routing`.
 
 BACKEND is Optional
 ====================
 
-The ``BACKEND`` key is **optional** in each alias config.  When omitted or
-set to ``None``, OpenViper uses the default
-``DefaultDatabaseBackend``.
+The ``BACKEND`` key is optional when using the built-in SQLAlchemy backend.
+When omitted, OpenViper uses ``DefaultDatabaseBackend`` (SQLAlchemy async
+engine).  Use the short name ``"sqlalchemy"`` or the full dotted path
+``"openviper.db.backends.DefaultDatabaseBackend"`` for the built-in backend.
 
 .. code-block:: python
 
-   # Both of these use DefaultDatabaseBackend:
+   # Omit BACKEND (uses DefaultDatabaseBackend):
    DATABASES = {
        "default": {
-           "URL": "postgresql://user:pass@primary-db/app",
+           "OPTIONS": {
+               "URL": "postgresql+asyncpg://user:pass@localhost/app",
+               "POOL_SIZE": 20,
+           },
        },
    }
 
+   # Short name (equivalent to omitting BACKEND):
    DATABASES = {
        "default": {
-           "BACKEND": "DefaultDatabaseBackend",
-           "URL": "postgresql://user:pass@primary-db/app",
+           "BACKEND": "sqlalchemy",
+           "OPTIONS": {
+               "URL": "postgresql+asyncpg://user:pass@localhost/app",
+           },
+       },
+   }
+
+   # Custom backend (BACKEND is required):
+   DATABASES = {
+       "default": {
+           "BACKEND": "myproject.db.backends.MetricsDatabaseBackend",
+           "OPTIONS": {
+               "URL": "postgresql+asyncpg://user:pass@localhost/app",
+           },
        },
    }
 
 An empty ``BACKEND`` string raises ``DatabaseConfigurationError``.  A
 non-string ``BACKEND`` value also raises ``DatabaseConfigurationError``.
+
+Custom backend import paths must be under ``openviper.db.backends.`` or
+``openviper.contrib.`` - other paths are rejected for security.
+
+See :doc:`installation` for pool options, URL formats, and the nested
+vs flat config format.
 
 DatabaseBackend
 ===============
@@ -138,6 +163,34 @@ DatabaseBackend
    .. method:: transaction(using=None)
 
       Return a transaction context manager.
+
+   .. attribute:: url
+
+      The configured database URL for this alias.  Reads from
+      ``OPTIONS.URL`` first (nested config format), then falls back to
+      ``URL`` directly in the config dict (flat format).
+
+   .. attribute:: is_read_only
+
+      Whether this alias is configured as read-only.  Reads from
+      ``OPTIONS.READ_ONLY`` first, then ``READ_ONLY`` directly.
+
+   .. attribute:: role
+
+      The configured role (``"primary"`` or ``"replica"``).  Reads from
+      ``OPTIONS.ROLE`` first, then ``ROLE`` directly.
+
+   .. method:: get_option(key, default=None)
+
+      Resolve a configuration key from ``OPTIONS`` first (nested format),
+      then from the alias config directly (flat format).  Use this in
+      custom backends to read pool options, driver settings, or any
+      user-supplied configuration.
+
+      .. code-block:: python
+
+         pool_size = backend.get_option("POOL_SIZE", 20)
+         echo = backend.get_option("ECHO", False)
 
 DatabaseFeatures
 ================
@@ -338,21 +391,30 @@ The built-in ``DefaultDatabaseBackend`` wraps OpenViper's existing
 SQLAlchemy async engine behaviour.  It is the default when ``BACKEND`` is
 omitted.
 
+It supports all pool options (``POOL_SIZE``, ``MAX_OVERFLOW``,
+``POOL_RECYCLE``, ``POOL_TIMEOUT``, ``PREPARED_STMT_CACHE``, ``ECHO``),
+automatic async driver detection, SQLite in-memory handling, and
+per-request connection pinning.
+
 Creating a Custom Backend
 ==========================
 
-Subclass ``DatabaseBackend`` and override the methods you need:
+The most common way to extend the database layer is to subclass
+``DefaultDatabaseBackend`` and override only the methods you need.  This
+preserves all built-in engine creation, pool configuration, and connection
+management while letting you add instrumentation, retry logic, or
+dialect-specific behaviour.
 
 .. code-block:: python
 
-   from openviper.db.backends.database import DatabaseBackend
+   from openviper.db.backends.sqlalchemy import DefaultDatabaseBackend
    from openviper.db.backends.execution import DatabaseExecution
    from collections.abc import Mapping
    from typing import Any
-   import sqlalchemy as sa
-   from sqlalchemy.ext.asyncio import AsyncEngine
 
    class MetricsExecution(DatabaseExecution):
+       """Execution hooks that record query timing."""
+
        async def pre_execute(self, statement, parameters=None):
            # Start a metrics timer
            pass
@@ -361,39 +423,110 @@ Subclass ``DatabaseBackend`` and override the methods you need:
            # Record query duration
            pass
 
-   class MetricsDatabaseBackend(DatabaseBackend):
-       vendor = "sqlalchemy"
+   class MetricsDatabaseBackend(DefaultDatabaseBackend):
+       """Backend that adds metrics instrumentation on top of SQLAlchemy."""
+
        display_name = "SQLAlchemy with Metrics"
 
        def create_execution(self):
            return MetricsExecution()
 
-       async def create_engine(self) -> AsyncEngine:
-           # Delegate to DefaultDatabaseBackend logic
-           ...
-
-       async def connect(self):
-           ...
-
-       async def disconnect(self):
-           ...
-
-       async def execute(self, statement, parameters=None):
-           ...
-
-       def transaction(self, using=None):
-           ...
-
-Then configure it:
-
-.. code-block:: python
-
+   # Register it in settings:
    DATABASES = {
        "default": {
            "BACKEND": "myproject.db.backends.MetricsDatabaseBackend",
-           "URL": "postgresql://user:pass@localhost/app",
+           "OPTIONS": {
+               "URL": "postgresql+asyncpg://user:pass@localhost/app",
+               "POOL_SIZE": 20,
+           },
        },
    }
+
+For advanced use cases where you need full control over engine creation,
+subclass ``DatabaseBackend`` directly.  You must implement all abstract
+methods:
+
+.. code-block:: python
+
+   from openviper.db.backends.database import DatabaseBackend
+   from collections.abc import Mapping
+   from typing import Any
+   import sqlalchemy as sa
+   from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
+   from contextlib import asynccontextmanager
+   from collections.abc import AsyncGenerator
+
+   class CustomDatabaseBackend(DatabaseBackend):
+       vendor = "custom"
+       display_name = "Custom Database"
+
+       async def create_engine(self) -> AsyncEngine:
+           url = self.url
+           echo = bool(self.get_option("ECHO", False))
+           # Build engine with custom pool or driver settings
+           return sa.ext.asyncio.create_async_engine(url, echo=echo)
+
+       async def connect(self) -> AsyncConnection:
+           engine = await self.create_engine()
+           return engine.connect()
+
+       async def disconnect(self) -> None:
+           # Dispose engine and clean up resources
+           pass
+
+       async def execute(self, statement, parameters=None):
+           engine = await self.create_engine()
+           async with engine.connect() as conn:
+               return await self.execution.execute(conn, statement, parameters)
+
+       def transaction(self, using=None):
+           return self.atomic()
+
+       @asynccontextmanager
+       async def atomic(self) -> AsyncGenerator[AsyncConnection, None]:
+           engine = await self.create_engine()
+           async with engine.begin() as conn:
+               yield conn
+
+   # Register it:
+   DATABASES = {
+       "default": {
+           "BACKEND": "myproject.db.backends.CustomDatabaseBackend",
+           "OPTIONS": {
+               "URL": "custom://host/db",
+           },
+       },
+   }
+
+Config access in backends
+-------------------------
+
+Use :meth:`DatabaseBackend.get_option` to read configuration values from
+the ``OPTIONS`` dict (nested format) or directly from the alias config
+(flat format).  It resolves ``OPTIONS.<key>`` first, then falls back to
+the top-level key:
+
+.. code-block:: python
+
+   class MyBackend(DefaultDatabaseBackend):
+       async def create_engine(self):
+           # Reads from OPTIONS.POOL_SIZE, then POOL_SIZE, then default 20
+           pool_size = int(self.get_option("POOL_SIZE", 20))
+           echo = bool(self.get_option("ECHO", False))
+           ...
+
+Properties :attr:`url`, :attr:`is_read_only`, and :attr:`role` also
+resolve from ``OPTIONS`` first, then from the flat config:
+
+.. code-block:: python
+
+   backend = MyBackend("default", {
+       "OPTIONS": {"URL": "postgresql+asyncpg://user:pass@localhost/db"},
+       "ROLE": "primary",
+   })
+   backend.url          # "postgresql+asyncpg://user:pass@localhost/db"
+   backend.role          # "primary"
+   backend.is_read_only  # False
 
 Instrumentation Example
 ========================

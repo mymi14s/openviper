@@ -5,10 +5,12 @@ from __future__ import annotations
 import dataclasses
 import os
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from openviper.conf.settings import Settings
 
-type SettingsValue = object
+if TYPE_CHECKING:
+    from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)
@@ -18,10 +20,14 @@ class ProjectSettings(Settings):
     DEBUG: bool = bool(int(os.environ.get("DEBUG", "1")))
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "text"
-    ADMIN_TITLE: str = "Ecommerce Admin"
-    ADMIN_HEADER_TITLE: str = "EcommerceClone"
-    ADMIN_FOOTER_TITLE: str = "Ecommerce v1.0"
-    OPENAPI: dict[str, SettingsValue] = dataclasses.field(
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "title": "Ecommerce Admin",
+            "header_title": "EcommerceClone",
+            "footer_title": "Ecommerce v1.0",
+        },
+    )
+    OPENAPI: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "title": "Ecommerce API",
             "version": "1.0.0",
@@ -31,7 +37,13 @@ class ProjectSettings(Settings):
 
     TEMPLATES_DIR: str = "templates/"
 
-    DATABASE_URL: str = os.environ.get("DATABASE_URL", "sqlite+aiosqlite:///./db.sqlite3")
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "URL": "sqlite+aiosqlite:///./db.sqlite3",
+            },
+        },
+    )
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "ecommerce-secret-key-change-in-production")
 
     INSTALLED_APPS: tuple[str, ...] = (
@@ -69,19 +81,29 @@ class ProjectSettings(Settings):
 
     MAX_QUERY_ROWS: int = 100_000
 
-    TASKS: dict[str, SettingsValue] = dataclasses.field(
+    TASKS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
-            "log_to_file": True,
-            "log_level": "DEBUG",
-            "log_format": "json",
-            "log_dir": "logs",
+            "enabled": 1,
             "broker": "redis",
-            "url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
-            "result_backend_url": os.environ.get("REDIS_BACKEND_URL", "redis://localhost:6379/1"),
+            "broker_url": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+            "backend_url": os.environ.get("REDIS_BACKEND_URL", ""),
+            "logging": {
+                "level": "DEBUG",
+                "file": {
+                    "log_dir": "logs",
+                    "file_name": "tasks.log",
+                    "log_format": "json",
+                    "max_size": 10,
+                },
+                "database": {
+                    "task": 1,
+                    "periodic": 1,
+                },
+            },
         }
     )
 
-    AI_PROVIDERS: dict[str, SettingsValue] = dataclasses.field(
+    AI_PROVIDERS: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "ollama": {
                 "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -113,7 +135,7 @@ class ProjectSettings(Settings):
         }
     )
 
-    EMAIL: dict[str, object] = dataclasses.field(
+    EMAIL: ConfigMap = dataclasses.field(
         default_factory=lambda: {
             "backend": "SMTPBackend",  # "ConsoleBackend"
             "host": os.environ.get("EMAIL_HOST", "localhost"),
@@ -126,6 +148,6 @@ class ProjectSettings(Settings):
             "from": os.environ.get("EMAIL_FROM", "noreply@example.com"),
             "default_sender": os.environ.get("EMAIL_DEFAULT_SENDER", "noreply@example.com"),
             "fail_silently": bool(os.environ.get("EMAIL_FAIL_SILENTLY", False)),
-            # "use_background_worker": bool(os.environ.get("EMAIL_USE_BACKGROUND_WORKER", False)),
+            # "background": bool(os.environ.get("EMAIL_background", False)),
         }
     )

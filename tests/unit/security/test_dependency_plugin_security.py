@@ -33,10 +33,6 @@ from openviper.template.plugin_loader import (
 )
 from openviper.utils.importlib import IMPORT_CACHE, import_string, reset_import_cache
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(autouse=True)
 def reset_plugin_state():
@@ -57,8 +53,21 @@ def settings_instance():
     """Return a fresh Settings instance with known secret values."""
     s = Settings()
     object.__setattr__(s, "SECRET_KEY", "test-secret-key-abc123")
-    object.__setattr__(s, "DATABASE_URL", "postgresql://user:pass@db:5432/mydb")
-    object.__setattr__(s, "CACHE_URL", "redis://:password@localhost:6379/0")
+    object.__setattr__(
+        s,
+        "DATABASES",
+        {"default": {"OPTIONS": {"URL": "postgresql://user:pass@db:5432/mydb"}}},
+    )
+    object.__setattr__(
+        s,
+        "CACHES",
+        {
+            "default": {
+                "BACKEND": "openviper.cache.RedisCache",
+                "OPTIONS": {"url": "redis://:password@localhost:6379/0"},
+            }
+        },
+    )
     object.__setattr__(
         s,
         "EMAIL",
@@ -353,7 +362,7 @@ class TestSupply003PackageMetadataSecrets:
 
     def test_supply003_sensitive_fields_defined(self):
         """Settings must define a comprehensive set of sensitive field names."""
-        expected = {"SECRET_KEY", "DATABASE_URL", "CACHE_URL", "EMAIL"}
+        expected = {"SECRET_KEY", "DATABASES", "CACHES", "EMAIL"}
         assert expected.issubset(
             SENSITIVE_FIELDS
         ), f"Missing sensitive fields: {expected - SENSITIVE_FIELDS}"
@@ -369,15 +378,15 @@ class TestSupply003PackageMetadataSecrets:
         assert "test-secret-key-abc123" not in str(masked)
 
     def test_supply003_as_dict_masks_database_url(self, settings_instance):
-        """as_dict(mask_sensitive=True) must mask DATABASE_URL."""
+        """as_dict(mask_sensitive=True) must mask DATABASES."""
         masked = settings_instance.as_dict(mask_sensitive=True)
-        assert masked["DATABASE_URL"] == "***"
+        assert masked["DATABASES"] == "***"
         assert "postgresql://user:pass@db:5432/mydb" not in str(masked)
 
     def test_supply003_as_dict_masks_cache_url(self, settings_instance):
-        """as_dict(mask_sensitive=True) must mask CACHE_URL."""
+        """as_dict(mask_sensitive=True) must mask CACHES."""
         masked = settings_instance.as_dict(mask_sensitive=True)
-        assert masked["CACHE_URL"] == "***"
+        assert masked["CACHES"] == "***"
         assert "redis://:password@localhost:6379/0" not in str(masked)
 
     def test_supply003_as_dict_masks_email(self, settings_instance):
@@ -397,7 +406,9 @@ class TestSupply003PackageMetadataSecrets:
         """as_dict(mask_sensitive=False) must return actual values."""
         raw = settings_instance.as_dict(mask_sensitive=False)
         assert raw["SECRET_KEY"] == "test-secret-key-abc123"
-        assert raw["DATABASE_URL"] == "postgresql://user:pass@db:5432/mydb"
+        assert raw["DATABASES"] == {
+            "default": {"OPTIONS": {"URL": "postgresql://user:pass@db:5432/mydb"}}
+        }
 
     def test_supply003_as_dict_masks_empty_sensitive_as_empty(self):
         """as_dict(mask_sensitive=True) must not mask empty sensitive fields."""
@@ -409,7 +420,7 @@ class TestSupply003PackageMetadataSecrets:
         """as_dict() must default to masking sensitive fields."""
         result = settings_instance.as_dict()
         assert result["SECRET_KEY"] == "***"
-        assert result["DATABASE_URL"] == "***"
+        assert result["DATABASES"] == "***"
 
     # -- Negative tests (insecure paths are blocked) -----------------------
 

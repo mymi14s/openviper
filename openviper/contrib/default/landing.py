@@ -156,7 +156,7 @@ LANDING_HTML = """\
         <p>
             A production-ready, high-performance, async-first Python web framework.
         </p>
-        <span class="badge">&#x1f6e1;&#xfe0f; DEBUG mode &mdash; this page is \
+        <span class="badge">&#x1f6e1;&#xfe0f; DEBUG mode - this page is \
 only visible in development</span>
     </div>
 
@@ -211,7 +211,7 @@ $ python viperctl.py start-server<br>
     </div>
 
     <footer>
-        OpenViper Framework &mdash;
+        OpenViper Framework -
         <a href="https://github.com/openviper-project/openviper">GitHub</a> &middot;
         <a href="/open-api/docs">API Docs</a> &middot;
         <a href="/open-api/redoc">ReDoc</a>

@@ -73,11 +73,6 @@ PLACEHOLDER_SECRET_KEYS: frozenset[str] = frozenset(
 )
 
 
-# ---------------------------------------------------------------------------
-# DOC-001: Generated starter app uses secure defaults
-# ---------------------------------------------------------------------------
-
-
 class TestDoc001SecureDefaults:
     """Generated starter apps must ship with secure defaults."""
 
@@ -101,7 +96,9 @@ class TestDoc001SecureDefaults:
         settings = Settings()
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         # Should not raise for non-production even with minimal settings.
         validate_settings(settings, env="development")
 
@@ -124,7 +121,9 @@ class TestDoc001SecureDefaults:
         """validate_settings must reject short SECRET_KEY in production."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "short")
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         with pytest.raises(SettingsValidationError) as exc_info:
             validate_settings(settings, env="production")
         messages = " ".join(exc_info.value.errors)
@@ -135,7 +134,9 @@ class TestDoc001SecureDefaults:
         for placeholder in ("INSECURE-CHANGE-ME", "dev-insecure-key", ""):
             settings = Settings()
             object.__setattr__(settings, "SECRET_KEY", placeholder)
-            object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+            object.__setattr__(
+                settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+            )
             with pytest.raises(SettingsValidationError):
                 validate_settings(settings, env="production")
 
@@ -183,7 +184,9 @@ class TestDoc001SecureDefaults:
         """validate_settings must require CSRF_COOKIE_SECURE in production."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECURE_COOKIES", True)
         object.__setattr__(settings, "SECURE_SSL_REDIRECT", True)
@@ -214,7 +217,9 @@ class TestDoc001SecureDefaults:
         """validate_settings must require SESSION_COOKIE_SECURE in production."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECURE_COOKIES", True)
         object.__setattr__(settings, "SECURE_SSL_REDIRECT", True)
@@ -234,7 +239,9 @@ class TestDoc001SecureDefaults:
         settings = Settings()
         object.__setattr__(settings, "SESSION_COOKIE_SAMESITE", "None")
         object.__setattr__(settings, "SESSION_COOKIE_SECURE", False)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         with pytest.raises(SettingsValidationError) as exc_info:
             validate_settings(settings, env="development")
         messages = " ".join(exc_info.value.errors)
@@ -322,7 +329,9 @@ class TestDoc001SecureDefaults:
         settings = Settings()
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "SECURE_COOKIES", True)
         object.__setattr__(settings, "SECURE_SSL_REDIRECT", True)
         object.__setattr__(settings, "SECURE_HSTS_SECONDS", 31536000)
@@ -333,11 +342,6 @@ class TestDoc001SecureDefaults:
         object.__setattr__(settings, "CORS_ALLOWED_HEADERS", ("Content-Type",))
         # Must not raise.
         validate_settings(settings, env="production")
-
-
-# ---------------------------------------------------------------------------
-# DOC-002: Example configs do not contain real secrets
-# ---------------------------------------------------------------------------
 
 
 class TestDoc002NoRealSecrets:
@@ -380,18 +384,27 @@ class TestDoc002NoRealSecrets:
                 ), f"{path}: SECRET_KEY default {value!r} does not appear to be a placeholder"
 
     def test_doc002_example_database_urls_are_local(self) -> None:
-        """DATABASE_URL defaults in examples must use local SQLite, not real credentials."""
+        """DATABASE URLs in examples must use local SQLite, not real credentials."""
         for path in self._collect_example_settings_files():
             content = path.read_text(encoding="utf-8")
+            # Check legacy DATABASE_URL format.
             for match in re.finditer(
                 r'DATABASE_URL\s*[=:]\s*(?:os\.environ\.get\([^)]+,\s*)?["\']([^"\']+)["\']',
                 content,
             ):
                 value = match.group(1)
-                # Must be SQLite or empty, not a real PostgreSQL/MySQL URL with credentials.
                 assert (
                     value == "" or "sqlite" in value.lower()
                 ), f"{path}: DATABASE_URL default {value!r} should use SQLite for examples"
+            # Check new DATABASES dict format for URL values.
+            for match in re.finditer(
+                r'"URL"\s*:\s*(?:os\.environ\.get\([^)]+,\s*)?["\']([^"\']+)["\']',
+                content,
+            ):
+                value = match.group(1)
+                assert (
+                    value == "" or "sqlite" in value.lower()
+                ), f"{path}: DATABASES URL default {value!r} should use SQLite for examples"
 
     def test002_no_real_private_keys_in_examples(self) -> None:
         """Example files must not contain real private keys."""
@@ -404,10 +417,14 @@ class TestDoc002NoRealSecrets:
         """Settings.as_dict() must mask sensitive fields by default."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "real-secret-key-value-that-should-be-masked")
-        object.__setattr__(settings, "DATABASE_URL", "postgresql://user:pass@host/db")
+        object.__setattr__(
+            settings,
+            "DATABASES",
+            {"default": {"OPTIONS": {"URL": "postgresql://user:pass@host/db"}}},
+        )
         result = settings.as_dict()
         assert result["SECRET_KEY"] == "***"
-        assert result["DATABASE_URL"] == "***"
+        assert result["DATABASES"] == "***"
 
     def test_doc002_settings_as_dict_unmask_shows_real_values(self) -> None:
         """Settings.as_dict(mask_sensitive=False) must reveal real values."""
@@ -417,10 +434,10 @@ class TestDoc002NoRealSecrets:
         assert result["SECRET_KEY"] == "real-secret-key-value"
 
     def test_doc002_sensitive_fields_covers_critical_keys(self) -> None:
-        """SENSITIVE_FIELDS must cover SECRET_KEY, DATABASE_URL, and CACHE_URL."""
+        """SENSITIVE_FIELDS must cover SECRET_KEY, DATABASES, and CACHES."""
         assert "SECRET_KEY" in SENSITIVE_FIELDS
-        assert "DATABASE_URL" in SENSITIVE_FIELDS
-        assert "CACHE_URL" in SENSITIVE_FIELDS
+        assert "DATABASES" in SENSITIVE_FIELDS
+        assert "CACHES" in SENSITIVE_FIELDS
 
     def test_doc002_example_allowed_hosts_not_wildcard_in_production(self) -> None:
         """Example ALLOWED_HOSTS with wildcard must be documented as dev-only."""
@@ -430,7 +447,9 @@ class TestDoc002NoRealSecrets:
         settings = Settings()
         object.__setattr__(settings, "ALLOWED_HOSTS", ())
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECURE_COOKIES", True)
         object.__setattr__(settings, "SECURE_SSL_REDIRECT", True)
@@ -457,11 +476,6 @@ class TestDoc002NoRealSecrets:
                 continue
             matches = password_pattern.findall(content)
             assert not matches, f"{path}: found hardcoded password pattern(s): {matches}"
-
-
-# ---------------------------------------------------------------------------
-# DOC-003: Unsafe examples are clearly marked
-# ---------------------------------------------------------------------------
 
 
 class TestDoc003UnsafeExamplesMarked:
@@ -703,7 +717,9 @@ class TestDoc003UnsafeExamplesMarked:
         """validate_settings must reject DEBUG=True in production."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "DEBUG", True)
         with pytest.raises(SettingsValidationError) as exc_info:
             validate_settings(settings, env="production")
@@ -714,7 +730,9 @@ class TestDoc003UnsafeExamplesMarked:
         """validate_settings must reject OPENAPI['enabled']=True in production."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECURE_COOKIES", True)
         object.__setattr__(settings, "SECURE_SSL_REDIRECT", True)
@@ -733,7 +751,9 @@ class TestDoc003UnsafeExamplesMarked:
         """validate_settings must reject CORS_ALLOWED_HEADERS=('*',) in production."""
         settings = Settings()
         object.__setattr__(settings, "SECRET_KEY", "a" * 64)
-        object.__setattr__(settings, "DATABASE_URL", "sqlite:///test.db")
+        object.__setattr__(
+            settings, "DATABASES", {"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}}
+        )
         object.__setattr__(settings, "DEBUG", False)
         object.__setattr__(settings, "SECURE_COOKIES", True)
         object.__setattr__(settings, "SECURE_SSL_REDIRECT", True)

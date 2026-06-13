@@ -16,10 +16,6 @@ from openviper.ai.exceptions import (
     ProviderNotAvailableError,
 )
 
-# ---------------------------------------------------------------------------
-# SimpleProvider
-# ---------------------------------------------------------------------------
-
 
 class ConcreteSimple(SimpleProvider):
     name = "concrete"
@@ -53,11 +49,6 @@ class TestSimpleProvider:
         assert p.default_model == "test-model"
 
 
-# ---------------------------------------------------------------------------
-# normalize_response
-# ---------------------------------------------------------------------------
-
-
 class TestNormalizeResponse:
     def test_strips_whitespace(self):
         assert normalize_response("  hello  ") == "hello"
@@ -79,11 +70,6 @@ class TestNormalizeResponse:
 
     def test_single_newline_preserved(self):
         assert normalize_response("a\nb") == "a\nb"
-
-
-# ---------------------------------------------------------------------------
-# StreamingAdapter
-# ---------------------------------------------------------------------------
 
 
 class TestStreamingAdapter:
@@ -116,11 +102,6 @@ class TestStreamingAdapter:
 
         chunks = [c async for c in StreamingAdapter(gen())]
         assert chunks == []
-
-
-# ---------------------------------------------------------------------------
-# map_http_error
-# ---------------------------------------------------------------------------
 
 
 class TestMapHttpError:

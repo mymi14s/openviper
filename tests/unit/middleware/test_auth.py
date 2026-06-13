@@ -45,11 +45,6 @@ def cookie_scope(cookie_val):
     return http_scope([(b"cookie", cookie_val.encode("latin-1"))])
 
 
-# ---------------------------------------------------------------------------
-# Non-HTTP passthrough
-# ---------------------------------------------------------------------------
-
-
 class TestAuthMiddlewareNonHTTP:
     @pytest.mark.asyncio
     async def test_lifespan_passthrough(self):
@@ -73,11 +68,6 @@ class TestAuthMiddlewareNonHTTP:
         mw = AuthenticationMiddleware(app)
         await mw({"type": "websocket", "headers": []}, None, None)
         assert isinstance(captured["user"], AnonymousUser)
-
-
-# ---------------------------------------------------------------------------
-# Anonymous (no credentials)
-# ---------------------------------------------------------------------------
 
 
 class TestAuthMiddlewareAnonymous:
@@ -106,11 +96,6 @@ class TestAuthMiddlewareAnonymous:
         assert captured["auth"] == {"type": "none"}
 
 
-# ---------------------------------------------------------------------------
-# JWT authentication
-# ---------------------------------------------------------------------------
-
-
 class TestAuthMiddlewareJWT:
     @pytest.mark.asyncio
     async def test_valid_jwt_sets_user(self):
@@ -125,7 +110,7 @@ class TestAuthMiddlewareJWT:
 
         mw = AuthenticationMiddleware(app)
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -180,7 +165,7 @@ class TestAuthMiddlewareJWT:
             captured["user"] = scope.get("user")
 
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=inactive)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=inactive)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -230,11 +215,6 @@ class TestAuthMiddlewareJWT:
         scope = http_scope([(b"authorization", f"bearer {token}".encode("latin-1"))])
         await AuthenticationMiddleware(app)(scope, None, None)
         assert captured["auth"]["type"] == "none"
-
-
-# ---------------------------------------------------------------------------
-# Session authentication
-# ---------------------------------------------------------------------------
 
 
 class TestAuthMiddlewareSession:
@@ -301,11 +281,6 @@ class TestAuthMiddlewareSession:
         assert isinstance(captured["user"], AnonymousUser)
 
 
-# ---------------------------------------------------------------------------
-# JWT takes precedence over session when both headers present
-# ---------------------------------------------------------------------------
-
-
 class TestAuthMiddlewarePrecedence:
     @pytest.mark.asyncio
     async def test_jwt_takes_precedence_over_session(self):
@@ -325,7 +300,7 @@ class TestAuthMiddlewarePrecedence:
             ]
         )
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=jwt_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=jwt_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -360,11 +335,6 @@ class TestAuthMiddlewarePrecedence:
             await AuthenticationMiddleware(app)(scope, None, None)
 
         assert captured["auth"]["type"] == "session"
-
-
-# ---------------------------------------------------------------------------
-# Context variable
-# ---------------------------------------------------------------------------
 
 
 class TestAuthMiddlewareContextVar:
@@ -420,7 +390,7 @@ class TestAuthMiddlewareContextVar:
             seen = ctx_user.get(None)
 
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -428,11 +398,6 @@ class TestAuthMiddlewareContextVar:
                 await AuthenticationMiddleware(app)(bearer_scope(token), None, None)
 
         assert seen is fake_user
-
-
-# ---------------------------------------------------------------------------
-# User cache
-# ---------------------------------------------------------------------------
 
 
 class TestUserCache:
@@ -524,11 +489,6 @@ class TestUserCache:
             assert call_count == 1
 
         clear_auth_cache()
-
-
-# ---------------------------------------------------------------------------
-# User cache lock
-# ---------------------------------------------------------------------------
 
 
 class TestUserCacheLock:

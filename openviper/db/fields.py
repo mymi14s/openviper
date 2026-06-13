@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import functools
+import html
 import inspect
 import ipaddress
 import json
@@ -12,6 +13,7 @@ import logging
 import math
 import os
 import re
+import typing as t
 import urllib.parse
 import uuid
 import zoneinfo
@@ -23,7 +25,7 @@ import aiofiles
 from pydantic_core import CoreSchema, core_schema
 
 from openviper.conf import settings
-from openviper.db import _model_registry
+from openviper.db import model_registry
 from openviper.db.utils import (
     validate_on_delete,
     validate_sql_expression,
@@ -37,6 +39,42 @@ if TYPE_CHECKING:
 _UTC_ZONE = zoneinfo.ZoneInfo("UTC")
 
 logger = logging.getLogger(__name__)
+
+
+def _detect_content_type(content: bytes) -> str | None:
+    """Return a MIME type based on magic numbers, or None if unknown."""
+    if content.startswith(bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])):
+        return "image/png"
+    if content.startswith(bytes([0xFF, 0xD8])):
+        return "image/jpeg"
+    if content[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    if content.startswith(b"BM"):
+        return "image/bmp"
+    if content.startswith(bytes([0x50, 0x4B, 0x03, 0x04])):
+        return "application/zip"
+    if content.startswith(b"%PDF"):
+        return "application/pdf"
+    # Common plain-text markers
+    if content[:5].lower() == b"<html" or b"<!doctype html" in content[:128].lower():
+        return "text/html"
+    return None
+
+
+_EXT_TO_MIME: dict[str, list[str]] = {
+    "png": ["image/png"],
+    "jpg": ["image/jpeg"],
+    "jpeg": ["image/jpeg"],
+    "gif": ["image/gif"],
+    "webp": ["image/webp"],
+    "bmp": ["image/bmp"],
+    "zip": ["application/zip"],
+    "pdf": ["application/pdf"],
+    "html": ["text/html"],
+    "htm": ["text/html"],
+}
 
 
 class Field:
@@ -55,6 +93,16 @@ class Field:
     """
 
     _column_type: str = "TEXT"
+
+    @property
+    def column_type(self) -> str:
+        """Return the SQL column type for this field."""
+        return self._column_type
+
+    @column_type.setter
+    def column_type(self, value: str) -> None:
+        """Allow subclasses to override the SQL column type."""
+        self._column_type = value
 
     def __init__(
         self,
@@ -82,7 +130,7 @@ class Field:
         self._choices_set: frozenset[Any] = frozenset(c[0] for c in self.choices)
         self.help_text = help_text
         self.editable = editable
-        self.name: str = ""  # Set by ModelMeta
+        self.name: str = ""
 
     @functools.cached_property
     def column_name(self) -> str:
@@ -111,7 +159,7 @@ class Field:
                 raise ValueError("Required field cannot be empty.")
             raise ValueError(f"Field '{self.name}' cannot be null.")
         if self.choices and value is not None:
-            # Rebuild the set if choices was assigned post-construction.
+            # Rebuild lazily because choices may be mutated after __init__.
             if not self._choices_set:
                 self._choices_set = frozenset(c[0] for c in self.choices)
             if value not in self._choices_set:
@@ -128,7 +176,7 @@ class AutoField(Field):
     """Auto-incrementing integer primary key (added automatically)."""
 
     _column_type = "INTEGER"
-    # PostgreSQL INTEGER bounds: -2^31 to 2^31-1
+    # PostgreSQL INTEGER column range - values outside cause DB errors.
     _MIN_VALUE = -2147483648
     _MAX_VALUE = 2147483647
 
@@ -139,9 +187,7 @@ class AutoField(Field):
         if value is None:
             return None
         int_val = int(value)
-        if not (
-            self._MIN_VALUE <= int_val <= self._MAX_VALUE
-        ):  # pylint: disable=superfluous-parens
+        if int_val < self._MIN_VALUE or int_val > self._MAX_VALUE:
             raise ValueError(
                 f"Field '{self.name}': integer value {int_val} exceeds "
                 f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
@@ -153,7 +199,7 @@ class IntegerField(Field):
     """Integer column."""
 
     _column_type = "INTEGER"
-    # PostgreSQL INTEGER bounds: -2^31 to 2^31-1
+    # PostgreSQL INTEGER column range - values outside cause DB errors.
     _MIN_VALUE = -2147483648
     _MAX_VALUE = 2147483647
 
@@ -161,9 +207,7 @@ class IntegerField(Field):
         if value is None:
             return None
         int_val = int(value)
-        if not (
-            self._MIN_VALUE <= int_val <= self._MAX_VALUE
-        ):  # pylint: disable=superfluous-parens
+        if int_val < self._MIN_VALUE or int_val > self._MAX_VALUE:
             raise ValueError(
                 f"Field '{self.name}': integer value {int_val} exceeds "
                 f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
@@ -174,9 +218,7 @@ class IntegerField(Field):
         if value is None:
             return None
         int_val = int(value)
-        if not (
-            self._MIN_VALUE <= int_val <= self._MAX_VALUE
-        ):  # pylint: disable=superfluous-parens
+        if int_val < self._MIN_VALUE or int_val > self._MAX_VALUE:
             raise ValueError(
                 f"Field '{self.name}': integer value {int_val} exceeds "
                 f"database bounds [{self._MIN_VALUE}, {self._MAX_VALUE}]"
@@ -188,7 +230,7 @@ class BigIntegerField(IntegerField):
     """64-bit integer column."""
 
     _column_type = "BIGINT"
-    # PostgreSQL BIGINT bounds: -2^63 to 2^63-1
+    # PostgreSQL BIGINT column range - values outside cause DB errors.
     _MIN_VALUE = -9223372036854775808
     _MAX_VALUE = 9223372036854775807
 
@@ -252,7 +294,6 @@ class DecimalField(Field):
 
         dec = Decimal(str(value))
 
-        # Count digits - get tuple components: (sign, digits, exponent)
         _sign, digits, exponent = dec.as_tuple()
         total_digits = len(digits)
         decimal_places_count = -exponent if isinstance(exponent, int) and exponent < 0 else 0
@@ -365,7 +406,7 @@ class DateTimeField(Field):
 
         if settings.USE_TZ:
             if timezone.is_naive(dt):
-                # Assume local time if naive, then convert to UTC
+                # Naive datetimes are ambiguous; treat as local before UTC conversion.
                 dt = timezone.make_aware(dt, timezone.get_current_timezone())
             return dt.astimezone(datetime.UTC)
         if timezone.is_aware(dt):
@@ -443,10 +484,10 @@ class UUIDField(Field):
         return uuid.UUID(str(value))
 
 
-# Hard ceiling for JSON field size to prevent memory exhaustion from
-# misconfigured MAX_JSON_SIZE settings. 50 MB is a reasonable upper bound
-# for any JSON payload in a web application.
-_HARD_MAX_JSON_SIZE: int = 50 * 1024 * 1024  # 50 MB
+# Hard ceiling prevents memory exhaustion from misconfigured
+# MAX_JSON_SIZE settings. 50 MB is a reasonable upper bound for any
+# JSON payload in a web application.
+_HARD_MAX_JSON_SIZE: int = 50 * 1024 * 1024
 
 
 class JSONField(Field):
@@ -474,14 +515,14 @@ class JSONField(Field):
         """
         if self._max_size is not None:
             return min(self._max_size, _HARD_MAX_JSON_SIZE)
-        configured = int(getattr(settings, "MAX_JSON_SIZE", 1024 * 1024))  # 1MB default
+        configured = int(getattr(settings, "MAX_JSON_SIZE", 1024 * 1024))
         return min(configured, _HARD_MAX_JSON_SIZE)
 
     def to_python(self, value: Any) -> Any:
         if value is None:
             return None
         if isinstance(value, str):
-            # Check size before parsing to prevent memory exhaustion
+            # Validate size before json.loads to prevent memory exhaustion.
             if len(value) > self.max_size:
                 raise ValueError(
                     f"Field '{self.name}': JSON value size {len(value)} bytes "
@@ -493,9 +534,9 @@ class JSONField(Field):
     def to_db(self, value: Any) -> Any:
         if value is None:
             return None
-        # Serialize only for size validation.
-        # We return the Python object because SQLAlchemy's sa.JSON() type
-        # handles serialization natively. Stringifying here causes double-encoding.
+        # Serialize only to measure size; return the Python object because
+        # SQLAlchemy's sa.JSON() handles serialization natively and stringifying
+        # here would cause double-encoding.
         json_str = json.dumps(value)
         if len(json_str) > self.max_size:
             raise ValueError(
@@ -538,7 +579,8 @@ class ForeignKey(Field):
 
         target = self.to
 
-        # Handle callables directly (e.g. ForeignKey(to=get_user_model))
+        # Support callable targets like ForeignKey(to=get_user_model) for
+        # lazy model resolution.
         if callable(target) and not isinstance(target, type):
             try:
                 target = target()
@@ -550,67 +592,73 @@ class ForeignKey(Field):
         if not isinstance(target, str):
             return None if not isinstance(target, type) else target
 
-        # Dotted path resolution (e.g., 'auth.User' or 'openviper.auth.utils.get_user_model')
+        # Dotted paths allow string-based lazy references across modules.
         if "." in target:
             try:
                 res = import_string(target)
                 if isinstance(res, type):
                     return res
                 if callable(res):
-                    # It could be a getter function path like 'openviper.auth.utils.get_user_model'
+                    # The resolved import may be a getter function rather than
+                    # a model class directly.
                     resolved = res()
                     if isinstance(resolved, type):
                         return resolved
             except ImportError, AttributeError:
                 pass
 
-        # Access the live registry through the ModelMeta class reference so that
-        # test fixtures that replace ModelMeta.registry are transparently followed.
-        model_meta = _model_registry.model_meta_cls
-        registry = model_meta.registry if model_meta is not None else _model_registry.registry
-        name_index = model_meta.name_index if model_meta is not None else _model_registry.name_index
+        # Use the live ModelMeta reference so test fixtures that replace
+        # ModelMeta.registry are transparently followed.
+        model_meta = model_registry.model_meta_cls
+        registry = model_meta.registry if model_meta is not None else model_registry.registry
+        name_index = model_meta.name_index if model_meta is not None else model_registry.name_index
 
-        # Try original string as key (usually 'app.Model')
+        # Most FK strings are 'app.Model' format, a direct registry hit.
         if target in registry:
             return cast("type | None", registry[target])
 
-        # Compute app_label once if this FK belongs to a model
+        # app_label enables disambiguation when multiple models share a name.
         app_label = None
         if hasattr(self, "model_class") and hasattr(self.model_class, "_fields"):
             app_label = getattr(self.model_class, "_app_name", None)
 
-        # Try prepending app_label
+        # Prepending app_label resolves ambiguous bare model names.
         if app_label:
             full_name = f"{app_label}.{target}"
             if full_name in registry:
-                return registry[full_name]  # type: ignore[return-value]
+                return cast("type | None", registry[full_name])
 
-        # Try finding anywhere in registry via the O(1) name index
+        # The name index provides O(1) lookup when only the model name is known.
         candidates = name_index.get(target, [])
         if len(candidates) == 1:
-            return candidates[0]  # type: ignore[return-value]
+            return cast("type | None", candidates[0])
         if len(candidates) > 1:
-            # Multiple models share the simple name; prefer one from the same app.
+            # Disambiguate by preferring the model from the same application.
             if app_label:
                 for candidate in candidates:
                     if getattr(candidate, "_app_name", None) == app_label:
-                        return candidate  # type: ignore[return-value]
-            return candidates[0]  # type: ignore[return-value]
+                        return cast("type | None", candidate)
+            return cast("type | None", candidates[0])
 
         return None
 
     @property
-    def _column_type(self) -> str:  # type: ignore[override]
+    def _column_type(self) -> str:
         """Return the column type matching the target model's primary key field."""
         target = self.resolve_target()
         if target is not None:
             for field in target._fields.values():
                 if field.primary_key:
-                    # A nested ForeignKey PK is unusual but handle gracefully
+                    # A nested FK PK is unusual but must not crash resolution.
                     if isinstance(field, ForeignKey):
                         return str(field._column_type)
                     return str(field._column_type)
-        return "INTEGER"  # default when target is not yet resolvable
+        return "INTEGER"
+
+    @_column_type.setter
+    def _column_type(self, value: object) -> None:
+        # ForeignKey column type is derived from the target PK; ignore writes.
+        _ = value
 
     @functools.cached_property
     def column_name(self) -> str:
@@ -626,10 +674,9 @@ class ForeignKey(Field):
             - An awaitable LazyFK proxy if not cached (user can await to load)
         """
         if obj is None:
-            # Accessed on class, return descriptor itself
             return self
 
-        # Check if related object is cached (from select_related/prefetch_related)
+        # Use prefetch cache to avoid a redundant DB round-trip.
         if (
             hasattr(obj, "_relation_cache")
             and obj._relation_cache is not None
@@ -637,10 +684,8 @@ class ForeignKey(Field):
         ):
             return obj._relation_cache[self.name]
 
-        # Get the FK ID value
         fk_id = obj.__dict__.get(self.column_name, None)
 
-        # Return an awaitable LazyFK proxy that can be awaited to load the object
         return LazyFK(self, obj, fk_id)
 
     def __set__(self, obj: Any, value: Any) -> None:
@@ -650,22 +695,24 @@ class ForeignKey(Field):
             post.author_id = 5
             post.author = user_instance  (sets post.author_id = user_instance.id)
         """
-        # Unwrap LazyFK proxies so only raw IDs are ever stored in __dict__.
-        # This handles the pattern: child.fk_field = parent.other_fk_field
-        # where parent.other_fk_field returns a LazyFK descriptor value.
+        # Unwrap LazyFK proxies so only raw IDs are stored in __dict__,
+        # handling the pattern where parent.other_fk_field returns a LazyFK.
         if isinstance(value, LazyFK):
             value = value.fk_id
 
         if hasattr(value, "_fields") and hasattr(value, "pk"):
-            # Extract ID from model instance, set directly in __dict__ to avoid recursion
+            # Write directly to __dict__ to bypass this descriptor and avoid
+            # infinite recursion.
             obj.__dict__[self.column_name] = value.id
-            # Cache the instance for descriptor access (select_related / __str__)
-            if hasattr(obj, "_set_related"):
-                obj._set_related(self.name, value)
+            # Cache the resolved instance so subsequent descriptor reads
+            # skip a DB query.
+            if hasattr(obj, "set_related"):
+                obj.set_related(self.name, value)
         else:
-            # Set the value directly in __dict__ to avoid descriptor recursion
+            # Write directly to __dict__ to bypass this descriptor and avoid
+            # infinite recursion.
             obj.__dict__[self.column_name] = value
-            # Clear cached relation since raw value changed
+            # Invalidate the relation cache because the FK ID changed.
             if (
                 hasattr(obj, "_relation_cache")
                 and obj._relation_cache is not None
@@ -677,7 +724,8 @@ class ForeignKey(Field):
         """Convert a FK value to its database representation (raw ID)."""
         if value is None:
             return None
-        # Unwrap any chain of LazyFK proxies (defense-in-depth)
+        # Defense-in-depth - unwrap any chain of LazyFK proxies before
+        # DB serialization.
         while isinstance(value, LazyFK):
             value = value.fk_id
             if value is None:
@@ -724,8 +772,8 @@ class LazyFK:
 
         self._loaded_obj = results[0]
 
-        if hasattr(self.instance, "_set_related"):
-            self.instance._set_related(self.fk_field.name, self._loaded_obj)
+        if hasattr(self.instance, "set_related"):
+            self.instance.set_related(self.fk_field.name, self._loaded_obj)
 
         return self._loaded_obj
 
@@ -750,7 +798,7 @@ class LazyFK:
     @classmethod
     def __get_pydantic_core_schema__(cls, _source_type: Any, _handler: Any) -> CoreSchema:
         if core_schema is None:
-            return {"type": "any"}  # Fallback if pydantic-core not installed
+            return {"type": "any"}
 
         return core_schema.no_info_after_validator_function(
             cls._validate,
@@ -784,7 +832,7 @@ class OneToOneField(ForeignKey):
 
     def __init__(self, to: type | str, **kwargs: Any) -> None:
         kwargs["unique"] = True
-        # The UNIQUE constraint already creates an implicit index; no extra needed.
+        # UNIQUE implies an index, so a separate db_index is redundant.
         kwargs.setdefault("db_index", False)
         super().__init__(to, **kwargs)
 
@@ -810,7 +858,7 @@ class ManyToManyManager:
 
     async def all(self) -> list[Any]:
         """Get all related objects."""
-        # Return prefetch_related cache when available to avoid a DB round-trip.
+        # Use prefetch cache to avoid a redundant DB round-trip.
         cached = self.instance._get_related(self.field.name)
         if cached is not None:
             return cast("list[Any]", cached)
@@ -818,7 +866,6 @@ class ManyToManyManager:
         if not self.instance.pk:
             return []
 
-        # Query through table with select_related on target
         filter_kwargs = {self.source_field_name: self.instance.pk}
         through_objects = (
             await self.through_model.objects.filter(**filter_kwargs)
@@ -826,7 +873,6 @@ class ManyToManyManager:
             .all()
         )
 
-        # Extract target objects
         results = []
         ids_to_fetch = []
         for through_obj in through_objects:
@@ -836,7 +882,6 @@ class ManyToManyManager:
             elif isinstance(target_obj, int):
                 ids_to_fetch.append(target_obj)
 
-        # Fetch any remaining IDs
         if ids_to_fetch:
             fetched = await self.target_model.objects.filter(id__in=ids_to_fetch).all()
             results.extend(fetched)
@@ -858,7 +903,7 @@ class ManyToManyManager:
         if not target_pks:
             return
 
-        # Fetch all already-existing relationships in one query.
+        # Deduplicate in one query to avoid redundant INSERT errors.
         existing_pks = set(
             await self.through_model.objects.filter(
                 **{
@@ -984,7 +1029,7 @@ class ReverseRelationDescriptor:
     def __get__(self, obj: Any, objtype: Any = None) -> Any:
         if obj is None:
             return self
-        queryset_cls = _model_registry.queryset_cls
+        queryset_cls = model_registry.queryset_cls
         if queryset_cls is None:
             raise RuntimeError("QuerySet class is not registered.")
         return cast("type", queryset_cls)(self._source_model).filter(
@@ -1004,10 +1049,9 @@ class ManyToManyDescriptor:
         if instance is None:
             return self
 
-        model_meta = _model_registry.model_meta_cls
-        live_registry = model_meta.registry if model_meta is not None else _model_registry.registry
+        model_meta = model_registry.model_meta_cls
+        live_registry = model_meta.registry if model_meta is not None else model_registry.registry
 
-        # Resolve target model
         if isinstance(self.field.to, str):
             target_model = live_registry.get(self.field.to)
             if not target_model:
@@ -1015,7 +1059,6 @@ class ManyToManyDescriptor:
         else:
             target_model = self.field.to
 
-        # Resolve through model
         if self.field.through:
             if isinstance(self.field.through, str):
                 through_model = live_registry.get(self.field.through)
@@ -1031,12 +1074,14 @@ class ManyToManyDescriptor:
         target_model = cast("type", target_model)
         through_model = cast("type", through_model)
 
-        # Fast path: auto-created through models store their field names explicitly.
+        # Auto-created through models expose field names directly, avoiding
+        # expensive FK introspection.
         if hasattr(self.field, "_auto_source_field") and hasattr(self.field, "_auto_target_field"):
             source_field_name: str | None = self.field._auto_source_field
             target_field_name: str | None = self.field._auto_target_field
         else:
-            # Heuristic for explicit through models: inspect FK targets.
+            # Explicit through models lack stored field names, so match FK
+            # targets by model name heuristically.
             source_model_name = instance.__class__.__name__.lower()
             target_model_name = target_model.__name__.lower()
             through_fields = through_model._fields
@@ -1083,7 +1128,7 @@ class ManyToManyDescriptor:
         )
 
     def __set__(self, instance: Any, value: Any) -> None:
-        # Allow setting to None during initialization
+        # None is valid during model construction before relations are set.
         if value is None:
             return
         raise AttributeError("Cannot set ManyToMany field directly, use add()/remove() methods")
@@ -1112,7 +1157,7 @@ class ManyToManyField(Field):
         await user.roles.remove(role)
     """
 
-    _column_type = ""  # No direct column
+    _column_type = ""
 
     def __init__(
         self,
@@ -1147,9 +1192,9 @@ class ManyToManyField(Field):
         target_fk_name = target_name.lower()
 
         app_name = getattr(source_model, "_app_name", "default")
-        model_meta_ref = _model_registry.model_meta_cls
+        model_meta_ref = model_registry.model_meta_cls
         live_reg = (
-            model_meta_ref.registry if model_meta_ref is not None else _model_registry.registry
+            model_meta_ref.registry if model_meta_ref is not None else model_registry.registry
         )
         registry_key = f"{app_name}.{auto_model_name}"
         if registry_key in live_reg:
@@ -1161,10 +1206,10 @@ class ManyToManyField(Field):
         source_table = getattr(source_model, "_table_name", source_name.lower())
         auto_meta = type("Meta", (), {"table_name": f"{source_table}_{field_name}"})
 
-        if _model_registry.model_cls is None or _model_registry.model_meta_cls is None:
+        if model_registry.model_cls is None or model_registry.model_meta_cls is None:
             raise RuntimeError("Model registry is not initialized.")
-        model_base = cast("type", _model_registry.model_cls)
-        model_meta_cls = cast("type", _model_registry.model_meta_cls)
+        model_base = cast("type", model_registry.model_cls)
+        model_meta_cls = cast("type", model_registry.model_meta_cls)
         through_cls = model_meta_cls(
             auto_model_name,
             (model_base,),
@@ -1184,8 +1229,8 @@ class ManyToManyField(Field):
 class EmailField(CharField):
     """Email address field (validated on save)."""
 
-    # RFC 5322 simplified email regex
-    # Allows local-part@domain format with common characters
+    # RFC 5322 simplified regex balances strict validation with
+    # accepting common real-world email formats.
     _EMAIL_PATTERN = re.compile(
         r"^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~-]+@"
         r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
@@ -1200,13 +1245,12 @@ class EmailField(CharField):
         super().validate(value)
         if value:
             str_value = str(value)
-            # Reject all C0 control characters (U+0000–U+001F) and DEL (U+007F)
-            # to prevent header injection and other injection attacks.
+            # C0 controls and DEL enable header injection and other
+            # injection attacks in downstream email processing.
             if any(ord(c) <= 0x1F or ord(c) == 0x7F for c in str_value):
                 raise ValueError(
                     f"Field '{self.name}': email contains forbidden control characters."
                 )
-            # Validate email pattern
             if not self._EMAIL_PATTERN.match(str_value):
                 raise ValueError(f"Field '{self.name}': invalid email address format.")
 
@@ -1313,7 +1357,7 @@ class FileField(CharField):
             return int(getattr(settings, "MAX_FILE_SIZE", 10 * 1024 * 1024))
         except Exception:
             logger.debug("Invalid MAX_FILE_SIZE setting, using default")
-            return 10 * 1024 * 1024  # 10 MB default
+            return 10 * 1024 * 1024
 
     async def pre_save(self, instance: Model, value: Any) -> None:
         """Handle file upload persistence before saving to database."""
@@ -1324,8 +1368,8 @@ class FileField(CharField):
         filename: str = ""
 
         if isinstance(value, UploadFile):
-            # Check size before reading the entire file into memory to prevent
-            # memory exhaustion from oversized uploads.
+            # Validate size before reading into memory to prevent memory
+            # exhaustion from oversized uploads.
             if (
                 hasattr(value, "size")
                 and value.size is not None
@@ -1341,7 +1385,6 @@ class FileField(CharField):
             content = value
             filename = f"upload_{uuid.uuid4().hex[:8]}"
         elif hasattr(value, "read"):
-            # File-like object
             if inspect.iscoroutinefunction(value.read):
                 content = await value.read()
             else:
@@ -1350,12 +1393,19 @@ class FileField(CharField):
         else:
             return
 
-        # Enforce max file size for all content sources after reading.
+        # Re-check size after reading because UploadFile.size may be absent
+        # or inaccurate for some content sources.
         if len(content) > self.max_file_size:
             raise ValueError(
                 f"File size ({len(content)} bytes) exceeds maximum "
                 f"allowed size ({self.max_file_size} bytes)."
             )
+
+        # Validate actual content against the declared type/extension.
+        declared_type = (
+            getattr(value, "content_type", None) if isinstance(value, UploadFile) else None
+        )
+        self._validate_content_type(content, declared_type or "", filename)
 
         filename = self._sanitize_filename(filename)
 
@@ -1363,14 +1413,13 @@ class FileField(CharField):
         upload_path = Path(self.upload_to)
 
         full_dir = media_root / upload_path
-        # Always use threaded I/O to avoid blocking the event loop.
+        # Filesystem I/O must not block the async event loop.
         await asyncio.to_thread(full_dir.mkdir, parents=True, exist_ok=True)
 
         dest_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
-        # Resolve the destination path and verify it stays within MEDIA_ROOT.
-        # resolve() follows symlinks, so we compare the resolved absolute path
-        # against media_root to detect any path traversal - including symlinks
-        # that point outside the allowed directory.
+        # resolve() follows symlinks, so comparing the resolved absolute
+        # path against media_root detects path traversal including symlinks that
+        # point outside the allowed directory.
         resolved_path = (full_dir / dest_filename).resolve()
         try:
             resolved_path.relative_to(media_root)
@@ -1380,11 +1429,10 @@ class FileField(CharField):
                 f"Path traversal detected."
             ) from None
 
-        # Reject symlinks in the upload path to prevent TOCTOU attacks where
-        # an attacker replaces a legitimate file with a symlink between the
-        # check and the write.  Only check paths that actually exist - the
-        # destination file has not been created yet, so we only check the
-        # parent directory.
+        # Symlinks in the upload path enable TOCTOU attacks where an
+        # attacker replaces a legitimate file with a symlink between the check
+        # and the write. Only the parent directory is checked because the
+        # destination file does not yet exist.
         if full_dir.exists() and full_dir.is_symlink():
             raise ValueError(
                 f"Security error: symlink detected in upload directory '{full_dir}'. "
@@ -1397,6 +1445,30 @@ class FileField(CharField):
         relative_path = str(upload_path / dest_filename)
         setattr(instance, self.name, relative_path)
 
+    def _validate_content_type(self, content: bytes, declared: str, filename: str) -> None:
+        """Validate uploaded content structurally via magic numbers.
+
+        Rejects uploads where the declared content type does not match the
+        actual file signature.  This prevents attackers from serving
+        executable content under a benign MIME type or extension.
+        """
+        ext = os.path.splitext(filename)[1].lstrip(".").lower()
+        detected = _detect_content_type(content)
+        if detected is None:
+            return
+        allowed = {declared.lower()} if declared else set()
+        allowed.update(_EXT_TO_MIME.get(ext, []))
+        if not allowed or detected in allowed:
+            return
+        # Some image types are reported with overlapping signatures; permit
+        # common image families when the extension also claims an image type.
+        if detected.startswith("image/") and any(a.startswith("image/") for a in allowed):
+            return
+        raise ValueError(
+            f"Field '{self.name}': declared content type {declared!r} does not "
+            f"match detected file signature {detected!r}."
+        )
+
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
         """Sanitize a filename to prevent path traversal attacks.
@@ -1406,14 +1478,13 @@ class FileField(CharField):
         in file paths.  Uses an allowlist approach: only alphanumeric
         characters, hyphens, underscores, dots, and plus signs are preserved.
         """
-        # Strip null bytes and control characters before basename to prevent
-        # bypass via embedded path separators (e.g. "dir\x00/evil.txt").
+        # Null bytes and controls before basename can bypass path
+        # separator checks (e.g. "dir\x00/evil.txt").
         filename = filename.replace("\x00", "").replace("\n", "").replace("\r", "")
         filename = os.path.basename(filename)
-        # Allowlist approach: replace any character that is not alphanumeric,
-        # hyphen, underscore, dot, or plus with an underscore.  This prevents
-        # Unicode RTL overrides, unusual whitespace, and other tricks that
-        # could confuse path rendering or downstream processing.
+        # Allowlist approach prevents Unicode RTL overrides, unusual
+        # whitespace, and other tricks that could confuse path rendering or
+        # downstream processing.
         filename = re.sub(r"[^\w\-.+]", "_", filename)
         filename = filename.lstrip(". ")
 
@@ -1437,12 +1508,11 @@ class FileField(CharField):
                 raise ValueError(f"Field '{self.name}' cannot be null.")
             return
 
-        # If it's already a saved path string, use CharField validation
+        # Saved path strings have already passed upload validation.
         if isinstance(value, str):
             super().validate(value)
             return
 
-        # Check file size for bytes / file-like objects
         size = self._get_content_size(value)
         if size is not None and size > self.max_file_size:
             max_mb = self.max_file_size / (1024 * 1024)
@@ -1459,7 +1529,6 @@ class FileField(CharField):
         if hasattr(value, "size"):
             return int(value.size)
         if hasattr(value, "seek") and hasattr(value, "tell") and hasattr(value, "read"):
-            # File-like: seek to end, measure, seek back
             pos = value.tell()
             value.seek(0, 2)
             size = value.tell()
@@ -1484,8 +1553,7 @@ class ImageField(FileField):
         allowed_extensions: Set of permitted file extensions (lowercase, without dot).
     """
 
-    # SVG excluded from defaults due to XSS risks (can contain JavaScript).
-    # If SVG support is needed, explicitly set allowed_extensions and sanitize content.
+    # SVG can embed JavaScript, creating XSS vectors; opt-in required.
     DEFAULT_ALLOWED_EXTENSIONS: frozenset[str] = frozenset(
         {"jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "ico"}
     )
@@ -1509,12 +1577,10 @@ class ImageField(FileField):
         if value is None:
             return
 
-        # Check extension only for path-style strings
         if isinstance(value, str):
             self._validate_extension(value)
             return
 
-        # For upload objects, check filename extension if available
         filename = getattr(value, "filename", None) or getattr(value, "name", None)
         if filename:
             self._validate_extension(filename)
@@ -1527,6 +1593,115 @@ class ImageField(FileField):
                 f"Field '{self.name}': file extension '.{ext}' is not allowed. "
                 f"Allowed extensions: {sorted(self.allowed_extensions)}."
             )
+
+
+nh3_lib: t.Any
+
+try:
+    import nh3 as nh3_lib
+except ImportError:
+    nh3_lib = None
+
+DEFAULT_ALLOWED_TAGS: frozenset[str] = frozenset(
+    {
+        "a",
+        "abbr",
+        "acronym",
+        "b",
+        "blockquote",
+        "br",
+        "code",
+        "em",
+        "i",
+        "img",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "small",
+        "strong",
+        "sub",
+        "sup",
+        "ul",
+    }
+)
+
+DEFAULT_ALLOWED_ATTRIBUTES: dict[str, frozenset[str]] = {
+    "a": frozenset({"href", "title"}),
+    "img": frozenset({"src", "alt", "title"}),
+}
+
+DEFAULT_ALLOWED_SCHEMES: frozenset[str] = frozenset({"http", "https", "mailto"})
+
+
+class HTMLField(TextField):
+    """HTML content field with XSS sanitization.
+
+    Stores raw HTML but sanitizes input on assignment using *nh3*
+    (preferred) or ``html.escape`` as a safe fallback. Configurable
+    allowed tags, attributes, and URL schemes restrict what markup
+    survives the cleaning pass.
+
+    Args:
+        allowed_tags: Set of HTML tags that survive sanitization.
+            Defaults to ``DEFAULT_ALLOWED_TAGS``.
+        allowed_attributes: Mapping of tag names to sets of allowed
+            attribute names.  Defaults to ``DEFAULT_ALLOWED_ATTRIBUTES``.
+        allowed_schemes: URL schemes permitted in ``href`` and ``src``
+            attributes.  Defaults to ``DEFAULT_ALLOWED_SCHEMES``.
+        strip_comments: Remove HTML comments during sanitization.
+    """
+
+    column_type = "TEXT"
+
+    def __init__(
+        self,
+        allowed_tags: frozenset[str] | None = None,
+        allowed_attributes: dict[str, frozenset[str]] | None = None,
+        allowed_schemes: frozenset[str] | None = None,
+        strip_comments: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.allowed_tags = allowed_tags if allowed_tags is not None else DEFAULT_ALLOWED_TAGS
+        self.allowed_attributes = (
+            allowed_attributes if allowed_attributes is not None else DEFAULT_ALLOWED_ATTRIBUTES
+        )
+        self.allowed_schemes = (
+            allowed_schemes if allowed_schemes is not None else DEFAULT_ALLOWED_SCHEMES
+        )
+        self.strip_comments = strip_comments
+
+    def sanitize(self, value: str) -> str:
+        """Strip dangerous HTML markup from *value*.
+
+        Uses *nh3* for tag/attribute-level sanitization when available.
+        Falls back to full HTML entity escaping via ``html.escape`` when
+        *nh3* is not installed, which neutralises all tags and is safe but
+        loses formatting.
+        """
+        if nh3_lib is not None:
+            return t.cast(
+                "str",
+                nh3_lib.clean(
+                    value,
+                    tags=self.allowed_tags,
+                    attributes=self.allowed_attributes,
+                    url_schemes=self.allowed_schemes,
+                    strip_comments=self.strip_comments,
+                ),
+            )
+        return html.escape(value)
+
+    def to_python(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        return self.sanitize(str(value))
+
+    def validate(self, value: Any) -> None:
+        super().validate(value)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Field '{self.name}': expected a string, got {type(value).__name__}.")
 
 
 class SmallIntegerField(IntegerField):
@@ -1657,9 +1832,6 @@ class GenericIPAddressField(CharField):
             raise ValueError(f"Field '{self.name}': {raw!r} is not a valid IPv4 address.")
         if self.protocol == "IPv6" and not isinstance(ip, ipaddress.IPv6Address):
             raise ValueError(f"Field '{self.name}': {raw!r} is not a valid IPv6 address.")
-
-
-# ── Constraint classes ────────────────────────────────────────────────────────
 
 
 class Constraint:

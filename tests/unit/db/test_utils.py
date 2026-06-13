@@ -6,10 +6,6 @@ from unittest.mock import MagicMock
 
 from openviper.db.utils import cast_to_pk_type
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_model(pk_type=int, has_pk=True, to_python_raises=False):
     """Return a minimal mock model class for cast_to_pk_type."""
@@ -25,11 +21,6 @@ def make_model(pk_type=int, has_pk=True, to_python_raises=False):
     else:
         model._fields = {}  # no primary key field
     return model
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 class TestCastToPkType:

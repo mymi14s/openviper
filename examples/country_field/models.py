@@ -6,7 +6,7 @@ alpha-2 country code using CountryField.
 
 from __future__ import annotations
 
-from openviper.contrib.countries import CountryField
+from openviper.contrib.fields.countries import CountryField
 from openviper.db import Model
 from openviper.db.fields import CharField, DateTimeField, EmailField
 

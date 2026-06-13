@@ -13,12 +13,16 @@ from openviper.testing.assertions import (
     assert_header,
     assert_json_contains,
     assert_json_path,
+    assert_model_count,
+    assert_model_exists,
+    assert_queryset_count,
     assert_redirects,
     assert_response_json,
     assert_status,
     assert_validation_error,
     contains_validation_field,
     format_json_difference,
+    get_objects_manager,
 )
 
 # ── assert_status ──────────────────────────────────────────────────────────
@@ -287,3 +291,32 @@ def test_format_json_difference_includes_expected_and_actual() -> None:
     assert "JSON response did not match" in message
     assert '"id": 1' in message
     assert '"id": 2' in message
+
+
+# ── get_objects_manager ────────────────────────────────────────────────────
+
+
+def test_get_objects_manager_returns_manager_attribute() -> None:
+
+    class FakeModel:
+        objects = "queryset"
+
+    assert get_objects_manager(FakeModel) == "queryset"
+
+
+def test_get_objects_manager_raises_attribute_error_when_missing() -> None:
+
+    class FakeModel:
+        pass
+
+    with pytest.raises(AttributeError, match="objects"):
+        get_objects_manager(FakeModel)
+
+
+def test_get_objects_manager_raises_attribute_error_when_none() -> None:
+
+    class FakeModel:
+        objects = None
+
+    with pytest.raises(AttributeError, match="objects"):
+        get_objects_manager(FakeModel)

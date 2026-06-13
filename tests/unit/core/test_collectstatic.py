@@ -199,7 +199,6 @@ class TestSettingsRetrieval:
     @patch("openviper.core.management.commands.collectstatic.settings")
     @patch("openviper.core.management.commands.collectstatic.collect_static")
     def test_handle_uses_default_static_root(self, mock_collect_static, mock_settings, command):
-        # Use spec to allow getattr with defaults
         del mock_settings.STATIC_ROOT
         mock_settings.STATICFILES_DIRS = ["source"]
 

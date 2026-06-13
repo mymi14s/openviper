@@ -32,6 +32,7 @@ from openviper.auth.authentications import (
 ensure_auth_tokens_table = "openviper.auth.authentications.ensure_auth_tokens_table"
 get_engine = "openviper.auth.authentications.get_engine"
 get_user_cached = "openviper.auth.authentications.get_user_cached"
+get_user_by_id = "openviper.auth.authentications.get_user_by_id"
 
 
 class FakeRequest:
@@ -41,11 +42,6 @@ class FakeRequest:
         self.headers = headers or {}
         self.path = "/"
         self.method = "GET"
-
-
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
 
 
 class TestHashToken:
@@ -105,11 +101,6 @@ class TestClearTokenAuthCache:
         assert len(token_auth.TOKEN_CACHE) == 0
 
 
-# ---------------------------------------------------------------------------
-# create_token
-# ---------------------------------------------------------------------------
-
-
 class TestCreateToken:
     @pytest.mark.asyncio
     async def test_returns_raw_token_and_record(self) -> None:
@@ -149,11 +140,6 @@ class TestCreateToken:
         assert len(r1) == 40
         assert len(r2) == 40
         assert r1 != r2
-
-
-# ---------------------------------------------------------------------------
-# revoke_token
-# ---------------------------------------------------------------------------
 
 
 class TestRevokeToken:
@@ -200,11 +186,6 @@ class TestRevokeToken:
         with patch(ensure_auth_tokens_table, new=AsyncMock()):
             with patch(get_engine, new=AsyncMock(return_value=mock_engine)):
                 await revoke_token(raw)  # should not raise
-
-
-# ---------------------------------------------------------------------------
-# TokenAuthentication
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -259,7 +240,7 @@ class TestTokenAuthentication:
         with patch(ensure_auth_tokens_table, new=AsyncMock()):
             with patch(get_engine, new=AsyncMock(return_value=mock_engine)):
                 with patch(
-                    get_user_cached,
+                    get_user_by_id,
                     new=AsyncMock(return_value=fake_user),
                 ):
                     auth = TokenAuthentication()
@@ -270,31 +251,7 @@ class TestTokenAuthentication:
         assert user is fake_user
         assert info["type"] == "token"
         assert "token" not in info
-        # Cache should be populated after successful DB lookup
-        assert key_hash in token_auth.TOKEN_CACHE
-
-    async def test_authenticate_success_via_cache(self) -> None:
-        raw = "d" * 40
-        key_hash = hash_token(raw)
-        request = FakeRequest(headers={"authorization": f"Token {raw}"})
-
-        fake_user = MagicMock()
-        fake_user.is_active = True
-
-        # Pre-populate cache
-        token_auth.TOKEN_CACHE[key_hash] = (9, time.monotonic() + 600)
-
-        with patch(
-            get_user_cached,
-            new=AsyncMock(return_value=fake_user),
-        ):
-            auth = TokenAuthentication()
-            result = await auth.authenticate(request)
-
-        assert result is not None
-        user, info = result
-        assert user is fake_user
-        assert info["type"] == "token"
+        assert key_hash not in token_auth.TOKEN_CACHE
 
     async def test_authenticate_inactive_token_returns_none(self) -> None:
         raw = "e" * 40
@@ -430,13 +387,10 @@ class TestTokenAuthentication:
 
         assert result is None
 
-    async def test_cache_evicts_stale_entry_on_hit(self) -> None:
+    async def test_token_authenticate_falls_back_to_db(self) -> None:
         raw = "j" * 40
         key_hash = hash_token(raw)
         request = FakeRequest(headers={"authorization": f"Token {raw}"})
-
-        # Plant an expired cache entry
-        token_auth.TOKEN_CACHE[key_hash] = (55, time.monotonic() - 1)
 
         mock_row = MagicMock()
         mock_row.user_id = 55
@@ -462,16 +416,14 @@ class TestTokenAuthentication:
         with patch(ensure_auth_tokens_table, new=AsyncMock()):
             with patch(get_engine, new=AsyncMock(return_value=mock_engine)):
                 with patch(
-                    get_user_cached,
+                    get_user_by_id,
                     new=AsyncMock(return_value=fake_user),
                 ):
                     auth = TokenAuthentication()
                     result = await auth.authenticate(request)
 
-        # Should fall through to DB and succeed
         assert result is not None
-        # Cache should now hold the refreshed entry
-        assert key_hash in token_auth.TOKEN_CACHE
+        assert key_hash not in token_auth.TOKEN_CACHE
 
 
 def test_authenticate_header_returns_token() -> None:
@@ -479,10 +431,6 @@ def test_authenticate_header_returns_token() -> None:
     auth = TokenAuthentication()
     assert auth.authenticate_header(request) == "Token"
 
-
-# ---------------------------------------------------------------------------
-# API key pair management
-# ---------------------------------------------------------------------------
 
 ensure_api_keys_table = "openviper.auth.authentications.ensure_api_keys_table"
 get_engine = "openviper.auth.authentications.get_engine"

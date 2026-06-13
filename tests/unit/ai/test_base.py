@@ -8,10 +8,6 @@ import pytest
 
 from openviper.ai.base import AIProvider
 
-# ---------------------------------------------------------------------------
-# Concrete stub for testing the ABC
-# ---------------------------------------------------------------------------
-
 
 class StubProvider(AIProvider):
     name = "stub"
@@ -22,11 +18,6 @@ class StubProvider(AIProvider):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         return self._generate_response
-
-
-# ---------------------------------------------------------------------------
-# Default model extraction
-# ---------------------------------------------------------------------------
 
 
 class TestDefaultModelExtraction:
@@ -67,11 +58,6 @@ class TestDefaultModelExtraction:
         assert p.default_model == "llama3"
 
 
-# ---------------------------------------------------------------------------
-# supported_models()
-# ---------------------------------------------------------------------------
-
-
 class TestSupportedModels:
     def test_models_dict(self):
         p = StubProvider({"models": {"a": "model-a", "b": "model-b"}})
@@ -104,20 +90,10 @@ class TestSupportedModels:
         assert p.supported_models() == ["gpt-4o"]
 
 
-# ---------------------------------------------------------------------------
-# provider_name()
-# ---------------------------------------------------------------------------
-
-
 class TestProviderName:
     def test_returns_class_name_attribute(self):
         p = StubProvider()
         assert p.provider_name() == "stub"
-
-
-# ---------------------------------------------------------------------------
-# stream() - default implementation
-# ---------------------------------------------------------------------------
 
 
 class TestDefaultStream:
@@ -128,22 +104,12 @@ class TestDefaultStream:
         assert chunks == ["hello world"]
 
 
-# ---------------------------------------------------------------------------
-# embed() - default raises NotImplementedError
-# ---------------------------------------------------------------------------
-
-
 class TestEmbed:
     @pytest.mark.asyncio
     async def test_raises_not_implemented(self):
         p = StubProvider()
         with pytest.raises(NotImplementedError, match="StubProvider"):
             await p.embed("text")
-
-
-# ---------------------------------------------------------------------------
-# Hooks - before_inference / after_inference
-# ---------------------------------------------------------------------------
 
 
 class TestHooks:
@@ -161,11 +127,6 @@ class TestHooks:
         assert result == "world"
 
 
-# ---------------------------------------------------------------------------
-# Backward-compatibility aliases
-# ---------------------------------------------------------------------------
-
-
 class TestBackwardCompatAliases:
     @pytest.mark.asyncio
     async def test_complete_delegates_to_generate(self):
@@ -178,11 +139,6 @@ class TestBackwardCompatAliases:
         p = StubProvider(generate_response="streamed")
         chunks = [c async for c in p.stream_complete("hi")]
         assert chunks == ["streamed"]
-
-
-# ---------------------------------------------------------------------------
-# moderate() - JSON parsing, truncation, classification
-# ---------------------------------------------------------------------------
 
 
 class TestModerate:

@@ -59,21 +59,20 @@ class AIContentModerator:
                 from settings on first access).
         """
         self.model_name = model_name
-        self._router = ModelRouter()
-        self._available = False
+        self.router = ModelRouter()
+        self.available = False
         self.init_router()
 
     def init_router(self) -> None:
         """Point the router at the configured model."""
         try:
-            self._router.set_model(self.model_name)
-            # Exercise the registry lookup now so failures surface early.
-            self._router._get_provider()
-            self._available = True
+            self.router.set_model(self.model_name)
+            self.router.get_provider()
+            self.available = True
             logger.info("AIContentModerator: using model '%s'", self.model_name)
         except Exception as exc:
             logger.error("AIContentModerator: model '%s' not available - %s", self.model_name, exc)
-            self._available = False
+            self.available = False
 
     async def moderate_content(self, content: str, threshold: float = 0.7) -> ModerationResult:
         """Moderate content using AI.
@@ -85,7 +84,7 @@ class AIContentModerator:
         Returns:
             :class:`ModerationResult` with classification and confidence.
         """
-        if not self._available:
+        if not self.available:
             logger.warning("AIContentModerator: AI unavailable, defaulting to safe.")
             return ModerationResult(
                 classification="safe",
@@ -95,7 +94,7 @@ class AIContentModerator:
             )
 
         try:
-            result: ModerationPayload = await self._router.moderate(content, temperature=0.1)
+            result: ModerationPayload = await self.router.moderate(content, temperature=0.1)
             is_safe = result["classification"] == "safe" or result["confidence"] < threshold
             return ModerationResult(
                 classification=result["classification"],

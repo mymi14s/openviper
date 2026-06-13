@@ -20,10 +20,6 @@ from openviper.admin.middleware import (
     check_object_permission,
 )
 
-# ---------------------------------------------------------------------------
-# Decorators
-# ---------------------------------------------------------------------------
-
 
 class TestDecorators:
     def test_register_decorator(self):
@@ -47,11 +43,6 @@ class TestDecorators:
             assert mock_admin.register.call_count == 2
             mock_admin.register.assert_any_call(m1, MultiAdmin)
             mock_admin.register.assert_any_call(m2, MultiAdmin)
-
-
-# ---------------------------------------------------------------------------
-# Middleware
-# ---------------------------------------------------------------------------
 
 
 class TestAdminMiddleware:
@@ -180,11 +171,6 @@ class TestPermissionHelpers:
         assert check_object_permission(req, None, "view") is True
 
 
-# ---------------------------------------------------------------------------
-# Discovery
-# ---------------------------------------------------------------------------
-
-
 class TestDiscovery:
     def test_discover_admin_modules(self):
         with patch("openviper.admin.discovery.settings") as mock_settings:
@@ -214,15 +200,17 @@ class TestDiscovery:
                 assert import_admin_module("myapp") is True
                 mock_import.assert_called_once_with("myapp.admin")
 
-    def test_import_admin_module_import_error(self):
+    def test_import_admin_module_import_error_raises(self):
         with patch("importlib.util.find_spec", return_value=MagicMock()):
-            with patch("importlib.import_module", side_effect=ImportError()):
-                assert import_admin_module("myapp") is False
+            with patch("importlib.import_module", side_effect=ImportError("dep missing")):
+                with pytest.raises(ImportError, match="dep missing"):
+                    import_admin_module("myapp")
 
     def test_import_admin_module_unexpected_exception(self):
         with patch("importlib.util.find_spec", return_value=MagicMock()):
-            with patch("importlib.import_module", side_effect=Exception()):
-                assert import_admin_module("myapp") is False
+            with patch("importlib.import_module", side_effect=RuntimeError("unexpected")):
+                with pytest.raises(RuntimeError, match="unexpected"):
+                    import_admin_module("myapp")
 
     def test_discover_extensions_no_apps(self):
         with patch("openviper.admin.discovery.settings") as mock_settings:

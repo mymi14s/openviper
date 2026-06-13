@@ -116,14 +116,14 @@ class TestInjectAppIntoSettings:
     def test_inject_app_into_settings_new_app(self) -> None:
         """Test injecting a new app into settings."""
         # Create a custom class that mimics the LazySettings behavior
-        # object.__getattribute__ is used to access _instance directly
+        # object.__getattribute__ is used to access instance directly
         mock_instance = Mock()
         mock_instance.INSTALLED_APPS = ("existing_app",)
 
         class MockLazySettings:
             def __init__(self):
-                # Set _instance directly so object.__getattribute__ finds it
-                object.__setattr__(self, "_instance", mock_instance)
+                # Set instance directly so object.__getattribute__ finds it
+                self.instance = mock_instance
                 self.INSTALLED_APPS = ("existing_app",)
 
         mock_lazy = MockLazySettings()
@@ -416,8 +416,8 @@ class TestEdgeCases:
 
         class MockLazySettings:
             def __init__(self):
-                # Set _instance directly so object.__getattribute__ finds it
-                object.__setattr__(self, "_instance", mock_instance)
+                # Set instance directly so object.__getattribute__ finds it
+                self.instance = mock_instance
                 self.INSTALLED_APPS = ["list_app"]
 
         mock_lazy = MockLazySettings()

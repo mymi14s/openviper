@@ -61,6 +61,19 @@ UNSAFE_FILENAME_CHAR_RE = re.compile(r"[\x00-\x1f\\/]")
 # Schemes permitted for pagination base_url to block open redirects.
 ALLOWED_URL_SCHEMES: frozenset[str] = frozenset({"", "http", "https"})
 
+
+def encode_next_cursor(last_obj: Any, order_fields: list[str]) -> str | None:
+    """Build a keyset cursor from the last object in a page.
+
+    Returns ``None`` when *order_fields* is empty.
+    """
+    if not order_fields:
+        return None
+    return cursor_encode(
+        {f.lstrip("-"): getattr(last_obj, f.lstrip("-"), None) for f in order_fields}
+    )
+
+
 T = TypeVar("T", bound="Serializer")
 
 logger: logging.Logger = logging.getLogger("openviper.serializers")
@@ -70,7 +83,29 @@ model_validator = pydantic_model_validator
 computed_field = pydantic_computed_field
 
 
-# ── Structural protocols for ORM integration ──────────────
+def sync_pydantic_state(
+    target: BaseModel, source: BaseModel, context: dict[str, Any] | None = None
+) -> None:
+    """Copy Pydantic internal state from *source* onto *target*.
+
+    Synchronises ``__dict__``, ``__pydantic_fields_set__``,
+    ``__pydantic_extra__``, and ``__pydantic_private__`` so that
+    *target* behaves as if it were the validated instance.
+    """
+    object.__setattr__(target, "__dict__", dict(source.__dict__))
+    object.__setattr__(target, "__pydantic_fields_set__", source.model_fields_set)
+    object.__setattr__(
+        target,
+        "__pydantic_extra__",
+        getattr(source, "__pydantic_extra__", None),
+    )
+    object.__setattr__(
+        target,
+        "__pydantic_private__",
+        getattr(source, "__pydantic_private__", None),
+    )
+    if context is not None:
+        object.__setattr__(target, "context_data", context)
 
 
 @runtime_checkable
@@ -166,6 +201,21 @@ def map_pydantic_errors(exc: PydanticValidationError) -> ValidationError:
     )
 
 
+def map_constraint_error(
+    pattern: str, detail: str, column_to_field: dict[str, str], message: str, error_type: str
+) -> ValidationError | None:
+    """Match *pattern* against *detail*, map the captured column to a field name.
+
+    Returns a :class:`ValidationError` on match, or ``None``.
+    """
+    match = re.search(pattern, detail)
+    if match is None:
+        return None
+    column = match.group(1)
+    field_name = column_to_field.get(column, column)
+    return ValidationError(errors=[{"field": field_name, "message": message, "type": error_type}])
+
+
 class SerializerValidationDescriptor:
     """Expose class-level and staged instance validation through one API."""
 
@@ -179,9 +229,9 @@ class SerializerValidationDescriptor:
             context: dict[str, Any] | None = None,
             raise_exception: bool = False,
         ) -> Serializer:
-            pending_data = getattr(instance, "_pending_data", None)
+            pending_data = getattr(instance, "pending_data", None)
             source_data = pending_data if pending_data is not None else instance.model_dump()
-            validation_context = context if context is not None else instance.context
+            validation_context = context if context is not None else instance.context_data
             try:
                 validated = owner.validate_data(
                     source_data,
@@ -192,20 +242,8 @@ class SerializerValidationDescriptor:
                 if raise_exception:
                     raise
                 raise
-            object.__setattr__(instance, "__dict__", dict(validated.__dict__))
-            object.__setattr__(instance, "__pydantic_fields_set__", validated.model_fields_set)
-            object.__setattr__(
-                instance,
-                "__pydantic_extra__",
-                getattr(validated, "__pydantic_extra__", None),
-            )
-            object.__setattr__(
-                instance,
-                "__pydantic_private__",
-                getattr(validated, "__pydantic_private__", None),
-            )
-            object.__setattr__(instance, "_context", validation_context or {})
-            object.__setattr__(instance, "_pending_data", None)
+            sync_pydantic_state(instance, validated, validation_context or {})
+            object.__setattr__(instance, "pending_data", None)
             return instance
 
         return validate_instance
@@ -237,36 +275,25 @@ class Serializer(BaseModel):
     validate: ClassVar[SerializerValidationDescriptor] = SerializerValidationDescriptor()
 
     def __init__(self, **data: Any) -> None:
-        context = data.pop("_context", {})
+        context = data.pop("context_data", {})
         if set(data) == {"data"}:
             staged = type(self).model_construct()
-            object.__setattr__(self, "__dict__", dict(staged.__dict__))
-            object.__setattr__(self, "__pydantic_fields_set__", staged.model_fields_set)
-            object.__setattr__(
-                self,
-                "__pydantic_extra__",
-                getattr(staged, "__pydantic_extra__", None),
-            )
-            object.__setattr__(
-                self,
-                "__pydantic_private__",
-                getattr(staged, "__pydantic_private__", None),
-            )
-            object.__setattr__(self, "_context", context)
-            object.__setattr__(self, "_pending_data", data["data"])
+            sync_pydantic_state(self, staged)
+            object.__setattr__(self, "context_data", context)
+            object.__setattr__(self, "pending_data", data["data"])
             return
         super().__init__(**data)
-        object.__setattr__(self, "_context", context)
-        object.__setattr__(self, "_pending_data", None)
+        object.__setattr__(self, "context_data", context)
+        object.__setattr__(self, "pending_data", None)
 
     @property
     def context(self) -> dict[str, Any]:
-        return getattr(self, "_context", {})
+        return getattr(self, "context_data", {})
 
     @property
     def validated_data(self) -> dict[str, Any]:
         """Return validated in-memory field values before persistence."""
-        if getattr(self, "_pending_data", None) is not None:
+        if getattr(self, "pending_data", None) is not None:
             raise RuntimeError("Call validate() before accessing validated_data.")
         return self.model_dump(exclude_unset=True)
 
@@ -382,7 +409,7 @@ class Serializer(BaseModel):
             fields_spec[fname] = (new_ann, new_fi)
 
         partial_cls: type[T] = create_model(
-            f"_Partial{cls.__name__}",
+            f"Partial{cls.__name__}",
             __base__=cls,
             **fields_spec,
         )
@@ -415,7 +442,7 @@ class Serializer(BaseModel):
             instance = target.model_validate(data, context=context)
         except PydanticValidationError as exc:
             raise map_pydantic_errors(exc) from exc
-        object.__setattr__(instance, "_context", context or {})
+        object.__setattr__(instance, "context_data", context or {})
         return instance  # type: ignore[return-value]
 
     @classmethod
@@ -475,10 +502,8 @@ class Serializer(BaseModel):
 
     def compute_excluded(self, exclude: set[str] | None) -> set[str] | None:
         """Return ``writeonly_fields`` merged with *exclude*."""
-        excluded: set[str] = set(self.writeonly_fields)
-        if exclude:
-            excluded |= exclude
-        return excluded or None
+        result = self.get_excluded_fields(exclude)
+        return set(result) if result else None
 
     def serialize(self, *, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return a JSON-safe dict, automatically excluding write-only fields."""
@@ -496,6 +521,25 @@ class Serializer(BaseModel):
         QuerySets are fetched in ``PAGE_SIZE``-sized batches to
         avoid loading the entire result set into memory.
         """
+        results = await cls.collect_dicts(objs, exclude=exclude)
+        return results
+
+    def serialize_json(self, *, exclude: set[str] | None = None) -> bytes:
+        """Return JSON bytes via pydantic-core's Rust encoder."""
+        return self.model_dump_json(exclude=self.compute_excluded(exclude)).encode()
+
+    @classmethod
+    async def collect_dicts(
+        cls: type[T],
+        objs: QuerySetProtocol | list[OrmModelProtocol],
+        *,
+        exclude: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Collect ORM objects into JSON-safe dicts, batching QuerySets.
+
+        Shared implementation for :meth:`serialize_many` and
+        :meth:`serialize_many_json`.
+        """
         excl = cls.get_excluded_fields(exclude)
 
         if hasattr(objs, "batch"):
@@ -505,10 +549,6 @@ class Serializer(BaseModel):
             return results
 
         return [cls.obj_to_dict(obj, excl) for obj in objs]
-
-    def serialize_json(self, *, exclude: set[str] | None = None) -> bytes:
-        """Return JSON bytes via pydantic-core's Rust encoder."""
-        return self.model_dump_json(exclude=self.compute_excluded(exclude)).encode()
 
     @classmethod
     async def serialize_many_json(
@@ -521,15 +561,8 @@ class Serializer(BaseModel):
 
         QuerySets are fetched in ``PAGE_SIZE``-sized batches.
         """
-        excl = cls.get_excluded_fields(exclude)
-
-        if hasattr(objs, "batch"):
-            parts: list[dict[str, Any]] = []
-            async for batch in objs.batch(size=cls.PAGE_SIZE):
-                parts.extend(cls.obj_to_dict(obj, excl) for obj in batch)
-            return orjson.dumps(parts)
-
-        return orjson.dumps([cls.obj_to_dict(obj, excl) for obj in objs])
+        results = await cls.collect_dicts(objs, exclude=exclude)
+        return orjson.dumps(results)
 
     @classmethod
     async def paginate(
@@ -585,12 +618,11 @@ class Serializer(BaseModel):
         page = max(1, page)
 
         excl = cls.get_excluded_fields(exclude)
+        order_fields = list(getattr(qs, "_order", []))
 
         if cursor is not None:
             # Keyset path: O(log N) with no OFFSET.
-            # COUNT and page fetch are independent; run concurrently.
             cursor_values = cursor_decode(cursor)
-            order_fields: list[str] = list(getattr(qs, "_order", []))
             keyset_q: Q | None = (
                 build_keyset_q(order_fields, cursor_values)
                 if cursor_values and order_fields
@@ -603,12 +635,9 @@ class Serializer(BaseModel):
                 page_qs.limit(ps).all(),
             )
 
-            next_cur: str | None = None
-            if len(objs) == ps and order_fields:
-                last = objs[-1]
-                next_cur = cursor_encode(
-                    {f.lstrip("-"): getattr(last, f.lstrip("-"), None) for f in order_fields}
-                )
+            next_cur: str | None = (
+                encode_next_cursor(objs[-1], order_fields) if len(objs) == ps else None
+            )
 
             next_url: str | None = (
                 f"{base_url}?cursor={next_cur}&page_size={ps}" if base_url and next_cur else None
@@ -624,7 +653,6 @@ class Serializer(BaseModel):
             )
 
         # OFFSET path: first uncursored request only.
-        # COUNT and page fetch are independent; run concurrently.
         offset = (page - 1) * ps
         page_qs = qs.offset(offset).limit(ps)
 
@@ -635,15 +663,10 @@ class Serializer(BaseModel):
 
         # Encode a cursor from the last item so subsequent
         # requests use keyset pagination.
-        order_fields_offset: list[str] = list(getattr(qs, "_order", []))
-        next_cur_offset: str | None = None
-        if len(objs) == ps and order_fields_offset:
-            last = objs[-1]
-            next_cur_offset = cursor_encode(
-                {f.lstrip("-"): getattr(last, f.lstrip("-"), None) for f in order_fields_offset}
-            )
+        next_cur_offset: str | None = (
+            encode_next_cursor(objs[-1], order_fields) if len(objs) == ps else None
+        )
 
-        # Generate page-number URLs for backward compat.
         next_url = None
         prev_url = None
         if base_url:
@@ -665,8 +688,6 @@ class Serializer(BaseModel):
             next_cursor=next_cur_offset,
         )
 
-
-# ── Field-type mapping ─────────────────────────────────────
 
 FIELD_TYPE_MAP: dict[str, type] = {
     "AutoField": int,
@@ -772,11 +793,12 @@ class ModelSerializerMeta(type(BaseModel)):
 
         model_fields: dict[str, Any] = getattr(model, "_fields", {})
 
+        exclude_set = frozenset(exclude_opt)
         field_names = list(model_fields.keys()) if fields_opt == "__all__" else list(fields_opt)
-        field_names = [f for f in field_names if f not in exclude_opt]
+        field_names = [f for f in field_names if f not in exclude_set]
 
         annotations: dict[str, Any] = namespace.get("__annotations__", {})
-        # Serializer-level keys excluded from pydantic.Field().
+        # Keys excluded from pydantic.Field().
         serializer_only_keys: frozenset[str] = frozenset({"required"})
 
         for field_name in field_names:
@@ -819,7 +841,7 @@ class ModelSerializerMeta(type(BaseModel)):
 
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
 
-        cls._model = model  # type: ignore[attr-defined]
+        cls.model_class = model  # type: ignore[attr-defined]
 
         return cls
 
@@ -832,7 +854,12 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
     ``writeonly_fields``, and ``extra_kwargs``.
     """
 
-    _model: ClassVar[type]  # set by metaclass
+    model_class: ClassVar[type]
+
+    @classmethod
+    def get_model_fields(cls) -> dict[str, Any]:
+        """Return the ORM field mapping from the associated model class."""
+        return getattr(cls.model_class, "_fields", {})
 
     @classmethod
     @lru_cache(maxsize=512)
@@ -842,7 +869,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         Cached with LRU eviction.  The returned
         ``MappingProxyType`` prevents cache mutation.
         """
-        model_fields: dict[str, Any] = getattr(cls._model, "_fields", {})
+        model_fields = cls.get_model_fields()
         file_fields = {
             name: field
             for name, field in model_fields.items()
@@ -898,7 +925,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
             value: UploadValueProtocol | bytes | bytearray | memoryview,
         ) -> tuple[str, str]:
             """Return (field_name, saved_path) after persisting."""
-            # Strip directory components to prevent path traversal.
+            # Prevent path traversal.
             # Normalize backslashes so basename extraction works
             # on POSIX.
             raw_name = getattr(value, "filename", None) or getattr(value, "name", None) or "file"
@@ -935,8 +962,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
 
             saved_path = await default_storage.save(target_name, content)
 
-            # Delete old file only after the new one is persisted
-            # to prevent data loss on save failure.
+            # Delete old file only after new one is persisted.
             if old_instance is not None:
                 old_path = getattr(old_instance, name, None)
                 if old_path and isinstance(old_path, str):
@@ -968,7 +994,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
     def validate_create_data(cls, data: dict[str, Any]) -> None:
         """Reject creates that cannot satisfy required model fields."""
         errors: list[dict[str, str]] = []
-        model_fields: dict[str, Any] = getattr(cls._model, "_fields", {})
+        model_fields = cls.get_model_fields()
         for field_name, field in model_fields.items():
             if field_is_optional(field) or field_name in data:
                 continue
@@ -996,36 +1022,28 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         detail = str(exc.orig) if getattr(exc, "orig", None) is not None else str(exc)
         column_to_field = {
             getattr(field, "column_name", field_name): field_name
-            for field_name, field in getattr(cls._model, "_fields", {}).items()
+            for field_name, field in cls.get_model_fields().items()
         }
 
-        unique_match = re.search(r"UNIQUE constraint failed: \w+\.(\w+)", detail)
-        if unique_match is not None:
-            column = unique_match.group(1)
-            field_name = column_to_field.get(column, column)
-            return ValidationError(
-                errors=[
-                    {
-                        "field": field_name,
-                        "message": "This value must be unique.",
-                        "type": "unique",
-                    }
-                ]
-            )
+        unique_err = map_constraint_error(
+            r"UNIQUE constraint failed: \w+\.(\w+)",
+            detail,
+            column_to_field,
+            "This value must be unique.",
+            "unique",
+        )
+        if unique_err is not None:
+            return unique_err
 
-        not_null_match = re.search(r"NOT NULL constraint failed: \w+\.(\w+)", detail)
-        if not_null_match is not None:
-            column = not_null_match.group(1)
-            field_name = column_to_field.get(column, column)
-            return ValidationError(
-                errors=[
-                    {
-                        "field": field_name,
-                        "message": "This field is required.",
-                        "type": "missing",
-                    }
-                ]
-            )
+        not_null_err = map_constraint_error(
+            r"NOT NULL constraint failed: \w+\.(\w+)",
+            detail,
+            column_to_field,
+            "This field is required.",
+            "missing",
+        )
+        if not_null_err is not None:
+            return not_null_err
 
         return ValidationError(
             errors=[
@@ -1037,6 +1055,31 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
             ]
         )
 
+    def extract_writable_data(
+        self, *, exclude_mode: str = "none", drop_id: bool = False
+    ) -> dict[str, Any]:
+        """Return a dict of serializer fields safe for persistence.
+
+        Strips write-only fields, read-only fields, and (optionally) the
+        primary key.  *exclude_mode* is forwarded to
+        ``model_dump``: ``"none"`` uses ``exclude_none=True`` (for
+        create), ``"unset"`` uses ``exclude_unset=True`` (for update).
+        """
+        allowed_keys = set(self.model_fields) - set(self.writeonly_fields)
+        if exclude_mode == "unset":
+            data = {
+                k: v for k, v in self.model_dump(exclude_unset=True).items() if k in allowed_keys
+            }
+        else:
+            data = {
+                k: v for k, v in self.model_dump(exclude_none=True).items() if k in allowed_keys
+            }
+        for f in self.readonly_fields:
+            data.pop(f, None)
+        if drop_id:
+            data.pop("id", None)
+        return data
+
     async def create(self) -> OrmModelProtocol:
         """Persist a new model instance from the validated data.
 
@@ -1044,12 +1087,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         Read-only and write-only fields are stripped.
         """
         await self.check_permissions()
-        # Whitelist serializer-declared fields to prevent mass
-        # assignment.
-        allowed_keys = set(self.model_fields) - set(self.writeonly_fields)
-        data = {k: v for k, v in self.model_dump(exclude_none=True).items() if k in allowed_keys}
-        for f in self.readonly_fields:
-            data.pop(f, None)
+        data = self.extract_writable_data(exclude_mode="none")
         # Drop an explicit None pk so the DB generates the value.
         pk_val = data.get("id")
         if pk_val is None:
@@ -1060,7 +1098,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         data = await self.persist_files(data)
 
         try:
-            return await self._model.objects.create(**data)
+            return await self.model_class.objects.create(**data)
         except SQLAlchemyIntegrityError as exc:
             raise self.integrity_error_to_validation_error(exc) from exc
 
@@ -1072,13 +1110,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         always stripped.
         """
         await self.check_permissions()
-        # Whitelist serializer-declared fields that are not
-        # write-only.
-        allowed_keys = set(self.model_fields) - set(self.writeonly_fields)
-        data = {k: v for k, v in self.model_dump(exclude_unset=True).items() if k in allowed_keys}
-        for f in self.readonly_fields:
-            data.pop(f, None)
-        data.pop("id", None)  # PK is immutable
+        data = self.extract_writable_data(exclude_mode="unset", drop_id=True)
 
         self.validate_file_sizes(data)
         data = await self.persist_files(data, old_instance=instance)
@@ -1113,7 +1145,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
 
         if pk_value is not None:
             try:
-                existing = await self._model.objects.get(id=pk_value)
+                existing = await self.model_class.objects.get(id=pk_value)
             except DoesNotExist:
                 existing = None
 

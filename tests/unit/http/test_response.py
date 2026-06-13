@@ -26,10 +26,6 @@ from openviper.http.response import (
 from openviper.routing.router import Router
 from openviper.utils.datastructures import MutableHeaders
 
-# ---------------------------------------------------------------------------
-# json_encode helper
-# ---------------------------------------------------------------------------
-
 
 class TestJsonEncode:
     def test_basic_dict(self):
@@ -52,11 +48,6 @@ class TestJsonEncode:
 
         result = json_encode({"s": {1, 2}}, default=_default, indent=None)
         assert result is not None
-
-
-# ---------------------------------------------------------------------------
-# Response
-# ---------------------------------------------------------------------------
 
 
 class TestResponse:
@@ -185,11 +176,6 @@ class TestResponse:
         assert b"content-length" in headers_dict
 
 
-# ---------------------------------------------------------------------------
-# JSONResponse
-# ---------------------------------------------------------------------------
-
-
 class TestJSONResponse:
     def test_media_type(self):
         r = JSONResponse({"a": 1})
@@ -233,11 +219,6 @@ class TestJSONResponse:
         assert r.status_code == 201
 
 
-# ---------------------------------------------------------------------------
-# HTMLResponse
-# ---------------------------------------------------------------------------
-
-
 class TestHTMLResponse:
     def test_media_type(self):
         r = HTMLResponse("<h1>Hello</h1>")
@@ -260,11 +241,6 @@ class TestHTMLResponse:
             HTMLResponse(template="/etc/passwd")
 
 
-# ---------------------------------------------------------------------------
-# PlainTextResponse
-# ---------------------------------------------------------------------------
-
-
 class TestPlainTextResponse:
     def test_media_type(self):
         r = PlainTextResponse("hello")
@@ -273,11 +249,6 @@ class TestPlainTextResponse:
     def test_body(self):
         r = PlainTextResponse("world")
         assert b"world" in r.body
-
-
-# ---------------------------------------------------------------------------
-# RedirectResponse
-# ---------------------------------------------------------------------------
 
 
 class TestRedirectResponse:
@@ -338,11 +309,6 @@ class TestRedirectResponse:
             current_router.reset(token)
 
 
-# ---------------------------------------------------------------------------
-# StreamingResponse
-# ---------------------------------------------------------------------------
-
-
 class TestStreamingResponse:
     @pytest.mark.asyncio
     async def test_async_generator(self):
@@ -397,11 +363,6 @@ class TestStreamingResponse:
     def test_custom_media_type(self):
         r = StreamingResponse(iter([]), media_type="text/csv")
         assert r.media_type == "text/csv"
-
-
-# ---------------------------------------------------------------------------
-# GZipResponse
-# ---------------------------------------------------------------------------
 
 
 class TestGZipResponse:
@@ -487,11 +448,6 @@ class TestGZipResponse:
         inner = Response(b"data")
         r = GZipResponse(inner)
         assert r._compresslevel == 6
-
-
-# ---------------------------------------------------------------------------
-# FileResponse
-# ---------------------------------------------------------------------------
 
 
 class TestFileResponse:

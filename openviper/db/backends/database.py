@@ -122,20 +122,55 @@ class DatabaseBackend(ABC):
 
     @property
     def url(self) -> str:
-        """Return the configured database URL for this alias."""
+        """Return the configured database URL for this alias.
+
+        Resolution order:
+          1. ``OPTIONS.URL`` (nested config format)
+          2. ``URL`` directly in config (flat format)
+        """
+        options = self.config.get("OPTIONS")
+        if isinstance(options, Mapping):
+            value = options.get("URL")
+            if isinstance(value, str) and value:
+                return value
         value = self.config.get("URL", "")
         return value if isinstance(value, str) else ""
 
     @property
     def is_read_only(self) -> bool:
-        """Return whether this alias is configured as read-only."""
+        """Return whether this alias is configured as read-only.
+
+        Resolution order:
+          1. ``OPTIONS.READ_ONLY`` (nested config format)
+          2. ``READ_ONLY`` directly in config (flat format)
+        """
+        options = self.config.get("OPTIONS")
+        if isinstance(options, Mapping) and "READ_ONLY" in options:
+            return bool(options["READ_ONLY"])
         return bool(self.config.get("READ_ONLY", False))
 
     @property
     def role(self) -> str:
-        """Return the configured role (``primary`` or ``replica``)."""
+        """Return the configured role (``primary`` or ``replica``).
+
+        Resolution order:
+          1. ``OPTIONS.ROLE`` (nested config format)
+          2. ``ROLE`` directly in config (flat format)
+        """
+        options = self.config.get("OPTIONS")
+        if isinstance(options, Mapping):
+            value = options.get("ROLE")
+            if isinstance(value, str):
+                return value
         value = self.config.get("ROLE", "primary")
         return value if isinstance(value, str) else "primary"
+
+    def get_option(self, key: str, default: object = None) -> object:
+        """Resolve a config key from OPTIONS first, then flat config."""
+        options = self.config.get("OPTIONS")
+        if isinstance(options, Mapping) and key in options:
+            return options[key]
+        return self.config.get(key, default)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(alias={self.alias!r}, vendor={self.vendor!r})"

@@ -73,8 +73,8 @@ class TestHandleBasic:
         mock_uvicorn.run = Mock()
 
         with patch("openviper.core.management.commands.start_server.uvicorn", mock_uvicorn):
-            with patch.object(command, "_check_pending_migrations"):
-                with patch.object(command, "_resolve_app_path", return_value="myproject.asgi:app"):
+            with patch.object(command, "check_pending_migrations"):
+                with patch.object(command, "resolve_app_path", return_value="myproject.asgi:app"):
                     with patch(
                         "openviper.core.management.commands.start_server.MIGRATION_THREAD_POOL"
                     ) as mock_pool:
@@ -95,8 +95,8 @@ class TestHandleBasic:
         mock_uvicorn.run = Mock()
 
         with patch("openviper.core.management.commands.start_server.uvicorn", mock_uvicorn):
-            with patch.object(command, "_check_pending_migrations"):
-                with patch.object(command, "_resolve_app_path", return_value="myproject.asgi:app"):
+            with patch.object(command, "check_pending_migrations"):
+                with patch.object(command, "resolve_app_path", return_value="myproject.asgi:app"):
                     with patch(
                         "openviper.core.management.commands.start_server.MIGRATION_THREAD_POOL"
                     ) as mock_pool:
@@ -121,60 +121,60 @@ class TestHandleBasic:
 
 
 class TestResolveAppPath:
-    """Test _resolve_app_path method."""
+    """Test resolve_app_path method."""
 
-    def test_resolve_app_path_uses_provided_app(self, command) -> None:
-        app_path = command._resolve_app_path({"app": "custom.asgi:application"})
+    def testresolve_app_path_uses_provided_app(self, command) -> None:
+        app_path = command.resolve_app_path({"app": "custom.asgi:application"})
         assert app_path == "custom.asgi:application"
 
     @patch.dict("os.environ", {"OPENVIPER_SETTINGS_MODULE": "myproject.settings"})
-    def test_resolve_app_path_from_settings_module(self, command) -> None:
-        app_path = command._resolve_app_path({"app": None})
+    def testresolve_app_path_from_settings_module(self, command) -> None:
+        app_path = command.resolve_app_path({"app": None})
         assert app_path == "myproject.asgi:app"
 
-    def test_resolve_app_path_from_cwd(self, command) -> None:
+    def testresolve_app_path_from_cwd(self, command) -> None:
         with patch.dict("os.environ", clear=True):
             with patch("os.getcwd", return_value="/project/myapp"):
                 with patch("os.path.basename", return_value="myapp"):
-                    app_path = command._resolve_app_path({"app": None})
+                    app_path = command.resolve_app_path({"app": None})
                     assert "myapp" in app_path
 
 
 class TestReloadDirs:
-    """Test _reload_dirs method."""
+    """Test reload_dirs method."""
 
-    def test_reload_dirs_includes_project_root(self, command) -> None:
-        dirs = command._reload_dirs("/project/root")
+    def testreload_dirs_includes_project_root(self, command) -> None:
+        dirs = command.reload_dirs("/project/root")
         assert "/project/root" in dirs
 
     @patch("openviper.__file__", "/site-packages/openviper/__init__.py")
-    def test_reload_dirs_excludes_site_packages(self, command) -> None:
-        dirs = command._reload_dirs("/project/root")
+    def testreload_dirs_excludes_site_packages(self, command) -> None:
+        dirs = command.reload_dirs("/project/root")
         # Should not include site-packages path
         assert all("site-packages" not in d for d in dirs)
 
-    def test_reload_dirs_includes_local_openviper(self, command) -> None:
+    def testreload_dirs_includes_local_openviper(self, command) -> None:
         with patch("openviper.__file__", "/dev/openviper/openviper/__init__.py"):
-            command._reload_dirs("/project/root")
+            command.reload_dirs("/project/root")
             # May include local openviper path if not in site-packages
 
-    def test_reload_dirs_handles_exception(self, command) -> None:
+    def testreload_dirs_handles_exception(self, command) -> None:
         """Test reload dirs handles ImportError."""
         with patch("openviper.core.management.commands.start_server.openviper_pkg", None):
-            dirs = command._reload_dirs("/project/root")
+            dirs = command.reload_dirs("/project/root")
             assert dirs == ["/project/root"]
 
 
 class TestRunWithCacheClear:
-    """Test _run_with_cache_clear method."""
+    """Test run_with_cache_clear method."""
 
-    def test_run_with_cache_clear_patches_reload(self, command) -> None:
-        """Test that _run_with_cache_clear calls uvicorn.run with reload=True."""
+    def testrun_with_cache_clear_patches_reload(self, command) -> None:
+        """Test that run_with_cache_clear calls uvicorn.run with reload=True."""
         mock_uvicorn = Mock()
         mock_uvicorn.run = Mock()
 
-        with patch.object(command, "_reload_dirs", return_value=["/project"]):
-            command._run_with_cache_clear(mock_uvicorn, "app:main", "127.0.0.1", 8000)
+        with patch.object(command, "reload_dirs", return_value=["/project"]):
+            command.run_with_cache_clear(mock_uvicorn, "app:main", "127.0.0.1", 8000)
 
         mock_uvicorn.run.assert_called_once()
         call_kwargs = mock_uvicorn.run.call_args[1]
@@ -182,24 +182,24 @@ class TestRunWithCacheClear:
 
     @patch("uvicorn.run")
     def test_patched_restart_function(self, mock_run, command, tmp_path) -> None:
-        """Test that _run_with_cache_clear patches uvicorn restart and clears __pycache__."""
+        """Test that run_with_cache_clear patches uvicorn restart and clears __pycache__."""
         if not hasattr(uvicorn, "supervisors"):
             pytest.skip("uvicorn is not fully installed")
 
         orig_restart = uvicorn.supervisors.ChangeReload.restart
 
         try:
-            with patch.object(command, "_reload_dirs", return_value=["/project"]):
+            with patch.object(command, "reload_dirs", return_value=["/project"]):
                 with patch(
                     "openviper.core.management.commands.start_server.os.getcwd",
                     return_value=str(tmp_path),
                 ):
-                    command._run_with_cache_clear(uvicorn, "app:main", "127.0.0.1", 8000)
+                    command.run_with_cache_clear(uvicorn, "app:main", "127.0.0.1", 8000)
 
                     cache_dir = tmp_path / "__pycache__"
                     cache_dir.mkdir()
 
-                    # Verify the restart method was patched by _run_with_cache_clear
+                    # Verify the restart method was patched by run_with_cache_clear
                     assert uvicorn.supervisors.ChangeReload.restart is not orig_restart
 
                     # Call the patched restart - it should clear __pycache__
@@ -212,102 +212,87 @@ class TestRunWithCacheClear:
 
 
 class TestMigrationCheck:
-    """Test _check_pending_migrations method."""
+    """Test check_pending_migrations method."""
 
-    def test_check_pending_migrations_with_pending(self, command, capsys) -> None:
+    def testcheck_pending_migrations_with_pending(self, command, capsys) -> None:
         """Test that pending migrations trigger a warning."""
-        mock_settings = Mock()
-        mock_settings.INSTALLED_APPS = []
-
         mock_resolver = Mock()
-        mock_resolver.resolve_all_apps = Mock(return_value={"found": {}})
+        resolved_apps = {"app": "/path/app"}
 
         mock_executor = Mock()
-        mock_executor._ensure_migration_table = AsyncMock()
-        mock_executor._applied_migrations = AsyncMock(return_value=set())
+        mock_executor.ensure_migration_table = AsyncMock()
+        mock_executor.applied_migrations = AsyncMock(return_value=set())
 
-        # Create mock migration record
         mock_rec = Mock()
         mock_rec.app = "app"
         mock_rec.name = "0001_initial"
 
-        with patch("openviper.conf.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.start_server.resolve_installed_apps",
+            return_value=(mock_resolver, resolved_apps),
+        ):
             with patch(
-                "openviper.core.management.commands.start_server.AppResolver",
-                return_value=mock_resolver,
+                "openviper.core.management.commands.start_server.MigrationExecutor",
+                return_value=mock_executor,
             ):
                 with patch(
-                    "openviper.core.management.commands.start_server.MigrationExecutor",
-                    return_value=mock_executor,
+                    "openviper.core.management.commands.start_server.discover_migrations",
+                    return_value=[mock_rec],
                 ):
-                    with patch(
-                        "openviper.core.management.commands.start_server.discover_migrations",
-                        return_value=[mock_rec],
-                    ):
-                        command._check_pending_migrations()
+                    command.check_pending_migrations()
 
         captured = capsys.readouterr()
         assert "unapplied migrations" in captured.out or "Missing migrations" in captured.out
 
-    def test_check_pending_migrations_with_invalid_resolved_apps(self, command) -> None:
+    def testcheck_pending_migrations_with_invalid_resolved_apps(self, command) -> None:
         """Test with invalid resolved_apps."""
-        mock_settings = Mock()
-        mock_settings.INSTALLED_APPS = []
-
         mock_resolver = Mock()
-        mock_resolver.resolve_all_apps = Mock(return_value={"found": ["invalid"]})
 
         mock_executor = Mock()
-        mock_executor._ensure_migration_table = AsyncMock()
-        mock_executor._applied_migrations = AsyncMock(return_value=set())
+        mock_executor.ensure_migration_table = AsyncMock()
+        mock_executor.applied_migrations = AsyncMock(return_value=set())
 
-        with patch("openviper.conf.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.start_server.resolve_installed_apps",
+            return_value=(mock_resolver, {}),
+        ):
             with patch(
-                "openviper.core.management.commands.start_server.AppResolver",
-                return_value=mock_resolver,
+                "openviper.core.management.commands.start_server.MigrationExecutor",
+                return_value=mock_executor,
             ):
                 with patch(
-                    "openviper.core.management.commands.start_server.MigrationExecutor",
-                    return_value=mock_executor,
+                    "openviper.core.management.commands.start_server.discover_migrations",
+                    return_value=[],
                 ):
-                    with patch(
-                        "openviper.core.management.commands.start_server.discover_migrations",
-                        return_value=[],
-                    ):
-                        command._check_pending_migrations()
+                    command.check_pending_migrations()
 
-    def test_check_pending_migrations_db_exception(self, command) -> None:
+    def testcheck_pending_migrations_db_exception(self, command) -> None:
         """Test exception when retrieving applied migrations."""
-        mock_settings = Mock()
-        mock_settings.INSTALLED_APPS = []
-
         mock_resolver = Mock()
-        mock_resolver.resolve_all_apps = Mock(return_value={"found": {}})
+        resolved_apps = {"app": "/path/app"}
 
         mock_executor = Mock()
-        mock_executor._ensure_migration_table = AsyncMock(side_effect=Exception("DB not found"))
+        mock_executor.ensure_migration_table = AsyncMock(side_effect=Exception("DB not found"))
 
-        # Create mock migration record
         mock_rec = Mock()
         mock_rec.app = "app"
         mock_rec.name = "0001_initial"
 
-        with patch("openviper.conf.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.start_server.resolve_installed_apps",
+            return_value=(mock_resolver, resolved_apps),
+        ):
             with patch(
-                "openviper.core.management.commands.start_server.AppResolver",
-                return_value=mock_resolver,
+                "openviper.core.management.commands.start_server.MigrationExecutor",
+                return_value=mock_executor,
             ):
                 with patch(
-                    "openviper.core.management.commands.start_server.MigrationExecutor",
-                    return_value=mock_executor,
+                    "openviper.core.management.commands.start_server.discover_migrations",
+                    return_value=[mock_rec],
                 ):
-                    with patch(
-                        "openviper.core.management.commands.start_server.discover_migrations",
-                        return_value=[mock_rec],
-                    ):
-                        command._check_pending_migrations()
+                    command.check_pending_migrations()
 
-    def test_check_pending_migrations_handles_errors(self, command) -> None:
+    def testcheck_pending_migrations_handles_errors(self, command) -> None:
         """Test that errors in migration check don't raise exceptions."""
         mock_settings = Mock()
         mock_settings.INSTALLED_APPS = []
@@ -317,11 +302,11 @@ class TestMigrationCheck:
 
         with patch("openviper.conf.settings", mock_settings):
             with patch(
-                "openviper.core.management.commands.start_server.AppResolver",
-                return_value=mock_resolver,
+                "openviper.core.management.commands.start_server.resolve_installed_apps",
+                side_effect=Exception("DB error"),
             ):
                 # Should not raise
-                command._check_pending_migrations()
+                command.check_pending_migrations()
 
 
 class TestHandleOptions:
@@ -333,8 +318,8 @@ class TestHandleOptions:
         mock_uvicorn.run = Mock()
 
         with patch("openviper.core.management.commands.start_server.uvicorn", mock_uvicorn):
-            with patch.object(command, "_check_pending_migrations"):
-                with patch.object(command, "_resolve_app_path", return_value="app:main"):
+            with patch.object(command, "check_pending_migrations"):
+                with patch.object(command, "resolve_app_path", return_value="app:main"):
                     with patch(
                         "openviper.core.management.commands.start_server.MIGRATION_THREAD_POOL"
                     ) as mock_pool:
@@ -357,9 +342,9 @@ class TestHandleOptions:
         mock_uvicorn.run = Mock()
 
         with patch("openviper.core.management.commands.start_server.uvicorn", mock_uvicorn):
-            with patch.object(command, "_check_pending_migrations"):
-                with patch.object(command, "_resolve_app_path", return_value="app:main"):
-                    with patch.object(command, "_run_with_cache_clear") as mock_cache_clear:
+            with patch.object(command, "check_pending_migrations"):
+                with patch.object(command, "resolve_app_path", return_value="app:main"):
+                    with patch.object(command, "run_with_cache_clear") as mock_cache_clear:
                         with patch(
                             "openviper.core.management.commands.start_server.MIGRATION_THREAD_POOL"
                         ) as mock_pool:
@@ -386,8 +371,8 @@ class TestBanner:
         mock_uvicorn.run = Mock()
 
         with patch("openviper.core.management.commands.start_server.uvicorn", mock_uvicorn):
-            with patch.object(command, "_check_pending_migrations"):
-                with patch.object(command, "_resolve_app_path", return_value="app:main"):
+            with patch.object(command, "check_pending_migrations"):
+                with patch.object(command, "resolve_app_path", return_value="app:main"):
                     with patch(
                         "openviper.core.management.commands.start_server.MIGRATION_THREAD_POOL"
                     ) as mock_pool:
@@ -426,5 +411,5 @@ class TestEdgeCases:
         cmd = Command()
         assert cmd is not None
         assert hasattr(cmd, "handle")
-        assert hasattr(cmd, "_resolve_app_path")
-        assert hasattr(cmd, "_check_pending_migrations")
+        assert hasattr(cmd, "resolve_app_path")
+        assert hasattr(cmd, "check_pending_migrations")

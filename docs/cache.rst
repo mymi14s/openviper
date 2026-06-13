@@ -30,25 +30,55 @@ The simplest way to use the cache is to import the ``get_cache`` factory. It wil
 Configuration
 -------------
 
-By default, OpenViper uses an in-memory cache. You can configure backends
-via the ``CACHES`` dict in ``settings.py``:
+OpenViper uses a ``CACHES`` dictionary in ``settings.py``
+``OPTIONS``:
 
 .. code-block:: python
 
     CACHES = {
         "default": {
             "BACKEND": "openviper.cache.InMemoryCache",
+            "OPTIONS": {"ttl": 300},
         },
         "redis": {
             "BACKEND": "openviper.cache.RedisCache",
-            "OPTIONS": {"url": "redis://localhost:6379/0"},
+            "OPTIONS": {"host": "localhost", "port": 6379, "db": 0},
+        },
+        "memcached": {
+            "BACKEND": "openviper.cache.MemcachedCache",
+            "OPTIONS": {"host": "localhost", "port": 11211},
+        },
+        "file": {
+            "BACKEND": "openviper.cache.FileCache",
+            "OPTIONS": {"cache_dir": ".cache/openviper"},
+        },
+        "dragonfly": {
+            "BACKEND": "openviper.cache.DragonflyCache",
+            "OPTIONS": {"host": "localhost", "port": 6379, "db": 0},
         },
     }
 
+The ``ttl`` option in ``OPTIONS`` sets the default time-to-live in seconds
+for backends that support it (``InMemoryCache`` uses this as its default TTL).
+
 Thread-safe singleton access is guaranteed via an internal lock.
+
+Custom backends can be registered by dotted path:
+
+.. code-block:: python
+
+    CACHES = {
+        "custom": {
+            "BACKEND": "myapp.cache.MyCustomCache",
+            "OPTIONS": {"endpoint": "custom-host:1234"},
+        },
+    }
 
 Built-in Backends
 -----------------
+
+OpenViper ships with six cache backends covering local development through
+high-concurrency production deployments.
 
 InMemoryCache
 ~~~~~~~~~~~~~
@@ -58,15 +88,60 @@ RedisCache
 ~~~~~~~~~~
 A production-ready asynchronous Redis backend.
 
-**Requirements**: You must install the ``redis`` library (e.g., ``pip install openviper[tasks]`` or ``pip install redis``).
+**Requirements**: You must install the ``redis`` library (e.g., ``pip install redis``).
 
 .. code-block:: python
 
-    # settings.py
-    CACHE_BACKEND = "redis"
-    REDIS_URL = "redis://user:password@redis-host:6379/0"
+    CACHES = {
+        "default": {
+            "BACKEND": "openviper.cache.RedisCache",
+            "OPTIONS": {"host": "localhost", "port": 6379, "db": 0},
+        },
+    }
 
-The RedisCache will automatically serialize and deserialize dictionaries and lists to and from JSON.
+All keys are prefixed with ``ov:cache:`` by default.  The ``clear()`` method
+uses ``SCAN`` and ``UNLINK`` to delete only matching keys - it never calls
+``FLUSHDB``.
+
+MemcachedCache
+~~~~~~~~~~~~~~
+An asynchronous Memcached backend using the ``aiomcache`` library.
+
+**Requirements**: You must install the ``aiomcache`` library (e.g., ``pip install aiomcache``).
+
+.. code-block:: python
+
+    CACHES = {
+        "default": {
+            "BACKEND": "openviper.cache.MemcachedCache",
+            "OPTIONS": {"host": "localhost", "port": 11211},
+        },
+    }
+
+All keys are prefixed with ``ov:cache:`` by default.  Note that Memcached
+does not support prefix-based key iteration, so ``clear()`` calls
+``flush_all`` which clears the **entire** Memcached instance.  Use separate
+Memcached instances or key prefixes to isolate data.
+
+FileCache
+~~~~~~~~~
+A file-system-backed cache that stores each entry as a separate file under a
+configurable directory.  Values are serialized with orjson and expired
+entries are lazily removed on access.
+
+.. code-block:: python
+
+    CACHES = {
+        "default": {
+            "BACKEND": "openviper.cache.FileCache",
+            "OPTIONS": {"cache_dir": ".cache/openviper"},
+        },
+    }
+
+Suitable for single-server deployments or development environments where
+Redis/Memcached are not available.  Not recommended for multi-server setups
+because the cache directory is local to each node.  Keys are hex-encoded to
+prevent directory traversal attacks.
 
 DatabaseCache
 ~~~~~~~~~~~~~
@@ -85,10 +160,33 @@ Supports PostgreSQL (``INSERT ... ON CONFLICT`` upsert), SQLite (``INSERT OR
 REPLACE``), and a fallback ORM-based upsert for other dialects.  Expired
 entries are lazily cleaned up on access.
 
+DragonflyCache
+~~~~~~~~~~~~~~
+A Dragonfly backend that inherits from :class:`RedisCache` and uses the
+``redis.asyncio`` client library.  Dragonfly is a modern in-memory data store
+that speaks the Redis protocol and offers significantly higher multi-threaded
+throughput.
+
+**Requirements**: You must install the ``redis`` library (e.g., ``pip install redis``).
+
+.. code-block:: python
+
+    CACHES = {
+        "default": {
+            "BACKEND": "openviper.cache.DragonflyCache",
+            "OPTIONS": {"host": "localhost", "port": 6379, "db": 0},
+        },
+    }
+
+All keys are prefixed with ``ov:df:`` by default to isolate them from Redis
+data in the same instance.  The ``clear()`` method uses ``SCAN`` and
+``UNLINK`` for safe, non-blocking removal.
+
 Creating Custom Backends
 ------------------------
 
-If you need to store your cache in a different system (like Memcached, a Database table, or AWS ElastiCache), you can easily build a custom backend.
+If you need to store your cache in a different system (like AWS ElastiCache
+or a custom distributed store), you can build a custom backend.
 
 1. Create a class that inherits from ``openviper.cache.base.BaseCache``.
 2. Implement the required async methods: ``get``, ``set``, ``delete``, ``has_key``, and ``clear``.
@@ -99,17 +197,17 @@ If you need to store your cache in a different system (like Memcached, a Databas
     from typing import Any
     from openviper.cache.base import BaseCache
 
-    class FileSystemCache(BaseCache):
-        def __init__(self, directory: str = "/tmp/cache"):
-            self.dir = directory
-            # ... initialize directory
+    class ElasticacheBackend(BaseCache):
+        def __init__(self, *, endpoint: str, port: int = 6379):
+            # ... initialize connection
+            pass
 
         async def get(self, key: str, default: Any = None) -> Any:
-            # ... read from file
+            # ... read from ElastiCache
             pass
 
         async def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-            # ... write to file
+            # ... write to ElastiCache
             pass
 
         async def delete(self, key: str) -> None:
@@ -126,7 +224,12 @@ If you need to store your cache in a different system (like Memcached, a Databas
 .. code-block:: python
 
     # settings.py
-    CACHE_BACKEND = "myapp.cache.FileSystemCache"
+    CACHES = {
+        "default": {
+            "BACKEND": "myapp.cache.ElasticacheBackend",
+            "OPTIONS": {"endpoint": "my-cluster.xxxxxx.use1.cache.amazonaws.com"},
+        },
+    }
 
 When ``get_cache()`` is called, OpenViper will dynamically import and instantiate your class.
 
@@ -197,7 +300,83 @@ API Reference
 
    In-memory cache backed by a ``dict``.  Thread-safe for concurrent async
    access via an ``asyncio.Lock``.  When no *ttl* is provided to ``set()``,
-   ``settings.CACHE_TTL`` is used as the default.
+   ``CACHES['default']['OPTIONS']['ttl']`` is used as the default.
+
+``openviper.cache.redis``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. py:class:: RedisCache(BaseCache)
+
+   Redis-backed cache using ``redis.asyncio`` with orjson serialization.
+   Requires the ``redis`` package.  All keys are prefixed with
+   ``key_prefix`` (default ``"ov:cache:"``).
+
+   .. py:method:: __init__(*, key_prefix="ov:cache:", **kwargs)
+
+      Initialise the Redis client.  Keyword arguments are forwarded to
+      ``redis.asyncio.Redis()``.
+
+``openviper.cache.memcached``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. py:class:: MemcachedCache(BaseCache)
+
+   Memcached-backed cache using ``aiomcache`` with orjson serialization.
+   Requires the ``aiomcache`` package.  All keys are prefixed with
+   ``key_prefix`` (default ``"ov:cache:"``).
+
+   .. py:method:: __init__(*, key_prefix="ov:cache:", host="localhost", port=11211, **kwargs)
+
+      Initialise the aiomcache client.  Keyword arguments are forwarded to
+      ``aiomcache.Client()``.
+
+   .. note:: ``clear()`` calls ``flush_all`` which clears the entire
+      Memcached instance.  Use separate instances or key prefixes to
+      isolate data.
+
+``openviper.cache.file``
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. py:class:: FileCache(BaseCache)
+
+   File-system-backed cache using async I/O with orjson serialization.
+   Each entry is stored as a separate file under ``cache_dir``.  Keys are
+   hex-encoded to prevent directory traversal attacks.  Expired entries
+   are lazily removed on access.
+
+   .. py:method:: __init__(*, cache_dir=".cache/openviper", key_prefix="ov:cache:", **kwargs)
+
+      Initialise the file cache with a directory path and optional prefix.
+
+   .. py:function:: safe_filename(key: str) -> str
+
+      Convert a cache key into a safe hex-encoded filesystem path component.
+
+``openviper.cache.db_backend``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. py:class:: DatabaseCache(BaseCache)
+
+   Database-backed cache using the OpenViper ORM with orjson serialization.
+   Supports PostgreSQL, SQLite, and fallback ORM-based upsert.
+
+``openviper.cache.dragonfly``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. py:class:: DragonflyCache(RedisCache)
+
+   Dragonfly-backed cache inheriting from :class:`RedisCache`.  Uses
+   ``redis.asyncio`` with orjson serialization.  Requires the ``redis``
+   package (Dragonfly speaks the Redis protocol).  All keys are prefixed
+   with ``key_prefix`` (default ``"ov:df:"``).
+
+   .. py:method:: __init__(*, key_prefix="ov:df:", host="localhost", port=6379, db=0, **kwargs)
+
+      Initialise the Dragonfly cache.  Delegates to :class:`RedisCache.__init__`
+      with Dragonfly-specific defaults.
+
+   .. note:: ``clear()`` uses ``SCAN`` and ``UNLINK`` to delete only
+      matching keys - it never calls ``FLUSHDB``.
 
 ``openviper.cache.redis``
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -232,12 +411,9 @@ API Reference
 
 .. py:function:: validate_table_name(name) -> str
 
-   Validate that *name* is a safe SQL identifier matching
-   ``^[a-zA-Z_][a-zA-Z0-9_]*$``.  Raises ``ValueError`` on invalid input.
-
-.. py:data:: SAFE_TABLE_RE
-
-   Compiled regex pattern used by :func:`validate_table_name`.
+   Validate that *name* is a safe SQL table identifier.  Delegates to
+   :func:`openviper.db.utils.validate_identifier` with ``description="table name"``.
+   Raises ``ValueError`` on invalid input.
 
 ``openviper.cache.db``
 ~~~~~~~~~~~~~~~~~~~~~~

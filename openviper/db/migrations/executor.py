@@ -31,32 +31,31 @@ from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql.base import PGDialect
 
 from openviper.conf import settings
-from openviper.db._model_registry import invalidate_soft_removed_cache
 from openviper.db.connection import get_engine, get_metadata
 from openviper.db.connections import connections
+from openviper.db.model_registry import invalidate_soft_removed_cache
+from openviper.db.utils import (
+    get_default_database_url,
+    validate_on_delete,
+    validate_sql_expression,
+)
 from openviper.db.utils import (
     quote_identifier as quote_identifier,
 )
 from openviper.db.utils import (
     sql_literal as sql_literal,
 )
-from openviper.db.utils import (
-    validate_on_delete,
-    validate_sql_expression,
-)
 from openviper.utils import timezone
 
-try:
-    from sqlalchemy.dialects.postgresql.base import PGDialect
-
-    for _pgis_name in ("geometry", "geography", "point", "polygon", "linestring"):
-        PGDialect.ischema_names.setdefault(_pgis_name, sa.types.UserDefinedType)
-except ImportError:
-    pass
+for postgis_name in ("geometry", "geography", "point", "polygon", "linestring"):
+    PGDialect.ischema_names.setdefault(postgis_name, sa.types.UserDefinedType)
 
 logger = logging.getLogger("openviper.migrations")
+
+UNSET = object()
 
 
 async def maybe_await(value: object) -> object:
@@ -78,9 +77,6 @@ def is_unconfigured_mock(value: object) -> bool:
     )
 
 
-# ── Enhanced Terminal Logging ─────────────────────────────────────────────────
-
-
 class MigrationStatus(Enum):
     """Migration execution status."""
 
@@ -94,7 +90,6 @@ class MigrationStatus(Enum):
 class _MigrationLogger:
     """Enhanced logging for migrations with color-coded output."""
 
-    # ANSI color codes for terminal output
     COLORS = {
         "GREEN": "\033[92m",
         "RED": "\033[91m",
@@ -106,14 +101,14 @@ class _MigrationLogger:
     }
 
     @classmethod
-    def _supports_color(cls) -> bool:
+    def supports_color(cls) -> bool:
         """Check if terminal supports color."""
         return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
     @classmethod
-    def _colorize(cls, text: str, color: str) -> str:
+    def colorize(cls, text: str, color: str) -> str:
         """Colorize text if terminal supports it."""
-        if cls._supports_color():
+        if cls.supports_color():
             return f"{cls.COLORS.get(color, '')}{text}{cls.COLORS['END']}"
         return text
 
@@ -121,29 +116,29 @@ class _MigrationLogger:
     def log_applying(cls, app_name: str, migration_name: str) -> None:
         """Log migration start (no newline)."""
         msg = f"Applying {app_name} - {migration_name} ... "
-        print(cls._colorize(msg, "CYAN"), end="", flush=True)
+        print(cls.colorize(msg, "CYAN"), end="", flush=True)
 
     @classmethod
     def log_status(cls, status: MigrationStatus, error: str | None = None) -> None:
         """Log migration status after applying."""
         if status == MigrationStatus.OK:
-            print(cls._colorize("✓ OK", "GREEN"))
+            print(cls.colorize("✓ OK", "GREEN"))
         elif status == MigrationStatus.SKIP:
-            print(cls._colorize("⊘ SKIP", "YELLOW"))
+            print(cls.colorize("⊘ SKIP", "YELLOW"))
         elif status == MigrationStatus.ERROR:
-            print(cls._colorize("✗ ERROR", "RED"))
+            print(cls.colorize("✗ ERROR", "RED"))
             if error:
-                print(f"  {cls._colorize(f'Error: {error}', 'RED')}")
+                print(f"  {cls.colorize(f'Error: {error}', 'RED')}")
         elif status == MigrationStatus.ROLLBACK:
-            print(cls._colorize("⬅ ROLLBACK", "BLUE"))
+            print(cls.colorize("⬅ ROLLBACK", "BLUE"))
         else:
-            print(cls._colorize("⋯ PENDING", "BLUE"))
+            print(cls.colorize("⋯ PENDING", "BLUE"))
 
     @classmethod
     def log_summary(cls, migrations: list[tuple[str, str, MigrationStatus]]) -> None:
         """Log summary of all migrations."""
         print("\n" + "=" * 70)
-        print(cls._colorize("Migration Summary", "BOLD"))
+        print(cls.colorize("Migration Summary", "BOLD"))
         print("=" * 70)
 
         stats = {
@@ -160,24 +155,22 @@ class _MigrationLogger:
         total = sum(stats.values())
 
         print(f"\nTotal migrations: {total}")
-        print(f"  {cls._colorize(f'✓ OK: {stats[MigrationStatus.OK]}', 'GREEN')}")
-        print(f"  {cls._colorize(f'⊘ SKIP: {stats[MigrationStatus.SKIP]}', 'YELLOW')}")
-        print(f"  {cls._colorize(f'✗ ERROR: {stats[MigrationStatus.ERROR]}', 'RED')}")
-        print(f"  {cls._colorize(f'⬅ ROLLBACK: {stats[MigrationStatus.ROLLBACK]}', 'BLUE')}")
+        print(f"  {cls.colorize(f'✓ OK: {stats[MigrationStatus.OK]}', 'GREEN')}")
+        print(f"  {cls.colorize(f'⊘ SKIP: {stats[MigrationStatus.SKIP]}', 'YELLOW')}")
+        print(f"  {cls.colorize(f'✗ ERROR: {stats[MigrationStatus.ERROR]}', 'RED')}")
+        print(f"  {cls.colorize(f'⬅ ROLLBACK: {stats[MigrationStatus.ROLLBACK]}', 'BLUE')}")
 
         if stats[MigrationStatus.ERROR] == 0:
-            print(f"\n{cls._colorize('✓ All migrations completed successfully!', 'GREEN')}\n")
+            print(f"\n{cls.colorize('✓ All migrations completed successfully!', 'GREEN')}\n")
         else:
             print(
-                f"\n{cls._colorize('✗ Some migrations failed. Please review errors above.', 'RED')}"
+                f"\n{cls.colorize('✗ Some migrations failed. Please review errors above.', 'RED')}"
                 "\n"
             )
 
 
 MIGRATION_TABLE_NAME = "openviper_migrations"
 SOFT_REMOVED_TABLE_NAME = "openviper_soft_removed_columns"
-
-# ── Migration record ORM (raw SA, no model dependency) ────────────────────────
 
 
 def get_migration_table() -> sa.Table:
@@ -220,9 +213,6 @@ def get_soft_removed_table() -> sa.Table:
     )
 
 
-# ── Dialect helpers ───────────────────────────────────────────────────────────
-
-
 @functools.lru_cache(maxsize=1)
 def get_dialect() -> str:
     """Return the database dialect string from settings.
@@ -233,9 +223,9 @@ def get_dialect() -> str:
     Cached to avoid repeated URL parsing during migration operations.
     """
     try:
-        url: str = getattr(settings, "DATABASE_URL", "").lower()
+        url: str = get_default_database_url(settings).lower()
     except Exception:
-        logger.debug("Failed to read DATABASE_URL from settings", exc_info=True)
+        logger.debug("Failed to read database URL from settings", exc_info=True)
         url = ""
     if "postgresql" in url or "postgres" in url:
         return "postgresql"
@@ -248,7 +238,7 @@ def get_dialect() -> str:
     return "sqlite"
 
 
-# Per-dialect type mapping: SQLite-specific type names → dialect equivalents.
+# SQLite type name overrides per dialect.
 # Only types that differ across dialects need an entry.
 _DIALECT_TYPE_MAP: dict[str, dict[str, str]] = {
     "postgresql": {
@@ -304,7 +294,6 @@ def map_column_type(col_type: str, dialect: str) -> str:
     mapping = _DIALECT_TYPE_MAP.get(dialect, {})
     if not mapping:
         return col_type
-    # Split off any parenthesised suffix so we match "DATETIME" in "DATETIME".
     m = re.match(r"^([A-Z_]+)(\(.*\))?$", col_type.strip().upper())
     if m:
         base, suffix = m.group(1), m.group(2) or ""
@@ -316,9 +305,7 @@ def map_column_type(col_type: str, dialect: str) -> str:
     return col_type
 
 
-# PostgreSQL type names that require an explicit USING clause when used as
-# the target of ALTER COLUMN TYPE (i.e., PG will not auto-cast from other
-# numeric/text types).  The value is the canonical PG cast target name.
+# PG types requiring USING clause for ALTER COLUMN.
 _PG_NEEDS_USING: frozenset[str] = frozenset(
     {
         "DOUBLE PRECISION",
@@ -340,19 +327,13 @@ def pg_auto_using(column_name: str, pg_type: str) -> str:
     Returns an empty string when the cast can be performed implicitly.
     The column name is validated to be a safe identifier before embedding.
     """
-    # Strip any length/precision suffix to get the base type name.
     base = re.match(r"^([A-Z_ ]+)", pg_type.strip().upper())
     base_type = base.group(1).strip() if base else pg_type.upper()
     if base_type in _PG_NEEDS_USING:
-        # column_name is already validated as a safe identifier by validate_identifier
-        # at migration-write time; re-verify defensively.
         if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column_name):
             return ""
         return f' USING "{column_name}"::{pg_type}'
     return ""
-
-
-# ── Operation primitives ──────────────────────────────────────────────────────
 
 
 @dataclass
@@ -371,12 +352,7 @@ quote_identifier = quote_identifier
 sql_literal = sql_literal
 
 
-# Dangerous SQL patterns that could enable statement injection in constraint
-# expressions and partial-index conditions.  These are developer-supplied
-# values (not end-user input), but validation prevents accidental or
-# malicious multi-statement injection through model Meta.constraints.
-# Note: SQL injection patterns and validation are centralized in
-# openviper.db.utils to avoid code duplication.
+# SQL injection patterns for constraint names.
 
 
 @dataclass
@@ -386,7 +362,7 @@ class RenameTable(Operation):
     old_name: str
     new_name: str
 
-    def forward_sql(self) -> list[str]:
+    def forward_sql(self) -> list[Any]:
         dialect = get_dialect()
         quoted_old = quote_identifier(self.old_name, dialect)
         quoted_new = quote_identifier(self.new_name, dialect)
@@ -420,7 +396,7 @@ class CreateTable(Operation):
     def forward_sql(self) -> list[Any]:
         dialect = get_dialect()
         cols: list[str] = []
-        fk_columns: list[str] = []  # Track FK columns for index creation
+        fk_columns: list[str] = []
 
         for col in self.columns:
             raw_type = map_column_type(col["type"], dialect)
@@ -438,7 +414,6 @@ class CreateTable(Operation):
             if col.get("primary_key"):
                 definition += " PRIMARY KEY"
 
-            # Auto-increment handling
             if col.get("autoincrement"):
                 if dialect == "sqlite":
                     definition += " AUTOINCREMENT"
@@ -457,7 +432,6 @@ class CreateTable(Operation):
             if col.get("default") is not None:
                 definition += f" DEFAULT {sql_literal(col['default'])}"
 
-            # Foreign Key support
             if col.get("target_table"):
                 target = col["target_table"]
                 on_delete = validate_on_delete(
@@ -528,7 +502,7 @@ class CreateTable(Operation):
         """
         dialect = get_dialect()
         if dialect == "sqlite":
-            return []  # handled inline in forward_sql()
+            return []
 
         quoted_table = quote_identifier(self.table_name, dialect)
         stmts: list[str] = []
@@ -582,8 +556,6 @@ class CreateTable(Operation):
                         f"END $$;"
                     )
                 else:
-                    # MySQL / MariaDB - no portable IF NOT EXISTS for constraints;
-                    # caller catches duplicate-constraint errors.
                     stmts.append(
                         f"ALTER TABLE {quoted_table} ADD CONSTRAINT {quoted_constraint} "
                         f"FOREIGN KEY ({quoted_col}) REFERENCES {quoted_target}(id)"
@@ -597,7 +569,7 @@ class CreateTable(Operation):
 class DropTable(Operation):
     table_name: str
 
-    def forward_sql(self) -> list[str]:
+    def forward_sql(self) -> list[Any]:
         dialect = get_dialect()
         quoted_table = quote_identifier(self.table_name, dialect)
         if dialect == "mssql":
@@ -663,11 +635,9 @@ class RemoveColumn(Operation):
         quoted_column = quote_identifier(self.column_name, dialect)
         if self.drop:
             return [f"ALTER TABLE {quoted_table} DROP COLUMN {quoted_column}"]
-        # Only track in soft-removed table; do not alter the column in DB.
-        # We also quote the soft-removed table name just in case.
         quoted_soft_table = quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         return [
-            sa.text(  # type: ignore[list-item]
+            sa.text(
                 f"INSERT INTO {quoted_soft_table} "
                 "(table_name, column_name, column_type, removed_at) "
                 "VALUES (:table_name, :column_name, :column_type, CURRENT_TIMESTAMP)"
@@ -686,7 +656,6 @@ class RemoveColumn(Operation):
             if dialect == "mssql":
                 return [f"ALTER TABLE {quoted_table} ADD {quoted_column} {self.column_type}"]
             return [f"ALTER TABLE {quoted_table} ADD COLUMN {quoted_column} {self.column_type}"]
-        # Remove from soft-removed tracking (re-enable the column)
         quoted_soft_table = quote_identifier(SOFT_REMOVED_TABLE_NAME, dialect)
         stmts: list[Any] = [
             sa.text(
@@ -746,32 +715,59 @@ class RestoreColumn(Operation):
 
 @dataclass
 class AlterColumn(Operation):
-    """Alter an existing column's type, nullability, default, or uniqueness."""
+    """Alter an existing column's type, nullability, default, autoincrement, or primary key.
+
+    ``default`` uses ``UNSET`` as the sentinel for "no change".  When
+    ``default`` is ``None``, the column default is explicitly dropped.
+    ``old_default`` follows the same convention.
+    """
 
     table_name: str
     column_name: str
     column_type: str | None = None
     nullable: bool | None = None
-    default: Any = None
+    default: Any = field(default_factory=lambda: UNSET)
     old_type: str | None = None
     old_nullable: bool | None = None
-    old_default: Any = None
+    old_default: Any = field(default_factory=lambda: UNSET)
+    autoincrement: bool | None = None
+    old_autoincrement: bool | None = None
+    primary_key: bool | None = None
+    old_primary_key: bool | None = None
     using: str | None = None  # PostgreSQL USING clause for type conversions
 
-    def forward_sql(self) -> list[str]:
+    def build_alter_sql(
+        self,
+        target_type: str | None,
+        source_type: str | None,
+        target_autoincrement: bool | None,
+        source_autoincrement: bool | None,
+        target_primary_key: bool | None,
+        target_nullable: bool | None,
+        source_nullable: bool | None,
+        target_default: Any,
+        is_forward: bool,
+    ) -> list[str]:
+        """Build ALTER COLUMN SQL statements for either forward or backward.
+
+        The *target_* parameters represent the desired state, and the
+        *source_* parameters represent the previous state.  For forward SQL,
+        target = new values (self.column_type etc.) and source = old values.
+        For backward SQL, target = old values and source = new values.
+        """
         dialect = get_dialect()
         quoted_table = quote_identifier(self.table_name, dialect)
         quoted_column = quote_identifier(self.column_name, dialect)
         stmts: list[str] = []
-        if self.column_type and self.column_type != self.old_type:
-            raw_type = map_column_type(self.column_type, dialect)
+
+        autoincrement_changed = (
+            target_autoincrement is not None and target_autoincrement != source_autoincrement
+        )
+
+        if target_type and target_type != source_type:
+            raw_type = map_column_type(target_type, dialect)
             if dialect == "postgresql":
-                # Validate USING clause to prevent SQL injection.
-                # Only allow simple column references and PostgreSQL type casts
-                # (e.g., "column_name", "column_name::integer", "col::double precision").
-                # The pattern permits alphanumeric identifiers, underscores, and
-                # double-colon type casts with multi-word type names.
-                if self.using:
+                if is_forward and self.using:
                     safe_using_pattern = re.compile(
                         r"^[a-zA-Z_][a-zA-Z0-9_]*"
                         r"(::[a-zA-Z_][a-zA-Z0-9_ ]*(?:\(\d+(?:,\s*\d+)?\))?)"
@@ -785,42 +781,94 @@ class AlterColumn(Operation):
                         )
                     using_clause = f" USING {self.using}"
                 else:
-                    # Auto-generate USING clause for type changes that require explicit
-                    # casts on PostgreSQL (e.g. REAL -> DOUBLE PRECISION).
                     using_clause = pg_auto_using(self.column_name, raw_type)
                 stmts.append(
                     f"ALTER TABLE {quoted_table} ALTER COLUMN"
                     f" {quoted_column} TYPE {raw_type}{using_clause}"
                 )
+                if autoincrement_changed and target_autoincrement:
+                    seq_name = f"{self.table_name}_{self.column_name}_seq"
+                    stmts.append(
+                        f"CREATE SEQUENCE IF NOT EXISTS {quote_identifier(seq_name, dialect)}"
+                    )
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                        f" {quoted_column} SET DEFAULT nextval('{seq_name}')"
+                    )
+                elif autoincrement_changed and not target_autoincrement:
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} DROP DEFAULT"
+                    )
             elif dialect == "mysql":
-                stmts.append(f"ALTER TABLE {quoted_table} MODIFY COLUMN {quoted_column} {raw_type}")
+                modifiers = raw_type
+                if target_primary_key:
+                    modifiers += " PRIMARY KEY"
+                if autoincrement_changed and target_autoincrement:
+                    modifiers += " AUTO_INCREMENT"
+                stmts.append(
+                    f"ALTER TABLE {quoted_table} MODIFY COLUMN {quoted_column} {modifiers}"
+                )
             elif dialect == "oracle":
                 stmts.append(f"ALTER TABLE {quoted_table} MODIFY {quoted_column} {raw_type}")
             elif dialect == "mssql":
                 stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {raw_type}")
             elif dialect == "sqlite":
-                logger.warning(
-                    "SQLite does not support native ALTER COLUMN TYPE for %s.%s to %s. "
-                    "Skipping SQL execution; schema may be out of sync if storage "
-                    "conversion was required.",
-                    self.table_name,
-                    self.column_name,
-                    raw_type,
-                )
+                if is_forward:
+                    logger.warning(
+                        "SQLite does not support native ALTER COLUMN TYPE for %s.%s to %s. "
+                        "Skipping SQL execution; schema may be out of sync if storage "
+                        "conversion was required.",
+                        self.table_name,
+                        self.column_name,
+                        raw_type,
+                    )
             else:
-                # Generic fallback (may fail on some dialects)
                 stmts.append(
                     f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} TYPE {raw_type}"
                 )
+        elif autoincrement_changed:
+            if dialect == "sqlite":
+                if is_forward:
+                    logger.warning(
+                        "SQLite does not support ALTER COLUMN to change AUTOINCREMENT for "
+                        "%s.%s. A table rebuild is required. "
+                        "Run `viperctl rebuild %s` to recreate the table.",
+                        self.table_name,
+                        self.column_name,
+                        self.table_name,
+                    )
+            elif dialect == "mysql":
+                col_type = map_column_type(target_type or source_type or "INTEGER", dialect)
+                modifiers = col_type
+                if target_primary_key:
+                    modifiers += " PRIMARY KEY"
+                if target_autoincrement:
+                    modifiers += " AUTO_INCREMENT"
+                stmts.append(
+                    f"ALTER TABLE {quoted_table} MODIFY COLUMN {quoted_column} {modifiers}"
+                )
+            elif dialect == "postgresql":
+                if target_autoincrement:
+                    seq_name = f"{self.table_name}_{self.column_name}_seq"
+                    stmts.append(
+                        f"CREATE SEQUENCE IF NOT EXISTS {quote_identifier(seq_name, dialect)}"
+                    )
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                        f" {quoted_column} SET DEFAULT nextval('{seq_name}')"
+                    )
+                else:
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} DROP DEFAULT"
+                    )
 
-        if self.nullable is not None and self.nullable != self.old_nullable:
+        if target_nullable is not None and target_nullable != source_nullable:
             if dialect == "postgresql":
-                action = "DROP NOT NULL" if self.nullable else "SET NOT NULL"
+                action = "DROP NOT NULL" if target_nullable else "SET NOT NULL"
                 stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {action}")
             elif dialect in ("mysql", "mssql", "oracle"):
-                # MySQL/MSSQL/Oracle nullable is part of MODIFY COLUMN;
-                raw_type = map_column_type(self.column_type or self.old_type or "TEXT", dialect)
-                null_str = "NULL" if self.nullable else "NOT NULL"
+                raw_type = map_column_type(target_type or source_type or "TEXT", dialect)
+                null_str = "NULL" if target_nullable else "NOT NULL"
                 if dialect == "oracle":
                     stmts.append(
                         f"ALTER TABLE {quoted_table} MODIFY {quoted_column} {raw_type} {null_str}"
@@ -836,78 +884,53 @@ class AlterColumn(Operation):
                         f" {quoted_column} {raw_type} {null_str}"
                     )
 
-        if self.default is not None:
-            if dialect in ("postgresql", "mysql"):
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN"
-                    f" {quoted_column} SET DEFAULT {sql_literal(self.default)}"
-                )
-            elif dialect == "mssql":
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ADD DEFAULT"
-                    f" {sql_literal(self.default)} FOR {quoted_column}"
-                )
+        if target_default is not UNSET:
+            if target_default is None:
+                if dialect in ("postgresql", "mysql"):
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} DROP DEFAULT"
+                    )
+                elif dialect == "mssql":
+                    stmts.append(f"ALTER TABLE {quoted_table} DROP DEFAULT")
+            else:
+                if dialect in ("postgresql", "mysql"):
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                        f" {quoted_column} SET DEFAULT {sql_literal(target_default)}"
+                    )
+                elif dialect == "mssql":
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ADD DEFAULT"
+                        f" {sql_literal(target_default)} FOR {quoted_column}"
+                    )
+
         return stmts
+
+    def forward_sql(self) -> list[str]:
+        return self.build_alter_sql(
+            target_type=self.column_type,
+            source_type=self.old_type,
+            target_autoincrement=self.autoincrement,
+            source_autoincrement=self.old_autoincrement,
+            target_primary_key=self.primary_key,
+            target_nullable=self.nullable,
+            source_nullable=self.old_nullable,
+            target_default=self.default,
+            is_forward=True,
+        )
 
     def backward_sql(self) -> list[str]:
-        dialect = get_dialect()
-        quoted_table = quote_identifier(self.table_name, dialect)
-        quoted_column = quote_identifier(self.column_name, dialect)
-        stmts: list[str] = []
-        if self.old_type and self.old_type != self.column_type:
-            raw_type = map_column_type(self.old_type, dialect)
-            if dialect == "postgresql":
-                using_clause = pg_auto_using(self.column_name, raw_type)
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN"
-                    f" {quoted_column} TYPE {raw_type}{using_clause}"
-                )
-            elif dialect == "mysql":
-                stmts.append(f"ALTER TABLE {quoted_table} MODIFY COLUMN {quoted_column} {raw_type}")
-            elif dialect == "oracle":
-                stmts.append(f"ALTER TABLE {quoted_table} MODIFY {quoted_column} {raw_type}")
-            elif dialect == "mssql":
-                stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {raw_type}")
-            elif dialect == "sqlite":
-                # No-op for rollback on SQLite for the same reasons as forward
-                pass
-            else:
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} TYPE {raw_type}"
-                )
-        if self.old_nullable is not None and self.old_nullable != self.nullable:
-            if dialect == "postgresql":
-                action = "DROP NOT NULL" if self.old_nullable else "SET NOT NULL"
-                stmts.append(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} {action}")
-            elif dialect in ("mysql", "mssql", "oracle"):
-                raw_type = map_column_type(self.old_type or self.column_type or "TEXT", dialect)
-                null_str = "NULL" if self.old_nullable else "NOT NULL"
-                if dialect == "oracle":
-                    stmts.append(
-                        f"ALTER TABLE {quoted_table} MODIFY {quoted_column} {raw_type} {null_str}"
-                    )
-                elif dialect == "mssql":
-                    stmts.append(
-                        f"ALTER TABLE {quoted_table} ALTER COLUMN"
-                        f" {quoted_column} {raw_type} {null_str}"
-                    )
-                else:
-                    stmts.append(
-                        f"ALTER TABLE {quoted_table} MODIFY COLUMN"
-                        f" {quoted_column} {raw_type} {null_str}"
-                    )
-        if self.old_default is not None:
-            if dialect in ("postgresql", "mysql"):
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN"
-                    f" {quoted_column} SET DEFAULT {sql_literal(self.old_default)}"
-                )
-            elif dialect == "mssql":
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ADD DEFAULT"
-                    f" {sql_literal(self.old_default)} FOR {quoted_column}"
-                )
-        return stmts
+        return self.build_alter_sql(
+            target_type=self.old_type,
+            source_type=self.column_type,
+            target_autoincrement=self.old_autoincrement,
+            source_autoincrement=self.autoincrement,
+            target_primary_key=self.old_primary_key,
+            target_nullable=self.old_nullable,
+            source_nullable=self.nullable,
+            target_default=self.old_default,
+            is_forward=False,
+        )
 
 
 @dataclass
@@ -922,8 +945,7 @@ class RenameColumn(Operation):
         quoted_old = quote_identifier(self.old_name, dialect)
         quoted_new = quote_identifier(self.new_name, dialect)
         if dialect == "mssql":
-            # Use parameterized query for sp_rename to prevent SQL injection
-            # Note: sp_rename requires string literals, so we validate identifiers strictly
+            # sp_rename requires validated identifiers.
             identifier_pattern = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,127}$")
             if not identifier_pattern.match(self.table_name):
                 raise ValueError(f"Invalid table name: {self.table_name}")
@@ -932,7 +954,6 @@ class RenameColumn(Operation):
             if not identifier_pattern.match(self.new_name):
                 raise ValueError(f"Invalid column name: {self.new_name}")
 
-            # Safe after validation - identifiers cannot contain quotes or special chars
             return [
                 f"EXEC sp_rename N'{self.table_name}.{self.old_name}', N'{self.new_name}', 'COLUMN'"
             ]
@@ -944,7 +965,6 @@ class RenameColumn(Operation):
         quoted_old = quote_identifier(self.old_name, dialect)
         quoted_new = quote_identifier(self.new_name, dialect)
         if dialect == "mssql":
-            # Validate identifiers to prevent SQL injection
             identifier_pattern = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,127}$")
             if not identifier_pattern.match(self.table_name):
                 raise ValueError(f"Invalid table name: {self.table_name}")
@@ -1023,7 +1043,6 @@ class RemoveIndex(Operation):
 
     def backward_sql(self) -> list[str]:
         # Backward requires knowing columns/unique, which we don't store here.
-        # In practice, usually handled via manual migration editing if needed.
         return []
 
 
@@ -1167,9 +1186,6 @@ class RunSQL(Operation):
         return [self.reverse_sql] if self.reverse_sql else []
 
 
-# ── Migration file loader ─────────────────────────────────────────────────────
-
-
 @dataclass
 class MigrationRecord:
     app: str
@@ -1242,7 +1258,6 @@ def discover_migrations(
     """
     records: list[MigrationRecord] = []
 
-    # ── 1. Built-in OpenViper app migrations ─────────────────────────────
     for dotted in _BUILTIN_APP_PACKAGES:
         try:
             pkg = importlib.import_module(dotted)
@@ -1255,7 +1270,6 @@ def discover_migrations(
         pkg_dir = Path(pkg_file).resolve().parent
         discover_app_migrations(pkg_dir, records)
 
-    # ── 2. Project app migrations ─────────────────────────────────────
     if resolved_apps:
         # Use resolved apps from AppResolver (flexible structure)
         for _app_name, app_path in sorted(resolved_apps.items()):
@@ -1276,10 +1290,9 @@ def discover_migrations(
 
 def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
     """Sort migrations based on their dependencies using a topological sort (Kahn's algorithm)."""
-    # map (app, name) -> MigrationRecord
     lookup = {(m.app, m.name): m for m in migrations}
 
-    # Pre-build position index for O(1) sort-key lookups (avoids O(n) list.index per call).
+    # Position index for O(1) sort-key lookups.
     migration_order: dict[tuple[str, str], int] = {
         (m.app, m.name): i for i, m in enumerate(migrations)
     }
@@ -1296,8 +1309,11 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
                 adj[dep_node].append(node)
                 in_degree[node] += 1
 
-    # Initialize queue with nodes having zero in-degree
-    # We sort them by their original index to maintain stability for non-dependent migrations
+    # Sort each adjacency list once so the main loop avoids per-node sorts.
+    for dep_node in adj:
+        adj[dep_node].sort(key=lambda n: migration_order[n])
+
+    # Stable sort preserves original order for independent nodes.
     queue = deque(
         sorted(
             [node for node, degree in in_degree.items() if degree == 0],
@@ -1310,9 +1326,7 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
         curr = queue.popleft()
         sorted_nodes.append(curr)
 
-        # Sort neighbors before adding to queue to maintain Stability
-        neighbors = sorted(adj[curr], key=lambda n: migration_order[n])
-        for neighbor in neighbors:
+        for neighbor in adj[curr]:
             in_degree[neighbor] -= 1
             if in_degree[neighbor] == 0:
                 queue.append(neighbor)
@@ -1320,14 +1334,11 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
     if len(sorted_nodes) < len(migrations):
         remaining = [node for node in in_degree if node not in sorted_nodes]
         logger.warning("Circular dependency detected in migrations: %s", remaining)
-        # Append remaining migrations to ensure they aren't lost, even if order is wrong
+        # Append remaining migrations to prevent data loss.
         for node in remaining:
             sorted_nodes.append(node)
 
     return [lookup[node] for node in sorted_nodes]
-
-
-# ── Database introspection helpers ────────────────────────────────────────────
 
 
 def get_existing_columns_sync(connection: Any, table_name: str) -> set[str]:
@@ -1460,9 +1471,7 @@ def normalize_type(col_type: str) -> str:
     and ``TEXT`` stays ``TEXT``.
     """
 
-    # Remove anything in parentheses
     normalized = re.sub(r"\(.*?\)", "", col_type).strip().upper()
-    # Map common aliases
     type_map = {
         "INT": "INTEGER",
         "BOOL": "BOOLEAN",
@@ -1500,7 +1509,7 @@ async def validate_restore_column(
     """
     soft_info = await get_soft_removed_info(conn, op.table_name, op.column_name)
     if not soft_info:
-        return None  # Not a soft-removed column; nothing to validate
+        return None
 
     old_type = soft_info["column_type"]
 
@@ -1558,9 +1567,6 @@ async def should_skip_backward(conn: Any, op: Operation) -> bool:
     return False
 
 
-# ── Executor ──────────────────────────────────────────────────────────────────
-
-
 class MigrationExecutor:
     """Apply and revert database migrations.
 
@@ -1575,18 +1581,17 @@ class MigrationExecutor:
         self.apps_dir = apps_dir
         self.resolved_apps = resolved_apps
 
-    async def _ensure_migration_table(self, db_alias: str = "default") -> None:
+    async def ensure_migration_table(self, db_alias: str = "default") -> None:
         table = get_migration_table()
         soft_table = get_soft_removed_table()
         engine = await self.get_engine_for_alias(db_alias)
         async with engine.begin() as conn:
-            # Create tables individually to avoid metadata.create_all() trying to
-            # create all registered models (which may have unfulfilled dependencies)
+            # Create tables individually to avoid unfulfilled dependency errors.
             await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
             await conn.run_sync(lambda sync_conn: soft_table.create(sync_conn, checkfirst=True))
 
-    async def _applied_migrations(self, db_alias: str = "default") -> set[tuple[str, str]]:
-        await self._ensure_migration_table(db_alias=db_alias)
+    async def applied_migrations(self, db_alias: str = "default") -> set[tuple[str, str]]:
+        await self.ensure_migration_table(db_alias=db_alias)
         table = get_migration_table()
         engine = await self.get_engine_for_alias(db_alias)
         async with engine.connect() as conn:
@@ -1630,24 +1635,22 @@ class MigrationExecutor:
             List of applied migration names (e.g. ``["0001_initial"]``).
         """
         db_alias = database or "default"
-        await self._ensure_migration_table(db_alias=db_alias)
+        await self.ensure_migration_table(db_alias=db_alias)
         all_migrations = discover_migrations(
             apps_dir=self.apps_dir, resolved_apps=self.resolved_apps
         )
-        applied = await self._applied_migrations(db_alias=db_alias)
+        applied = await self.applied_migrations(db_alias=db_alias)
         engine = await self.get_engine_for_alias(db_alias)
         table = get_migration_table()
 
         newly_applied: list[str] = []
         migration_log: list[tuple[str, str, MigrationStatus]] = []
         # Collect FK constraint statements from every successfully-applied
-        # CreateTable operation.  They are executed in a second phase after all
-        # tables have been created so that circular FK dependencies between apps
-        # (e.g. users_user ↔ auth_role_profiles) don't cause failures.
+        # CreateTable operation.
         deferred_fk_stmts: list[str] = []
 
         if verbose:
-            print(f"\n{_MigrationLogger._colorize('Starting migrations...', 'BLUE')}\n")
+            print(f"\n{_MigrationLogger.colorize('Starting migrations...', 'BLUE')}\n")
 
         for record in all_migrations:
             if target_app and record.app != target_app:
@@ -1666,7 +1669,6 @@ class MigrationExecutor:
                     for op in record.operations:
                         if await should_skip_forward(conn, op):
                             continue
-                        # Validate RestoreColumn before executing
                         if isinstance(op, RestoreColumn):
                             error = await validate_restore_column(
                                 conn,
@@ -1708,7 +1710,6 @@ class MigrationExecutor:
                     raise
                 continue
 
-        # ── Phase 2: apply deferred FK constraints ────────────────────────────
         for fk_stmt in deferred_fk_stmts:
             try:
                 async with engine.begin() as conn:
@@ -1723,7 +1724,6 @@ class MigrationExecutor:
         if verbose and migration_log:
             _MigrationLogger.log_summary(migration_log)
 
-        # Invalidate soft-removed column cache after applying migrations
         if newly_applied:
             invalidate_soft_removed_cache()
 

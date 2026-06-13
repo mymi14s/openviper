@@ -35,10 +35,6 @@ from .conftest import (
     override_settings,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 async def simple_app(scope: dict, receive: object, send: object) -> None:
     """Trivial ASGI app that returns 200 OK with a short body."""
@@ -50,11 +46,6 @@ async def simple_app(scope: dict, receive: object, send: object) -> None:
         }
     )
     await send({"type": "http.response.body", "body": b"ok"})
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-001: X-Forwarded-* headers are trusted only from configured proxies
-# ---------------------------------------------------------------------------
 
 
 class TestXForwardedHeaders:
@@ -221,11 +212,6 @@ class TestXForwardedHeaders:
             middleware = SecurityMiddleware(simple_app)
             assert not middleware.is_host_allowed("localhost")
             assert not middleware.is_host_allowed("example.com")
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-002: Secure cookies work correctly behind trusted TLS proxy
-# ---------------------------------------------------------------------------
 
 
 class TestSecureCookiesBehindProxy:
@@ -434,16 +420,11 @@ class TestSecureCookiesBehindProxy:
             CSRF_COOKIE_SECURE=True,
             DEBUG=False,
             SECRET_KEY="a" * 64,
-            DATABASE_URL="sqlite:///test.db",
+            DATABASES={"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}},
             ALLOWED_HOSTS=("example.com",),
         ):
             with pytest.raises(SettingsValidationError):
                 validate_settings(Settings(), env="production")
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-003: Development server does not bind publicly by default
-# ---------------------------------------------------------------------------
 
 
 class TestDevServerBinding:
@@ -493,7 +474,7 @@ class TestDevServerBinding:
         with override_settings(
             DEBUG=True,
             SECRET_KEY="a" * 64,
-            DATABASE_URL="sqlite:///test.db",
+            DATABASES={"default": {"OPTIONS": {"URL": "sqlite:///test.db"}}},
             ALLOWED_HOSTS=("example.com",),
             SECURE_SSL_REDIRECT=True,
             SECURE_HSTS_SECONDS=31536000,
@@ -521,11 +502,6 @@ class TestDevServerBinding:
         """SECURE_HSTS_SECONDS must default to 0 (disabled) for development."""
         settings = Settings()
         assert settings.SECURE_HSTS_SECONDS == 0
-
-
-# ---------------------------------------------------------------------------
-# DEPLOY-004: Proxy and framework body limits are consistent
-# ---------------------------------------------------------------------------
 
 
 class TestBodyLimits:

@@ -135,7 +135,7 @@ def inject_app_into_settings(app_label: str) -> None:
     """Add *app_label* to the live settings ``INSTALLED_APPS`` if absent.
 
     Uses :func:`dataclasses.replace` on the frozen ``Settings`` instance
-    and replaces the ``LazySettings._instance`` via
+    and replaces the ``LazySettings.instance`` via
     ``object.__setattr__``.
     """
     current_apps: tuple[str, ...] = tuple(lazy_settings.INSTALLED_APPS)
@@ -143,7 +143,7 @@ def inject_app_into_settings(app_label: str) -> None:
     if app_label in current_apps:
         return
 
-    instance = object.__getattribute__(lazy_settings, "_instance")
+    instance = lazy_settings.instance
     if instance is None:  # pragma: no cover
         return
 
@@ -151,7 +151,7 @@ def inject_app_into_settings(app_label: str) -> None:
         instance,
         INSTALLED_APPS=(app_label, *current_apps),
     )
-    object.__setattr__(lazy_settings, "_instance", new_instance)
+    lazy_settings.instance = new_instance
     logger.debug("Injected '%s' into INSTALLED_APPS", app_label)
 
 
@@ -178,7 +178,7 @@ def ensure_models_imported(resolved: ResolvedModule) -> None:
         )
         return
 
-    # Root layout: models.py may be a bare file not inside a package.
+    # Root layout: models may be a bare file not inside a package.
     models_path = resolved.app_path / "models.py"
     if not models_path.is_file():
         return

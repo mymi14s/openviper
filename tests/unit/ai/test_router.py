@@ -9,10 +9,6 @@ import pytest
 from openviper.ai.registry import ProviderRegistry
 from openviper.ai.router import ModelRouter
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_registry_with_provider(model_id: str = "test-model") -> tuple:
     """Return (registry, mock_provider) with model registered."""
@@ -28,11 +24,6 @@ def make_registry_with_provider(model_id: str = "test-model") -> tuple:
     registry._loaded = True
     registry.register_provider(provider)
     return registry, provider
-
-
-# ---------------------------------------------------------------------------
-# Model selection
-# ---------------------------------------------------------------------------
 
 
 class TestModelSelection:
@@ -53,35 +44,25 @@ class TestModelSelection:
         assert router.get_model() is None
 
 
-# ---------------------------------------------------------------------------
-# Provider resolution
-# ---------------------------------------------------------------------------
-
-
 class TestProviderResolution:
     def test_no_model_raises_runtime_error(self):
         registry, _ = make_registry_with_provider()
         router = ModelRouter(registry=registry)
         with pytest.raises(RuntimeError, match="No model selected"):
-            router._get_provider()
+            router.get_provider()
 
     def test_model_override(self):
         registry, provider = make_registry_with_provider()
         router = ModelRouter(registry=registry)
-        result = router._get_provider(model="test-model")
+        result = router.get_provider(model="test-model")
         assert result is provider
 
     def test_uses_active_model(self):
         registry, provider = make_registry_with_provider()
         router = ModelRouter(registry=registry)
         router.set_model("test-model")
-        result = router._get_provider()
+        result = router.get_provider()
         assert result is provider
-
-
-# ---------------------------------------------------------------------------
-# Inference delegation
-# ---------------------------------------------------------------------------
 
 
 class TestInferenceDelegation:
@@ -138,11 +119,6 @@ class TestInferenceDelegation:
         router = ModelRouter(registry=registry2, default_model="stream-model")
         chunks = [c async for c in router.stream("hello")]
         assert chunks == ["chunk1", "chunk2"]
-
-
-# ---------------------------------------------------------------------------
-# Convenience
-# ---------------------------------------------------------------------------
 
 
 class TestConvenience:

@@ -6,11 +6,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from openviper.auth import authentications as auth_mod
 from openviper.auth.authentications import OAuth2Authentication
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def reset_oauth2_caches():
+    """Clear module-level OAuth2 caches so each test sees fresh settings."""
+    auth_mod._OAUTH2_EVENTS_CACHE = None
+    auth_mod._OAUTH2_HANDLER_CACHE.clear()
+    yield
+    auth_mod._OAUTH2_EVENTS_CACHE = None
+    auth_mod._OAUTH2_HANDLER_CACHE.clear()
 
 
 def make_fake_user(
@@ -38,11 +45,6 @@ class FakeRequest:
         self._scope: dict[str, object] = {}
         self.cookies: dict[str, str] = {}
         self.session = None
-
-
-# ---------------------------------------------------------------------------
-# Integration: full login success → on_success fires
-# ---------------------------------------------------------------------------
 
 
 class TestOAuth2LoginSuccessEvent:
@@ -119,11 +121,6 @@ class TestOAuth2LoginSuccessEvent:
         assert result is not None
 
 
-# ---------------------------------------------------------------------------
-# Integration: login failure → on_fail fires
-# ---------------------------------------------------------------------------
-
-
 class TestOAuth2LoginFailEvent:
     """OAuth2 on_fail event fires when authentication is unsuccessful."""
 
@@ -197,11 +194,6 @@ class TestOAuth2LoginFailEvent:
         request.headers = {}
         result = await auth.authenticate(request)
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Integration: first login → on_initial fires
-# ---------------------------------------------------------------------------
 
 
 class TestOAuth2FirstLoginEvent:

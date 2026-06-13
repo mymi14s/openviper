@@ -33,7 +33,7 @@ class OllamaProvider(AIProvider):
         self.model = self.default_model or ""
         self._client: httpx.AsyncClient | None = None
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def get_client(self) -> httpx.AsyncClient:
         """Get or create a persistent HTTP client with connection pooling."""
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=120.0)
@@ -50,7 +50,7 @@ class OllamaProvider(AIProvider):
         model = kwargs.pop("model", self.model)
         extra = filter_kwargs(kwargs, ALLOWED_GENERATE_KWARGS, provider="OllamaProvider")
 
-        client = self._get_client()
+        client = self.get_client()
         response = await client.post(
             f"{self.base_url}/api/generate",
             json={
@@ -70,7 +70,7 @@ class OllamaProvider(AIProvider):
         model = kwargs.pop("model", self.model)
         extra = filter_kwargs(kwargs, ALLOWED_GENERATE_KWARGS, provider="OllamaProvider")
 
-        client = self._get_client()
+        client = self.get_client()
         async with client.stream(
             "POST",
             f"{self.base_url}/api/generate",
@@ -99,7 +99,7 @@ class OllamaProvider(AIProvider):
     async def embed(self, text: str, **kwargs: object) -> list[float]:
         model = kwargs.pop("model", self.model)
         extra = filter_kwargs(kwargs, ALLOWED_EMBED_KWARGS, provider="OllamaProvider")
-        client = self._get_client()
+        client = self.get_client()
         response = await client.post(
             f"{self.base_url}/api/embeddings",
             json={"model": model, "prompt": text, **extra},

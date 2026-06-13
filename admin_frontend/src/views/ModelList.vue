@@ -2,10 +2,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
+import { useAlertsStore } from '@/stores/alerts'
 import DataTable from '@/components/DataTable.vue'
 import Pagination from '@/components/Pagination.vue'
 import FilterSidebar from '@/components/FilterSidebar.vue'
-import type { FilterOption } from '@/types/admin'
+import type { FilterOption, ModelInstance } from '@/types/admin'
 
 const props = defineProps<{
   appLabel: string
@@ -15,13 +16,14 @@ const props = defineProps<{
 const router = useRouter()
 const route = useRoute()
 const adminStore = useAdminStore()
+const alertsStore = useAlertsStore()
 
 const search = ref('')
 const selectedIds = ref<Array<string | number>>([])
 const selectedAction = ref('')
 const showBulkConfirm = ref(false)
 const filterOptions = ref<FilterOption[]>([])
-const activeFilters = ref<Record<string, any>>({})
+const activeFilters = ref<Record<string, unknown>>({})
 
 function filterStorageKey(appLabel: string, modelName: string): string {
   return `openviper_filters__${appLabel}__${modelName}`
@@ -31,16 +33,16 @@ function sortStorageKey(appLabel: string, modelName: string): string {
   return `openviper_sort__${appLabel}__${modelName}`
 }
 
-function loadSavedFilters(appLabel: string, modelName: string): Record<string, any> {
+function loadSavedFilters(appLabel: string, modelName: string): Record<string, unknown> {
   try {
     const raw = localStorage.getItem(filterStorageKey(appLabel, modelName))
-    return raw ? (JSON.parse(raw) as Record<string, any>) : {}
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
   } catch {
     return {}
   }
 }
 
-function saveFilters(appLabel: string, modelName: string, filters: Record<string, any>): void {
+function saveFilters(appLabel: string, modelName: string, filters: Record<string, unknown>): void {
   if (Object.keys(filters).length === 0) {
     localStorage.removeItem(filterStorageKey(appLabel, modelName))
   } else {
@@ -153,7 +155,7 @@ async function loadData(page: number = 1) {
   }
 }
 
-function handleFilterChange(filters: Record<string, any>) {
+function handleFilterChange(filters: Record<string, unknown>) {
   activeFilters.value = { ...filters }
   saveFilters(props.appLabel, props.modelName, activeFilters.value)
   loadData(1)
@@ -162,6 +164,11 @@ function handleFilterChange(filters: Record<string, any>) {
 onMounted(async () => {
   activeFilters.value = loadSavedFilters(props.appLabel, props.modelName)
   initializeFromUrl()
+  await adminStore.fetchModel(props.appLabel, props.modelName)
+  if (adminStore.currentModel?.is_single) {
+    router.replace(`/${props.appLabel}/${props.modelName}/single`)
+    return
+  }
   const urlPage = route.query.page as string | undefined
   const page = urlPage ? parseInt(urlPage, 10) : 1
   await Promise.all([loadData(page), loadFilterOptions()])
@@ -193,7 +200,12 @@ function handlePageChange(page: number) {
   loadData(page)
 }
 
-function handleRowClick(instance: any) {
+function handlePerPageChange(perPage: number) {
+  adminStore.setPerPage(perPage)
+  loadData(1)
+}
+
+function handleRowClick(instance: ModelInstance) {
   if (canChange.value) {
     router.push(`/${props.appLabel}/${props.modelName}/${instance.id}`)
   }
@@ -220,6 +232,20 @@ async function executeBulkAction() {
   if (result.success) {
     selectedIds.value = []
     selectedAction.value = ''
+    alertsStore.show({
+      type: 'info',
+      title: 'Action Completed',
+      message: result.message || `Action applied to ${result.count} item(s).`
+    })
+  } else {
+    const errorDetail = result.errors?.length
+      ? result.errors.join('; ')
+      : result.message || 'Action failed.'
+    alertsStore.show({
+      type: 'error',
+      title: 'Action Failed',
+      message: errorDetail
+    })
   }
   showBulkConfirm.value = false
 }
@@ -299,7 +325,7 @@ async function handleExport(format: 'csv' | 'json') {
           <div v-if="selectedIds.length > 0 && model?.actions?.length" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <select v-model="selectedAction" class="px-3 py-2">
               <option value="">Select action...</option>
-              <option v-for="action in model.actions" :key="action" :value="action">{{ action }}</option>
+              <option v-for="action in model.actions" :key="action.name" :value="action.name">{{ action.description }}</option>
             </select>
             <button :disabled="!selectedAction" class="btn btn-secondary" @click="showBulkConfirm = true">
               Apply to {{ selectedIds.length }} selected
@@ -338,13 +364,15 @@ async function handleExport(format: 'csv' | 'json') {
         />
       </div>
 
-      <div v-if="pagination.totalPages > 1" class="mt-6">
+      <div v-if="pagination.total > 0" class="mt-6">
         <Pagination
           :current-page="pagination.page"
           :total-pages="pagination.totalPages"
           :total-items="pagination.total"
           :per-page="pagination.perPage"
+          :per-page-options="model?.list_per_page_options"
           @page-change="handlePageChange"
+          @per-page-change="handlePerPageChange"
         />
       </div>
     </div>

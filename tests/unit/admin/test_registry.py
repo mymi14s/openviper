@@ -203,15 +203,47 @@ class TestAdminRegistry:
             registry.discover_from_app("test_app")
             mock_import.assert_called_once_with("test_app.admin")
 
-    def test_discover_from_app_handles_import_error(self):
-        """Test that discover handles ImportError gracefully."""
+    def test_discover_from_app_handles_missing_admin(self):
+        """Test that discover silently skips apps without admin.py."""
         registry = AdminRegistry()
 
-        with patch("openviper.admin.registry.importlib.import_module") as mock_import:
-            mock_import.side_effect = ImportError("No module")
+        with patch("openviper.admin.registry.importlib") as mock_importlib:
+            mock_importlib.import_module.side_effect = ImportError("No module")
+            mock_importlib.util.find_spec.return_value = None
 
-            # Should not raise
+            # Should not raise when admin.py simply does not exist
             registry.discover_from_app("nonexistent_app")
+
+    def test_discover_from_app_raises_on_import_error(self):
+        """Test that discover raises when admin.py exists but fails to import."""
+        registry = AdminRegistry()
+
+        with patch("openviper.admin.registry.importlib") as mock_importlib:
+            mock_importlib.import_module.side_effect = ImportError("dependency missing")
+            mock_importlib.util.find_spec.return_value = MagicMock()
+
+            with pytest.raises(ImportError, match="dependency missing"):
+                registry.discover_from_app("broken_app")
+
+    def test_discover_from_app_raises_on_syntax_error(self):
+        """Test that discover raises when admin.py has a syntax error."""
+        registry = AdminRegistry()
+
+        with patch("openviper.admin.registry.importlib") as mock_importlib:
+            mock_importlib.import_module.side_effect = SyntaxError("invalid syntax")
+
+            with pytest.raises(SyntaxError, match="invalid syntax"):
+                registry.discover_from_app("syntax_error_app")
+
+    def test_discover_from_app_raises_on_unexpected_error(self):
+        """Test that discover raises on unexpected errors during import."""
+        registry = AdminRegistry()
+
+        with patch("openviper.admin.registry.importlib") as mock_importlib:
+            mock_importlib.import_module.side_effect = RuntimeError("unexpected failure")
+
+            with pytest.raises(RuntimeError, match="unexpected failure"):
+                registry.discover_from_app("runtime_error_app")
 
     def test_auto_discover_from_installed_apps(self):
         """Test auto-discovery from INSTALLED_APPS."""
@@ -377,7 +409,7 @@ class TestAdminRegistry:
         registry = AdminRegistry()
         model = make_model_class("User", "auth")
 
-        app_label = registry._get_app_label(model)
+        app_label = registry.get_app_label(model)
         assert app_label == "auth"
 
     def test_get_app_label_from_meta(self):
@@ -388,7 +420,7 @@ class TestAdminRegistry:
             class Meta:
                 app_label = "auth_meta"
 
-        app_label = registry._get_app_label(MockMetaModel)
+        app_label = registry.get_app_label(MockMetaModel)
         assert app_label == "auth_meta"
 
     def test_get_app_label_fallback(self):
@@ -398,7 +430,7 @@ class TestAdminRegistry:
         class MockNoMetaModel:
             _app_name = "auth_fallback"
 
-        app_label = registry._get_app_label(MockNoMetaModel)
+        app_label = registry.get_app_label(MockNoMetaModel)
         assert app_label == "auth_fallback"
 
     def test_get_model_name_helper(self):
@@ -406,7 +438,7 @@ class TestAdminRegistry:
         registry = AdminRegistry()
         model = make_model_class("User")
 
-        model_name = registry._get_model_name(model)
+        model_name = registry.get_model_name(model)
         assert model_name == "user"
 
 

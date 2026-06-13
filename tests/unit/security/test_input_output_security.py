@@ -19,10 +19,6 @@ from openviper.template.environment import get_jinja2_env
 
 from .conftest import COMMAND_INJECTION_PAYLOADS, PATH_TRAVERSAL_PAYLOADS
 
-# ---------------------------------------------------------------------------
-# IO-001: HTML output is escaped by default
-# ---------------------------------------------------------------------------
-
 
 class TestHTMLEscaping:
     """Untrusted input must be HTML-escaped by default."""
@@ -47,11 +43,6 @@ class TestHTMLEscaping:
             assert "&lt;" in result or "<script>" not in result
         except ImportError:
             pytest.skip("jinja2 not installed")
-
-
-# ---------------------------------------------------------------------------
-# IO-002: Context-specific escaping is used
-# ---------------------------------------------------------------------------
 
 
 class TestContextSpecificEscaping:
@@ -87,11 +78,6 @@ class TestContextSpecificEscaping:
         assert isinstance(encoded, str)
 
 
-# ---------------------------------------------------------------------------
-# IO-003: Server-side template injection is blocked
-# ---------------------------------------------------------------------------
-
-
 class TestTemplateInjection:
     """Template expressions in user input must be rendered as text."""
 
@@ -121,11 +107,6 @@ class TestTemplateInjection:
             pytest.skip("jinja2 not installed")
 
 
-# ---------------------------------------------------------------------------
-# IO-004: Command injection is prevented
-# ---------------------------------------------------------------------------
-
-
 class TestCommandInjection:
     """Shell metacharacters must not be executed in command helpers."""
 
@@ -146,11 +127,6 @@ class TestCommandInjection:
         for pattern in redos_patterns:
             with pytest.raises(FieldError):
                 validate_regex_pattern(pattern)
-
-
-# ---------------------------------------------------------------------------
-# IO-005: Path traversal is prevented
-# ---------------------------------------------------------------------------
 
 
 class TestPathTraversal:
@@ -177,11 +153,6 @@ class TestPathTraversal:
         # The admin site checks that resolved paths stay within base_dir
         # This is verified by the path traversal check in serve_extension_file
         assert ADMIN_STATIC_DIR is not None
-
-
-# ---------------------------------------------------------------------------
-# IO-006: Unsafe deserialization is blocked
-# ---------------------------------------------------------------------------
 
 
 class TestUnsafeDeserialization:

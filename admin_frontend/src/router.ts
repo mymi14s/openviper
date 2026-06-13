@@ -9,6 +9,7 @@ const ModelList = () => import('@/views/ModelList.vue')
 const ModelCreate = () => import('@/views/ModelCreate.vue')
 const ModelEdit = () => import('@/views/ModelEdit.vue')
 const ModelHistory = () => import('@/views/ModelHistory.vue')
+const SingleModelForm = () => import('@/views/SingleModelForm.vue')
 const NotFound = () => import('@/views/NotFound.vue')
 
 const routes: RouteRecordRaw[] = [
@@ -37,6 +38,13 @@ const routes: RouteRecordRaw[] = [
     path: '/:appLabel/:modelName',
     name: 'model-list',
     component: ModelList,
+    meta: { requiresAuth: true },
+    props: true,
+  },
+  {
+    path: '/:appLabel/:modelName/single',
+    name: 'model-single',
+    component: SingleModelForm,
     meta: { requiresAuth: true },
     props: true,
   },

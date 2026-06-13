@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import importlib
 import os
 import sys
 
-from openviper.conf import settings
-from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import (
+    report_app_not_found,
+    resolve_installed_apps,
+    run_async_command,
+)
 from openviper.db.migrations.executor import MigrationExecutor
 from openviper.db.models import check_primary_keys
 
@@ -47,34 +49,17 @@ class Command(BaseCommand):
 
         use_verbose = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
-        resolver = AppResolver()
-        installed_apps = getattr(settings, "INSTALLED_APPS", [])
+        resolver, resolved_apps = resolve_installed_apps()
 
         if app_label:
             app_path, found = resolver.resolve_app(app_label)
             if not found:
-                self.stdout(
-                    self.style_error(
-                        f"\nError: App '{app_label}' not found in project"
-                        f" or settings.INSTALLED_APPS\n"
-                    )
-                )
-                AppResolver.print_app_not_found_error(
-                    app_label,
-                    [
-                        f"{app_label}/",
-                        f"apps/{app_label}/",
-                        f"src/{app_label}/",
-                    ],
-                )
+                report_app_not_found(self, app_label)
                 return
 
-        resolved = resolver.resolve_all_apps(installed_apps)
-        resolved_apps = resolved.get("found", {})
-
-        for _app_name in resolved_apps:
+        for app_name in resolved_apps:
             try:
-                importlib.import_module(f"{_app_name}.models")
+                importlib.import_module(f"{app_name}.models")
             except ImportError, ModuleNotFoundError:
                 continue
 
@@ -82,9 +67,7 @@ class Command(BaseCommand):
 
         if use_verbose and resolved_apps:
             self.stdout(f"\n{self.style_notice('App Locations:')}\n")
-            for app_name, app_path in sorted(
-                resolved_apps.items() if isinstance(resolved_apps, dict) else []
-            ):
+            for app_name, app_path in sorted(resolved_apps.items()):
                 rel_path = os.path.relpath(app_path, os.getcwd())
                 self.stdout(f"  {self.style_success('✓')} {app_name} → {rel_path}")
             self.stdout("")
@@ -103,11 +86,7 @@ class Command(BaseCommand):
                 ignore_errors=True,
             )
 
-        run_coro = run()
-        try:
-            applied = asyncio.run(run_coro)
-        finally:
-            run_coro.close()
+        applied = run_async_command(run())
 
         if not applied:
             self.stdout(self.style_notice("  No migrations to apply."))

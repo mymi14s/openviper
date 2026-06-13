@@ -28,7 +28,7 @@ class TestSerializerPermissions:
         class RestrictedSerializer(MockSerializer):
             permission_classes = [DenyAll]
 
-        serializer = RestrictedSerializer(name="test", _context={"request": MagicMock()})
+        serializer = RestrictedSerializer(name="test", context_data={"request": MagicMock()})
         with pytest.raises(PermissionDenied):
             await serializer.check_permissions()
 
@@ -36,7 +36,7 @@ class TestSerializerPermissions:
         class OpenSerializer(MockSerializer):
             permission_classes = [AllowAll]
 
-        serializer = OpenSerializer(name="test", _context={"request": MagicMock()})
+        serializer = OpenSerializer(name="test", context_data={"request": MagicMock()})
         await serializer.check_permissions()  # Should not raise
 
     async def test_validate_with_context(self):

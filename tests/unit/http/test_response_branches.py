@@ -22,7 +22,7 @@ class TestImportErrorHandling:
     def test_environment_is_none_when_jinja2_not_imported(self):
         """Should handle case where Jinja2 is not installed."""
         get_jinja2_env.cache_clear()
-        with patch("openviper.template.environment._jinja2_available", False):
+        with patch("openviper.template.environment.jinja2_available", False):
             with pytest.raises(ImportError, match="jinja2 is required"):
                 get_jinja2_env(("/tmp",))
 
@@ -149,12 +149,12 @@ class TestCacheClear:
 
 
 class TestJSONResponseDefaultEncoder:
-    """Test JSONResponse._default_encoder branches."""
+    """Test JSONResponse.default_encoder branches."""
 
     def test_default_encoder_handles_datetime(self):
         """Should serialize datetime to ISO format when called directly."""
         dt = datetime.datetime(2025, 1, 15, 12, 0, 0)
-        result = JSONResponse._default_encoder(dt)
+        result = JSONResponse.default_encoder(dt)
 
         # Should return ISO format string
         assert result == "2025-01-15T12:00:00"
@@ -162,7 +162,7 @@ class TestJSONResponseDefaultEncoder:
     def test_default_encoder_handles_date(self):
         """Should serialize date to ISO format when called directly."""
         d = datetime.date(2025, 1, 15)
-        result = JSONResponse._default_encoder(d)
+        result = JSONResponse.default_encoder(d)
 
         # Should return ISO format string
         assert result == "2025-01-15"
@@ -170,7 +170,7 @@ class TestJSONResponseDefaultEncoder:
     def test_default_encoder_handles_uuid(self):
         """Should serialize UUID to string when called directly."""
         test_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
-        result = JSONResponse._default_encoder(test_uuid)
+        result = JSONResponse.default_encoder(test_uuid)
 
         # Should return UUID string
         assert result == "12345678-1234-5678-1234-567812345678"
@@ -210,7 +210,7 @@ class TestJSONResponseDefaultEncoder:
 
 
 class TestHTMLResponseRenderTemplate:
-    """Test HTMLResponse._render_template branches."""
+    """Test HTMLResponse.render_template branches."""
 
     def test_uses_settings_templates_dir_when_default(self):
         """Should use settings.TEMPLATES_DIR when template_dir is default."""

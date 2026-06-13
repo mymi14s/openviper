@@ -25,3 +25,4 @@ per-file-ignores =
     openviper/ai/providers/*:E722
     openviper/**/__init__.py:F401
     openviper/db/migrations/__init__.py:F401
+    openviper/db/models.py:F401

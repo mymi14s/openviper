@@ -14,7 +14,6 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Generator
 
-# ── Bootstrap: set env vars BEFORE any openviper import ─────────────────────
 TODOAPP_DIR = Path(__file__).parent.parent
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
@@ -34,17 +33,12 @@ from openviper.db.migrations.executor import (  # noqa: E402
     get_soft_removed_table,
 )
 
-# ── Event loop (session-scoped for session-scoped async fixtures) ─────────────
-
 
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop]:
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
-
-
-# ── Database setup / teardown ────────────────────────────────────────────────
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -66,9 +60,6 @@ async def clean_tables() -> AsyncGenerator[None]:
         for table in reversed(_metadata.sorted_tables):
             await conn.execute(table.delete())
     return
-
-
-# ── Shared object fixtures ────────────────────────────────────────────────────
 
 
 @pytest.fixture

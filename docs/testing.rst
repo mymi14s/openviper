@@ -36,6 +36,16 @@ behavior, see :doc:`db`.
 Installation and Setup
 ----------------------
 
+Install the testing extra to pull in pytest and related dependencies:
+
+.. code-block:: bash
+
+   pip install openviper[testing]
+
+This installs ``pytest``, ``pytest-asyncio``, and ``httpx`` alongside OpenViper.
+The testing utilities are also available without the extra if these packages
+are already installed, but the extra ensures compatible versions are present.
+
 When OpenViper is installed with its pytest entry point, pytest can discover
 the plugin automatically.  Projects may also enable it explicitly in
 ``tests/conftest.py``:
@@ -397,10 +407,6 @@ TestKit includes lightweight service doubles for common side effects:
    Capture queued tasks with ``TaskQueue`` or run sync/async callables
    immediately with ``EagerTaskRunner``.
 
-``disable_tasks``
-   Prevents any Dramatiq task from being enqueued during the test.  Yields a
-   ``TaskQueue`` so callers can still inspect what was attempted.
-
 ``cache`` and ``clear_cache``
    Provide an isolated async in-memory cache.  ``clear_cache`` is a callable
    that clears the cache.
@@ -561,6 +567,37 @@ The command creates:
 * ``[tool.openviper.testing]`` in ``pyproject.toml`` when missing.
 
 Existing files are skipped unless ``--force`` is passed.
+
+Running Tests
+-------------
+
+The ``openviper test`` command runs the project test suite through pytest:
+
+.. code-block:: bash
+
+   openviper test
+
+Supported flags:
+
+``-v`` / ``--verbose``
+   Increase output verbosity. Pass twice for maximum detail.
+
+``-x`` / ``--failfast``
+   Stop on the first test failure.
+
+``--create-db``
+   Force creation of the test database even if it already exists. Sets the
+   ``OPENVIPER_TEST_CREATE_DB=1`` environment variable so that the database
+   fixtures run migrations regardless of the current state.
+
+``--reuse-db`` / ``--keepdb``
+   Reuse the existing test database instead of dropping and recreating it
+   between test runs. Sets ``OPENVIPER_TEST_REUSE_DB=1`` so that the database
+   fixtures skip teardown and re-migration. ``--keepdb`` is an alias for
+   ``--reuse-db``.
+
+These flags are passed through to the test runner as environment variables
+that the database fixtures in ``openviper.testing.database`` read at setup time.
 
 Best Practices
 --------------

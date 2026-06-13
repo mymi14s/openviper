@@ -23,8 +23,9 @@ from typing import TYPE_CHECKING, Final, cast
 
 from dotenv import find_dotenv, load_dotenv
 
-from openviper._version import __version__ as framework_version
+from openviper.conf.task_defaults import DEFAULT_TASKS
 from openviper.exceptions import ImproperlyConfigured, SettingsValidationError
+from openviper.version import __version__ as framework_version
 
 if TYPE_CHECKING:
     import types
@@ -48,11 +49,14 @@ SETTINGS_CLASS_CACHE: dict[str, type[Settings]] = {}
 # Keyed by Settings class to support subclasses correctly
 FIELD_METADATA_CACHE: dict[type, list[tuple[str, type]]] = {}
 
+LOG_DATETIME_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
+"""Datetime format string used by both JSON and text log formatters."""
+
 SENSITIVE_FIELDS: Final[frozenset[str]] = frozenset(
     {
         "SECRET_KEY",
-        "DATABASE_URL",
-        "CACHE_URL",
+        "DATABASES",
+        "CACHES",
         "EMAIL",
     },
 )
@@ -138,30 +142,45 @@ class Settings:
         "openviper.middleware.auth.AuthenticationMiddleware",
     )
 
-    ADMIN_TITLE: str = "OpenViper Admin"
-    ADMIN_HEADER_TITLE: str = "OpenViper"
-    ADMIN_FOOTER_TITLE: str = "OpenViper Admin"
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "title": "OpenViper Admin",
+            "header_title": "OpenViper",
+            "footer_title": "OpenViper Admin",
+        },
+    )
 
     # WARNING: Generate a secure SECRET_KEY using generate_secret_key()
     # NEVER use this default in production! Set via environment or config.
     SECRET_KEY: str = ""
 
-    DATABASE_URL: str = ""
-    DATABASE_ECHO: bool = False
-    DATABASE_POOL_SIZE: int = 5
-    DATABASE_MAX_OVERFLOW: int = 10
-    DATABASE_POOL_RECYCLE: int = 3600
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+                "OPTIONS": {
+                    "URL": "",
+                    "ECHO": False,
+                    "POOL_SIZE": 5,
+                    "MAX_OVERFLOW": 10,
+                    "POOL_RECYCLE": 3600,
+                },
+            },
+            "ROUTERS": [],
+            "ROUTING": {},
+        },
+    )
 
-    DATABASES: ConfigMap = dataclasses.field(default_factory=dict)
-
-    DATABASE_ROUTERS: list[str] = dataclasses.field(default_factory=list)
-
-    DATABASE_ROUTING: ConfigMap = dataclasses.field(default_factory=dict)
-
-    CACHE_BACKEND: str = "memory"  # "memory" | "redis"
-    CACHE_URL: str = ""
-    CACHE_TTL: int = 300
-    CACHES: ConfigMap = dataclasses.field(default_factory=dict)
+    CACHES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {
+            "default": {
+                "BACKEND": "openviper.cache.InMemoryCache",
+                "OPTIONS": {
+                    "ttl": 300,
+                },
+            },
+        },
+    )
 
     PASSWORD_HASHERS: tuple[str, ...] = ("argon2", "bcrypt")
     SESSION_COOKIE_NAME: str = "sessionid"
@@ -252,7 +271,7 @@ class Settings:
             "from": "",
             "default_sender": "noreply@example.com",
             "fail_silently": False,
-            "use_background_worker": False,
+            "background": False,
         },
     )
 
@@ -272,9 +291,11 @@ class Settings:
     RATE_LIMIT_WINDOW: int = 60
     RATE_LIMIT_BY: str = "ip"  # "ip" | "user" | "path"
 
-    TASKS: ConfigMap = dataclasses.field(default_factory=dict)
-
     MODEL_EVENTS: ConfigMap = dataclasses.field(default_factory=dict)
+
+    TASKS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {**DEFAULT_TASKS},
+    )
 
     OAUTH2_EVENTS: dict[str, str] = dataclasses.field(default_factory=dict)
 
@@ -311,7 +332,7 @@ class Settings:
     def as_dict(self, *, mask_sensitive: bool = True) -> ConfigMap:
         """Return all settings as a plain dict (shallow copy).
 
-        Sensitive fields (SECRET_KEY, DATABASE_URL, AWS credentials, etc.)
+        Sensitive fields (SECRET_KEY, DATABASES, CACHES, etc.)
         are masked by default to prevent accidental leakage into logs or
         API responses.  Pass ``mask_sensitive=False`` to get raw values.
         """
@@ -404,15 +425,15 @@ class LazySettings:
     settings are configured; this prevents accidental mutation at runtime.
     """
 
-    _instance: Settings | None
-    _configured: bool
-    _lock: threading.RLock
+    instance: Settings | None
+    configured: bool
+    lock: threading.RLock
 
     def __init__(self) -> None:
         """Initialise an unconfigured lazy settings proxy."""
-        object.__setattr__(self, "_instance", None)
-        object.__setattr__(self, "_configured", False)
-        object.__setattr__(self, "_lock", threading.RLock())
+        self.instance = None
+        self.configured = False
+        self.lock = threading.RLock()
 
     def configure(self, settings_obj: Settings) -> None:
         """Set the active settings instance.
@@ -421,8 +442,8 @@ class LazySettings:
             RuntimeError: If called after settings are already configured.
 
         """
-        with self._lock:
-            if self._configured:
+        with self.lock:
+            if self.configured:
                 msg = (
                     "settings.configure() called more than once.  "
                     "It must be called exactly once, before any settings are accessed."
@@ -430,14 +451,14 @@ class LazySettings:
                 raise RuntimeError(
                     msg,
                 )
-            object.__setattr__(self, "_instance", settings_obj)
-            object.__setattr__(self, "_configured", True)
+            self.instance = settings_obj
+            self.configured = True
             logger.debug("Settings configured programmatically: %r", type(settings_obj).__name__)
 
-    def _setup(self, *, force: bool = False) -> None:
+    def setup(self, *, force: bool = False) -> None:
         """Load settings from ``OPENVIPER_SETTINGS_MODULE``.
 
-        Protected by ``_lock``; uses double-checked locking so the fast path
+        Protected by ``lock``; uses double-checked locking so the fast path
         (already configured) has zero lock overhead.
 
         Args:
@@ -447,38 +468,38 @@ class LazySettings:
                 imported.
 
         """
-        if self._configured and not force:
+        if self.configured and not force:
             return
-        with self._lock:
-            if self._configured and not force:
+        with self.lock:
+            if self.configured and not force:
                 return
 
             module_path = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
-            instance = load_settings_from_module(module_path)
+            settings_instance = load_settings_from_module(module_path)
 
-            if instance is None:
-                instance = Settings()
+            if settings_instance is None:
+                settings_instance = Settings()
 
             if module_path:
-                instance = auto_include_project_app(instance, module_path)
+                settings_instance = auto_include_project_app(settings_instance, module_path)
 
-            instance = apply_env_overrides(instance)
+            settings_instance = apply_env_overrides(settings_instance)
 
             env = os.environ.get("OPENVIPER_ENV", "development")
-            if env != "production" and is_insecure_secret_key(instance.SECRET_KEY):
-                object.__setattr__(instance, "SECRET_KEY", generate_secret_key())
+            if env != "production" and is_insecure_secret_key(settings_instance.SECRET_KEY):
+                object.__setattr__(settings_instance, "SECRET_KEY", generate_secret_key())
 
-            object.__setattr__(self, "_instance", instance)
-            object.__setattr__(self, "_configured", True)
+            self.instance = settings_instance
+            self.configured = True
 
-            configure_logging(instance)
+            configure_logging(settings_instance)
 
     def __getattr__(self, name: str) -> ConfigValue:
         """Delegate attribute reads to the underlying :class:`Settings`."""
-        if not self._configured:
-            self._setup()
-        instance = object.__getattribute__(self, "_instance")
-        if instance is None:
+        if not self.configured:
+            self.setup()
+        inst = self.instance
+        if inst is None:
             msg = (
                 "Settings have not been configured.  Set OPENVIPER_SETTINGS_MODULE "
                 "or call settings.configure() before importing from openviper."
@@ -486,11 +507,11 @@ class LazySettings:
             raise ImproperlyConfigured(
                 msg,
             )
-        return cast("ConfigValue", getattr(instance, name))
+        return cast("ConfigValue", getattr(inst, name))
 
     def __setattr__(self, name: str, value: object) -> None:
         """Prevent runtime mutation of configured settings."""
-        if name.startswith("_"):
+        if name.startswith("_") or name in ("instance", "configured", "lock"):
             object.__setattr__(self, name, value)
             return
         msg = (
@@ -503,11 +524,11 @@ class LazySettings:
 
     def __repr__(self) -> str:
         """Return a human-readable representation of the proxy state."""
-        if self._configured and self._instance is not None:
+        if self.configured and self.instance is not None:
             return (
-                f"<LazySettings [{type(self._instance).__name__}] "
-                f"PROJECT_NAME={self._instance.PROJECT_NAME!r} "
-                f"DEBUG={self._instance.DEBUG!r}>"
+                f"<LazySettings [{type(self.instance).__name__}] "
+                f"PROJECT_NAME={self.instance.PROJECT_NAME!r} "
+                f"DEBUG={self.instance.DEBUG!r}>"
             )
         return "<LazySettings [not configured]>"
 
@@ -568,7 +589,7 @@ class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format a log record as a JSON string."""
         payload: dict[str, str | list[str]] = {
-            "time": self.formatTime(record, "%Y-%m-%d %H:%M:%S"),
+            "time": self.formatTime(record, LOG_DATETIME_FORMAT),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -607,7 +628,7 @@ def configure_logging(instance: Settings) -> None:
     else:
         formatter = logging.Formatter(
             fmt="%(asctime)s %(levelname)-8s %(name)-30s %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+            datefmt=LOG_DATETIME_FORMAT,
         )
 
     handler = OVDefaultHandler()
@@ -620,7 +641,7 @@ def configure_logging(instance: Settings) -> None:
     ov_logger.addHandler(handler)
 
     if level > logging.DEBUG:
-        for _noisy in (
+        for noisy in (
             "aiosqlite",
             "asyncio",
             "urllib3",
@@ -631,7 +652,7 @@ def configure_logging(instance: Settings) -> None:
             "sqlalchemy.pool",
             "dramatiq",
         ):
-            logging.getLogger(_noisy).setLevel(logging.WARNING)
+            logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def validate_production(s: Settings, errors: list[str]) -> None:
@@ -700,8 +721,11 @@ def validate_settings(s: Settings, env: str) -> None:
             "Set SECRET_KEY in environment for production!",
         )
 
-    if not s.DATABASES and not s.DATABASE_URL:
-        errors.append("DATABASES or DATABASE_URL must be set.")
+    databases = s.DATABASES
+    if not databases or not isinstance(databases, dict):
+        errors.append("DATABASES must be a non-empty dict with at least a 'default' alias.")
+    elif "default" not in databases:
+        errors.append("DATABASES must contain a 'default' alias.")
 
     if s.SESSION_COOKIE_SAMESITE.lower() == "none" and not s.SESSION_COOKIE_SECURE:
         errors.append("SESSION_COOKIE_SECURE must be True when SESSION_COOKIE_SAMESITE is 'None'.")

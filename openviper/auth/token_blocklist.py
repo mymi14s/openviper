@@ -24,7 +24,7 @@ from typing import Final
 
 import sqlalchemy as sa
 
-from openviper.auth._cache_utils import ensure_table, evict_cache_if_full, lazy_async_lock
+from openviper.auth.cache_utils import ensure_table, evict_cache_if_full, lazy_async_lock
 from openviper.db.connection import get_engine, get_metadata
 from openviper.utils import timezone
 
@@ -33,10 +33,10 @@ _TABLE_ENSURED: list[bool] = [False]
 TABLE_ENSURE_LOCK: asyncio.Lock = asyncio.Lock()
 
 
-# Intent: Avoid DB queries for revoked tokens by caching their expiry timestamps.
+# Avoid DB queries for revoked tokens by caching their expiry timestamps.
 JTI_REVOKED_CACHE: dict[str, float] = {}
 
-# Intent: Avoid DB queries for valid tokens by caching negative results with a short TTL.
+# Cache negative results with short TTL to avoid DB queries.
 JTI_VALID_CACHE: dict[str, float] = {}
 
 _CACHE_LOCK_REF: list[asyncio.Lock | None] = [None]
@@ -113,7 +113,7 @@ async def revoke_token(
     table = get_blocklist_table()
     engine = await get_engine()
     async with engine.begin() as conn:
-        # Intent: Treat repeated revocations as idempotent writes.
+        # Treat repeated revocations as idempotent writes.
         with contextlib.suppress(sa.exc.IntegrityError):
             await conn.execute(
                 sa.insert(table).values(
@@ -125,7 +125,7 @@ async def revoke_token(
                 )
             )
 
-        # Intent: Prune expired rows during revoke to keep the table small.
+        # Prune expired rows during revoke to keep the table small.
         await conn.execute(sa.delete(table).where(table.c.expires_at <= timezone.now()))
 
     lock = get_blocklist_cache_lock()
@@ -177,7 +177,7 @@ async def is_token_revoked(jti: str) -> bool:
 
     async with lock:
         if row is not None:
-            # Intent: Keep positive and negative revocation caches exclusive.
+            # Keep positive and negative revocation caches exclusive.
             expiry = row[0]
             if isinstance(expiry, datetime.datetime):
                 JTI_REVOKED_CACHE[jti] = expiry.timestamp()
@@ -185,7 +185,7 @@ async def is_token_revoked(jti: str) -> bool:
             evict_blocklist_cache_if_full(JTI_REVOKED_CACHE, now)
             return True
 
-        # Intent: Cache misses to avoid repeated database reads.
+        # Cache misses to avoid repeated database reads.
         JTI_VALID_CACHE[jti] = now + NEGATIVE_CACHE_TTL
         evict_blocklist_cache_if_full(JTI_VALID_CACHE, now)
         return False

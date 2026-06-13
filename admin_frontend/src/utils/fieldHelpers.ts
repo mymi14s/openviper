@@ -1,6 +1,6 @@
 import type { ModelField } from '@/types/admin'
 
-/** Map of Django field type names to HTML input types. */
+/** Map of field type names to HTML input types. */
 const FIELD_TYPE_MAP: Record<string, string> = {
   text: 'text',
   string: 'text',
@@ -32,8 +32,9 @@ const FIELD_TYPE_MAP: Record<string, string> = {
   DateTimeField: 'datetime-local',
   TimeField: 'time',
   BooleanField: 'checkbox',
-  TextField: 'textarea',
-  JSONField: 'textarea',
+  TextField:           'textarea',
+  HTMLField:           'html',
+  JSONField:           'textarea',
   UUIDField: 'text',
   ForeignKey: 'select',
   OneToOneField: 'select',
@@ -56,6 +57,9 @@ export function getFieldComponent(field: ModelField): string {
   }
   if (field.type === 'CountryField' || field.component === 'country') {
     return 'country'
+  }
+  if (field.type === 'HTMLField' || field.component === 'html') {
+    return 'html'
   }
   if (field.type === 'PointField' || field.component === 'point') {
     return 'point'
@@ -96,7 +100,9 @@ export function getInputAttributes(field: ModelField): Record<string, string | n
     attrs.placeholder = 'lowercase-with-hyphens'
   } else if (field.type === 'UUIDField') {
     attrs.pattern = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    attrs.readonly = true
+    if (field.auto) {
+      attrs.readonly = true
+    }
   }
 
   return attrs

@@ -25,12 +25,10 @@ def test___all___is_complete():
 
 
 def test_setup_callssettings_setup():
-    """openviper.setup(force=True) should always run _setup and leave settings configured."""
-    # setup(force=True) re-runs _setup unconditionally.
-    # We verify the observable outcome: settings remain configured with a live instance.
+    """openviper.setup(force=True) should always run setup and leave settings configured."""
     openviper.setup(force=True)
-    assert settings._configured is True
-    assert settings._instance is not None
+    assert settings.configured is True
+    assert settings.instance is not None
 
 
 def test_getattr_lazy_loads_subpackage():

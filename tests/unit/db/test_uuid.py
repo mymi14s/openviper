@@ -67,3 +67,51 @@ def test_apply_lookup_uuid_isnull():
     # isnull=False
     apply_lookup(col, "isnull", False)
     col.isnot.assert_called_once_with(None)
+
+
+def test_apply_lookup_uuid_in_with_strings():
+    """Test that apply_lookup converts string list items to uuid.UUID for 'in' lookup."""
+    col = MagicMock()
+    col.type = Uuid(as_uuid=True)
+
+    u1 = uuid.uuid4()
+    u2 = uuid.uuid4()
+    val_list = [str(u1), str(u2)]
+
+    apply_lookup(col, "in", val_list)
+
+    col.in_.assert_called_once()
+    actual = col.in_.call_args[0][0]
+    assert list(actual) == [u1, u2]
+
+
+def test_apply_lookup_uuid_in_with_mixed_types():
+    """Test that apply_lookup handles mixed UUID/string items in 'in' lookup."""
+    col = MagicMock()
+    col.type = Uuid(as_uuid=True)
+
+    u1 = uuid.uuid4()
+    u2 = uuid.uuid4()
+    val_list = [u1, str(u2)]
+
+    apply_lookup(col, "in", val_list)
+
+    col.in_.assert_called_once()
+    actual = col.in_.call_args[0][0]
+    assert list(actual) == [u1, u2]
+
+
+def test_apply_lookup_uuid_not_in_with_strings():
+    """Test that apply_lookup converts string list items to uuid.UUID for 'not_in' lookup."""
+    col = MagicMock()
+    col.type = Uuid(as_uuid=True)
+
+    u1 = uuid.uuid4()
+    u2 = uuid.uuid4()
+    val_list = [str(u1), str(u2)]
+
+    apply_lookup(col, "not_in", val_list)
+
+    col.notin_.assert_called_once()
+    actual = col.notin_.call_args[0][0]
+    assert list(actual) == [u1, u2]

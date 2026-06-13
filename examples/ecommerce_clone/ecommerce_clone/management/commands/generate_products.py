@@ -28,7 +28,7 @@ from users.models import User
 from openviper.core.management.base import BaseCommand, CommandError
 from openviper.db import init_db
 
-_fake = Faker()
+fake = Faker()
 
 
 # ── Seed data ──────────────────────────────────────────────────────────────
@@ -47,25 +47,25 @@ CATEGORIES = [
 ]
 
 # Picsum Photos - stable, free, licence-free images. Format: /id/{id}/400/400
-_PICSUM = "https://picsum.photos/id/{id}/400/400"
+PICSUM = "https://picsum.photos/id/{id}/400/400"
 
 CATEGORY_IMAGES: dict[str, list[str]] = {
-    "Electronics": [_PICSUM.format(id=x) for x in [0, 48, 119, 180, 225, 367, 442, 484]],
-    "Clothing": [_PICSUM.format(id=x) for x in [64, 96, 177, 219, 326, 398, 453, 470]],
-    "Books": [_PICSUM.format(id=x) for x in [24, 159, 240, 382, 415, 501, 513, 525]],
-    "Home & Kitchen": [_PICSUM.format(id=x) for x in [30, 137, 196, 213, 431, 452, 461, 478]],
-    "Sports & Outdoors": [_PICSUM.format(id=x) for x in [9, 76, 168, 257, 338, 362, 374, 387]],
+    "Electronics": [PICSUM.format(id=x) for x in [0, 48, 119, 180, 225, 367, 442, 484]],
+    "Clothing": [PICSUM.format(id=x) for x in [64, 96, 177, 219, 326, 398, 453, 470]],
+    "Books": [PICSUM.format(id=x) for x in [24, 159, 240, 382, 415, 501, 513, 525]],
+    "Home & Kitchen": [PICSUM.format(id=x) for x in [30, 137, 196, 213, 431, 452, 461, 478]],
+    "Sports & Outdoors": [PICSUM.format(id=x) for x in [9, 76, 168, 257, 338, 362, 374, 387]],
     "Beauty & Personal Care": [
-        _PICSUM.format(id=x) for x in [26, 103, 191, 274, 355, 402, 416, 429]
+        PICSUM.format(id=x) for x in [26, 103, 191, 274, 355, 402, 416, 429]
     ],
-    "Toys & Games": [_PICSUM.format(id=x) for x in [37, 117, 203, 292, 371, 393, 421, 437]],
-    "Automotive": [_PICSUM.format(id=x) for x in [42, 133, 214, 307, 390, 405, 419, 446]],
-    "Grocery & Food": [_PICSUM.format(id=x) for x in [56, 145, 229, 312, 429, 449, 463, 476]],
-    "Office Supplies": [_PICSUM.format(id=x) for x in [20, 110, 185, 268, 349, 381, 408, 433]],
+    "Toys & Games": [PICSUM.format(id=x) for x in [37, 117, 203, 292, 371, 393, 421, 437]],
+    "Automotive": [PICSUM.format(id=x) for x in [42, 133, 214, 307, 390, 405, 419, 446]],
+    "Grocery & Food": [PICSUM.format(id=x) for x in [56, 145, 229, 312, 429, 449, 463, 476]],
+    "Office Supplies": [PICSUM.format(id=x) for x in [20, 110, 185, 268, 349, 381, 408, 433]],
 }
 
 # Adjectives and nouns per category used for Faker-style product name generation
-_CATEGORY_ADJECTIVES: dict[str, list[str]] = {
+CATEGORY_ADJECTIVES: dict[str, list[str]] = {
     "Electronics": ["Smart", "Wireless", "Portable", "Ultra", "Pro", "Mini", "Digital", "Advanced"],
     "Clothing": [
         "Slim-Fit",
@@ -159,7 +159,7 @@ _CATEGORY_ADJECTIVES: dict[str, list[str]] = {
     ],
 }
 
-_CATEGORY_NOUNS: dict[str, list[str]] = {
+CATEGORY_NOUNS: dict[str, list[str]] = {
     "Electronics": [
         "Headphones",
         "Speaker",
@@ -270,8 +270,8 @@ _CATEGORY_NOUNS: dict[str, list[str]] = {
 
 def fake_product_name(category: str, existing_names: set[str]) -> str:
     """Generate a unique product name for the given category using Faker adjectives/nouns."""
-    adjs = _CATEGORY_ADJECTIVES.get(category, ["Premium", "Quality", "Deluxe"])
-    nouns = _CATEGORY_NOUNS.get(category, ["Product", "Item", "Good"])
+    adjs = CATEGORY_ADJECTIVES.get(category, ["Premium", "Quality", "Deluxe"])
+    nouns = CATEGORY_NOUNS.get(category, ["Product", "Item", "Good"])
     for _ in range(50):
         name = f"{random.choice(adjs)} {random.choice(nouns)}"
         if name not in existing_names:
@@ -286,8 +286,8 @@ def fake_product_name(category: str, existing_names: set[str]) -> str:
 
 def fake_description(category: str, name: str) -> str:
     """Generate a realistic product description using Faker."""
-    sentence = _fake.sentence(nb_words=random.randint(10, 18))
-    feature = _fake.sentence(nb_words=random.randint(6, 12))
+    sentence = fake.sentence(nb_words=random.randint(10, 18))
+    feature = fake.sentence(nb_words=random.randint(6, 12))
     return f"{sentence} {feature}"
 
 
@@ -401,10 +401,10 @@ async def seed_data(
     stdout(style_notice("Creating users..."))
     users: list[object] = []
     for i in range(num_users):
-        first = _fake.first_name()
-        last = _fake.last_name()
+        first = fake.first_name()
+        last = fake.last_name()
         username = f"{first.lower()}.{last.lower()}{i}"
-        email = _fake.unique.email()
+        email = fake.unique.email()
         existing = await User.objects.filter(username=username).first()
         if existing:
             users.append(existing)
@@ -443,7 +443,7 @@ async def seed_data(
                 comment=(
                     random.choice(REVIEW_COMMENTS)
                     if random.random() < 0.5
-                    else _fake.sentence(nb_words=12)
+                    else fake.sentence(nb_words=12)
                 ),
             )
             await review.save()
@@ -487,7 +487,7 @@ async def seed_data(
             order = Order(
                 user_id=str(user.id),
                 total_price=total,
-                shipping_address=_fake.address().replace("\n", ", "),
+                shipping_address=fake.address().replace("\n", ", "),
                 status=random.choice(statuses),
             )
             await order.save()

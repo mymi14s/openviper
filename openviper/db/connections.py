@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from openviper.conf import settings
 from openviper.db.backends.db_registry import get_database_backend_class
@@ -34,6 +34,9 @@ class ConnectionManager:
         self.initialized: bool = False
         self._init_lock = threading.Lock()
 
+    # Metadata keys inside DATABASES that are not alias configurations.
+    _METADATA_KEYS: ClassVar[frozenset[str]] = frozenset({"ROUTERS", "ROUTING"})
+
     def configure(self, databases: Mapping[str, object] | None = None) -> None:
         """Load DATABASES config and instantiate backends.
 
@@ -50,6 +53,8 @@ class ConnectionManager:
 
             if configured_databases:
                 for alias, config in configured_databases.items():
+                    if alias in self._METADATA_KEYS:
+                        continue
                     if not isinstance(config, Mapping):
                         raise TypeError(
                             f"Database alias '{alias}' configuration must be a mapping."
@@ -72,11 +77,14 @@ class ConnectionManager:
         pool_recycle = getattr(settings, "DATABASE_POOL_RECYCLE", 3600)
 
         config: dict[str, object] = {
-            "URL": database_url,
-            "ECHO": echo,
-            "POOL_SIZE": pool_size,
-            "MAX_OVERFLOW": max_overflow,
-            "POOL_RECYCLE": pool_recycle,
+            "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+            "OPTIONS": {
+                "URL": database_url,
+                "ECHO": echo,
+                "POOL_SIZE": pool_size,
+                "MAX_OVERFLOW": max_overflow,
+                "POOL_RECYCLE": pool_recycle,
+            },
             "ROLE": "primary",
         }
         self.setup_alias(DEFAULT_ALIAS, config)

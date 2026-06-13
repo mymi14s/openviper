@@ -26,6 +26,7 @@ def make_field(
     auto_now_add=False,
     help_text="",
     to=None,
+    auto=False,
 ):
     """Create a mock field for testing."""
     field = MagicMock()
@@ -39,12 +40,13 @@ def make_field(
     field.auto_now_add = auto_now_add
     field.help_text = help_text
     field.name = "test_field"
-    field._column_type = "TEXT"
+    field.column_type = "TEXT"
     field.primary_key = False
     field.unique = False
     field.db_index = False
     field.default = None
     field.to = to
+    field.auto = auto
     return field
 
 
@@ -158,10 +160,17 @@ class TestGetFieldWidgetConfig:
         assert config["readonly"] is True
         assert config["auto_now_add"] is True
 
-    def test_uuid_field_readonly(self):
-        field = make_field("UUIDField")
+    def test_uuid_field_auto_readonly(self):
+        field = make_field("UUIDField", auto=True)
         config = get_field_widget_config(field)
         assert config["readonly"] is True
+        assert config["auto"] is True
+
+    def test_uuid_field_non_auto_editable(self):
+        field = make_field("UUIDField", auto=False)
+        config = get_field_widget_config(field)
+        assert "readonly" not in config or config.get("readonly") is not True
+        assert config["auto"] is False
 
     def test_file_field_widget_config(self):
         """Test FileField widget configuration."""
@@ -493,7 +502,7 @@ class TestFieldSchemaEdgeCases:
         field = MagicMock()
         field.__class__.__name__ = "CharField"
         field.name = None
-        field._column_type = "TEXT"
+        field.column_type = "TEXT"
         field.primary_key = False
         field.null = False
         field.blank = False

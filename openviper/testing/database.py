@@ -1,6 +1,7 @@
 """Database setup and isolation helpers for OpenViper pytest fixtures."""
 
 import dataclasses
+import os
 import warnings
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -21,6 +22,34 @@ from openviper.db.routing.context import reset_routing_context
 from openviper.testing.settings import DatabaseIsolation, OpenViperTestingConfigError
 
 
+def should_create_db() -> bool:
+    """Return True when OPENVIPER_TEST_CREATE_DB is set in the environment."""
+    return os.environ.get("OPENVIPER_TEST_CREATE_DB", "") == "1"
+
+
+def should_reuse_db() -> bool:
+    """Return True when OPENVIPER_TEST_REUSE_DB is set in the environment."""
+    return os.environ.get("OPENVIPER_TEST_REUSE_DB", "") == "1"
+
+
+async def configure_and_init_db(url: str, *, migrate: bool) -> None:
+    """Configure the database engine and optionally run initial migrations."""
+    assert_safe_database_url(url)
+    await configure_db(url)
+    if migrate and (not should_reuse_db() or should_create_db()):
+        await init_db(drop_first=True)
+
+
+async def reset_database_by_isolation(isolation: DatabaseIsolation) -> None:
+    """Reset test data according to the isolation strategy."""
+    if should_reuse_db():
+        return
+    if isolation in {"recreate", "in_memory"}:
+        await init_db(drop_first=True)
+    elif isolation == "truncate":
+        await truncate_database()
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class SessionDatabase:
     """Session-scoped database handle: migrate once, isolate per test."""
@@ -32,17 +61,12 @@ class SessionDatabase:
 
     async def setup(self) -> None:
         """Configure the engine and run migrations exactly once."""
-        assert_safe_database_url(self.url)
-        await configure_db(self.url)
-        await init_db(drop_first=True)
+        await configure_and_init_db(self.url, migrate=True)
 
     async def reset(self) -> None:
         """Clean test data between tests without re-running migrations."""
-        if self.isolation == "truncate":
-            await truncate_database()
-        else:
-            # Cheaper than full migration; schema is already known.
-            await init_db(drop_first=True)
+        effective_isolation = "recreate" if self.isolation == "transaction" else self.isolation
+        await reset_database_by_isolation(effective_isolation)
 
     async def teardown(self) -> None:
         """Close the engine after the full session completes."""
@@ -60,16 +84,10 @@ class TestDatabase:
     migrate: bool
 
     async def setup(self) -> None:
-        assert_safe_database_url(self.url)
-        await configure_db(self.url)
-        if self.migrate:
-            await init_db(drop_first=True)
+        await configure_and_init_db(self.url, migrate=self.migrate)
 
     async def reset(self) -> None:
-        if self.isolation in {"recreate", "in_memory"}:
-            await init_db(drop_first=True)
-        elif self.isolation == "truncate":
-            await truncate_database()
+        await reset_database_by_isolation(self.isolation)
 
     async def teardown(self) -> None:
         await close_db()

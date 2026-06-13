@@ -3,20 +3,24 @@
 from collections.abc import Mapping
 
 
-def assert_openapi_path(schema: Mapping[str, object], path: str) -> None:
+def resolve_paths(schema: Mapping[str, object]) -> dict[str, object]:
+    """Extract and validate the paths object from an OpenAPI schema."""
     paths = schema.get("paths")
     assert isinstance(paths, dict), "OpenAPI schema does not contain a paths object."
+    return paths
+
+
+def assert_openapi_path(schema: Mapping[str, object], path: str) -> None:
+    paths = resolve_paths(schema)
     assert path in paths, f"Expected OpenAPI path {path!r} to be present."
 
 
 def assert_openapi_operation(schema: Mapping[str, object], path: str, method: str) -> None:
-    paths = schema.get("paths")
-    assert isinstance(paths, dict), "OpenAPI schema does not contain a paths object."
+    paths = resolve_paths(schema)
     path_item = paths.get(path)
     assert isinstance(path_item, dict), f"Expected OpenAPI path {path!r} to be present."
-    assert (
-        method.lower() in path_item
-    ), f"Expected OpenAPI operation {method.upper()} {path} to be present."
+    has_op = method.lower() in path_item
+    assert has_op, f"Expected {method.upper()} {path} to be present."
 
 
 def assert_response_schema(
@@ -27,12 +31,9 @@ def assert_response_schema(
 ) -> None:
     operation = get_operation(schema, path, method)
     responses = operation.get("responses")
-    assert isinstance(
-        responses, dict
-    ), f"OpenAPI operation {method.upper()} {path} has no responses."
-    assert (
-        str(status_code) in responses
-    ), f"Expected response schema for {method.upper()} {path} {status_code}."
+    assert isinstance(responses, dict), f"{method.upper()} {path} has no responses."
+    has_status = str(status_code) in responses
+    assert has_status, f"Expected response for {method.upper()} {path} {status_code}."
 
 
 def assert_request_schema(schema: Mapping[str, object], path: str, method: str) -> None:
@@ -41,12 +42,9 @@ def assert_request_schema(schema: Mapping[str, object], path: str, method: str) 
 
 
 def get_operation(schema: Mapping[str, object], path: str, method: str) -> dict[str, object]:
-    paths = schema.get("paths")
-    assert isinstance(paths, dict), "OpenAPI schema does not contain a paths object."
+    paths = resolve_paths(schema)
     path_item = paths.get(path)
     assert isinstance(path_item, dict), f"Expected OpenAPI path {path!r} to be present."
     operation = path_item.get(method.lower())
-    assert isinstance(
-        operation, dict
-    ), f"Expected OpenAPI operation {method.upper()} {path} to be present."
+    assert isinstance(operation, dict), f"Expected {method.upper()} {path} to be present."
     return operation

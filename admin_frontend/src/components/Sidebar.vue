@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ModelConfig } from '@/types/admin'
 import { computed, ref } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
@@ -28,7 +29,7 @@ const filteredModelsByApp = computed(() => {
   }
 
   const query = searchQuery.value.toLowerCase()
-  const filtered: Record<string, any[]> = {}
+  const filtered: Record<string, ModelConfig[]> = {}
 
   Object.entries(modelsByApp.value).forEach(([app, models]) => {
     const filteredModels = models.filter(model =>
@@ -147,7 +148,7 @@ const currentYear = new Date().getFullYear()
           <ul class="space-y-1 mb-4">
             <li v-for="model in filteredModelsByApp[appLabel]" :key="model.name">
               <RouterLink
-                :to="`/${appLabel}/${model.name}`"
+                :to="model.is_single ? `/${appLabel}/${model.name}/single` : `/${appLabel}/${model.name}`"
                 class="sidebar-link"
                 :class="{ active: isActiveModel(appLabel, model.name) }"
               >

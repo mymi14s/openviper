@@ -7,8 +7,8 @@ import logging
 from collections.abc import Callable
 from typing import TypeVar, cast
 
-from openviper.auth._user_cache import invalidate_user_cache
 from openviper.auth.hashers import check_password, make_password
+from openviper.auth.user_cache import invalidate_user_cache
 from openviper.cache import InMemoryCache, get_cache
 from openviper.conf import settings
 from openviper.core.context import request_perms_cache
@@ -492,7 +492,7 @@ def on_user_role_change(instance: object, event: str | None = None, **kwargs: ob
         del req_cache[user_id]
         request_perms_cache.set(req_cache)
 
-    # Intent: Keep cache resets observable during async event dispatch.
+    # Keep cache resets observable during async event dispatch.
     task = asyncio.create_task(reset_user_permission_cache(user_id))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
@@ -505,7 +505,7 @@ def on_role_permission_change(instance: object, event: str | None = None, **kwar
     role_id = getattr(instance, "role", None)
     role_id = getattr(role_id, "pk", role_id)
 
-    # Intent: Role changes can affect many users, so the entire context cache must be cleared.
+    # Role changes affect many users; clear entire context cache.
     request_perms_cache.set({})
 
     if role_id:

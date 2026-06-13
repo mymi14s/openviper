@@ -11,7 +11,7 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 
 from openviper.conf import settings
 
-# Intent: Reuse hasher instances to avoid per-call Argon2 parameter re-initialisation.
+# Reuse hasher instances to avoid per-call re-initialisation.
 ARGON2_HASHER_MAKE = PasswordHasher(
     time_cost=2,
     memory_cost=65536,
@@ -21,9 +21,9 @@ ARGON2_HASHER_MAKE = PasswordHasher(
 )
 ARGON2_HASHER_CHECK = PasswordHasher()
 
-# Intent: A precomputed Argon2 dummy hash makes "user not found" branches take
-# the same wall time as a real password check, preventing user enumeration
-# via response-time differences.
+# A precomputed Argon2 dummy hash makes "user not found" branches
+# take the same wall time as a real password check, preventing
+# user enumeration via response-time differences.
 DUMMY_PASSWORD_SECRET = secrets.token_urlsafe(32)
 ARGON2_DUMMY_HASH: str = "argon2$" + ARGON2_HASHER_MAKE.hash(DUMMY_PASSWORD_SECRET)
 
@@ -82,7 +82,7 @@ async def check_password(raw_password: str, hashed_password: str) -> bool:
         except ValueError, Exception:
             return False
 
-    # Intent: Keep deterministic hashes available for test settings.
+    # Keep deterministic hashes available for test settings.
     if hashed_password.startswith("plain$"):
         return hmac.compare_digest(raw_password, hashed_password[len("plain$") :])
 

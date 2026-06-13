@@ -64,25 +64,27 @@ async def send_email(
             sender=sender or "",
         )
 
-        if background is True:
-            await enqueue_email_job(message_data)
-            return True
+        resolved_background = background
+        if resolved_background is None:
+            cfg_background = email_config.get("background")
+            if cfg_background is not None:
+                resolved_background = bool(cfg_background)
 
-        if background is None:
-            worker_cfg = email_config.get("use_background_worker")
-            prefer_queue = bool(worker_cfg) if worker_cfg is not None else worker_available()
-            if prefer_queue and worker_available():
-                if worker_cfg is not None:
-                    await enqueue_email_job(message_data)
-                    return True
-                try:
-                    await enqueue_email_job(message_data)
-                    return True
-                except Exception:
-                    logger.warning(
-                        "Background email enqueue failed in auto mode; sending inline.",
-                        exc_info=True,
-                    )
+        use_background = resolved_background is True or (
+            resolved_background is None and worker_available()
+        )
+
+        if use_background and worker_available():
+            try:
+                await enqueue_email_job(message_data)
+                return True
+            except Exception:
+                if resolved_background is True:
+                    raise
+                logger.warning(
+                    "Background email enqueue failed; sending inline.",
+                    exc_info=True,
+                )
 
         await send_now(message_data)
         return True

@@ -568,10 +568,10 @@ def test_candidate_routes_triggers_lazy_index_build():
         return "ok"
 
     # _index must be None before the call
-    assert router._index is None
-    list(router._candidate_routes("/resource/99"))
+    assert router.dispatch_index is None
+    list(router.candidate_routes("/resource/99"))
     # After the call, index was built
-    assert router._index is not None
+    assert router.dispatch_index is not None
 
 
 # ── Exact index: multi-method fast-path ───────────────────────────────────────

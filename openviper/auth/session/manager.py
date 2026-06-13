@@ -82,7 +82,6 @@ class SessionManager:
                 user_id=user_id,
                 data=data,
             )
-            # Intent: Handle both old (str) and new (Session) rotate return types.
             if isinstance(session, str):
                 session_key = session
                 session = await self.store.load(session_key)
@@ -94,7 +93,6 @@ class SessionManager:
 
         request.user = cast("UserProtocol | None", user)
         request._session = session
-        # Intent: Propagate session into ASGI scope so send_wrapper reads the updated data.
         scope = getattr(request, "_scope", None)
         if isinstance(scope, dict):
             scope["session"] = session

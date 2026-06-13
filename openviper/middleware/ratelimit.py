@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import TYPE_CHECKING, Final, ParamSpec, Protocol, TypeVar, cast
 
+from openviper.cache import get_cache_url
 from openviper.conf import settings
 from openviper.exceptions import TooManyRequests
 from openviper.http.request import Request
@@ -84,7 +85,7 @@ class RedisWindowCounter:
     and whose scores are Unix timestamps.  Stale entries (outside the
     current window) are pruned atomically via ZREMRANGEBYSCORE.
 
-    Requires ``redis>=7.4.0`` (``openviper[tasks]``).
+    Requires ``redis>=7.4.0`` (``pip install redis``).
     """
 
     __slots__ = ("max_requests", "window", "_client")
@@ -93,11 +94,11 @@ class RedisWindowCounter:
         if not REDIS_AVAILABLE or redis_asyncio_module is None:
             raise ImportError(
                 "redis package is required for RATE_LIMIT_BACKEND='redis'. "
-                "Install it with: pip install 'openviper[tasks]'"
+                "Install it with: pip install redis"
             )
         self.max_requests = max_requests
         self.window = window_seconds
-        url: str = cast("str", settings.CACHE_URL) or "redis://localhost:6379"
+        url: str = get_cache_url() or "redis://localhost:6379"
         self._client: RedisClientProtocol = redis_asyncio_module.Redis.from_url(url)
 
     async def is_allowed(self, key: str) -> tuple[bool, int]:

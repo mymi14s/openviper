@@ -14,10 +14,6 @@ from openviper.db.models import Model
 from openviper.middleware.ratelimit import SlidingWindowCounter
 from openviper.serializers.base import Serializer
 
-# ---------------------------------------------------------------------------
-# API-001: Serializers do not expose private fields
-# ---------------------------------------------------------------------------
-
 
 class TestSerializerPrivateFields:
     """Serializers must not expose private or sensitive fields."""
@@ -46,11 +42,6 @@ class TestSerializerPrivateFields:
         assert isinstance(Serializer.writeonly_fields, tuple)
 
 
-# ---------------------------------------------------------------------------
-# API-002: Automatic model serialization is restricted
-# ---------------------------------------------------------------------------
-
-
 class TestAutomaticModelSerialization:
     """Raw model objects must not be serialized without explicit schema."""
 
@@ -66,11 +57,6 @@ class TestAutomaticModelSerialization:
         assert "name" in SafeSerializer.model_fields
         # No extra fields
         assert len(SafeSerializer.model_fields) == 2
-
-
-# ---------------------------------------------------------------------------
-# API-003: Rate limits are enforced
-# ---------------------------------------------------------------------------
 
 
 class TestRateLimiting:
@@ -116,11 +102,6 @@ class TestRateLimiting:
         assert allowed_a2 is False
 
 
-# ---------------------------------------------------------------------------
-# API-004: Webhook signatures are required
-# ---------------------------------------------------------------------------
-
-
 class TestWebhookSignatures:
     """Webhook endpoints must require valid signatures."""
 
@@ -141,11 +122,6 @@ class TestWebhookSignatures:
         assert "type" in payload
 
 
-# ---------------------------------------------------------------------------
-# API-005: Webhook replay is blocked
-# ---------------------------------------------------------------------------
-
-
 class TestWebhookReplay:
     """Replayed webhook requests must be blocked."""
 
@@ -160,11 +136,6 @@ class TestWebhookReplay:
         token = create_access_token(user_id=1)
         payload = decode_access_token(token)
         assert "exp" in payload
-
-
-# ---------------------------------------------------------------------------
-# API-006: GraphQL query depth and cost are limited (when enabled)
-# ---------------------------------------------------------------------------
 
 
 class TestGraphQLDepthLimit:

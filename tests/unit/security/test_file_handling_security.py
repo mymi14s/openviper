@@ -22,10 +22,6 @@ from openviper.storage.base import (
 
 from .conftest import PATH_TRAVERSAL_PAYLOADS
 
-# ---------------------------------------------------------------------------
-# FILE-001: Upload filenames are sanitized
-# ---------------------------------------------------------------------------
-
 
 class TestUploadFilenameSanitization:
     """Uploaded filenames must be sanitized to prevent path traversal."""
@@ -42,18 +38,16 @@ class TestUploadFilenameSanitization:
         storage = FileSystemStorage()
         root = Path(storage.location).resolve()
         for payload in PATH_TRAVERSAL_PAYLOADS:
-            # _validate_name must sanitize path traversal sequences
-            result = storage._validate_name(payload)
-            # The result must not allow escaping the storage root
-            # _full_path resolves and verifies the path stays within root
-            full = storage._full_path(result)
+            # validate_name must sanitize path traversal sequences
+            result = storage.validate_name(payload)
+            full = storage.full_path(result)
             assert str(full).startswith(str(root))
 
     def test_file001_storage_rejects_absolute_paths(self):
         """FileSystemStorage must not allow absolute paths as filenames."""
         storage = FileSystemStorage()
-        # _validate_name must strip leading slashes from absolute paths
-        result = storage._validate_name("/etc/passwd")
+        # validate_name must strip leading slashes from absolute paths
+        result = storage.validate_name("/etc/passwd")
         assert not result.startswith("/")
 
     def test_file001_max_component_length(self):
@@ -64,12 +58,12 @@ class TestUploadFilenameSanitization:
         """Hidden filenames (leading dot) must be replaced to prevent serving config files."""
         storage = FileSystemStorage()
         # .htaccess, .env, .gitignore must be sanitized
-        assert not storage._validate_name(".htaccess").startswith(".")
-        assert not storage._validate_name(".env").startswith(".")
-        assert not storage._validate_name(".gitignore").startswith(".")
+        assert not storage.validate_name(".htaccess").startswith(".")
+        assert not storage.validate_name(".env").startswith(".")
+        assert not storage.validate_name(".gitignore").startswith(".")
         # Leading dot is replaced with underscore
-        assert storage._validate_name(".htaccess") == "_htaccess"
-        assert storage._validate_name(".env") == "_env"
+        assert storage.validate_name(".htaccess") == "_htaccess"
+        assert storage.validate_name(".env") == "_env"
 
     def test_file001_hidden_filename_regex(self):
         """The hidden filename regex must match leading dots."""
@@ -77,11 +71,6 @@ class TestUploadFilenameSanitization:
         assert HIDDEN_FILENAME_RE.match(".env")
         assert HIDDEN_FILENAME_RE.match(".gitignore")
         assert not HIDDEN_FILENAME_RE.match("normal.txt")
-
-
-# ---------------------------------------------------------------------------
-# FILE-002: Uploaded files cannot overwrite existing files
-# ---------------------------------------------------------------------------
 
 
 class TestFileOverwritePrevention:
@@ -92,16 +81,9 @@ class TestFileOverwritePrevention:
         name1 = generate_unique_name("document.pdf")
         name2 = generate_unique_name("document.pdf")
 
-        # Names must be different (UUID suffix)
         assert name1 != name2
-        # Extensions must be preserved
         assert name1.endswith(".pdf")
         assert name2.endswith(".pdf")
-
-
-# ---------------------------------------------------------------------------
-# FILE-003: Executable uploads are blocked or stored non-executable
-# ---------------------------------------------------------------------------
 
 
 class TestExecutableUploadBlocking:
@@ -119,11 +101,6 @@ class TestExecutableUploadBlocking:
         """UploadFile must store the original filename for validation."""
         upload = UploadFile(filename="test.txt", content_type="text/plain", file=None)
         assert upload.filename == "test.txt"
-
-
-# ---------------------------------------------------------------------------
-# FILE-004: Archive extraction prevents zip slip
-# ---------------------------------------------------------------------------
 
 
 class TestZipSlipPrevention:
@@ -146,11 +123,6 @@ class TestZipSlipPrevention:
         assert "startswith" in source or "resolve" in source
 
 
-# ---------------------------------------------------------------------------
-# FILE-005: Decompression bombs are limited
-# ---------------------------------------------------------------------------
-
-
 class TestDecompressionBombLimit:
     """Decompression bombs must be detected and limited."""
 
@@ -163,11 +135,6 @@ class TestDecompressionBombLimit:
         """The number of files per multipart request must be limited."""
         assert MAX_FILES_PER_REQUEST > 0
         assert MAX_FILES_PER_REQUEST <= 1000  # Reasonable upper bound
-
-
-# ---------------------------------------------------------------------------
-# FILE-006: Private uploads are not served as public static files
-# ---------------------------------------------------------------------------
 
 
 class TestPrivateUploadIsolation:

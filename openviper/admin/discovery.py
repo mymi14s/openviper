@@ -65,11 +65,17 @@ def import_admin_module(app_name: str) -> bool:
         logger.debug("Imported admin.py from %s", app_name)
         return True
     except ImportError as e:
-        logger.warning("Error importing admin.py from %s: %s", app_name, e)
-        return False
+        # Distinguish between "module not found" and "error inside the
+        # admin module".  If find_spec succeeded above, the module exists
+        # so ImportError means a transitive dependency failed to import.
+        logger.critical("Failed to import admin.py from %s: %s", app_name, e)
+        raise
+    except SyntaxError as e:
+        logger.critical("Syntax error in admin.py from %s: %s", app_name, e)
+        raise
     except Exception as e:
-        logger.error("Unexpected error importing %s: %s", admin_module_name, e)
-        return False
+        logger.critical("Unexpected error importing %s: %s", admin_module_name, e)
+        raise
 
 
 def discover_extensions() -> list[dict]:

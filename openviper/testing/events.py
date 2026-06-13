@@ -25,9 +25,8 @@ class EventRecorder:
 
 
 def assert_event_emitted(recorder: EventRecorder, name: str) -> None:
-    assert any(
-        event.name == name for event in recorder.events
-    ), f"Expected event {name!r} to be emitted."
+    found = any(event.name == name for event in recorder.events)
+    assert found, f"Expected event {name!r} to be emitted."
 
 
 def assert_event_count(recorder: EventRecorder, name: str, expected: int) -> None:

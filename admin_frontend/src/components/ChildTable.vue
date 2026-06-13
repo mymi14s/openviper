@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import type { ModelField } from '@/types/admin'
 import ForeignKeyField from '@/components/ForeignKeyField.vue'
+import HtmlField from '@/components/HtmlField.vue'
 import { formatFieldName, isValidUrl } from '@/utils/formatters'
 import { getFieldType, getFieldComponent } from '@/utils/fieldHelpers'
 import { formatDateTimeValue, parseDateTimeValue, formatValueForDisplay, parseValueFromDisplay } from '@/utils/dateTime'
@@ -19,15 +20,15 @@ interface ChildTableConfig {
 
 const props = defineProps<{
   config: ChildTableConfig
-  modelValue: any[]
+  modelValue: Record<string, unknown>[]
   disabled?: boolean
 }>()
 
 const emit = defineEmits<{
-  'update:modelValue': [value: any[]]
+  'update:modelValue': [value: Record<string, unknown>[]]
 }>()
 
-const rows = ref<any[]>([])
+const rows = ref<Record<string, unknown>[]>([])
 const selectedIndices = ref<Set<number>>(new Set())
 
 const {
@@ -39,13 +40,32 @@ const {
   setPage,
 } = usePagination(rows)
 
+const visibleFields = computed(() =>
+  props.config.display_fields.filter(name => name !== 'id')
+)
+
+const startItem = computed(() => (currentPage.value - 1) * itemsPerPage.value + 1)
+const endItem = computed(() => Math.min(currentPage.value * itemsPerPage.value, rows.value.length))
+
+function globalIndex(localIndex: number): number {
+  return (currentPage.value - 1) * itemsPerPage.value + localIndex
+}
+
+function handleFieldInput(localIndex: number, fieldName: string, event: Event) {
+  const field = props.config.fields[fieldName]
+  const fieldType = getFieldType(field)
+  if (fieldType === 'file') {
+    updateField(localIndex, fieldName, (event.target as HTMLInputElement).files?.[0])
+  } else {
+    handleDateTimeChange(localIndex, fieldName, (event.target as HTMLInputElement).value, fieldType)
+  }
+}
+
 // Sync local rows with modelValue
 watch(() => props.modelValue, (newVal) => {
-  if (JSON.stringify(newVal) !== JSON.stringify(rows.value)) {
-    rows.value = newVal ? [...newVal] : []
-    selectedIndices.value.clear()
-  }
-}, { immediate: true })
+  rows.value = newVal ? [...newVal] : []
+  selectedIndices.value.clear()
+}, { immediate: true, deep: true })
 
 // Emit changes to parent
 function updateRows() {
@@ -54,10 +74,7 @@ function updateRows() {
 
 const isAllSelected = computed(() => {
   if (paginatedRows.value.length === 0) return false
-  return paginatedRows.value.every((_, idx) => {
-    const globalIdx = (currentPage.value - 1) * itemsPerPage.value + idx
-    return selectedIndices.value.has(globalIdx)
-  })
+  return paginatedRows.value.every((_, idx) => selectedIndices.value.has(globalIndex(idx)))
 })
 
 const isSomeSelected = computed(() => {
@@ -67,23 +84,21 @@ const isSomeSelected = computed(() => {
 function toggleSelectAll() {
   if (isAllSelected.value) {
     paginatedRows.value.forEach((_, idx) => {
-      const globalIdx = (currentPage.value - 1) * itemsPerPage.value + idx
-      selectedIndices.value.delete(globalIdx)
+      selectedIndices.value.delete(globalIndex(idx))
     })
   } else {
     paginatedRows.value.forEach((_, idx) => {
-      const globalIdx = (currentPage.value - 1) * itemsPerPage.value + idx
-      selectedIndices.value.add(globalIdx)
+      selectedIndices.value.add(globalIndex(idx))
     })
   }
 }
 
 function toggleSelectRow(idx: number) {
-  const globalIdx = (currentPage.value - 1) * itemsPerPage.value + idx
-  if (selectedIndices.value.has(globalIdx)) {
-    selectedIndices.value.delete(globalIdx)
+  const idx2 = globalIndex(idx)
+  if (selectedIndices.value.has(idx2)) {
+    selectedIndices.value.delete(idx2)
   } else {
-    selectedIndices.value.add(globalIdx)
+    selectedIndices.value.add(idx2)
   }
 }
 
@@ -104,7 +119,7 @@ function deleteSelected() {
 }
 
 function addRow() {
-  const newRow: any = {}
+  const newRow: Record<string, unknown> = {}
   props.config.display_fields.forEach(fieldName => {
     if (fieldName !== 'id') {
       newRow[fieldName] = null
@@ -117,20 +132,18 @@ function addRow() {
 }
 
 function removeRow(index: number) {
-  // Calculate global index from local paginated index
-  const globalIndex = (currentPage.value - 1) * itemsPerPage.value + index
-  rows.value.splice(globalIndex, 1)
+  const globalIdx = globalIndex(index)
+  rows.value.splice(globalIdx, 1)
   updateRows()
 
-  // Adjust current page if it's now out of bounds
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
   }
 }
 
-function updateField(localIndex: number, fieldName: string, value: any) {
-  const globalIndex = (currentPage.value - 1) * itemsPerPage.value + localIndex
-  rows.value[globalIndex][fieldName] = value
+function updateField(localIndex: number, fieldName: string, value: unknown) {
+  const idx = globalIndex(localIndex)
+  rows.value[idx][fieldName] = value
   updateRows()
 }
 
@@ -197,11 +210,10 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
               />
             </th>
             <th
-              v-for="fieldName in config.display_fields"
-              :key="fieldName"
-              scope="col"
-              class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wider"
-              v-show="fieldName !== 'id'"
+               v-for="fieldName in visibleFields"
+               :key="fieldName"
+               scope="col"
+               class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wider"
             >
               {{ getFieldLabel(fieldName) }}
               <span v-if="config.fields[fieldName]?.required" class="text-red-500">*</span>
@@ -217,20 +229,19 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
               No records found. Click "Add Row" to create one.
             </td>
           </tr>
-          <tr v-for="(row, idx) in paginatedRows" :key="row.id ?? `row-${(currentPage - 1) * itemsPerPage + idx}`" class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+          <tr v-for="(row, idx) in paginatedRows" :key="row.id ?? `row-${globalIndex(idx)}`" class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
             <td class="px-3 py-2 whitespace-nowrap">
               <input
                 type="checkbox"
-                :checked="selectedIndices.has((currentPage - 1) * itemsPerPage + idx)"
+                :checked="selectedIndices.has(globalIndex(idx))"
                 @change="toggleSelectRow(idx)"
                 class="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
               />
             </td>
             <td
-              v-for="fieldName in config.display_fields"
-              :key="fieldName"
-              v-show="fieldName !== 'id'"
-              class="px-4 py-2 whitespace-nowrap"
+               v-for="fieldName in visibleFields"
+               :key="fieldName"
+               class="px-4 py-2 whitespace-nowrap"
             >
               <template v-if="config.fields[fieldName]">
                 <!-- ForeignKey -->
@@ -283,13 +294,23 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                   class="block w-full px-2 py-1.5 text-sm font-mono border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white min-w-[200px]"
                 ></textarea>
 
+                <!-- HTMLField -->
+                <HtmlField
+                  v-else-if="getFieldComponent(config.fields[fieldName]) === 'html'"
+                  :model-value="row[fieldName] ?? null"
+                  :disabled="isReadonly(fieldName)"
+                  :required="config.fields[fieldName].required"
+                  :placeholder="config.fields[fieldName].help_text"
+                  @update:model-value="updateField(idx, fieldName, $event)"
+                />
+
                 <!-- URL Field -->
                 <div v-else-if="getFieldType(config.fields[fieldName]) === 'url'" class="space-y-1">
                   <div v-if="isReadonly(fieldName)" class="py-1">
                     <a
                       v-if="isValidUrl(row[fieldName])"
                       :href="row[fieldName]"
-                      target="_blank"
+                      target="_blank" rel="noopener noreferrer"
                       class="text-primary-600 hover:text-primary-700 dark:text-primary-400 underline text-sm break-all"
                     >
                       {{ row[fieldName] }}
@@ -310,7 +331,7 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                     <a
                       v-if="isValidUrl(row[fieldName])"
                       :href="row[fieldName]"
-                      target="_blank"
+                      target="_blank" rel="noopener noreferrer"
                       class="inline-flex items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                       title="Open link in new tab"
                     >
@@ -328,7 +349,7 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
                     :value="getFieldType(config.fields[fieldName]) === 'file' ? undefined : formatDateTimeValue(row[fieldName], getFieldType(config.fields[fieldName]))"
                     :disabled="isReadonly(fieldName)"
                     :required="config.fields[fieldName].required"
-                    @input="getFieldType(config.fields[fieldName]) === 'file' ? (e: any) => updateField(idx, fieldName, (e.target as any).files[0]) : handleDateTimeChange(idx, fieldName, ($event.target as HTMLInputElement).value, getFieldType(config.fields[fieldName]))"
+                    @input="handleFieldInput(idx, fieldName, $event)"
                     class="block w-full px-2 py-1.5 text-sm border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
                   />
                   <p v-if="config.fields[fieldName].help_text" class="text-[10px] text-gray-400 italic">
@@ -381,9 +402,9 @@ function handleTextareaInput(idx: number, fieldName: string, value: string) {
         <div>
           <p class="text-sm text-gray-700 dark:text-gray-300">
             Showing
-            <span class="font-medium">{{ (currentPage - 1) * itemsPerPage + 1 }}</span>
+            <span class="font-medium">{{ startItem }}</span>
             to
-            <span class="font-medium">{{ Math.min(currentPage * itemsPerPage, rows.length) }}</span>
+            <span class="font-medium">{{ endItem }}</span>
             of
             <span class="font-medium">{{ rows.length }}</span>
             results

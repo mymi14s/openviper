@@ -21,9 +21,8 @@ def assert_email_count(outbox: list[TestEmail], expected: int) -> None:
 
 
 def assert_email_sent(outbox: list[TestEmail], recipient: str) -> None:
-    assert any(
-        recipient in email.to for email in outbox
-    ), f"Expected email to recipient {recipient!r}."
+    found = any(recipient in email.to for email in outbox)
+    assert found, f"Expected email to recipient {recipient!r}."
 
 
 def assert_email_subject(email: TestEmail, expected: str) -> None:

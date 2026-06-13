@@ -30,10 +30,6 @@ from openviper.utils.translation import (
     translations_cache,
 )
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(autouse=True)
 def reset_language() -> None:
@@ -51,11 +47,6 @@ def clear_translations_cache() -> None:
     translations_cache.clear()
 
 
-# ---------------------------------------------------------------------------
-# I18N-001: Locale file loading prevents path traversal
-# ---------------------------------------------------------------------------
-
-
 class TestI18N001LocalePathTraversal:
     """Locale file loading must prevent path traversal attacks.
 
@@ -64,8 +55,6 @@ class TestI18N001LocalePathTraversal:
     sequences, null bytes, or Unicode tricks must never escape the locale
     directory boundary.
     """
-
-    # -- Positive tests: valid language codes are accepted ----------------
 
     @pytest.mark.parametrize("code", ["en", "fr", "de", "pt_BR", "zh_Hans"])
     def test_i18n001_valid_language_codes_accepted(self, code: str) -> None:
@@ -78,8 +67,6 @@ class TestI18N001LocalePathTraversal:
         set_language("en")
         result = gettext("Hello")
         assert isinstance(result, str)
-
-    # -- Negative tests: path traversal in language codes -----------------
 
     @pytest.mark.parametrize(
         "malicious_code",
@@ -227,11 +214,6 @@ class TestI18N001LocalePathTraversal:
         assert isinstance(result, str)
 
 
-# ---------------------------------------------------------------------------
-# I18N-002: Translation strings are escaped by default
-# ---------------------------------------------------------------------------
-
-
 class TestI18N002TranslationEscaping:
     """Translation strings must be escaped by default.
 
@@ -239,8 +221,6 @@ class TestI18N002TranslationEscaping:
     translation value contains HTML or script tags, the caller must
     explicitly opt into rendering - the default must be safe (escaped).
     """
-
-    # -- Positive tests: normal translations work --------------------------
 
     def test_i18n002_gettext_returns_plain_string(self) -> None:
         """gettext must return a plain str, not an HTML-safe object."""
@@ -261,8 +241,6 @@ class TestI18N002TranslationEscaping:
         resolved = str(lazy)
         assert isinstance(resolved, str)
 
-    # -- Negative tests: HTML/script injection in translations ------------
-
     @pytest.mark.parametrize(
         "payload",
         [
@@ -281,8 +259,6 @@ class TestI18N002TranslationEscaping:
         set_language("en")
         result = gettext(payload)
         assert isinstance(result, str)
-        # The raw payload text must be preserved verbatim (no stripping),
-        # but it must be a plain string - not an HTML-safe marked object.
         assert payload in result or result == payload
 
     @pytest.mark.parametrize(
@@ -314,7 +290,6 @@ class TestI18N002TranslationEscaping:
         set_language("en")
         result = gettext("&lt;script&gt;alert(1)&lt;/script&gt;")
         assert isinstance(result, str)
-        # Must preserve the entity text literally, not decode it
         assert "&lt;" in result
 
     def test_i18n002_gettext_with_format_string_not_interpolated(self) -> None:
@@ -387,19 +362,12 @@ class TestI18N002TranslationEscaping:
             assert type(result) is str
 
 
-# ---------------------------------------------------------------------------
-# I18N-003: Unicode normalization is consistent
-# ---------------------------------------------------------------------------
-
-
 class TestI18N003UnicodeNormalization:
     """Unicode normalization must be consistent across the i18n subsystem.
 
     Language codes and translation strings that are visually identical
     but differ in Unicode representation must be handled deterministically.
     """
-
-    # -- Positive tests: normalization consistency --------------------------
 
     def test_i18n003_nfc_vs_nfd_language_codes(self) -> None:
         """NFC and NFD forms of the same language code must resolve

@@ -32,10 +32,10 @@ export function getChangedFields(
   return changes
 }
 
-/** Filter editable fields from a model config (excludes id, created_at, updated_at). */
+/** Filter editable fields from a model config (excludes auto-generated id, created_at, updated_at). */
 export function getEditableFields(model: ModelConfig): ModelField[] {
   return model.fields.filter((field) => {
-    if (field.name === 'id') return false
+    if (field.name === 'id' && field.readonly) return false
     if (field.name === 'created_at' || field.name === 'updated_at') return false
     return true
   })

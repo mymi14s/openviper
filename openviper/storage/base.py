@@ -86,7 +86,7 @@ class FileSystemStorage:
             return self._base_url
         return getattr(settings, "MEDIA_URL", "/media/")
 
-    def _validate_name(self, name: str) -> str:
+    def validate_name(self, name: str) -> str:
         """Validate and sanitise *name* against path traversal.
 
         - Rejects null bytes.
@@ -126,7 +126,7 @@ class FileSystemStorage:
 
         return "/".join(cleaned)
 
-    def _full_path(self, name: str) -> Path:
+    def full_path(self, name: str) -> Path:
         """Return absolute path, guaranteed to be inside ``location``.
 
         Performs symlink detection and path containment verification to
@@ -158,10 +158,18 @@ class FileSystemStorage:
 
         return full
 
-    async def _mkdir_async(self, path: Path) -> None:
+    async def mkdir_async(self, path: Path) -> None:
         """Create *path* directory (and parents) asynchronously."""
         with contextlib.suppress(FileExistsError):
             await aiofiles.os.makedirs(str(path), exist_ok=True)
+
+    def resolved_path(self, name: str) -> Path:
+        """Validate *name* and return its absolute path inside ``location``.
+
+        Combines :meth:`validate_name` and :meth:`full_path` into a
+        single call so callers do not repeat the two-step dance.
+        """
+        return self.full_path(self.validate_name(name))
 
     async def save(self, name: str, content: StorageContent) -> str:
         """Save file with async I/O and chunked uploads.
@@ -170,16 +178,16 @@ class FileSystemStorage:
         prevent partial writes.  Re-verifies path containment
         after temp file creation to mitigate TOCTOU.
         """
-        name = self._validate_name(name)
-        full_path = self._full_path(name)
+        name = self.validate_name(name)
+        full_path = self.full_path(name)
 
-        await self._mkdir_async(full_path.parent)
+        await self.mkdir_async(full_path.parent)
 
         # Avoid overwriting existing files by generating a unique name.
         if await self.exists(name):
-            name = self._validate_name(generate_unique_name(name))
-            full_path = self._full_path(name)
-            await self._mkdir_async(full_path.parent)
+            name = self.validate_name(generate_unique_name(name))
+            full_path = self.full_path(name)
+            await self.mkdir_async(full_path.parent)
 
         # Atomic write prevents partial-file corruption.
         # Use a UUID-based temp suffix to prevent predictability.
@@ -221,7 +229,7 @@ class FileSystemStorage:
             try:
                 resolved_tmp.relative_to(root)
             except ValueError:
-                # Remove escaped temp file to prevent orphans.
+                # Clean up temp file.
                 with contextlib.suppress(OSError):
                     os.remove(str(tmp_path))
                 raise ValueError(f"Temp file {str(tmp_path)!r} escapes the storage root.") from None
@@ -236,21 +244,21 @@ class FileSystemStorage:
 
     async def delete(self, name: str) -> None:
         """Delete file asynchronously. No error if it does not exist."""
-        full_path = self._full_path(self._validate_name(name))
+        full_path = self.resolved_path(name)
         with contextlib.suppress(FileNotFoundError):
             await aiofiles.os.remove(str(full_path))
 
     async def exists(self, name: str) -> bool:
         """Check if file exists asynchronously."""
         try:
-            await aiofiles.os.stat(str(self._full_path(self._validate_name(name))))
+            await aiofiles.os.stat(str(self.resolved_path(name)))
         except FileNotFoundError:
             return False
         return True
 
     def url(self, name: str) -> str:
         """Return the public URL with percent-encoded path segments."""
-        validated = self._validate_name(name)
+        validated = self.validate_name(name)
         base = self.base_url.rstrip("/")
         encoded = "/".join(quote(segment, safe="") for segment in validated.split("/"))
         return f"{base}/{encoded}"
@@ -258,7 +266,7 @@ class FileSystemStorage:
     async def size(self, name: str) -> int:
         """Get file size asynchronously."""
         try:
-            stat_result = await aiofiles.os.stat(str(self._full_path(self._validate_name(name))))
+            stat_result = await aiofiles.os.stat(str(self.resolved_path(name)))
         except FileNotFoundError:
             raise FileNotFoundError(f"File '{name}' does not exist in storage.") from None
         return cast("int", stat_result.st_size)
@@ -269,7 +277,7 @@ class FileSystemStorage:
         Raises:
             ValueError: if the file exceeds ``MAX_READ_SIZE`` bytes.
         """
-        full_path = self._full_path(self._validate_name(name))
+        full_path = self.resolved_path(name)
         file_size = (await aiofiles.os.stat(str(full_path))).st_size
         if file_size > MAX_READ_SIZE:
             raise ValueError(
@@ -281,7 +289,7 @@ class FileSystemStorage:
 
     async def listdir(self, path: str = "") -> list[str]:
         """List entries under *path* in storage."""
-        full_path = self._full_path(self._validate_name(path)) if path else Path(self.location)
+        full_path = self.resolved_path(path) if path else Path(self.location)
         if not os.path.isdir(str(full_path)):
             return []
         return os.listdir(str(full_path))
@@ -294,7 +302,7 @@ class DefaultStorage:
         self._instance: FileSystemStorage | None = None
         self._lock: threading.Lock = threading.Lock()
 
-    def _get_storage(self) -> FileSystemStorage:
+    def get_storage(self) -> FileSystemStorage:
         if self._instance is not None:
             return self._instance
         with self._lock:
@@ -309,25 +317,25 @@ class DefaultStorage:
             self._instance = storage
 
     async def save(self, name: str, content: StorageContent) -> str:
-        return await self._get_storage().save(name, content)
+        return await self.get_storage().save(name, content)
 
     async def delete(self, name: str) -> None:
-        await self._get_storage().delete(name)
+        await self.get_storage().delete(name)
 
     async def exists(self, name: str) -> bool:
-        return await self._get_storage().exists(name)
+        return await self.get_storage().exists(name)
 
     def url(self, name: str) -> str:
-        return self._get_storage().url(name)
+        return self.get_storage().url(name)
 
     async def size(self, name: str) -> int:
-        return await self._get_storage().size(name)
+        return await self.get_storage().size(name)
 
     async def read(self, name: str) -> bytes:
-        return await self._get_storage().read(name)
+        return await self.get_storage().read(name)
 
     async def listdir(self, path: str = "") -> list[str]:
-        return await self._get_storage().listdir(path)
+        return await self.get_storage().listdir(path)
 
 
 default_storage = DefaultStorage()

@@ -8,9 +8,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from openviper.conf import settings as settings
-from openviper.core.management.base import BaseCommand, CommandError
-from openviper.core.management.utils import get_default_database_url
+from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import resolve_db_url
 from openviper.db.tools.compression.tar import create_tar_gz
 from openviper.db.tools.restore.restore_engine import detect_engine_from_url
 from openviper.db.tools.utils.filename import (
@@ -20,7 +19,7 @@ from openviper.db.tools.utils.filename import (
 from openviper.db.tools.utils.metadata import build_metadata, compute_checksum, write_metadata
 from openviper.db.tools.utils.validators import validate_backup_path
 
-_DEFAULT_BACKUP_DIR = "./backup"
+DEFAULT_BACKUP_DIR = "./backup"
 
 
 class BackupDBCommand(BaseCommand):
@@ -31,7 +30,7 @@ class BackupDBCommand(BaseCommand):
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             "--path",
-            default=_DEFAULT_BACKUP_DIR,
+            default=DEFAULT_BACKUP_DIR,
             help="Directory to store the backup (default: ./backup).",
         )
         parser.add_argument(
@@ -53,18 +52,13 @@ class BackupDBCommand(BaseCommand):
         )
 
     def handle(self, **options: object) -> None:  # type: ignore[override]
-        asyncio.run(self._async_handle(**options))
+        asyncio.run(self.async_handle(**options))
 
-    async def _async_handle(self, **options: object) -> None:
-        backup_path_str = str(options.get("path") or _DEFAULT_BACKUP_DIR)
+    async def async_handle(self, **options: object) -> None:
+        backup_path_str = str(options.get("path") or DEFAULT_BACKUP_DIR)
         custom_name: str | None = options.get("name")  # type: ignore[assignment]
-        db_url: str | None = options.get("db")  # type: ignore[assignment]
+        db_url = resolve_db_url(options)
         compress: bool = bool(options.get("compress", True))
-
-        if not db_url:
-            db_url = get_default_database_url(settings)
-        if not db_url:
-            raise CommandError("No default DATABASES URL configured. Use --db to specify one.")
 
         backup_dir = validate_backup_path(backup_path_str)
         backup_dir.mkdir(parents=True, exist_ok=True)

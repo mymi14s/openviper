@@ -1,20 +1,14 @@
-"""Initial migration for openviper tasks.
+"""Initial migration - create task result tables."""
 
-Creates ``openviper_task_results`` - the result-tracking table used by
-:mod:`openviper.tasks.results` to store every task's lifecycle state.
-
-Note: the table is also created automatically (CREATE TABLE IF NOT EXISTS)
-by the results module on first use, so running this migration is optional
-but recommended for clean schema management.
-"""
+from __future__ import annotations
 
 from openviper.db.migrations import executor as migrations
 
-dependencies: list[object] = []
+dependencies: list[tuple[str, str]] = []
 
 operations = [
     migrations.CreateTable(
-        table_name="openviper_task_results",
+        table_name="openviper_task_result",
         columns=[
             {
                 "name": "id",
@@ -23,50 +17,42 @@ operations = [
                 "primary_key": True,
                 "autoincrement": True,
             },
-            # ── Identity ──────────────────────────────────────────────────
+            {"name": "message_id", "type": "VARCHAR", "nullable": False, "unique": True},
+            {"name": "actor_name", "type": "VARCHAR", "nullable": False},
+            {"name": "queue", "type": "VARCHAR", "nullable": False},
+            {"name": "arguments", "type": "TEXT", "nullable": True},
+            {"name": "return_value", "type": "TEXT", "nullable": True},
+            {"name": "error_traceback", "type": "TEXT", "nullable": True},
+            {"name": "status", "type": "VARCHAR", "nullable": False},
+            {"name": "retries", "type": "INTEGER", "nullable": False},
+            {"name": "duration_ms", "type": "BIGINT", "nullable": True},
+            {"name": "created_at", "type": "DATETIME", "nullable": True},
+            {"name": "updated_at", "type": "DATETIME", "nullable": True},
+        ],
+    ),
+    migrations.CreateTable(
+        table_name="openviper_scheduled_job",
+        columns=[
             {
-                "name": "message_id",
-                "type": "VARCHAR(64)",
-                "nullable": False,
-                "unique": True,
-            },
-            {
-                "name": "actor_name",
-                "type": "VARCHAR(255)",
-                "nullable": False,
-                "default": "unknown",
-            },
-            {
-                "name": "queue_name",
-                "type": "VARCHAR(100)",
-                "nullable": False,
-                "default": "unknown",
-            },
-            # ── State ─────────────────────────────────────────────────────
-            # pending | running | success | failure | skipped | dead
-            {
-                "name": "status",
-                "type": "VARCHAR(20)",
-                "nullable": False,
-                "default": "pending",
-            },
-            {
-                "name": "retries",
+                "name": "id",
                 "type": "INTEGER",
                 "nullable": False,
-                "default": 0,
+                "primary_key": True,
+                "autoincrement": True,
             },
-            # ── Payload ───────────────────────────────────────────────────
-            {"name": "args", "type": "TEXT", "nullable": True},
-            {"name": "kwargs", "type": "TEXT", "nullable": True},
-            # ── Outcome ───────────────────────────────────────────────────
-            {"name": "result", "type": "TEXT", "nullable": True},
-            {"name": "error", "type": "TEXT", "nullable": True},
-            {"name": "traceback", "type": "TEXT", "nullable": True},
-            # ── Timestamps ────────────────────────────────────────────────
-            {"name": "enqueued_at", "type": "DATETIME", "nullable": True},
-            {"name": "started_at", "type": "DATETIME", "nullable": True},
-            {"name": "completed_at", "type": "DATETIME", "nullable": True},
+            {"name": "app", "type": "VARCHAR", "nullable": False},
+            {"name": "name", "type": "VARCHAR", "nullable": False, "unique": True},
+            {"name": "schedule", "type": "VARCHAR", "nullable": False},
+            {"name": "status", "type": "VARCHAR", "nullable": False},
+            {"name": "trigger_source", "type": "VARCHAR", "nullable": False},
         ],
     ),
 ]
+
+
+async def up() -> None:
+    pass
+
+
+async def down() -> None:
+    pass

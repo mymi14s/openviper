@@ -1,20 +1,21 @@
 """PostGIS-compatible geolocation support.
 
-Provides PointField ORM field and Point geometry class.
-Shapely integration available via the Geolocation extras.
+.. deprecated::
+   Import from ``openviper.contrib.fields.geolocation`` instead.
+   This module will be removed in a future release.
 """
 
 from __future__ import annotations
 
-from openviper.contrib.geolocation.backends import BaseGeoBackend, get_backend
-from openviper.contrib.geolocation.exceptions import (
+from openviper.contrib.fields.geolocation.backends import BaseGeoBackend, get_backend
+from openviper.contrib.fields.geolocation.exceptions import (
     DependencyMissingError,
     GeoLocationError,
     InvalidPointError,
 )
-from openviper.contrib.geolocation.fields import PointField
-from openviper.contrib.geolocation.geometry import Point
-from openviper.contrib.geolocation.utils import haversine_distance, parse_point
+from openviper.contrib.fields.geolocation.fields import PointField
+from openviper.contrib.fields.geolocation.geometry import Point
+from openviper.contrib.fields.geolocation.utils import haversine_distance, parse_point
 
 __all__ = [
     "BaseGeoBackend",

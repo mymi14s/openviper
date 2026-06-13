@@ -6,10 +6,95 @@ import asyncio
 import re
 import threading
 from collections import OrderedDict
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Final
+
+from openviper.db.exceptions import SingleModelAlreadyExistsError
 
 if TYPE_CHECKING:
     from openviper.db.models import Model
+
+
+def get_default_database_url(settings_obj: object) -> str:
+    """Return the configured default database URL.
+
+    Resolution order:
+      1. ``DATABASES['default']['OPTIONS']['URL']`` (nested config format)
+      2. ``DATABASES['default']['URL']`` (flat config format)
+      3. ``DATABASE_URL`` (top-level legacy setting)
+    """
+    databases = getattr(settings_obj, "DATABASES", {})
+    if isinstance(databases, Mapping):
+        default_config = databases.get("default")
+        if isinstance(default_config, Mapping):
+            # New nested format: OPTIONS.URL
+            options = default_config.get("OPTIONS")
+            if isinstance(options, Mapping):
+                url = options.get("URL")
+                if isinstance(url, str) and url:
+                    return url
+            # Flat format: URL directly in default config
+            url = default_config.get("URL")
+            if isinstance(url, str) and url:
+                return url
+
+    # Legacy top-level DATABASE_URL fallback
+    database_url = getattr(settings_obj, "DATABASE_URL", "")
+    if isinstance(database_url, str) and database_url:
+        return database_url
+    return ""
+
+
+def get_database_option(settings_obj: object, key: str, default: object = None) -> object:
+    """Return a database option from DATABASES['default']['OPTIONS'].
+
+    Falls back to a top-level ``DATABASE_<KEY>`` attribute for backward
+    compatibility with the legacy flat-settings format.
+    """
+    databases = getattr(settings_obj, "DATABASES", {})
+    if isinstance(databases, Mapping):
+        default_config = databases.get("default")
+        if isinstance(default_config, Mapping):
+            options = default_config.get("OPTIONS")
+            if isinstance(options, Mapping) and key in options:
+                return options[key]
+            if key in default_config:
+                return default_config[key]
+    # Legacy fallback: DATABASE_ECHO, DATABASE_POOL_SIZE, etc.
+    legacy_key = f"DATABASE_{key}"
+    legacy_val = getattr(settings_obj, legacy_key, None)
+    if legacy_val is not None:
+        return legacy_val
+    return default
+
+
+def get_database_routers(settings_obj: object) -> list[str]:
+    """Return the configured database router import paths.
+
+    Resolution order:
+      1. ``DATABASES['ROUTERS']`` (nested config format)
+      2. ``DATABASE_ROUTERS`` (top-level legacy setting)
+    """
+    databases = getattr(settings_obj, "DATABASES", {})
+    if isinstance(databases, Mapping):
+        routers = databases.get("ROUTERS")
+        if isinstance(routers, list):
+            return routers
+    # Legacy fallback
+    legacy = getattr(settings_obj, "DATABASE_ROUTERS", None)
+    if isinstance(legacy, list):
+        return legacy
+    return []
+
+
+async def enforce_single_model_constraint(model_cls: type[Model]) -> None:
+    """Raise SingleModelAlreadyExistsError if a record already exists for a singleton model.
+
+    Args:
+        model_cls: The model class to check.
+    """
+    if await model_cls.objects.filter(ignore_permissions=True).exists():
+        raise SingleModelAlreadyExistsError(f"{model_cls.__name__} allows only one logical record.")
 
 
 class BoundedDict(OrderedDict):
@@ -44,11 +129,7 @@ class BoundedDict(OrderedDict):
             return super().__getitem__(key)
 
 
-# ── SQL injection prevention patterns ─────────────────────────────────────────
-
-# Dangerous SQL patterns that could enable statement injection in constraint
-# expressions, partial-index conditions, and other developer-supplied SQL
-# fragments.
+# SQL injection patterns for constraint names.
 _SQL_INJECTION_RE: Final[re.Pattern[str]] = re.compile(
     r";|--|/\*|\*/|(?i:\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|TRUNCATE"
     r"|GRANT|REVOKE|EXEC(UTE)?|EXECUTE\s)\b)"
@@ -82,7 +163,7 @@ def validate_sql_expression(value: str, field_name: str, context: str) -> str:
     return value
 
 
-def validate_identifier(name: str, description: str) -> str:
+def validate_identifier(name: str, description: str = "identifier") -> str:
     """Validate that *name* is a safe SQL identifier."""
     if not _SAFE_IDENTIFIER_RE.match(name):
         raise ValueError(
@@ -129,16 +210,9 @@ def sql_literal(value: object) -> str:
     return f"'{escaped}'"
 
 
-# ── Per-event-loop lock factory ──────────────────────────────────────────────
-# asyncio.Lock is bound to the event loop that created it.  Using a lock
-# created on one loop from another raises "Task got Future attached to a
-# different loop".  The helper below lazily creates one lock per running loop.
+# Lazily creates one lock per running event loop.
 #
-# When no loop is running (sync setup), a threading.Lock is returned instead.
-# This is safe because the sync fallback path never awaits - it only provides
-# mutual exclusion for synchronous multi-threaded setup code.  The threading
-# lock must never be used inside an ``async with`` block; callers that need
-# async locking must ensure they are inside a running event loop.
+# Sync fallback returns threading.Lock for non-async setup.
 
 _per_loop_locks: dict[int, asyncio.Lock] = {}
 
@@ -175,7 +249,7 @@ def get_per_loop_lock(
     return store[loop_id]
 
 
-def _cleanup_stale_locks(cache: dict[int, asyncio.Lock]) -> None:
+def cleanup_stale_locks_for_cache(cache: dict[int, asyncio.Lock]) -> None:
     """Remove lock entries for event loops that are no longer running.
 
     Shared by ``connection.cleanup_stale_locks`` and
@@ -196,9 +270,6 @@ def _cleanup_stale_locks(cache: dict[int, asyncio.Lock]) -> None:
         stale_keys.append(loop_id)
     for key in stale_keys:
         cache.pop(key, None)
-
-
-# ── PK type casting ──────────────────────────────────────────────────────────
 
 
 def cast_to_pk_type(model_class: type[Model], value: object) -> object:

@@ -16,12 +16,16 @@ import logging
 import re
 import typing as t
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import sqlalchemy.exc
 
 from openviper.admin.actions import ActionResult, get_action
-from openviper.admin.api.permissions import check_admin_access, check_model_permission
+from openviper.admin.api.permissions import (
+    check_model_permission,
+    require_admin_access,
+)
+from openviper.admin.api.serializers import serialize_value
 from openviper.admin.fields import coerce_field_value, get_field_component_type, get_filter_choices
 from openviper.admin.history import (
     ChangeAction,
@@ -33,6 +37,8 @@ from openviper.admin.history import (
 from openviper.admin.registry import NotRegistered, admin
 from openviper.auth import authenticate, create_access_token, create_refresh_token, get_user_model
 from openviper.auth.jwt import decode_refresh_token, decode_token_unverified
+from openviper.auth.session.manager import SessionManager
+from openviper.auth.session.store import get_session_store
 from openviper.auth.token_blocklist import is_token_revoked, revoke_token
 from openviper.conf import settings
 from openviper.db.backends.registry import backend_registry
@@ -52,6 +58,32 @@ if TYPE_CHECKING:
     from openviper.http.request import Request
 
 CSV_INJECTION_PREFIXES: frozenset[str] = frozenset({"=", "+", "-", "@", "\t", "\r"})
+
+
+def resolve_admin_model(app_label: str, model_name: str) -> tuple[t.Any, type]:
+    """Resolve an app-labeled model to its ModelAdmin and model class.
+
+    Raises NotFound if the model is not registered in the admin site.
+    """
+    try:
+        model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
+        model_class = admin.get_model_by_app_and_name(app_label, model_name)
+    except NotRegistered as exc:
+        raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+    return model_admin, model_class
+
+
+def resolve_admin_model_by_name(model_name: str) -> tuple[t.Any, type]:
+    """Resolve a model by name only to its ModelAdmin and model class.
+
+    Raises NotFound if the model is not registered in the admin site.
+    """
+    try:
+        model_admin = admin.get_model_admin_by_name(model_name)
+        model_class = admin.get_model_by_name(model_name)
+    except NotRegistered as exc:
+        raise NotFound(f"Model '{model_name}' not found.") from exc
+    return model_admin, model_class
 
 
 def sanitize_csv_cell(value: t.Any) -> str:
@@ -76,6 +108,31 @@ def sanitize_filename(name: str) -> str:
     sanitized = re.sub(r"""[\\"\r\n]""", "", name)
     sanitized = re.sub(r"[^A-Za-z0-9._-]", "_", sanitized)
     return sanitized or "export"
+
+
+def resolve_per_page(
+    raw_per_page: str | None,
+    raw_page_size: str | None,
+    model_admin: ModelAdmin,
+) -> int:
+    """Resolve per_page from query params, clamped to allowed options.
+
+    If the requested value matches an allowed option it is used directly.
+    Otherwise the closest allowed option that does not exceed the request
+    is selected, falling back to the default ``list_per_page``.
+    """
+    allowed = model_admin.list_per_page_options
+    default = model_admin.list_per_page
+    raw = raw_per_page or raw_page_size
+    if raw is None:
+        return default
+    with contextlib.suppress(ValueError, TypeError):
+        requested = int(raw)
+        if requested in allowed:
+            return requested
+        candidates = [o for o in allowed if o <= requested]
+        return max(candidates) if candidates else min(allowed)
+    return default
 
 
 User = get_user_model()
@@ -170,13 +227,7 @@ async def batch_load_children(
                 child_data = {"id": child.id}
                 for f_name in child_fields_list:
                     val = getattr(child, f_name, None)
-                    if hasattr(val, "isoformat"):
-                        val = val.isoformat()
-                    elif val is not None and not isinstance(
-                        val, (str, int, float, bool, list, dict)
-                    ):
-                        val = str(val)
-                    child_data[f_name] = val
+                    child_data[f_name] = serialize_value(val)
 
                 if related_name not in children_by_instance[parent_id]:
                     children_by_instance[parent_id][related_name] = []
@@ -255,11 +306,7 @@ async def serialize_instance_with_children(
         if isinstance(field_obj, ManyToManyField):
             continue
         value = getattr(instance, field_name, None)
-        if hasattr(value, "isoformat"):
-            value = value.isoformat()
-        elif value is not None and not isinstance(value, (str, int, float, bool, list, dict)):
-            value = str(value)
-        response_data[field_name] = value
+        response_data[field_name] = serialize_value(value)
 
     if preloaded_children is not None:
         response_data.update(preloaded_children)
@@ -295,13 +342,7 @@ async def serialize_instance_with_children(
                     child_data = {"id": child.id}
                     for f_name in child_fields_list:
                         val = getattr(child, f_name, None)
-                        if hasattr(val, "isoformat"):
-                            val = val.isoformat()
-                        elif val is not None and not isinstance(
-                            val, (str, int, float, bool, list, dict)
-                        ):
-                            val = str(val)
-                        child_data[f_name] = val
+                        child_data[f_name] = serialize_value(val)
                     serialized_children.append(child_data)
 
                 response_data[child_model.__name__.lower() + "_set"] = serialized_children
@@ -323,11 +364,13 @@ def get_admin_router() -> Router:
         user_model = User
         user_model_string = f"{user_model._app_name}.{user_model.__name__}"
 
+        admin_settings: dict[str, Any] = dict(settings.ADMIN_SETTINGS)
+
         return JSONResponse(
             {
-                "admin_title": getattr(settings, "ADMIN_TITLE", "OpenViper Admin"),
-                "admin_header_title": getattr(settings, "ADMIN_HEADER_TITLE", "OpenViper"),
-                "admin_footer_title": getattr(settings, "ADMIN_FOOTER_TITLE", "OpenViper Admin"),
+                "admin_title": admin_settings.get("title", "OpenViper Admin"),
+                "admin_header_title": admin_settings.get("header_title", "OpenViper"),
+                "admin_footer_title": admin_settings.get("footer_title", "OpenViper Admin"),
                 "user_model": user_model_string,
                 "auth_user_model": user_model_string,
                 "is_custom_user": getattr(
@@ -451,10 +494,11 @@ def get_admin_router() -> Router:
         try:
             payload = decode_refresh_token(refresh_token)
             user_id = payload.get("sub")
+            jti = payload.get("jti")
+            exp = payload.get("exp")
         except Exception as exc:
             raise ValidationError({"detail": "Invalid refresh token."}) from exc
 
-        jti = payload.get("jti")
         if jti and await is_token_revoked(jti):
             raise ValidationError({"detail": "Refresh token has been revoked."})
 
@@ -463,6 +507,19 @@ def get_admin_router() -> Router:
         user = await user_cls.objects.get_or_none(id=user_id_casted)
         if not user:
             raise ValidationError({"detail": "User not found."})
+
+        # Rotate refresh tokens: revoke the used token and return a new one.
+        new_refresh_token = create_refresh_token(user.id)
+        if jti:
+            try:
+                expires_at = (
+                    timezone.datetime.fromtimestamp(float(exp), tz=timezone.UTC)
+                    if exp
+                    else timezone.now() + datetime.timedelta(days=7)
+                )
+                await revoke_token(jti, "refresh", user_id, expires_at)
+            except (RuntimeError, ValueError) as exc:
+                logger.warning("Could not revoke used refresh token: %s", exc)
 
         expires_at = timezone.now() + datetime.timedelta(hours=24)
         access_token = create_access_token(
@@ -473,6 +530,7 @@ def get_admin_router() -> Router:
             {
                 "token": access_token,
                 "access_token": access_token,
+                "refresh_token": new_refresh_token,
                 "expires_at": expires_at.isoformat(),
             }
         )
@@ -480,8 +538,7 @@ def get_admin_router() -> Router:
     @router.get("/auth/me/")
     async def admin_current_user(request: Request) -> JSONResponse:
         """Get current authenticated user."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         user = request.user
         return JSONResponse(
@@ -507,8 +564,7 @@ def get_admin_router() -> Router:
         Returns:
             Success message.
         """
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         data = await request.json()
         current_password = data.get("current_password")
@@ -536,7 +592,34 @@ def get_admin_router() -> Router:
         await user.set_password(new_password)
         await user.save()
 
-        return JSONResponse({"detail": "Password changed successfully."})
+        # Invalidate all other sessions and rotate the current session so a
+        # stolen cookie cannot continue to be used after a password change.
+        try:
+            await get_session_store().delete_user_sessions(user.pk)
+            session_key = await SessionManager().login(request, user)
+        except (RuntimeError, ValueError) as exc:
+            logger.warning("Could not rotate session after password change: %s", exc)
+            return JSONResponse({"detail": "Password changed successfully."})
+
+        response = JSONResponse({"detail": "Password changed successfully."})
+        cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
+        cookie_path = getattr(settings, "SESSION_COOKIE_PATH", "/")
+        cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+        secure = getattr(settings, "SESSION_COOKIE_SECURE", True) or request.is_secure()
+        httponly = getattr(settings, "SESSION_COOKIE_HTTPONLY", True)
+        samesite = getattr(settings, "SESSION_COOKIE_SAMESITE", "Lax")
+        max_age = int(getattr(settings, "SESSION_COOKIE_AGE", 3600))
+        response.set_cookie(
+            cookie_name,
+            session_key,
+            path=cookie_path,
+            domain=cookie_domain,
+            secure=secure,
+            httponly=httponly,
+            samesite=samesite,
+            max_age=max_age,
+        )
+        return response
 
     @router.post("/auth/change-user-password/{user_id}/")
     @rate_limit(max_requests=5, window_seconds=60)
@@ -550,8 +633,7 @@ def get_admin_router() -> Router:
         Returns:
             Success message.
         """
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         if not request.user.is_superuser:
             raise PermissionDenied("Only superusers can change other users' passwords.")
@@ -578,13 +660,19 @@ def get_admin_router() -> Router:
         await user.set_password(new_password)
         await user.save()
 
+        # Invalidate all sessions for the affected user so an attacker with a
+        # stolen session cannot keep access after the password is changed.
+        try:
+            await get_session_store().delete_user_sessions(user.pk)
+        except (RuntimeError, ValueError) as exc:
+            logger.warning("Could not invalidate sessions after password change: %s", exc)
+
         return JSONResponse({"detail": f"Password changed successfully for {user.username}."})
 
     @router.get("/dashboard/")
     async def admin_dashboard(request: Request) -> JSONResponse:
         """Get dashboard statistics and recent activity."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         all_models = admin.get_all_models()
 
@@ -634,8 +722,7 @@ def get_admin_router() -> Router:
     @router.get("/models/")
     async def list_models(request: Request) -> JSONResponse:
         """List all registered models with their admin configuration."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         models = []
         for model_class, model_admin in admin.get_all_models():
@@ -667,51 +754,161 @@ def get_admin_router() -> Router:
     @router.get("/models/{app_label}/{model_name}/")
     async def get_model_config(request: Request, app_label: str, model_name: str) -> JSONResponse:
         """Get model configuration and metadata."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         if not check_model_permission(request, model_class, "view"):
             raise PermissionDenied(f"No permission to view {model_name}.")
 
         return JSONResponse(model_admin.get_model_info(request))
 
+    @router.get("/models/{app_label}/{model_name}/single/")
+    async def get_single_instance(
+        request: Request, app_label: str, model_name: str
+    ) -> JSONResponse:
+        """Get the single instance for a singleton model."""
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
+
+        if not getattr(model_class, "_meta", None) or not model_class._meta.single:
+            raise NotFound(f"Model '{app_label}/{model_name}' is not a singleton model.")
+
+        if not check_model_permission(request, model_class, "view"):
+            raise PermissionDenied(f"No permission to view {model_name}.")
+
+        instance = await model_class.objects.filter(ignore_permissions=True).first()
+        if not instance:
+            model_info = model_admin.get_model_info(request)
+            return JSONResponse(
+                {
+                    "instance": None,
+                    "model_info": model_info,
+                    "readonly_fields": [],
+                    "fieldsets": model_admin.get_fieldsets(request, None),
+                }
+            )
+
+        if not model_admin.has_view_permission(request, instance):
+            raise PermissionDenied(f"No permission to view this {model_name}.")
+
+        response_data = await serialize_instance_with_children(
+            request, model_admin, model_class, instance
+        )
+        model_info = model_admin.get_model_info(request)
+
+        return JSONResponse(
+            {
+                "instance": response_data,
+                "model_info": model_info,
+                "readonly_fields": model_admin.get_readonly_fields(request, instance),
+                "fieldsets": model_admin.get_fieldsets(request, instance),
+            }
+        )
+
+    @router.put("/models/{app_label}/{model_name}/single/")
+    async def update_single_instance(
+        request: Request, app_label: str, model_name: str
+    ) -> JSONResponse:
+        """Update the single instance for a singleton model."""
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
+
+        if not getattr(model_class, "_meta", None) or not model_class._meta.single:
+            raise NotFound(f"Model '{app_label}/{model_name}' is not a singleton model.")
+
+        instance = await model_class.objects.filter(ignore_permissions=True).first()
+        if not instance:
+            raise NotFound(f"No {model_name} instance found.")
+
+        if not model_admin.has_change_permission(request, instance):
+            raise PermissionDenied(f"No permission to change {model_name}.")
+
+        if "multipart/form-data" in request.headers.get("content-type", ""):
+            form = await request.form()
+            data: dict[str, t.Any] = {}
+            for k, v in form.items():
+                if isinstance(v, str) and (v.startswith("[") or v.startswith("{")):
+                    try:
+                        data[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        data[k] = v
+                else:
+                    data[k] = v
+        else:
+            data = await request.json()
+
+        fields = getattr(model_class, "_fields", {})
+        old_data: dict[str, t.Any] = {}
+        for field_name, field_obj in fields.items():
+            if isinstance(field_obj, ManyToManyField):
+                continue
+            old_data[field_name] = getattr(instance, field_name, None)
+
+        readonly_fields = model_admin.get_readonly_fields(request, instance)
+        excluded_fields = set(model_admin.get_exclude(request, instance))
+        sensitive_fields = set(model_admin.get_sensitive_fields(request, instance))
+        new_data: dict[str, t.Any] = {}
+        field_errors: dict[str, str] = {}
+
+        for field_name, value in data.items():
+            if field_name in readonly_fields:
+                continue
+            if field_name in excluded_fields or field_name in sensitive_fields:
+                continue
+            try:
+                if field_name in fields:
+                    if isinstance(fields[field_name], ManyToManyField):
+                        continue
+                    coerced_value = coerce_field_value(fields[field_name], value)
+                    setattr(instance, field_name, coerced_value)
+                    new_data[field_name] = coerced_value
+                else:
+                    continue
+            except ValueError as exc:
+                field_errors[field_name] = str(exc)
+
+        if field_errors:
+            return JSONResponse({"errors": field_errors}, status_code=422)
+
+        await instance.save(ignore_permissions=True)
+
+        changes = compute_changes(old_data, new_data)
+        if changes:
+            asyncio.create_task(
+                log_change(
+                    model_name=f"{app_label}.{model_name}",
+                    object_id=instance.id,
+                    action=ChangeAction.CHANGE,
+                    changes=changes,
+                    user=request.user,
+                    object_repr=str(instance),
+                )
+            )
+
+        response_data = await serialize_instance_with_children(
+            request, model_admin, model_class, instance
+        )
+
+        return JSONResponse({"instance": response_data})
+
     @router.get("/models/{app_label}/{model_name}/list/")
     async def list_instances_by_app(
         request: Request, app_label: str, model_name: str
     ) -> JSONResponse:
         """List instances of a model with pagination, search, and filtering."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         if not check_model_permission(request, model_class, "view"):
             try:
                 page = max(1, int(request.query_params.get("page", 1)))
             except ValueError, TypeError:
                 page = 1
-            try:
-                per_page = max(
-                    1,
-                    int(
-                        request.query_params.get(
-                            "per_page",
-                            request.query_params.get("page_size", model_admin.list_per_page),
-                        )
-                    ),
-                )
-            except ValueError, TypeError:
-                per_page = model_admin.list_per_page
+            per_page = resolve_per_page(
+                request.query_params.get("per_page"),
+                request.query_params.get("page_size"),
+                model_admin,
+            )
             return JSONResponse(
                 {
                     "items": [],
@@ -738,9 +935,10 @@ def get_admin_router() -> Router:
             query_filters: dict[str, object] = {}
             model_fields = getattr(model_class, "_fields", {})
             allowed_fields = set(model_fields.keys())
+            filter_prefix = "filter_"
             for key, value in request.query_params.items():
-                if key.startswith("filter_"):
-                    field_name = key[7:]
+                if key.startswith(filter_prefix):
+                    field_name = key[len(filter_prefix) :]
                     if field_name in allowed_fields:
                         query_filters[field_name] = value
 
@@ -748,8 +946,7 @@ def get_admin_router() -> Router:
                 "search", request.query_params.get("q", "")
             ).strip()
             if search_query:
-                search_fields = model_admin.get_search_fields(request)
-                for sf in search_fields:
+                for sf in model_admin.get_search_fields(request):
                     if sf in allowed_fields:
                         query_filters[sf] = search_query
                         break
@@ -769,21 +966,11 @@ def get_admin_router() -> Router:
                 page = max(1, int(request.query_params.get("page", 1)))
             except ValueError, TypeError:
                 page = 1
-            try:
-                page_size = min(
-                    1000,
-                    max(
-                        1,
-                        int(
-                            request.query_params.get(
-                                "per_page",
-                                request.query_params.get("page_size", model_admin.list_per_page),
-                            )
-                        ),
-                    ),
-                )
-            except ValueError, TypeError:
-                page_size = model_admin.list_per_page
+            page_size = resolve_per_page(
+                request.query_params.get("per_page"),
+                request.query_params.get("page_size"),
+                model_admin,
+            )
             offset = (page - 1) * page_size
 
             spec = QuerySpec(
@@ -794,7 +981,7 @@ def get_admin_router() -> Router:
             )
             rows = await backend.list(model_class, spec)
 
-            sensitive_fields = model_admin.get_sensitive_fields()
+            sensitive_fields = set(model_admin.get_sensitive_fields())
             list_display = model_admin.get_list_display(request)
             list_display = [f for f in list_display if f not in sensitive_fields]
             items = []
@@ -802,11 +989,7 @@ def get_admin_router() -> Router:
                 item: dict[str, object] = {"id": row.get("id")}
                 for field_name in list_display:
                     value = row.get(field_name)
-                    if hasattr(value, "isoformat"):
-                        value = value.isoformat()
-                    elif value is not None and not isinstance(value, (str, int, float, bool)):
-                        value = str(value)
-                    item[field_name] = value
+                    item[field_name] = serialize_value(value)
                 items.append(item)
 
             total = len(rows)
@@ -891,27 +1074,17 @@ def get_admin_router() -> Router:
             page = max(1, int(request.query_params.get("page", 1)))
         except ValueError, TypeError:
             page = 1
-        try:
-            page_size = min(
-                1000,
-                max(
-                    1,
-                    int(
-                        request.query_params.get(
-                            "per_page",
-                            request.query_params.get("page_size", model_admin.list_per_page),
-                        )
-                    ),
-                ),
-            )
-        except ValueError, TypeError:
-            page_size = model_admin.list_per_page
+        page_size = resolve_per_page(
+            request.query_params.get("per_page"),
+            request.query_params.get("page_size"),
+            model_admin,
+        )
         offset = (page - 1) * page_size
 
         qs = qs.offset(offset).limit(page_size)
         instances = await qs.all()
 
-        sensitive_fields = model_admin.get_sensitive_fields()
+        sensitive_fields = set(model_admin.get_sensitive_fields())
 
         list_display = model_admin.get_list_display(request)
         list_display = [f for f in list_display if f not in sensitive_fields]
@@ -920,11 +1093,7 @@ def get_admin_router() -> Router:
             item = {"id": getattr(instance, "id", None)}
             for field_name in list_display:
                 value = getattr(instance, field_name, None)
-                if hasattr(value, "isoformat"):
-                    value = value.isoformat()
-                elif value is not None and not isinstance(value, (str, int, float, bool)):
-                    value = str(value)
-                item[field_name] = value
+                item[field_name] = serialize_value(value)
             items.append(item)
 
         return JSONResponse(
@@ -943,14 +1112,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str
     ) -> JSONResponse:
         """Create a new model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         if not model_admin.has_add_permission(request):
             raise PermissionDenied(f"No permission to add {model_name}.")
@@ -1135,14 +1298,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str
     ) -> JSONResponse:
         """Get available filter options for a model (app-label variant)."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         list_filter = model_admin.get_list_filter(request)
         fields = getattr(model_class, "_fields", {})
@@ -1170,9 +1327,7 @@ def get_admin_router() -> Router:
                     related_model = field.resolve_target()
                     if related_model is not None:
                         try:
-                            related_qs = await asyncio.to_thread(
-                                lambda rm=related_model: list(rm.objects.all()[:200])
-                            )
+                            related_qs = await related_model.objects.limit(200).all()
                             filter_info["choices"] = [
                                 {"value": str(obj.id), "label": str(obj)} for obj in related_qs
                             ]
@@ -1192,14 +1347,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str, obj_id: str
     ) -> JSONResponse:
         """Get a single model instance with model info."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1229,14 +1378,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str, obj_id: str
     ) -> JSONResponse:
         """Update a model instance (PUT/full update)."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1421,13 +1564,7 @@ def get_admin_router() -> Router:
                     }
                     for f_name in child_fields_list:
                         val = getattr(child_inst, f_name, None)
-                        if hasattr(val, "isoformat"):
-                            val = val.isoformat()
-                        elif val is not None and not isinstance(
-                            val, (str, int, float, bool, list, dict)
-                        ):
-                            val = str(val)
-                        child_data[f_name] = val
+                        child_data[f_name] = serialize_value(val)
                     surviving_children.append(child_data)
 
                 for r_id, r_obj in existing_map.items():
@@ -1488,14 +1625,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str, obj_id: str
     ) -> JSONResponse:
         """Delete a model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1523,14 +1654,8 @@ def get_admin_router() -> Router:
     @rate_limit(max_requests=10, window_seconds=60)
     async def bulk_action_by_app(request: Request, app_label: str, model_name: str) -> JSONResponse:
         """Execute a batch action on selected instances."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        _, model_class = resolve_admin_model(app_label, model_name)
 
         meta = getattr(model_class, "_meta", None)
         if meta and isinstance(getattr(meta, "single", None), bool) and meta.single:
@@ -1575,14 +1700,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str
     ) -> Response:
         """Export instances to CSV or JSON."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_app_and_name(app_label, model_name)
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model(app_label, model_name)
 
         if not check_model_permission(request, model_class, "view"):
             raise PermissionDenied(f"No permission to export {model_name}.")
@@ -1609,9 +1728,7 @@ def get_admin_router() -> Router:
             row = {"id": instance.id}
             for field_name in list_display:
                 value = getattr(instance, field_name, "")
-                if hasattr(value, "isoformat"):
-                    value = value.isoformat()
-                row[field_name] = sanitize_csv_cell(value)
+                row[field_name] = sanitize_csv_cell(serialize_value(value))
             writer.writerow(row)
 
         csv_content = output.getvalue()
@@ -1632,13 +1749,8 @@ def get_admin_router() -> Router:
         request: Request, app_label: str, model_name: str, obj_id: str
     ) -> JSONResponse:
         """Get change history for a model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_class = admin.get_model_by_app_and_name(app_label, model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{app_label}/{model_name}' not found.") from exc
+        require_admin_access(request)
+        _, model_class = resolve_admin_model(app_label, model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1665,32 +1777,19 @@ def get_admin_router() -> Router:
     @router.get("/models/{model_name}/")
     async def list_instances(request: Request, model_name: str) -> JSONResponse:
         """List instances of a model with pagination, search, and filtering."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         if not check_model_permission(request, model_class, "view"):
             try:
                 page = max(1, int(request.query_params.get("page", 1)))
             except ValueError, TypeError:
                 page = 1
-            try:
-                per_page = max(
-                    1,
-                    int(
-                        request.query_params.get(
-                            "per_page",
-                            request.query_params.get("page_size", model_admin.list_per_page),
-                        )
-                    ),
-                )
-            except ValueError, TypeError:
-                per_page = model_admin.list_per_page
+            per_page = resolve_per_page(
+                request.query_params.get("per_page"),
+                request.query_params.get("page_size"),
+                model_admin,
+            )
             return JSONResponse(
                 {
                     "items": [],
@@ -1719,7 +1818,7 @@ def get_admin_router() -> Router:
         filters = {}
         for key, value in request.query_params.items():
             if key.startswith("filter_"):
-                field_name = key[7:]  # Remove "filter_" prefix
+                field_name = key[7:]
                 if field_name in allowed_fields:
                     filters[field_name] = value
 
@@ -1742,13 +1841,11 @@ def get_admin_router() -> Router:
             page = max(1, int(request.query_params.get("page", 1)))
         except ValueError, TypeError:
             page = 1
-        try:
-            page_size = min(
-                1000,
-                max(1, int(request.query_params.get("page_size", model_admin.list_per_page))),
-            )
-        except ValueError, TypeError:
-            page_size = model_admin.list_per_page
+        page_size = resolve_per_page(
+            request.query_params.get("per_page"),
+            request.query_params.get("page_size"),
+            model_admin,
+        )
         offset = (page - 1) * page_size
 
         qs = qs.offset(offset).limit(page_size)
@@ -1760,11 +1857,7 @@ def get_admin_router() -> Router:
             item = {"id": getattr(instance, "id", None)}
             for field_name in list_display:
                 value = getattr(instance, field_name, None)
-                if hasattr(value, "isoformat"):
-                    value = value.isoformat()
-                elif value is not None and not isinstance(value, (str, int, float, bool)):
-                    value = str(value)
-                item[field_name] = value
+                item[field_name] = serialize_value(value)
             items.append(item)
 
         return JSONResponse(
@@ -1781,14 +1874,8 @@ def get_admin_router() -> Router:
     @router.post("/models/{model_name}/")
     async def create_instance(request: Request, model_name: str) -> JSONResponse:
         """Create a new model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         if not model_admin.has_add_permission(request):
             raise PermissionDenied(f"No permission to add {model_name}.")
@@ -1833,23 +1920,15 @@ def get_admin_router() -> Router:
             if isinstance(field_obj, ManyToManyField):
                 continue
             value = getattr(instance, field_name, None)
-            if hasattr(value, "isoformat"):
-                value = value.isoformat()
-            response_data[field_name] = value
+            response_data[field_name] = serialize_value(value)
 
         return JSONResponse(response_data, status_code=201)
 
     @router.get("/models/{model_name}/{obj_id}/")
     async def get_instance(request: Request, model_name: str, obj_id: str) -> JSONResponse:
         """Get a single model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1865,11 +1944,7 @@ def get_admin_router() -> Router:
             if isinstance(field_obj, ManyToManyField):
                 continue
             value = getattr(instance, field_name, None)
-            if hasattr(value, "isoformat"):
-                value = value.isoformat()
-            elif value is not None and not isinstance(value, (str, int, float, bool, list, dict)):
-                value = str(value)
-            response_data[field_name] = value
+            response_data[field_name] = serialize_value(value)
 
         model_info = model_admin.get_model_info(request)
 
@@ -1885,14 +1960,8 @@ def get_admin_router() -> Router:
     @router.patch("/models/{model_name}/{obj_id}/")
     async def update_instance(request: Request, model_name: str, obj_id: str) -> JSONResponse:
         """Update a model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1951,23 +2020,15 @@ def get_admin_router() -> Router:
             if isinstance(field_obj, ManyToManyField):
                 continue
             value = getattr(instance, field_name, None)
-            if hasattr(value, "isoformat"):
-                value = value.isoformat()
-            response_data[field_name] = value
+            response_data[field_name] = serialize_value(value)
 
         return JSONResponse(response_data)
 
     @router.delete("/models/{model_name}/{obj_id}/")
     async def delete_instance(request: Request, model_name: str, obj_id: str) -> JSONResponse:
         """Delete a model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -1995,14 +2056,8 @@ def get_admin_router() -> Router:
     @rate_limit(max_requests=10, window_seconds=60)
     async def bulk_delete(request: Request, model_name: str) -> JSONResponse:
         """Delete multiple instances."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         data = await request.json()
         ids = data.get("ids", [])
@@ -2040,14 +2095,8 @@ def get_admin_router() -> Router:
     @rate_limit(max_requests=10, window_seconds=60)
     async def bulk_action(request: Request, model_name: str) -> JSONResponse:
         """Execute a batch action on selected instances."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        _, model_class = resolve_admin_model_by_name(model_name)
 
         data = await request.json()
         action_name = data.get("action")
@@ -2091,36 +2140,30 @@ def get_admin_router() -> Router:
     @router.get("/models/{model_name}/filters/")
     async def get_filter_options(request: Request, model_name: str) -> JSONResponse:
         """Get available filter options for a model."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         list_filter = model_admin.get_list_filter(request)
         fields = getattr(model_class, "_fields", {})
+        list_filter_set = set(list_filter) & set(fields)
 
         filters = []
-        for field_name in list_filter:
-            if field_name in fields:
-                field = fields[field_name]
-                filter_info = {
-                    "name": field_name,
-                    "type": field.__class__.__name__,
-                    "component": get_field_component_type(field),
-                    "choices": get_filter_choices(field),
-                }
+        for field_name in list_filter_set:
+            field = fields[field_name]
+            filter_info = {
+                "name": field_name,
+                "type": field.__class__.__name__,
+                "component": get_field_component_type(field),
+                "choices": get_filter_choices(field),
+            }
 
-                if not filter_info["choices"] and field.__class__.__name__ == "BooleanField":
-                    filter_info["choices"] = [
-                        {"value": True, "label": "Yes"},
-                        {"value": False, "label": "No"},
-                    ]
+            if not filter_info["choices"] and field.__class__.__name__ == "BooleanField":
+                filter_info["choices"] = [
+                    {"value": True, "label": "Yes"},
+                    {"value": False, "label": "No"},
+                ]
 
-                filters.append(filter_info)
+            filters.append(filter_info)
 
         return JSONResponse({"filters": filters})
 
@@ -2128,14 +2171,8 @@ def get_admin_router() -> Router:
     @rate_limit(max_requests=5, window_seconds=60)
     async def export_instances(request: Request, model_name: str) -> Response:
         """Export instances to CSV."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_admin = admin.get_model_admin_by_name(model_name)
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        model_admin, model_class = resolve_admin_model_by_name(model_name)
 
         if not check_model_permission(request, model_class, "view"):
             raise PermissionDenied(f"No permission to export {model_name}.")
@@ -2162,9 +2199,7 @@ def get_admin_router() -> Router:
             row = {"id": instance.id}
             for field_name in list_display:
                 value = getattr(instance, field_name, "")
-                if hasattr(value, "isoformat"):
-                    value = value.isoformat()
-                row[field_name] = sanitize_csv_cell(value)
+                row[field_name] = sanitize_csv_cell(serialize_value(value))
             writer.writerow(row)
 
         csv_content = output.getvalue()
@@ -2183,13 +2218,8 @@ def get_admin_router() -> Router:
     @router.get("/models/{model_name}/{obj_id}/history/")
     async def get_instance_history(request: Request, model_name: str, obj_id: str) -> JSONResponse:
         """Get change history for a model instance."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
-
-        try:
-            model_class = admin.get_model_by_name(model_name)
-        except NotRegistered as exc:
-            raise NotFound(f"Model '{model_name}' not found.") from exc
+        require_admin_access(request)
+        _, model_class = resolve_admin_model_by_name(model_name)
 
         obj_id_casted = cast_to_pk_type(model_class, obj_id)
         instance = await model_class.objects.get_or_none(id=obj_id_casted)
@@ -2224,8 +2254,7 @@ def get_admin_router() -> Router:
         Returns:
             List of items with id and label (__str__ representation).
         """
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         model_class = None
 
@@ -2248,7 +2277,7 @@ def get_admin_router() -> Router:
             search_fields = []
             for field_name, field in fields.items():
                 field_type = field.__class__.__name__
-                if field_type in ("CharField", "TextField", "EmailField"):
+                if field_type in ("CharField", "TextField", "EmailField", "HTMLField"):
                     search_fields.append(field_name)
 
             if search_fields:
@@ -2271,8 +2300,7 @@ def get_admin_router() -> Router:
     @router.get("/plugins/")
     async def list_plugins(request: Request) -> JSONResponse:
         """List available admin plugins."""
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         return JSONResponse({"plugins": []})
 
@@ -2285,8 +2313,7 @@ def get_admin_router() -> Router:
             q: Search query string
             limit: Max results per model (default 5)
         """
-        if not check_admin_access(request):
-            raise PermissionDenied("Admin access required.")
+        require_admin_access(request)
 
         query = request.query_params.get("q", "").strip()
         if not query:
@@ -2295,7 +2322,7 @@ def get_admin_router() -> Router:
         limit_per_model = 5
         max_total = 50
 
-        async def _search_model(
+        async def search_model(
             model_class: type, model_admin: ModelAdmin, search_fields: list[str]
         ) -> list[dict[str, t.Any]]:
             qs = model_class.objects.all()
@@ -2327,7 +2354,7 @@ def get_admin_router() -> Router:
             if not search_fields:
                 continue
 
-            tasks.append(_search_model(model_class, model_admin, search_fields))
+            tasks.append(search_model(model_class, model_admin, search_fields))
 
         all_results = await asyncio.gather(*tasks, return_exceptions=True)
         results: list[dict[str, t.Any]] = []

@@ -22,10 +22,6 @@ from openviper.utils.timezone import (
     now,
 )
 
-# ---------------------------------------------------------------------------
-# timezone
-# ---------------------------------------------------------------------------
-
 
 class TestTimezone:
     """Tests for openviper.utils.timezone helpers."""
@@ -101,11 +97,6 @@ class TestTimezone:
         assert isinstance(tz, zoneinfo.ZoneInfo)
 
 
-# ---------------------------------------------------------------------------
-# importlib
-# ---------------------------------------------------------------------------
-
-
 class TestImportString:
     def setup_method(self):
         reset_import_cache()
@@ -134,11 +125,6 @@ class TestImportString:
         cls = import_string("openviper.exceptions.NotFound")
 
         assert cls is NotFound
-
-
-# ---------------------------------------------------------------------------
-# module_resolver
-# ---------------------------------------------------------------------------
 
 
 class TestResolveTarget:

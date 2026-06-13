@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import logging
 
-from openviper.ai.router import ModelRouter
+from recipe_generator_app.ai.base import (
+    AIServiceBase,
+    JsonValue,
+    cached_factory,
+    strip_ai_json_response,
+)
 
 logger = logging.getLogger(__name__)
-
-type JsonScalar = str | int | float | bool | None
-type JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 class NutritionResult:
@@ -54,7 +56,7 @@ class NutritionResult:
         }
 
 
-class NutritionAnalyzer:
+class NutritionAnalyzer(AIServiceBase):
     """AI-powered nutrition analyzer.
 
     Analyzes recipes or ingredient lists to estimate nutritional content
@@ -66,21 +68,7 @@ class NutritionAnalyzer:
         info = await analyzer.analyze_recipe("Grilled Chicken Salad", ingredients)
     """
 
-    def __init__(self, model_name: str = "llama3") -> None:
-        self.model_name = model_name
-        self._router = ModelRouter()
-        self._available = False
-        self.init_router()
-
-    def init_router(self) -> None:
-        try:
-            self._router.set_model(self.model_name)
-            self._router._get_provider()
-            self._available = True
-            logger.info("NutritionAnalyzer: using model '%s'", self.model_name)
-        except Exception as exc:
-            logger.warning("NutritionAnalyzer: model '%s' not available - %s", self.model_name, exc)
-            self._available = False
+    default_model = "llama3"
 
     async def analyze_recipe(
         self,
@@ -98,7 +86,7 @@ class NutritionAnalyzer:
         Returns:
             :class:`NutritionResult` with estimated nutritional information.
         """
-        if not self._available:
+        if not self.available:
             return self.fallback_nutrition()
 
         ingredient_str = "\n".join(f"- {ing}" for ing in ingredients)
@@ -125,20 +113,14 @@ class NutritionAnalyzer:
         )
 
         try:
-            raw = await self._router.generate(prompt, temperature=0.3)
+            raw = await self.router.generate(prompt, temperature=0.3)
             return self.parse_nutrition(raw)
         except Exception as exc:
             logger.error("NutritionAnalyzer: analysis failed - %s", exc)
             return self.fallback_nutrition()
 
     def parse_nutrition(self, raw: str) -> NutritionResult:
-        text = raw.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
-        if "{" in text and "}" in text:
-            text = text[text.find("{") : text.rfind("}") + 1]
+        text = strip_ai_json_response(raw)
 
         try:
             data = json.loads(text)
@@ -184,7 +166,7 @@ class NutritionAnalyzer:
         Returns:
             Dict with ``compliant`` (bool), ``violations`` (list), ``suggestions`` (list).
         """
-        if not self._available:
+        if not self.available:
             return {"compliant": True, "violations": [], "suggestions": [], "available": False}
 
         ingredient_str = ", ".join(ingredients)
@@ -199,14 +181,8 @@ class NutritionAnalyzer:
         )
 
         try:
-            raw = await self._router.generate(prompt, temperature=0.2)
-            text = raw.strip()
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
-            if "{" in text and "}" in text:
-                text = text[text.find("{") : text.rfind("}") + 1]
+            raw = await self.router.generate(prompt, temperature=0.2)
+            text = strip_ai_json_response(raw)
             data = json.loads(text)
             return {
                 "compliant": bool(data.get("compliant", True)),
@@ -219,12 +195,9 @@ class NutritionAnalyzer:
             return {"compliant": True, "violations": [], "suggestions": [], "available": False}
 
 
-# Module-level cache keyed by model name
 analyzers: dict[str, NutritionAnalyzer] = {}
 
 
 def get_nutrition_analyzer(model_name: str = "gemini-2.5-flash") -> NutritionAnalyzer:
     """Return a cached :class:`NutritionAnalyzer` for *model_name*."""
-    if model_name not in analyzers:
-        analyzers[model_name] = NutritionAnalyzer(model_name=model_name)
-    return analyzers[model_name]
+    return cached_factory(analyzers, NutritionAnalyzer, model_name)

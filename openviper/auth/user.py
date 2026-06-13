@@ -51,7 +51,7 @@ async def get_user_by_id(user_id: int | str) -> Authenticable | None:
         objects = cast("UserLookupManager", user_model.objects)
         return await objects.get_or_none(id=casted_id, ignore_permissions=True)
     except (ValueError, TypeError) as exc:
-        # Intent: Reject values that cannot match integer primary keys.
+        # Reject values that cannot match integer primary keys.
         logger.debug("get_user_by_id invalid format: %s (user_id=%s)", exc, user_id)
         return None
     except Exception as exc:

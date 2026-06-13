@@ -120,7 +120,7 @@ Key Classes & Functions
       When ``partial=True`` every field becomes optional, which is ideal
       for ``PATCH`` endpoints.  The returned instance tracks which fields
       were supplied via ``model_fields_set``; call
-      ``model_dump(exclude_unset=True)`` to get only the changed keys.
+      ``model_dump(excludeunset=True)`` to get only the changed keys.
 
       Pass ``context`` to make extra data available to field validators
       (via Pydantic's ``ValidationInfo.context``) and to the serializer
@@ -684,7 +684,7 @@ Partial Validation (PATCH)
         post = await Post.objects.get(id=post_id)
         ser = PostSerializer.validate(await request.json(), partial=True)
         # Only update the fields the caller sent
-        changes = ser.model_dump(exclude_unset=True)
+        changes = ser.model_dump(excludeunset=True)
         for key, value in changes.items():
             setattr(post, key, value)
         await post.save()

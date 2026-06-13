@@ -16,6 +16,7 @@ from openviper.testing.assertions import (
     assert_response_json,
     assert_status,
     assert_validation_error,
+    get_objects_manager,
 )
 from openviper.testing.auth import (
     attach_bearer_token,
@@ -31,6 +32,8 @@ from openviper.testing.database import (
     SessionDatabase,
     TestDatabase,
     migrate_database,
+    should_create_db,
+    should_reuse_db,
     truncate_database,
 )
 from openviper.testing.factories import (
@@ -57,9 +60,17 @@ from openviper.testing.settings import (
     override_settings,
 )
 from openviper.testing.snapshot import Snapshot, assert_matches_snapshot
+from openviper.testing.tasks import (
+    EagerTaskRunner,
+    TaskQueue,
+    assert_task_count,
+    assert_task_queued,
+    require_dramatiq,
+)
 
 __all__ = [
     "DatabaseIsolation",
+    "EagerTaskRunner",
     "InMemoryCache",
     "LazyAttribute",
     "ModelFactory",
@@ -72,17 +83,14 @@ __all__ = [
     "Sequence",
     "SessionDatabase",
     "SuperuserFactory",
+    "TaskQueue",
     "UserFactory",
     "Snapshot",
     "TestDatabase",
-    "create_event_recorder",
-    "create_mailoutbox",
-    "create_task_queue",
-    "setup_test_cache",
+    "assert_cookie",
     "assert_error_code",
     "assert_field_error",
     "assert_field_value",
-    "assert_cookie",
     "assert_header",
     "assert_json_contains",
     "assert_json_path",
@@ -93,14 +101,23 @@ __all__ = [
     "assert_redirects",
     "assert_response_json",
     "assert_status",
+    "assert_task_count",
+    "assert_task_queued",
     "assert_validation_error",
     "attach_bearer_token",
+    "get_objects_manager",
+    "require_dramatiq",
     "attach_session_cookie",
+    "create_event_recorder",
+    "create_mailoutbox",
+    "create_task_queue",
     "force_authenticate",
     "login_user",
     "migrate_database",
     "override_openviper_settings",
     "override_settings",
+    "should_create_db",
+    "should_reuse_db",
     "token_for_user",
     "truncate_database",
     "with_permissions",

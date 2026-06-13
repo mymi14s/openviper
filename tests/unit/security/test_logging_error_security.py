@@ -33,10 +33,6 @@ from openviper.middleware.error import ServerErrorMiddleware
 
 from .conftest import SendCollector, make_scope
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 class LogCapture(logging.Handler):
     """Handler that captures log records for assertion."""
@@ -70,15 +66,8 @@ def detach_log_capture(logger: logging.Logger, capture: LogCapture) -> None:
     logger.removeHandler(capture)
 
 
-# ---------------------------------------------------------------------------
-# LOG-001: Sensitive values are redacted from logs
-# ---------------------------------------------------------------------------
-
-
 class TestSensitiveValueRedaction:
     """Sensitive values must be redacted from logs (LOG-001)."""
-
-    # -- Positive tests: redaction is applied --
 
     def test_log001_sensitive_field_names_include_password(self) -> None:
         """The framework must redact 'password' field values."""
@@ -212,12 +201,12 @@ class TestSensitiveValueRedaction:
         assert "SECRET_KEY" in SENSITIVE_FIELDS
 
     def test_log001_settings_sensitive_fields_include_database_url(self) -> None:
-        """Settings must define DATABASE_URL as a sensitive field."""
-        assert "DATABASE_URL" in SENSITIVE_FIELDS
+        """Settings must define DATABASES as a sensitive field."""
+        assert "DATABASES" in SENSITIVE_FIELDS
 
     def test_log001_settings_sensitive_fields_include_cache_url(self) -> None:
-        """Settings must define CACHE_URL as a sensitive field."""
-        assert "CACHE_URL" in SENSITIVE_FIELDS
+        """Settings must define CACHES as a sensitive field."""
+        assert "CACHES" in SENSITIVE_FIELDS
 
     def test_log001_settings_sensitive_fields_include_email(self) -> None:
         """Settings must define EMAIL as a sensitive field."""
@@ -269,8 +258,6 @@ class TestSensitiveValueRedaction:
         for header in expected:
             assert header in SENSITIVE_HEADERS, f"Missing sensitive header: {header}"
 
-    # -- Negative tests: redaction does not over-redact --
-
     def test_log001_redact_filters_does_not_redact_username(self) -> None:
         """redact_filters must not redact non-sensitive fields like username."""
         filters = {"username": "alice"}
@@ -309,15 +296,8 @@ class TestSensitiveValueRedaction:
         assert result[0]["is_active"] == "True"
 
 
-# ---------------------------------------------------------------------------
-# LOG-002: Log injection is prevented
-# ---------------------------------------------------------------------------
-
-
 class TestLogInjection:
     """Log injection must be prevented (LOG-002)."""
-
-    # -- Positive tests: injection is blocked --
 
     def test_log002_redacted_output_contains_no_newlines(self) -> None:
         """Redacted filter output must not contain raw newlines from user input."""
@@ -374,8 +354,6 @@ class TestLogInjection:
         # repr() escapes control characters
         assert "\\x00" in result[0]["username"] or "\\x01" in result[0]["username"]
 
-    # -- Negative tests: legitimate content is preserved --
-
     def test_log002_legitimate_username_preserved(self) -> None:
         """Legitimate usernames must be preserved in log output."""
         filters = {"username": "alice"}
@@ -395,15 +373,8 @@ class TestLogInjection:
         assert "Ünïcödé" in result[0]["display_name"]
 
 
-# ---------------------------------------------------------------------------
-# ERR-001: Production errors do not expose stack traces
-# ---------------------------------------------------------------------------
-
-
 class TestProductionErrorHandling:
     """Production errors must not expose stack traces (ERR-001)."""
-
-    # -- Positive tests: production mode hides internals --
 
     @pytest.mark.asyncio
     async def test_err001_production_error_returns_500(self) -> None:
@@ -596,8 +567,6 @@ class TestProductionErrorHandling:
         assert "Inner secret error" not in body
         assert "Outer secret error" not in body
 
-    # -- Negative tests: debug mode shows details --
-
     @pytest.mark.asyncio
     async def test_err001_debug_mode_shows_traceback(self) -> None:
         """Debug mode must show traceback for development."""
@@ -747,15 +716,8 @@ class TestProductionErrorHandling:
         assert content_length == len(collector.body)
 
 
-# ---------------------------------------------------------------------------
-# ERR-002: Security events are logged
-# ---------------------------------------------------------------------------
-
-
 class TestSecurityEventLogging:
     """Security events must be logged (ERR-002)."""
-
-    # -- Positive tests: security events emit structured logs --
 
     @pytest.mark.asyncio
     async def test_err002_failed_login_logs_warning(self) -> None:
@@ -959,8 +921,6 @@ class TestSecurityEventLogging:
 
         # Invalid token should result in 403
         assert collector.status_code == 403
-
-    # -- Negative tests: successful events don't trigger security logs --
 
     @pytest.mark.asyncio
     async def test_err002_successful_login_no_warning_log(self) -> None:

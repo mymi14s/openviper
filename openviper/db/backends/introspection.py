@@ -38,7 +38,7 @@ class DatabaseIntrospection:
         instead of a specific SQLAlchemy type.
         """
 
-        def _get_columns(sync_conn: object) -> list[dict[str, Any]]:
+        def get_columns_sync(sync_conn: object) -> list[dict[str, Any]]:
             with _warnings.catch_warnings():
                 _warnings.filterwarnings("ignore", message="Did not recognize type")
                 inspector = sa.inspect(sync_conn)
@@ -48,7 +48,7 @@ class DatabaseIntrospection:
                     else []
                 )
 
-        result = await connection.run_sync(_get_columns)
+        result = await connection.run_sync(get_columns_sync)
         return cast("list[dict[str, Any]]", result)
 
     async def get_indexes(

@@ -13,10 +13,6 @@ from openviper.openapi.router import should_register_openapi
 from openviper.openapi.schema import filter_openapi_routes, reset_openapi_cache
 from openviper.routing.router import Route
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_route(path: str) -> Route:
     async def handler() -> None:
@@ -43,11 +39,6 @@ def openapi_cfg(
         "exclude": exclude if exclude is not None else [],
     }
     return cfg
-
-
-# ---------------------------------------------------------------------------
-# filter_openapi_routes
-# ---------------------------------------------------------------------------
 
 
 class TestFilterOpenApiRoutesNoExclusion:
@@ -240,11 +231,6 @@ class TestFilterOpenApiRoutesInvalidSetting:
             with caplog.at_level(logging.WARNING, logger="openviper.openapi.schema"):
                 filter_openapi_routes(routes)
         assert any("unexpected value" in record.message for record in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# should_register_openapi
-# ---------------------------------------------------------------------------
 
 
 class TestShouldRegisterOpenapi:

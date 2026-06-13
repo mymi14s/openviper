@@ -25,24 +25,18 @@ class TestMigrateCommand:
 
         command.add_arguments(parser)
 
-        # Should add app_label, migration_name, --fake, --database
         assert parser.add_argument.call_count == 4
 
 
 class TestHandleBasic:
     """Test basic handle functionality."""
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
-    def test_handle_runs_migrations(
-        self, mock_run, mock_resolver_cls, mock_settings, command, capsys
-    ):
-        mock_settings.INSTALLED_APPS = []
-
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
+    def test_handle_runs_migrations(self, mock_run, mock_resolve, command, capsys):
         mock_resolver = Mock()
-        mock_resolver.resolve_all_apps = Mock(return_value={"found": {}})
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolver.resolve_app = Mock(return_value=(None, False))
+        mock_resolve.return_value = (mock_resolver, {})
 
         mock_run.return_value = ["app.0001_initial"]
 
@@ -56,16 +50,13 @@ class TestHandleBasic:
 class TestAppResolution:
     """Test app resolution."""
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
-    def test_handle_with_specific_app(self, mock_run, mock_resolver_cls, mock_settings, command):
-        mock_settings.INSTALLED_APPS = ["testapp"]
-
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
+    def test_handle_with_specific_app(self, mock_run, mock_resolve, command):
         mock_resolver = Mock()
         mock_resolver.resolve_app = Mock(return_value=("/fake/testapp", True))
         mock_resolver.resolve_all_apps = Mock(return_value={"found": {"testapp": "/fake/testapp"}})
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {"testapp": "/fake/testapp"})
 
         mock_run.return_value = []
 
@@ -73,16 +64,11 @@ class TestAppResolution:
 
         mock_resolver.resolve_app.assert_called_once_with("testapp")
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    def test_handle_app_not_found_shows_error(
-        self, mock_resolver_cls, mock_settings, command, capsys
-    ):
-        mock_settings.INSTALLED_APPS = []
-
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    def test_handle_app_not_found_shows_error(self, mock_resolve, command, capsys):
         mock_resolver = Mock()
         mock_resolver.resolve_app = Mock(return_value=(None, False))
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {})
 
         command.handle(app_label="nonexistent", migration_name=None, fake=False, database="default")
 
@@ -93,20 +79,15 @@ class TestAppResolution:
 class TestVerboseMode:
     """Test verbose mode (TTY detection)."""
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
     @patch("openviper.core.management.commands.migrate.sys")
-    def test_handle_verbose_with_tty(
-        self, mock_sys, mock_run, mock_resolver_cls, mock_settings, command, capsys
-    ):
-        mock_settings.INSTALLED_APPS = []
-
+    def test_handle_verbose_with_tty(self, mock_sys, mock_run, mock_resolve, command, capsys):
         mock_sys.stdout.isatty = Mock(return_value=True)
 
         mock_resolver = Mock()
         mock_resolver.resolve_all_apps = Mock(return_value={"found": {"app": "/path"}})
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {"app": "/path"})
 
         mock_run.return_value = []
 
@@ -119,25 +100,20 @@ class TestVerboseMode:
 class TestMigrationExecution:
     """Test migration execution."""
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
     @patch("openviper.core.management.commands.migrate.MigrationExecutor")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
     def test_handle_passes_options_to_executor(
-        self, mock_run, mock_executor_cls, mock_resolver_cls, mock_settings, command
+        self, mock_run, mock_executor_cls, mock_resolve, command
     ):
-        mock_settings.INSTALLED_APPS = []
-
         mock_resolver = Mock()
-        mock_resolver.resolve_all_apps = Mock(return_value={"found": {}})
         mock_resolver.resolve_app = Mock(return_value=("/fake/app", True))
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {})
 
         mock_executor = Mock()
         mock_executor.migrate = AsyncMock(return_value=[])
         mock_executor_cls.return_value = mock_executor
 
-        # Just return an empty list - we only need to verify executor is used
         mock_run.return_value = []
 
         command.handle(
@@ -147,24 +123,18 @@ class TestMigrationExecution:
             database="default",
         )
 
-        # Verify asyncio.run was called (with a coroutine)
         mock_run.assert_called_once()
 
 
 class TestNoMigrations:
     """Test when no migrations need to be applied."""
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
-    def test_handle_no_migrations_to_apply(
-        self, mock_run, mock_resolver_cls, mock_settings, command, capsys
-    ):
-        mock_settings.INSTALLED_APPS = []
-
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
+    def test_handle_no_migrations_to_apply(self, mock_run, mock_resolve, command, capsys):
         mock_resolver = Mock()
         mock_resolver.resolve_all_apps = Mock(return_value={"found": {}})
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {})
 
         mock_run.return_value = []
 
@@ -177,20 +147,17 @@ class TestNoMigrations:
 class TestAppliedMigrations:
     """Test applied migrations output."""
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
     @patch("openviper.core.management.commands.migrate.sys")
     def test_handle_shows_applied_migrations_non_verbose(
-        self, mock_sys, mock_run, mock_resolver_cls, mock_settings, command, capsys
+        self, mock_sys, mock_run, mock_resolve, command, capsys
     ):
-        mock_settings.INSTALLED_APPS = []
-
         mock_sys.stdout.isatty = Mock(return_value=False)
 
         mock_resolver = Mock()
         mock_resolver.resolve_all_apps = Mock(return_value={"found": {}})
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {})
 
         mock_run.return_value = ["app.0001_initial", "app.0002_update"]
 
@@ -211,16 +178,13 @@ class TestEdgeCases:
         assert hasattr(cmd, "handle")
         assert hasattr(cmd, "add_arguments")
 
-    @patch("openviper.conf.settings")
-    @patch("openviper.core.management.commands.migrate.AppResolver")
-    @patch("openviper.core.management.commands.migrate.asyncio.run")
-    def test_handle_with_all_options(self, mock_run, mock_resolver_cls, mock_settings, command):
-        mock_settings.INSTALLED_APPS = []
-
+    @patch("openviper.core.management.commands.migrate.resolve_installed_apps")
+    @patch("openviper.core.management.commands.migrate.run_async_command")
+    def test_handle_with_all_options(self, mock_run, mock_resolve, command):
         mock_resolver = Mock()
         mock_resolver.resolve_app = Mock(return_value=("/fake/app", True))
         mock_resolver.resolve_all_apps = Mock(return_value={"found": {"app": "/fake/app"}})
-        mock_resolver_cls.return_value = mock_resolver
+        mock_resolve.return_value = (mock_resolver, {"app": "/fake/app"})
 
         mock_run.return_value = []
 
@@ -231,5 +195,4 @@ class TestEdgeCases:
             database="secondary",
         )
 
-        # Should execute without error
         mock_run.assert_called_once()

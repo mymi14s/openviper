@@ -15,6 +15,7 @@ from __future__ import annotations
 # ── Bootstrap - must precede all OpenViper imports ────────────────────────────
 import os
 import sys
+from functools import wraps
 from importlib import import_module
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -80,6 +81,21 @@ def redirect_to_login(next_url: str = "/todos") -> RedirectResponse:
     return RedirectResponse(url=f"/login?next={next_url}", status_code=303)
 
 
+def require_auth(redirect_url: str = "/todos"):
+    """Decorator that redirects unauthenticated requests to the login page."""
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(request: Request, **kwargs):
+            if not is_authenticated_request(request):
+                return redirect_to_login(redirect_url)
+            return await func(request, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 # ── Root ──────────────────────────────────────────────────────────────────────
 
 
@@ -141,10 +157,8 @@ async def logout_view(request: Request) -> RedirectResponse:
 
 
 @app.get("/todos")
-async def todo_list(request: Request) -> HTMLResponse | RedirectResponse:
-    if not is_authenticated_request(request):
-        return redirect_to_login("/todos")
-
+@require_auth("/todos")
+async def todo_list(request: Request) -> HTMLResponse:
     todos = await Todo.objects.filter(owner_id=request.user.id).all()
     return HTMLResponse(
         template="todos.html",
@@ -153,10 +167,8 @@ async def todo_list(request: Request) -> HTMLResponse | RedirectResponse:
 
 
 @app.post("/todos")
+@require_auth("/todos")
 async def todo_create(request: Request) -> RedirectResponse:
-    if not is_authenticated_request(request):
-        return redirect_to_login("/todos")
-
     form = await request.form()
     title = str(form.get("title") or "").strip()
     if title:
@@ -165,10 +177,8 @@ async def todo_create(request: Request) -> RedirectResponse:
 
 
 @app.post("/todos/{todo_id}/toggle")
+@require_auth("/todos")
 async def todo_toggle(request: Request, todo_id: int) -> RedirectResponse:
-    if not is_authenticated_request(request):
-        return redirect_to_login("/todos")
-
     todo = await Todo.objects.get_or_none(id=todo_id, owner_id=request.user.id)
     if todo is not None:
         todo.done = not todo.done
@@ -177,10 +187,8 @@ async def todo_toggle(request: Request, todo_id: int) -> RedirectResponse:
 
 
 @app.post("/todos/{todo_id}/delete")
+@require_auth("/todos")
 async def todo_delete(request: Request, todo_id: int) -> RedirectResponse:
-    if not is_authenticated_request(request):
-        return redirect_to_login("/todos")
-
     todo = await Todo.objects.get_or_none(id=todo_id, owner_id=request.user.id)
     if todo is not None:
         await todo.delete()

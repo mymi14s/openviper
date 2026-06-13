@@ -17,10 +17,6 @@ if settings_module:
     except ImportError:
         os.environ.pop("OPENVIPER_SETTINGS_MODULE", None)
 
-# ---------------------------------------------------------------------------
-# ASGI helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(
     method: str = "GET",

@@ -27,10 +27,6 @@ from openviper.conf.settings import (
 )
 from openviper.exceptions import SettingsValidationError
 
-# ---------------------------------------------------------------------------
-# Settings dataclass
-# ---------------------------------------------------------------------------
-
 
 class TestSettingsDefaults:
     def test_is_frozen_dataclass(self):
@@ -78,11 +74,6 @@ class TestSettingsAsDict:
         assert d["DEBUG"] == s.DEBUG
 
 
-# ---------------------------------------------------------------------------
-# Cast helpers
-# ---------------------------------------------------------------------------
-
-
 class TestCastBool:
     def test_true_values(self):
         for v in ("1", "true", "yes", "on", "TRUE", "Yes"):
@@ -120,8 +111,8 @@ class TestCastEnvValue:
 
     def test_int_cast(self):
         s = Settings()
-        result = cast_env_value(s.DATABASE_POOL_SIZE, "20")
-        assert result == 20
+        result = cast_env_value(s.SESSION_TIMEOUT, "3600")
+        assert result == timedelta(seconds=3600)
 
     def test_str_cast(self):
         s = Settings()
@@ -133,11 +124,6 @@ class TestCastEnvValue:
         s = Settings()
         result = cast_env_value(s.CACHES, '{"key": "val"}')
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# auto_include_project_app
-# ---------------------------------------------------------------------------
 
 
 class TestAutoIncludeProjectApp:
@@ -157,11 +143,6 @@ class TestAutoIncludeProjectApp:
         assert result is s
 
 
-# ---------------------------------------------------------------------------
-# apply_env_overrides
-# ---------------------------------------------------------------------------
-
-
 class TestApplyEnvOverrides:
     def test_applies_bool_override(self, monkeypatch):
         monkeypatch.setenv("DEBUG", "false")
@@ -170,21 +151,16 @@ class TestApplyEnvOverrides:
         assert result.DEBUG is False
 
     def test_applies_int_override(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_POOL_SIZE", "42")
+        monkeypatch.setenv("SESSION_TIMEOUT", "7200")
         s = Settings()
         result = apply_env_overrides(s)
-        assert result.DATABASE_POOL_SIZE == 42
+        assert timedelta(seconds=7200) == result.SESSION_TIMEOUT
 
     def test_no_override_when_env_absent(self, monkeypatch):
         monkeypatch.delenv("DEBUG", raising=False)
         s = Settings()
         result = apply_env_overrides(s)
         assert result.DEBUG == s.DEBUG
-
-
-# ---------------------------------------------------------------------------
-# generate_secret_key
-# ---------------------------------------------------------------------------
 
 
 class TestGenerateSecretKey:
@@ -202,11 +178,6 @@ class TestGenerateSecretKey:
         assert generate_secret_key() != generate_secret_key()
 
 
-# ---------------------------------------------------------------------------
-# validate_settings
-# ---------------------------------------------------------------------------
-
-
 class TestValidateSettings:
     def _prod(self, **overrides):
         """Return a Settings suitable for production validation (all checks pass)."""
@@ -221,7 +192,12 @@ class TestValidateSettings:
             "CSRF_COOKIE_SECURE": True,
             "OPENAPI": {"enabled": False},
             "CORS_ALLOWED_HEADERS": ("content-type",),
-            "DATABASE_URL": "postgres://localhost/db",
+            "DATABASES": {
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "postgres://localhost/db"},
+                },
+            },
         }
         base.update(overrides)
         return dataclasses.replace(Settings(), **base)
@@ -244,21 +220,34 @@ class TestValidateSettings:
         with pytest.raises(SettingsValidationError, match="SECRET_KEY"):
             validate_settings(s, "production")
 
-    def test_missing_database_url_fails(self):
-        s = dataclasses.replace(Settings(), DATABASE_URL="")
-        with pytest.raises(SettingsValidationError, match="DATABASE_URL"):
+    def test_missing_database_config_fails(self):
+        s = dataclasses.replace(Settings(), DATABASES={})
+        with pytest.raises(SettingsValidationError, match="DATABASES"):
             validate_settings(s, "development")
 
-    def test_databases_default_url_passes_without_database_url(self):
+    def test_databases_default_url_passes(self):
         s = dataclasses.replace(
             Settings(),
-            DATABASE_URL="",
-            DATABASES={"default": {"URL": "sqlite:///x"}},
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
         )
         validate_settings(s, "development")
 
     def test_insecure_jwt_algorithm_fails(self):
-        s = dataclasses.replace(Settings(), JWT_ALGORITHM="none", DATABASE_URL="sqlite:///x")
+        s = dataclasses.replace(
+            Settings(),
+            JWT_ALGORITHM="none",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
+        )
         with pytest.raises(SettingsValidationError, match="JWT_ALGORITHM"):
             validate_settings(s, "development")
 
@@ -267,7 +256,12 @@ class TestValidateSettings:
             Settings(),
             SESSION_COOKIE_SAMESITE="None",
             SESSION_COOKIE_SECURE=False,
-            DATABASE_URL="sqlite:///x",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
         )
         with pytest.raises(SettingsValidationError, match="SESSION_COOKIE_SECURE"):
             validate_settings(s, "development")
@@ -277,12 +271,26 @@ class TestValidateSettings:
             Settings(),
             SESSION_COOKIE_SAMESITE="None",
             SESSION_COOKIE_SECURE=True,
-            DATABASE_URL="sqlite:///x",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
         )
         validate_settings(s, "development")
 
     def test_validate_settings_does_not_mutate_frozen_instance(self):
-        s = dataclasses.replace(Settings(), SECRET_KEY="", DATABASE_URL="sqlite:///x")
+        s = dataclasses.replace(
+            Settings(),
+            SECRET_KEY="",
+            DATABASES={
+                "default": {
+                    "BACKEND": "openviper.db.backends.sqlite",
+                    "OPTIONS": {"URL": "sqlite:///x"},
+                }
+            },
+        )
         original_key = s.SECRET_KEY
         validate_settings(s, "development")
         assert original_key == s.SECRET_KEY
@@ -304,7 +312,7 @@ class TestValidateSettings:
         assert len(exc_info.value.errors) >= 2
 
     def test_setup_uses_custom_settings_module(self, monkeypatch, tmp_path):
-        """_setup loads a custom Settings subclass from OPENVIPER_SETTINGS_MODULE."""
+        """setup loads a custom Settings subclass from OPENVIPER_SETTINGS_MODULE."""
         settings_file = tmp_path / "custom_settings.py"
         settings_file.write_text("""
 import dataclasses
@@ -324,12 +332,12 @@ class CustomSettings(Settings):
         settings_mod.SETTINGS_CLASS_CACHE.clear()
 
         lazy = LazySettings()
-        lazy._setup()
-        assert lazy._instance.DEBUG is False
-        assert lazy._instance.PROJECT_NAME == "CustomProject"
+        lazy.setup()
+        assert lazy.instance.DEBUG is False
+        assert lazy.instance.PROJECT_NAME == "CustomProject"
 
     def test_setup_uses_cached_settings_class(self, monkeypatch, tmp_path):
-        """_setup uses cached Settings class on second load."""
+        """setup uses cached Settings class on second load."""
         settings_file = tmp_path / "cached_settings.py"
         settings_file.write_text("""
 import dataclasses
@@ -350,16 +358,16 @@ class CachedSettings(Settings):
 
         # First load
         lazy1 = LazySettings()
-        lazy1._setup()
+        lazy1.setup()
         assert "cached_settings" in settings_mod.SETTINGS_CLASS_CACHE
 
         # Second load should use cache
         lazy2 = LazySettings()
-        lazy2._setup()
-        assert lazy2._instance.PROJECT_NAME == "Cached"
+        lazy2.setup()
+        assert lazy2.instance.PROJECT_NAME == "Cached"
 
     def test_setup_import_error_raises(self, monkeypatch):
-        """_setup raises RuntimeError when the settings module cannot be imported."""
+        """setup raises RuntimeError when the settings module cannot be imported."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "nonexistent_module")
 
         # Clear caches
@@ -369,10 +377,10 @@ class CachedSettings(Settings):
 
         lazy = LazySettings()
         with pytest.raises(RuntimeError, match="Could not import"):
-            lazy._setup()
+            lazy.setup()
 
     def test_setup_no_settings_subclass_raises(self, monkeypatch, tmp_path):
-        """_setup raises RuntimeError when module has no Settings subclass."""
+        """setup raises RuntimeError when module has no Settings subclass."""
         settings_file = tmp_path / "no_subclass.py"
         settings_file.write_text("""
 # No Settings subclass here
@@ -389,35 +397,35 @@ DEBUG = True
 
         lazy = LazySettings()
         with pytest.raises(RuntimeError, match="contains no Settings subclass"):
-            lazy._setup()
+            lazy.setup()
 
     def test_setup_auto_generates_secret_key_for_development(self, monkeypatch):
-        """_setup auto-generates SECRET_KEY for development/test."""
+        """setup auto-generates SECRET_KEY for development/test."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
         monkeypatch.setenv("OPENVIPER_ENV", "development")
         monkeypatch.delenv("SECRET_KEY", raising=False)
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
         # SECRET_KEY should be auto-generated (not empty)
-        assert lazy._instance.SECRET_KEY != ""
-        assert len(lazy._instance.SECRET_KEY) > 40
+        assert lazy.instance.SECRET_KEY != ""
+        assert len(lazy.instance.SECRET_KEY) > 40
 
     def test_setup_does_not_generate_secret_key_for_production(self, monkeypatch):
-        """_setup does not auto-generate SECRET_KEY for production."""
+        """setup does not auto-generate SECRET_KEY for production."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
         monkeypatch.setenv("OPENVIPER_ENV", "production")
         monkeypatch.delenv("SECRET_KEY", raising=False)
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
         # SECRET_KEY remains empty in production
-        assert lazy._instance.SECRET_KEY == ""
+        assert lazy.instance.SECRET_KEY == ""
 
     def test_setup_replaces_insecure_change_me_in_dev(self, monkeypatch, tmp_path):
-        """_setup replaces INSECURE-CHANGE-ME in development."""
+        """setup replaces INSECURE-CHANGE-ME in development."""
         monkeypatch.delenv("SECRET_KEY", raising=False)
         settings_file = tmp_path / "insecure_settings.py"
         settings_file.write_text("""
@@ -439,13 +447,13 @@ class InsecureSettings(Settings):
         settings_mod.SETTINGS_CLASS_CACHE.clear()
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
-        assert lazy._instance.SECRET_KEY != "INSECURE-CHANGE-ME"
-        assert len(lazy._instance.SECRET_KEY) > 40
+        assert lazy.instance.SECRET_KEY != "INSECURE-CHANGE-ME"
+        assert len(lazy.instance.SECRET_KEY) > 40
 
     def test_setup_auto_includes_project_app(self, monkeypatch, tmp_path):
-        """_setup auto-prepends project app to INSTALLED_APPS."""
+        """setup auto-prepends project app to INSTALLED_APPS."""
         settings_file = tmp_path / "myproject" / "settings.py"
         settings_file.parent.mkdir()
         settings_file.write_text("""
@@ -465,14 +473,9 @@ class MyProjectSettings(Settings):
         settings_mod.SETTINGS_CLASS_CACHE.clear()
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
-        assert "myproject" in lazy._instance.INSTALLED_APPS
-
-
-# ---------------------------------------------------------------------------
-# configure_logging
-# ---------------------------------------------------------------------------
+        assert "myproject" in lazy.instance.INSTALLED_APPS
 
 
 class TestConfigureLogging:

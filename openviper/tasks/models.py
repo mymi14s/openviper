@@ -1,13 +1,7 @@
-"""ORM model for task result tracking.
+"""Task result persistence models.
 
-The underlying table (``openviper_task_results``) is created automatically
-by :mod:`openviper.tasks.results` on first use, so the framework migration
-is optional.  Register it in ``INSTALLED_APPS`` if you want the admin panel
-to display task results.
-
-Column reference
-----------------
-See :mod:`openviper.tasks.results` for the full column reference.
+Defines ``TaskResult`` and ``ScheduledJob`` as ORM models for tracking
+task execution state and periodic schedule synchronisation.
 """
 
 from __future__ import annotations
@@ -15,43 +9,57 @@ from __future__ import annotations
 from openviper.db import fields
 from openviper.db.models import Model
 
+TASK_STATUS_CHOICES: list[tuple[str, str]] = [
+    ("pending", "Pending"),
+    ("running", "Running"),
+    ("success", "Success"),
+    ("failure", "Failure"),
+    ("skipped", "Skipped"),
+    ("dead", "Dead"),
+]
+TRIGGER_SOURCE_CHOICES: list[tuple[str, str]] = [
+    ("cron", "Cron"),
+    ("interval", "Interval"),
+]
+
 
 class TaskResult(Model):
-    """Tracks the lifecycle of every background task message."""
+    """Persisted record of a task actor execution."""
 
     class Meta:
-        table_name = "openviper_task_results"
+        table_name = "openviper_task_result"
 
-    id = fields.IntegerField(primary_key=True, auto_increment=True)
-    message_id = fields.CharField(max_length=64, unique=True)
+    message_id = fields.UUIDField(unique=True)
     actor_name = fields.CharField(max_length=255)
-    queue_name = fields.CharField(max_length=100)
-
-    status = fields.CharField(max_length=20, default="pending")
+    queue = fields.CharField(max_length=64, default="default")
+    arguments = fields.JSONField(null=True)
+    return_value = fields.JSONField(null=True)
+    error_traceback = fields.TextField(null=True)
+    status = fields.CharField(
+        max_length=16,
+        default="pending",
+        choices=TASK_STATUS_CHOICES,
+    )
     retries = fields.IntegerField(default=0)
+    duration_ms = fields.BigIntegerField(null=True)
+    created_at = fields.DateTimeField(auto_now_add=True)
+    updated_at = fields.DateTimeField(auto_now=True)
 
-    args = fields.TextField(null=True)  # JSON-encoded list
-    kwargs = fields.TextField(null=True)  # JSON-encoded dict
 
-    result = fields.TextField(null=True)  # JSON-encoded return value
-    error = fields.TextField(null=True)  # str(exception) on failure
-    traceback = fields.TextField(null=True)  # full traceback on failure
+class ScheduledJob(Model):
+    """Maps periodic decorator config to database rows for distributed lock coordination."""
 
-    enqueued_at = fields.DateTimeField(null=True)
-    started_at = fields.DateTimeField(null=True)
-    completed_at = fields.DateTimeField(null=True)
+    class Meta:
+        table_name = "openviper_scheduled_job"
 
-    def __repr__(self) -> str:
-        return (
-            f"<TaskResult message_id={self.message_id!r}"
-            f" actor={self.actor_name!r}"
-            f" status={self.status!r}>"
-        )
-
-    @property
-    def duration_ms(self) -> float | None:
-        """Wall-clock execution time in milliseconds, or ``None`` if unknown."""
-        if self.started_at and self.completed_at:
-            delta = self.completed_at - self.started_at
-            return delta.total_seconds() * 1000
-        return None
+    id = fields.AutoField()  # type: ignore[assignment]
+    app = fields.CharField(max_length=128)
+    name = fields.CharField(max_length=255, unique=True)
+    schedule = fields.CharField(max_length=64)
+    cron_description = fields.CharField(max_length=255, null=True)
+    status = fields.CharField(max_length=32, default="active")
+    last_enqueued_at = fields.DateTimeField(null=True)
+    trigger_source = fields.CharField(
+        max_length=32,
+        choices=TRIGGER_SOURCE_CHOICES,
+    )

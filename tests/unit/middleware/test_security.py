@@ -51,11 +51,6 @@ async def run(mw, scope):
     return messages
 
 
-# ---------------------------------------------------------------------------
-# headers added
-# ---------------------------------------------------------------------------
-
-
 class TestSecurityHeaders:
     @pytest.mark.asyncio
     async def test_adds_security_headers(self):
@@ -241,11 +236,6 @@ class TestSecurityHeaders:
         assert hd[b"x-frame-options"] == b"SAMEORIGIN"
 
 
-# ---------------------------------------------------------------------------
-# HSTS
-# ---------------------------------------------------------------------------
-
-
 class TestHSTS:
     @pytest.mark.asyncio
     async def test_hsts_header_added(self):
@@ -348,11 +338,6 @@ class TestHSTS:
         assert "preload" not in val
 
 
-# ---------------------------------------------------------------------------
-# CSP
-# ---------------------------------------------------------------------------
-
-
 class TestCSP:
     @pytest.mark.asyncio
     async def test_csp_string(self):
@@ -446,11 +431,6 @@ class TestCSP:
         await mw(make_scope(), None, send)
         keys = [h[0] for h in messages[0]["headers"]]
         assert b"content-security-policy" not in keys
-
-
-# ---------------------------------------------------------------------------
-# ALLOWED_HOSTS
-# ---------------------------------------------------------------------------
 
 
 class TestHostAllowed:
@@ -639,11 +619,6 @@ class TestHostAllowed:
         assert messages[0]["status"] == 200
 
 
-# ---------------------------------------------------------------------------
-# SSL redirect
-# ---------------------------------------------------------------------------
-
-
 class TestSSLRedirect:
     @pytest.mark.asyncio
     async def test_redirects_http_to_https(self):
@@ -761,11 +736,6 @@ class TestSSLRedirect:
         assert messages[0]["status"] == 200
 
 
-# ---------------------------------------------------------------------------
-# CRLF injection / header injection prevention
-# ---------------------------------------------------------------------------
-
-
 class TestCRLFRejection:
     @pytest.mark.asyncio
     async def test_crlf_in_host_header_returns_400(self):
@@ -862,11 +832,6 @@ class TestCRLFRejection:
         assert messages[0]["status"] == 301
 
 
-# ---------------------------------------------------------------------------
-# Host from server tuple fallback
-# ---------------------------------------------------------------------------
-
-
 class TestHostFromServer:
     @pytest.mark.asyncio
     async def test_host_from_server_tuple(self):
@@ -944,11 +909,6 @@ class TestHostFromServer:
         assert messages[0]["status"] == 400
 
 
-# ---------------------------------------------------------------------------
-# _get_host helper
-# ---------------------------------------------------------------------------
-
-
 class TestGetHostHelper:
     def _make_mw(self, allowed_hosts=("*",)):
         with patch("openviper.middleware.security.settings") as ms:
@@ -1009,11 +969,6 @@ class TestGetHostHelper:
         mw = self._make_mw()
         scope = {"headers": []}
         assert mw.get_host(scope) == ""
-
-
-# ---------------------------------------------------------------------------
-# is_host_allowed wildcard exact-domain match
-# ---------------------------------------------------------------------------
 
 
 class TestIsHostAllowedWildcardExact:

@@ -20,10 +20,6 @@ from collections.abc import AsyncIterator
 from openviper.conf.settings import Settings
 from openviper.http.request import Request
 
-# ---------------------------------------------------------------------------
-# ASGI helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(
     *,
@@ -104,11 +100,6 @@ def make_receive(body: bytes = b"") -> object:
     return _receive
 
 
-# ---------------------------------------------------------------------------
-# Mock user objects
-# ---------------------------------------------------------------------------
-
-
 class MockUser:
     """Minimal user object for middleware and auth tests."""
 
@@ -155,11 +146,6 @@ class AnonymousMockUser:
     username = ""
 
 
-# ---------------------------------------------------------------------------
-# Mock QuerySet
-# ---------------------------------------------------------------------------
-
-
 class MockQuerySet:
     """A minimal async queryset mock for testing serializers / admin actions."""
 
@@ -202,11 +188,6 @@ class MockQuerySet:
             yield self._items[i : i + size]
 
 
-# ---------------------------------------------------------------------------
-# Simple model-like objects
-# ---------------------------------------------------------------------------
-
-
 class SimpleModel:
     """Minimal object that can be used as an ORM model stub."""
 
@@ -218,11 +199,6 @@ class SimpleModel:
 def make_model(**kwargs: object) -> SimpleModel:
     """Factory to create a SimpleModel with given attributes."""
     return SimpleModel(**kwargs)
-
-
-# ---------------------------------------------------------------------------
-# Request factory
-# ---------------------------------------------------------------------------
 
 
 def make_request(
@@ -249,11 +225,6 @@ def make_request(
     return req
 
 
-# ---------------------------------------------------------------------------
-# Settings factory
-# ---------------------------------------------------------------------------
-
-
 def make_settings(**overrides: object) -> object:
     """Create a Settings instance with default + override values."""
     defaults: dict[str, object] = {
@@ -267,11 +238,6 @@ def make_settings(**overrides: object) -> object:
     valid_fields = {f.name for f in dataclasses.fields(Settings)}
     filtered = {k: v for k, v in defaults.items() if k in valid_fields}
     return Settings(**filtered)
-
-
-# ---------------------------------------------------------------------------
-# ASGI app helpers
-# ---------------------------------------------------------------------------
 
 
 def noop_app() -> object:

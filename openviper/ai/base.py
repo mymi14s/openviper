@@ -88,7 +88,7 @@ class AIProvider(abc.ABC):
                 max_content,
             )
 
-        # Prevent prompt injection by neutralizing delimiter tags in user content.
+        # Neutralize delimiter tags to prevent prompt injection.
         safe_content = safe_content.replace("</content>", "&lt;/content&gt;")
         safe_content = safe_content.replace("<content>", "&lt;content&gt;")
         prompt = (
@@ -101,7 +101,6 @@ class AIProvider(abc.ABC):
         )
         raw = await self.generate(prompt, **kwargs)
 
-        # Strip markdown fences if present
         text = raw.strip()
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -170,7 +169,9 @@ class AIProvider(abc.ABC):
         elif isinstance(model_cfg, str):
             ids.add(model_cfg)
 
-        return sorted(ids)
+        cached = sorted(ids)
+        self._supported_models_cache = cached
+        return cached
 
     def provider_name(self) -> str:
         """Return the canonical name for this provider (same as the ``name`` class attribute)."""

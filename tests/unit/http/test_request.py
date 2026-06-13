@@ -13,10 +13,6 @@ from openviper.exceptions import HTTPException
 from openviper.http.request import URL, Request, UploadFile
 from openviper.utils.datastructures import Headers, ImmutableMultiDict, QueryParams
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scope(
     method="GET",
@@ -58,11 +54,6 @@ def make_chunked_receive(chunks):
     return _receive
 
 
-# ---------------------------------------------------------------------------
-# URL
-# ---------------------------------------------------------------------------
-
-
 class TestURL:
     def test_scheme(self):
         url = URL(make_scope(scheme="https"))
@@ -92,8 +83,17 @@ class TestURL:
         scope = make_scope()
         scope["server"] = None
         scope["headers"] = [(b"host", b"myapp.io")]
-        url = URL(scope)
-        assert url.host == "myapp.io"
+        with patch.object(_req_mod, "is_host_allowed", return_value=True):
+            url = URL(scope)
+            assert url.host == "myapp.io"
+
+    def test_host_from_disallowed_header_falls_back_to_localhost(self):
+        scope = make_scope()
+        scope["server"] = None
+        scope["headers"] = [(b"host", b"evil.com")]
+        with patch.object(_req_mod, "is_host_allowed", return_value=False):
+            url = URL(scope)
+            assert url.host == "localhost"
 
     def test_host_defaults_to_localhost_when_no_server_no_header(self):
         scope = make_scope()
@@ -133,11 +133,6 @@ class TestURL:
     def test_repr(self):
         url = URL(make_scope(path="/"))
         assert "URL" in repr(url)
-
-
-# ---------------------------------------------------------------------------
-# Request - basic properties
-# ---------------------------------------------------------------------------
 
 
 class TestRequestProperties:
@@ -227,11 +222,6 @@ class TestRequestProperties:
         assert "/api" in r
 
 
-# ---------------------------------------------------------------------------
-# Request - header raw lookup
-# ---------------------------------------------------------------------------
-
-
 class TestRequestHeaderRawLookup:
     def test_header_returns_bytes(self):
         scope = make_scope(headers=[(b"content-type", b"application/json")])
@@ -247,11 +237,6 @@ class TestRequestHeaderRawLookup:
         assert req._headers_map is None
         req.header(b"x-test")
         assert req._headers_map is not None
-
-
-# ---------------------------------------------------------------------------
-# Request - cookies
-# ---------------------------------------------------------------------------
 
 
 class TestRequestCookies:
@@ -276,11 +261,6 @@ class TestRequestCookies:
         c1 = req.cookies
         c2 = req.cookies
         assert c1 is c2
-
-
-# ---------------------------------------------------------------------------
-# Request - body reading
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -413,11 +393,6 @@ class TestRequestBody:
             with pytest.raises(ValueError, match="maximum allowed size"):
                 async for _ in req.stream():
                     pass
-
-
-# ---------------------------------------------------------------------------
-# UploadFile
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

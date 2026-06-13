@@ -6,6 +6,7 @@ import pytest
 from jinja2 import TemplateNotFound
 
 import openviper.template.environment as env_mod
+import openviper.template.paths as paths_mod
 from openviper.template import render_to_string
 from openviper.template.environment import get_jinja2_env, get_template_directories
 from openviper.utils.translation import gettext_lazy as lazy_gettext
@@ -16,18 +17,23 @@ def patch_project_root(tmp_path):
 
     Uses object mutation rather than mock.patch because PROJECT_ROOT is a
     module-level constant read as a global by get_template_directories().
+    Patches both the canonical location in paths.py and the imported binding
+    in environment.py to ensure all consumers see the patched value.
     """
-    original = env_mod.PROJECT_ROOT
+    original_paths = paths_mod.PROJECT_ROOT
+    original_env = env_mod.PROJECT_ROOT
 
-    class _RootPatcher:
+    class RootPatcher:
         def __enter__(self):
+            paths_mod.PROJECT_ROOT = str(tmp_path)
             env_mod.PROJECT_ROOT = str(tmp_path)
             return self
 
         def __exit__(self, *args):
-            env_mod.PROJECT_ROOT = original
+            paths_mod.PROJECT_ROOT = original_paths
+            env_mod.PROJECT_ROOT = original_env
 
-    return _RootPatcher()
+    return RootPatcher()
 
 
 class TestRenderToString:
@@ -89,7 +95,8 @@ class TestRenderToString:
 
         with (
             patch("openviper.template.environment.settings") as mock_settings,
-            patch("importlib.import_module", return_value=mock_app),
+            patch("openviper.template.paths.settings", mock_settings),
+            patch("openviper.template.paths.importlib.import_module", return_value=mock_app),
             patch_project_root(tmp_path),
         ):
             mock_settings.TEMPLATES_DIR = str(proj_dir)

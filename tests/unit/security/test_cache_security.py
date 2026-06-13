@@ -17,10 +17,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from openviper.auth._user_cache import USER_CACHE, invalidate_user_cache
 from openviper.auth.backends import get_client_ip
 from openviper.auth.session.middleware import SessionMiddleware
 from openviper.auth.session.store import SESSION_CACHE_PREFIX, SESSION_USER_CACHE_PREFIX
+from openviper.auth.user_cache import USER_CACHE, invalidate_user_cache
 from openviper.cache.memory import InMemoryCache
 from openviper.cache.validation import validate_cache_key
 from openviper.core.context import current_user, request_perms_cache
@@ -39,10 +39,6 @@ from .conftest import (
     make_scope,
     override_settings,
 )
-
-# ---------------------------------------------------------------------------
-# CACHE-001: Authenticated responses are not publicly cached by default
-# ---------------------------------------------------------------------------
 
 
 class TestAuthenticatedCacheControl:
@@ -227,11 +223,6 @@ class TestAuthenticatedCacheControl:
             ), f"Authenticated response must not have public Cache-Control: {cache_control}"
 
 
-# ---------------------------------------------------------------------------
-# CACHE-002: Cache key includes user and tenant context when needed
-# ---------------------------------------------------------------------------
-
-
 class TestCacheKeyContext:
     """Cache keys must include user and tenant context for isolation."""
 
@@ -357,11 +348,6 @@ class TestCacheKeyContext:
         # Read back and verify isolation.
         results = await asyncio.gather(*[reader(k) for k in keys])
         assert results == ["alice-data", "bob-data", "carol-data"]
-
-
-# ---------------------------------------------------------------------------
-# CACHE-003: Authorization changes invalidate or bypass stale cache
-# ---------------------------------------------------------------------------
 
 
 class TestCacheAuthorizationInvalidation:
@@ -507,11 +493,6 @@ class TestCacheAuthorizationInvalidation:
         assert len(session_keys) == 2
 
 
-# ---------------------------------------------------------------------------
-# CACHE-004: Web cache poisoning inputs are controlled
-# ---------------------------------------------------------------------------
-
-
 class TestWebCachePoisoning:
     """Untrusted headers must not alter cacheable responses."""
 
@@ -535,7 +516,6 @@ class TestWebCachePoisoning:
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"should not reach"})
 
-        # ALLOWED_HOSTS is read at init time, so override before creating middleware.
         with override_settings(ALLOWED_HOSTS=["trusted.example.com"]):
             middleware = SecurityMiddleware(inner_app)
 
@@ -555,7 +535,6 @@ class TestWebCachePoisoning:
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"should not reach"})
 
-        # ALLOWED_HOSTS is read at init time, so override before creating middleware.
         with override_settings(ALLOWED_HOSTS=["*"]):
             middleware = SecurityMiddleware(inner_app)
 
@@ -589,7 +568,6 @@ class TestWebCachePoisoning:
             )
             await send({"type": "http.response.body", "body": response_body})
 
-        # ALLOWED_HOSTS is read at init time, so override before creating middleware.
         with override_settings(ALLOWED_HOSTS=["*"]):
             middleware = SecurityMiddleware(inner_app)
 
@@ -752,7 +730,6 @@ class TestWebCachePoisoning:
             scope, lambda: {"type": "http.request", "body": b"", "more_body": False}, collector
         )
 
-        # When all origins are allowed, Vary: Origin is not needed.
         headers = collector.headers_dict
         if "vary" in headers:
             assert "Origin" not in headers["vary"]
@@ -778,8 +755,6 @@ class TestWebCachePoisoning:
             scope, lambda: {"type": "http.request", "body": b"", "more_body": False}, collector
         )
 
-        # Wildcard CORS must not reflect the Origin in Access-Control-Allow-Origin
-        # in a way that causes Vary: Origin to be set.
         headers = collector.headers_dict
         if "vary" in headers:
             assert "Origin" not in headers.get("vary", "")
@@ -839,7 +814,6 @@ class TestWebCachePoisoning:
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body", "body": b"should not reach"})
 
-        # ALLOWED_HOSTS is read at init time, so override before creating middleware.
         with override_settings(ALLOWED_HOSTS=["trusted.example.com"]):
             middleware = SecurityMiddleware(inner_app, ssl_redirect=True)
 
@@ -882,7 +856,6 @@ class TestWebCachePoisoning:
             response = JSONResponse({"data": 1})
             await response(scope, receive, send)
 
-        # ALLOWED_HOSTS is read at init time, so override before creating middleware.
         with override_settings(ALLOWED_HOSTS=["localhost"]):
             middleware = SecurityMiddleware(
                 inner_app,
@@ -921,7 +894,6 @@ class TestWebCachePoisoning:
             )
             await send({"type": "http.response.body", "body": body})
 
-        # ALLOWED_HOSTS is read at init time, so override before creating middleware.
         with override_settings(ALLOWED_HOSTS=["trusted.example.com"]):
             middleware = SecurityMiddleware(inner_app)
 

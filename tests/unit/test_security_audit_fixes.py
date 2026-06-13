@@ -26,6 +26,7 @@ from openviper.middleware.csrf import (
     mask_csrf_token,
 )
 from openviper.middleware.security import SecurityMiddleware
+from openviper.testing.settings import override_settings
 
 
 async def ok_app(scope: dict, receive: object, send: object) -> None:
@@ -175,6 +176,7 @@ class TestRedirectResponseOpenRedirect:
         r = RedirectResponse("/dashboard")
         assert r.status_code == 307
 
+    @override_settings(ALLOWED_HOSTS=["example.com"])
     def test_absolute_http_url_allowed(self) -> None:
         r = RedirectResponse("https://example.com/callback")
         assert r.status_code == 307
@@ -262,7 +264,10 @@ class TestSessionCookieSecureDefault:
             mock_store.create = AsyncMock(return_value=mock_session)
             mock_store.rotate = AsyncMock(return_value=mock_session)
 
-            with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
+            with (
+                patch("openviper.auth.session.utils.settings", ms),
+                patch("openviper.auth.backends.get_session_store", return_value=mock_store),
+            ):
                 await login(request, user, response)
 
             call_kwargs = response.set_cookie.call_args

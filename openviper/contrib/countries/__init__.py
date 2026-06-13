@@ -1,13 +1,14 @@
 """ISO 3166-1 alpha-2 CountryField and utility helpers.
 
-Re-exports CountryField, Country, validate_country, get_country_name,
-get_dial_code, search_country, and get_country_choices.
+.. deprecated::
+   Import from ``openviper.contrib.fields.countries`` instead.
+   This module will be removed in a future release.
 """
 
-from openviper.contrib.countries.cache import get_country_choices
-from openviper.contrib.countries.country import Country
-from openviper.contrib.countries.field import CountryField
-from openviper.contrib.countries.utils import (
+from openviper.contrib.fields.countries import (
+    Country,
+    CountryField,
+    get_country_choices,
     get_country_name,
     get_dial_code,
     search_country,

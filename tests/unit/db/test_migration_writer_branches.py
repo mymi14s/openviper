@@ -217,6 +217,7 @@ def test_write_migration_invalid_migration_name(tmp_path):
 
 
 def test_format_columns_skips_field_with_empty_column_type():
+    from openviper.db.shared_metadata import metadata
 
     class WithM2M(Model):
         tags = ManyToManyField("Tag")
@@ -224,15 +225,20 @@ def test_format_columns_skips_field_with_empty_column_type():
         class Meta:
             table_name = "with_m2m"
 
-    result = format_columns(WithM2M)
-    # ManyToManyField has _column_type = "" so it's skipped - result has no 'tags' column
-    assert "tags" not in result
+    try:
+        result = format_columns(WithM2M)
+        assert "tags" not in result
+    finally:
+        for tname in list(metadata.tables):
+            if tname.startswith("with_m2m"):
+                metadata.remove(metadata.tables[tname])
 
 
 # ── model_state_snapshot: skip field with empty _column_type ─────────────────
 
 
 def test_model_state_snapshot_skips_field_with_empty_column_type():
+    from openviper.db.shared_metadata import metadata
 
     class WithM2MModel(Model):
         labels = ManyToManyField("Label")
@@ -240,9 +246,14 @@ def test_model_state_snapshot_skips_field_with_empty_column_type():
         class Meta:
             table_name = "with_m2m_model"
 
-    state = model_state_snapshot([WithM2MModel])
-    cols = state.get("with_m2m_model", {}).get("columns", [])
-    assert not any(c["name"] == "labels" for c in cols)
+    try:
+        state = model_state_snapshot([WithM2MModel])
+        cols = state.get("with_m2m_model", {}).get("columns", [])
+        assert not any(c["name"] == "labels" for c in cols)
+    finally:
+        for tname in list(metadata.tables):
+            if tname.startswith("with_m2m_model"):
+                metadata.remove(metadata.tables[tname])
 
 
 # ── read_migrated_state: non-List operations assignment ──────────────────────

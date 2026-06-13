@@ -31,6 +31,19 @@ from openviper.exceptions import PermissionDenied, Unauthorized
 from openviper.http.request import Request
 
 
+def ensure_authenticated(
+    args: tuple[object, ...], kwargs: dict[str, object] | None = None
+) -> Request:
+    """Extract the request from *args*/*kwargs* and verify authentication.
+
+    Raises Unauthorized if no authenticated request is found.
+    """
+    request = get_request_from_args(args, kwargs)
+    if request is None or not getattr(request.user, "is_authenticated", False):
+        raise Unauthorized()
+    return request
+
+
 def login_required(func: Callable[..., object]) -> Callable[..., object]:
     """Require the request user to be authenticated.
 
@@ -40,9 +53,7 @@ def login_required(func: Callable[..., object]) -> Callable[..., object]:
 
     @functools.wraps(func)
     async def wrapper(*args: object, **kwargs: object) -> object:
-        request = get_request_from_args(args, kwargs)
-        if request is None or not getattr(request.user, "is_authenticated", False):
-            raise Unauthorized()
+        ensure_authenticated(args, kwargs)
         result = func(*args, **kwargs)
         return await result if inspect.isawaitable(result) else result
 
@@ -63,9 +74,7 @@ def permission_required(codename: str) -> Callable[..., object]:
     def decorator(func: Callable[..., object]) -> Callable[..., object]:
         @functools.wraps(func)
         async def wrapper(*args: object, **kwargs: object) -> object:
-            request = get_request_from_args(args, kwargs)
-            if request is None or not getattr(request.user, "is_authenticated", False):
-                raise Unauthorized()
+            request = ensure_authenticated(args, kwargs)
             has_perm = await request.user.has_perm(codename)
             if not has_perm:
                 raise PermissionDenied(f"Permission '{codename}' required.")
@@ -91,9 +100,7 @@ def role_required(role_name: str) -> Callable[..., object]:
     def decorator(func: Callable[..., object]) -> Callable[..., object]:
         @functools.wraps(func)
         async def wrapper(*args: object, **kwargs: object) -> object:
-            request = get_request_from_args(args, kwargs)
-            if request is None or not getattr(request.user, "is_authenticated", False):
-                raise Unauthorized()
+            request = ensure_authenticated(args, kwargs)
             has_role = await request.user.has_role(role_name)
             if not has_role:
                 raise PermissionDenied(f"Role '{role_name}' required.")
@@ -115,9 +122,7 @@ def superuser_required(func: Callable[..., object]) -> Callable[..., object]:
 
     @functools.wraps(func)
     async def wrapper(*args: object, **kwargs: object) -> object:
-        request = get_request_from_args(args, kwargs)
-        if request is None or not getattr(request.user, "is_authenticated", False):
-            raise Unauthorized()
+        request = ensure_authenticated(args, kwargs)
         if not getattr(request.user, "is_superuser", False):
             raise PermissionDenied("Superuser access required.")
         result = func(*args, **kwargs)
@@ -131,9 +136,7 @@ def staff_required(func: Callable[..., object]) -> Callable[..., object]:
 
     @functools.wraps(func)
     async def wrapper(*args: object, **kwargs: object) -> object:
-        request = get_request_from_args(args, kwargs)
-        if request is None or not getattr(request.user, "is_authenticated", False):
-            raise Unauthorized()
+        request = ensure_authenticated(args, kwargs)
         if not getattr(request.user, "is_staff", False):
             raise PermissionDenied("Staff access required.")
         result = func(*args, **kwargs)

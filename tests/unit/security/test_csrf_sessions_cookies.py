@@ -27,10 +27,6 @@ from openviper.middleware.csrf import (
 
 from .conftest import SendCollector, make_scope, override_settings
 
-# ---------------------------------------------------------------------------
-# CSRF-001: State-changing requests require CSRF protection
-# ---------------------------------------------------------------------------
-
 
 class TestCSRFProtection:
     """State-changing requests must require CSRF tokens when using cookie auth."""
@@ -82,11 +78,6 @@ class TestCSRFProtection:
         assert "DELETE" not in CSRF_SAFE_METHODS
 
 
-# ---------------------------------------------------------------------------
-# CSRF-002: CSRF tokens are bound to session or user context
-# ---------------------------------------------------------------------------
-
-
 class TestCSRFTokenBinding:
     """CSRF tokens must be bound to the user's session context."""
 
@@ -113,11 +104,6 @@ class TestCSRFTokenBinding:
         assert not verify_csrf_token(token, masked, "wrong-secret")
 
 
-# ---------------------------------------------------------------------------
-# CSRF-003: CSRF tokens are validated using constant-time comparison
-# ---------------------------------------------------------------------------
-
-
 class TestCSRFConstantTimeComparison:
     """CSRF token validation must use constant-time comparison."""
 
@@ -135,11 +121,6 @@ class TestCSRFConstantTimeComparison:
         # Short submitted tokens must be rejected
         assert not verify_csrf_token(cookie_token, "short", secret)
         assert not verify_csrf_token(cookie_token, "", secret)
-
-
-# ---------------------------------------------------------------------------
-# COOKIE-001: Session cookies use secure flags
-# ---------------------------------------------------------------------------
 
 
 class TestSessionCookieSecurity:
@@ -174,11 +155,6 @@ class TestSessionCookieSecurity:
         assert "Max-Age=0" in header
 
 
-# ---------------------------------------------------------------------------
-# COOKIE-002: Logout invalidates server-side session
-# ---------------------------------------------------------------------------
-
-
 class TestSessionInvalidation:
     """Logout must invalidate the server-side session."""
 
@@ -198,11 +174,6 @@ class TestSessionInvalidation:
         """Session keys must be generated using a CSPRNG."""
         keys = {generate_session_key() for _ in range(50)}
         assert len(keys) == 50  # All unique
-
-
-# ---------------------------------------------------------------------------
-# COOKIE-003: Duplicate cookie names are handled safely
-# ---------------------------------------------------------------------------
 
 
 class TestDuplicateCookieHandling:

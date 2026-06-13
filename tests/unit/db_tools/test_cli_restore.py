@@ -49,7 +49,7 @@ class TestRestoreDBCommandAsyncHandle:
             "openviper.core.management.commands.restore_db.restore_backup",
             new_callable=AsyncMock,
         ) as mock_restore:
-            await cmd._async_handle(
+            await cmd.async_handle(
                 file=str(backup_file),
                 force=True,
                 db="sqlite:///db.sqlite3",
@@ -70,7 +70,7 @@ class TestRestoreDBCommandAsyncHandle:
             side_effect=ValidationError("path traversal"),
         ):
             with pytest.raises(CommandError, match="path traversal"):
-                await cmd._async_handle(
+                await cmd.async_handle(
                     file="bad_path",
                     force=False,
                     db="sqlite:///db.sqlite3",
@@ -79,12 +79,13 @@ class TestRestoreDBCommandAsyncHandle:
     @pytest.mark.asyncio
     async def test_no_db_url_raises_command_error(self) -> None:
         cmd = RestoreDBCommand()
-        mock_settings = MagicMock()
-        mock_settings.DATABASE_URL = ""
 
-        with patch("openviper.core.management.commands.restore_db.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.restore_db.resolve_db_url",
+            side_effect=CommandError("No default DATABASES URL"),
+        ):
             with pytest.raises(CommandError, match="No default DATABASES URL"):
-                await cmd._async_handle(
+                await cmd.async_handle(
                     file="backup.tar.gz",
                     force=False,
                     db=None,
@@ -94,16 +95,17 @@ class TestRestoreDBCommandAsyncHandle:
     async def test_uses_settings_db_url_when_not_given(self, tmp_path: Path) -> None:
         backup_file = tmp_path / "backup.tar.gz"
         backup_file.write_bytes(b"data")
-        mock_settings = MagicMock()
-        mock_settings.DATABASE_URL = "sqlite:///settings.db"
 
         cmd = RestoreDBCommand()
-        with patch("openviper.core.management.commands.restore_db.settings", mock_settings):
+        with patch(
+            "openviper.core.management.commands.restore_db.resolve_db_url",
+            return_value="sqlite:///settings.db",
+        ):
             with patch(
                 "openviper.core.management.commands.restore_db.restore_backup",
                 new_callable=AsyncMock,
             ) as mock_restore:
-                await cmd._async_handle(
+                await cmd.async_handle(
                     file=str(backup_file),
                     force=False,
                     db=None,
@@ -124,7 +126,7 @@ class TestRestoreDBCommandAsyncHandle:
             side_effect=FileNotFoundError("backup not found"),
         ):
             with pytest.raises(CommandError, match="backup not found"):
-                await cmd._async_handle(
+                await cmd.async_handle(
                     file="missing.tar.gz",
                     force=False,
                     db="sqlite:///db.sqlite3",

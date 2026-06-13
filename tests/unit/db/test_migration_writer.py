@@ -9,6 +9,7 @@ import pytest
 from openviper.db.fields import CharField, ForeignKey, IntegerField
 from openviper.db.migrations import executor as migrations
 from openviper.db.migrations.executor import (
+    UNSET,
     AddColumn,
     AlterColumn,
     CreateTable,
@@ -27,6 +28,7 @@ from openviper.db.migrations.writer import (
     has_model_changes,
     model_state_snapshot,
     next_migration_number,
+    normalize_state,
     read_migrated_state,
     sort_models_topologically,
     validate_identifier,
@@ -517,8 +519,22 @@ class TestDiffStatesAlterColumns:
         assert ops[0].default == 42
         assert ops[0].old_default == 0
 
-    def test_field_class_change(self):
-        existing = {
+
+class TestNormalizeState:
+    def test_fills_missing_default_with_none(self):
+        state = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        result = normalize_state(state)
+        col = result["t"]["columns"][0]
+        assert col["default"] is None
+
+    def test_strips_field_class(self):
+        state = {
             "t": {
                 "columns": [
                     {"name": "c", "type": "TEXT", "nullable": True, "field_class": "TextField"}
@@ -527,11 +543,47 @@ class TestDiffStatesAlterColumns:
                 "unique_together": [],
             }
         }
+        result = normalize_state(state)
+        col = result["t"]["columns"][0]
+        assert "field_class" not in col
+
+    def test_preserves_existing_default(self):
+        state = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": ""}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        result = normalize_state(state)
+        col = result["t"]["columns"][0]
+        assert col["default"] == ""
+
+    def test_idempotent(self):
+        state = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": None}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        result1 = normalize_state(state)
+        result2 = normalize_state(result1)
+        assert result1 == result2
+
+
+class TestDefaultDriftFixes:
+    def test_default_removal_generates_alter_with_none(self):
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": ""}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
         current = {
             "t": {
-                "columns": [
-                    {"name": "c", "type": "TEXT", "nullable": True, "field_class": "CharField"}
-                ],
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": None}],
                 "indexes": [],
                 "unique_together": [],
             }
@@ -539,6 +591,140 @@ class TestDiffStatesAlterColumns:
         ops = diff_states(current, existing)
         assert len(ops) == 1
         assert isinstance(ops[0], AlterColumn)
+        assert ops[0].default is None
+        assert ops[0].old_default == ""
+
+    def test_no_change_when_both_defaults_are_none(self):
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": None}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(current, existing)
+        assert len(ops) == 0
+
+    def test_no_change_when_both_defaults_absent(self):
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(current, existing)
+        assert len(ops) == 0
+
+    def test_field_class_stripped_from_migrated_state(self):
+        existing = {
+            "t": {
+                "columns": [
+                    {
+                        "name": "c",
+                        "type": "TEXT",
+                        "nullable": True,
+                        "field_class": "TextField",
+                        "default": "",
+                    }
+                ],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": ""}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(current, existing)
+        assert len(ops) == 0
+
+    def test_default_none_vs_empty_string_is_change(self):
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "VARCHAR", "nullable": False, "default": ""}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "VARCHAR", "nullable": True, "default": None}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(current, existing)
+        assert len(ops) == 1
+        assert isinstance(ops[0], AlterColumn)
+        assert ops[0].default is None
+        assert ops[0].old_default == ""
+        assert ops[0].nullable is True
+        assert ops[0].old_nullable is False
+
+    def test_unchanged_default_usesunset(self):
+        existing = {
+            "t": {
+                "columns": [{"name": "c", "type": "TEXT", "nullable": True, "default": "x"}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        current = {
+            "t": {
+                "columns": [{"name": "c", "type": "VARCHAR", "nullable": True, "default": "x"}],
+                "indexes": [],
+                "unique_together": [],
+            }
+        }
+        ops = diff_states(current, existing)
+        assert len(ops) == 1
+        assert isinstance(ops[0], AlterColumn)
+        assert ops[0].default is UNSET
+        assert ops[0].old_default is UNSET
+
+    def test_format_alter_column_default_none_removal(self):
+        op = AlterColumn(
+            table_name="t",
+            column_name="c",
+            column_type="CHAR(2)",
+            nullable=True,
+            default=None,
+            old_type="VARCHAR",
+            old_nullable=False,
+            old_default="",
+        )
+        res = format_operation(op)
+        assert "default=None" in res
+        assert "old_default=''" in res
+
+    def test_format_alter_column_defaultunset_omitted(self):
+        op = AlterColumn(
+            table_name="t",
+            column_name="c",
+            column_type="VARCHAR(200)",
+            old_type="VARCHAR(100)",
+        )
+        res = format_operation(op)
+        assert "default" not in res
+        assert "old_default" not in res
 
 
 class TestDiffStatesSoftRemovedRestore:
@@ -649,6 +835,19 @@ class TestModelStateSnapshotExtended:
         assert count_col is not None
         assert count_col.get("default") == 42
 
+    def test_snapshot_default_none_when_no_default(self):
+        class NoDefaultModel(Model):
+            name = CharField(max_length=50)
+
+            class Meta:
+                table_name = "no_default_model"
+
+        state = model_state_snapshot([NoDefaultModel])
+        cols = state["no_default_model"]["columns"]
+        name_col = next((c for c in cols if c["name"] == "name"), None)
+        assert name_col is not None
+        assert name_col.get("default") is None
+
     def test_snapshot_includes_fk_target_table(self):
 
         class FKTarget(Model):
@@ -757,6 +956,55 @@ class TestParseOperationBranches:
         assert val_col is not None
         assert val_col["type"] == "VARCHAR(100)"
         assert val_col["nullable"] is False
+
+    def test_parse_alter_column_removes_default(self, tmp_path):
+        """AlterColumn without default keyword removes default from state."""
+        mig_dir = tmp_path / "migrations"
+        mig_dir.mkdir()
+        mig = mig_dir / "0001_init.py"
+        mig.write_text(
+            "from openviper.db.migrations import executor as migrations\n"
+            "dependencies = []\n"
+            "operations = [\n"
+            '    migrations.CreateTable(table_name="t", '
+            'columns=[{"name": "c", "type": "VARCHAR", "nullable": False, "default": ""}]),\n'
+            "    migrations.AlterColumn(\n"
+            '        table_name="t", column_name="c", column_type="CHAR(2)",\n'
+            '        nullable=True, old_type="VARCHAR", old_nullable=False,\n'
+            '        old_default=""),\n'
+            "]\n"
+        )
+        state = read_migrated_state(str(mig_dir))
+        cols = state.get("t", {}).get("columns", [])
+        col = next((c for c in cols if c.get("name") == "c"), None)
+        assert col is not None
+        assert col["type"] == "CHAR(2)"
+        assert col["nullable"] is True
+        assert "default" not in col
+
+    def test_parse_alter_column_sets_default_none(self, tmp_path):
+        """AlterColumn with default=None removes default from state."""
+        mig_dir = tmp_path / "migrations"
+        mig_dir.mkdir()
+        mig = mig_dir / "0001_init.py"
+        mig.write_text(
+            "from openviper.db.migrations import executor as migrations\n"
+            "dependencies = []\n"
+            "operations = [\n"
+            '    migrations.CreateTable(table_name="t", '
+            'columns=[{"name": "c", "type": "VARCHAR", "nullable": False, "default": ""}]),\n'
+            "    migrations.AlterColumn(\n"
+            '        table_name="t", column_name="c", column_type="CHAR(2)",\n'
+            '        nullable=True, default=None, old_type="VARCHAR",\n'
+            '        old_nullable=False, old_default=""),\n'
+            "]\n"
+        )
+        state = read_migrated_state(str(mig_dir))
+        cols = state.get("t", {}).get("columns", [])
+        col = next((c for c in cols if c.get("name") == "c"), None)
+        assert col is not None
+        assert col["type"] == "CHAR(2)"
+        assert col.get("default") is None
 
     def test_parse_restore_column(self, tmp_path):
         """RestoreColumn re-adds to state."""

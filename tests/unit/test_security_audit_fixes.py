@@ -264,7 +264,10 @@ class TestSessionCookieSecureDefault:
             mock_store.create = AsyncMock(return_value=mock_session)
             mock_store.rotate = AsyncMock(return_value=mock_session)
 
-            with patch("openviper.auth.backends.get_session_store", return_value=mock_store):
+            with (
+                patch("openviper.auth.session.utils.settings", ms),
+                patch("openviper.auth.backends.get_session_store", return_value=mock_store),
+            ):
                 await login(request, user, response)
 
             call_kwargs = response.set_cookie.call_args

@@ -12,7 +12,7 @@ import shutil
 import stat as stat_module
 import urllib.parse
 from pathlib import Path
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Literal, Protocol
 
 import aiofiles
 import aiofiles.os
@@ -158,14 +158,14 @@ class StaticFilesMiddleware:
         self.url_path = url_path.rstrip("/")
         self.cache_max_age = cache_max_age
         self.max_file_size = max_file_size
-        self._resolved_dirs: list[tuple[Path, Path]] = [
+        self.resolved_dirs: list[tuple[Path, Path]] = [
             (Path(d), Path(d).resolve()) for d in (directories or ["static"])
         ]
 
     @property
     def directories(self) -> list[Path]:
         """Unresolved directory paths (for backwards-compat introspection)."""
-        return [raw for raw, _ in self._resolved_dirs]
+        return [raw for raw, _ in self.resolved_dirs]
 
     async def __call__(
         self,
@@ -185,31 +185,31 @@ class StaticFilesMiddleware:
 
         method: str = scope.get("method", "GET").upper()
         if method not in ("GET", "HEAD"):
-            await self._send_response(send, 405, b"Method Not Allowed", "text/plain")
+            await self.send_response(send, 405, b"Method Not Allowed", "text/plain")
             return
 
         relative = path[len(self.url_path) + 1 :]
         sanitized = sanitize_relative_path(relative)
         if sanitized is None:
-            await self._send_response(send, 400, b"Bad Request", "text/plain")
+            await self.send_response(send, 400, b"Bad Request", "text/plain")
             return
 
-        entry = await self._find_file(sanitized)
+        entry = await self.find_file(sanitized)
         if entry is None:
-            await self._send_response(send, 404, b"Not Found", "text/plain")
+            await self.send_response(send, 404, b"Not Found", "text/plain")
             return
 
-        await self._serve_file(scope, receive, send, entry, method)
+        await self.serve_file(scope, receive, send, entry, method)
 
-    async def _find_file(self, relative: str) -> FileEntry | None:
+    async def find_file(self, relative: str) -> FileEntry | None:
         """Find a file and return a FileEntry, performing a single stat syscall."""
-        for raw_dir, resolved_dir in self._resolved_dirs:
-            entry = await self._probe_directory(raw_dir, resolved_dir, relative)
+        for raw_dir, resolved_dir in self.resolved_dirs:
+            entry = await self.probe_directory(raw_dir, resolved_dir, relative)
             if entry is not None:
                 return entry
         return None
 
-    async def _probe_directory(
+    async def probe_directory(
         self,
         raw_dir: Path,
         resolved_dir: Path,
@@ -221,7 +221,7 @@ class StaticFilesMiddleware:
         if candidate.is_symlink():
             return None
 
-        if self._has_symlinked_parent(candidate, resolved_dir):
+        if self.has_symlinked_parent(candidate, resolved_dir):
             return None
 
         try:
@@ -229,13 +229,13 @@ class StaticFilesMiddleware:
         except ValueError:
             return None
 
-        st = await self._stat_candidate(candidate)
+        st = await self.stat_candidate(candidate)
         if st is not None and stat_module.S_ISREG(st.st_mode):
             return FileEntry(candidate, st)
         return None
 
     @staticmethod
-    def _has_symlinked_parent(candidate: Path, resolved_dir: Path) -> bool:
+    def has_symlinked_parent(candidate: Path, resolved_dir: Path) -> bool:
         """Check whether any parent of candidate between it and resolved_dir is a symlink."""
         try:
             for parent in candidate.parents:
@@ -247,19 +247,15 @@ class StaticFilesMiddleware:
             return True
         return False
 
-    async def _stat_candidate(self, candidate: Path) -> os.stat_result | None:
+    async def stat_candidate(self, candidate: Path) -> os.stat_result | None:
         """Stat a candidate file, returning the result or None if not found."""
+        path_str = str(candidate)
         try:
-            if aiofiles.os.stat is ORIGINAL_AIOFILES_STAT:
-                return os.stat(str(candidate))  # noqa: PTH116
-            path_str = str(candidate)
-            if not record_patched_stat_call(cast("StatFunc", aiofiles.os.stat), path_str):
-                await aiofiles.os.stat(path_str)
-            return os.stat(path_str)  # noqa: PTH116
+            return await aiofiles.os.stat(path_str)
         except FileNotFoundError:
             return None
 
-    async def _serve_file(
+    async def serve_file(
         self,
         scope: ASGIScope,
         receive: ASGIReceive,
@@ -271,7 +267,7 @@ class StaticFilesMiddleware:
         file_size = entry.stat_result.st_size
 
         if file_size > self.max_file_size:
-            await self._send_response(send, 413, b"Payload Too Large", "text/plain")
+            await self.send_response(send, 413, b"Payload Too Large", "text/plain")
             return
 
         last_modified = entry.stat_result.st_mtime
@@ -286,7 +282,7 @@ class StaticFilesMiddleware:
         headers_raw: list[list[bytes]] = scope.get("headers", [])
         incoming = {k.lower(): v for k, v in headers_raw}
 
-        if await self._check_conditional(
+        if await self.check_conditional(
             incoming,
             etag,
             last_modified,
@@ -295,14 +291,14 @@ class StaticFilesMiddleware:
         ):
             return
 
-        common_headers = self._build_common_headers(
+        common_headers = self.build_common_headers(
             mime_type,
             encoding,
             etag,
             last_modified_str,
         )
 
-        range_result = self._resolve_range(incoming, etag, file_size)
+        range_result = self.resolve_range(incoming, etag, file_size)
         if range_result == "unsatisfiable":
             await send(
                 {
@@ -345,9 +341,9 @@ class StaticFilesMiddleware:
             await send({"type": "http.response.body", "body": b""})
             return
 
-        await self._stream_file(send, path, range_start, range_end)
+        await self.stream_file(send, path, range_start, range_end)
 
-    async def _check_conditional(
+    async def check_conditional(
         self,
         incoming: dict[bytes, bytes],
         etag: str,
@@ -386,7 +382,7 @@ class StaticFilesMiddleware:
 
         return False
 
-    def _build_common_headers(
+    def build_common_headers(
         self,
         mime_type: str,
         encoding: str | None,
@@ -406,7 +402,7 @@ class StaticFilesMiddleware:
             headers.append([b"content-encoding", encoding.encode()])
         return headers
 
-    def _resolve_range(
+    def resolve_range(
         self,
         incoming: dict[bytes, bytes],
         etag: str,
@@ -424,7 +420,7 @@ class StaticFilesMiddleware:
         return parse_range(range_header, file_size)
 
     @staticmethod
-    async def _stream_file(
+    async def stream_file(
         send: ASGISend,
         path: Path,
         range_start: int | None,
@@ -455,7 +451,7 @@ class StaticFilesMiddleware:
         await send({"type": "http.response.body", "body": b"", "more_body": False})
 
     @staticmethod
-    async def _send_response(
+    async def send_response(
         send: ASGISend,
         status: int,
         body: bytes,
@@ -586,6 +582,13 @@ def discover_app_static_dirs() -> tuple[Path, ...]:
     return tuple(static_dirs)
 
 
+def register_static_dir(static_dir: Path, static_dirs: list[Path], seen: set[Path]) -> None:
+    """Append *static_dir* to *static_dirs* if it exists and is not already seen."""
+    if static_dir.is_dir() and static_dir.resolve() not in seen:
+        static_dirs.append(static_dir)
+        seen.add(static_dir.resolve())
+
+
 def try_importlib_app_dir(
     app_name: str,
     static_dirs: list[Path],
@@ -596,10 +599,7 @@ def try_importlib_app_dir(
         spec = importlib.util.find_spec(app_name)
         if spec is not None and spec.origin is not None:
             app_dir = Path(spec.origin).parent
-            static_dir = app_dir / "static"
-            if static_dir.is_dir() and static_dir.resolve() not in seen:
-                static_dirs.append(static_dir)
-                seen.add(static_dir.resolve())
+            register_static_dir(app_dir / "static", static_dirs, seen)
             return True
     except ImportError, ModuleNotFoundError, ValueError:
         logger.debug("App %s static dir discovery skipped", app_name, exc_info=True)
@@ -616,10 +616,7 @@ def try_app_resolver_dir(
         resolver = AppResolver()
         app_path, found = resolver.resolve_app(app_name)
         if found and app_path:
-            static_dir = Path(app_path) / "static"
-            if static_dir.is_dir() and static_dir.resolve() not in seen:
-                static_dirs.append(static_dir)
-                seen.add(static_dir.resolve())
+            register_static_dir(Path(app_path) / "static", static_dirs, seen)
     except ImportError, AttributeError, TypeError, OSError:
         logger.debug("App %s import failed", app_name, exc_info=True)
 

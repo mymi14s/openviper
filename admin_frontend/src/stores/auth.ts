@@ -36,8 +36,9 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       return true
-    } catch (err: any) {
-      error.value = err.response?.data?.detail || err.response?.data?.error || 'Login failed'
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { detail?: string; error?: string } } }
+      error.value = axiosErr.response?.data?.detail || axiosErr.response?.data?.error || 'Login failed'
       return false
     } finally {
       loading.value = false

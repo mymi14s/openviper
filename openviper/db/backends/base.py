@@ -87,14 +87,14 @@ class VirtualBackend(ABC):
     ) -> None:
         """Delete one record."""
 
-    def _check_write_allowed(self, operation: str) -> None:
+    def check_write_allowed(self, operation: str) -> None:
         """Raise ``ReadOnlyVirtualModelError`` if this backend is read-only."""
         if self.read_only:
             raise ReadOnlyVirtualModelError(
                 f"Cannot perform {operation} on read-only virtual backend '{type(self).__name__}'."
             )
 
-    def _check_capability(self, operation: str, capability: bool) -> None:
+    def check_capability(self, operation: str, capability: bool) -> None:
         """Raise ``UnsupportedVirtualQueryError`` if *capability* is ``False``."""
         if not capability:
             raise UnsupportedVirtualQueryError(
@@ -112,7 +112,7 @@ class VirtualBackend(ABC):
         method.  The default implementation materialises every row and
         counts the resulting list, which is correct but expensive.
         """
-        self._check_capability("count", self.capabilities.supports_count)
+        self.check_capability("count", self.capabilities.supports_count)
         rows = await self.list(model_class, query)
         return len(rows)
 
@@ -126,8 +126,8 @@ class VirtualBackend(ABC):
         Backends that can batch inserts should override this method.
         The default implementation calls :meth:`create` for each item.
         """
-        self._check_write_allowed("bulk_create")
-        self._check_capability("bulk_create", self.capabilities.supports_bulk_create)
+        self.check_write_allowed("bulk_create")
+        self.check_capability("bulk_create", self.capabilities.supports_bulk_create)
         return [await self.create(model_class, item) for item in data_list]
 
     async def bulk_update(
@@ -143,8 +143,8 @@ class VirtualBackend(ABC):
         Backends that can batch updates should override this method.
         The default implementation calls :meth:`update` for each item.
         """
-        self._check_write_allowed("bulk_update")
-        self._check_capability("bulk_update", self.capabilities.supports_bulk_update)
+        self.check_write_allowed("bulk_update")
+        self.check_capability("bulk_update", self.capabilities.supports_bulk_update)
         for pk, data in updates:
             await self.update(model_class, pk, data)
         return len(updates)
@@ -161,8 +161,8 @@ class VirtualBackend(ABC):
         Backends that can batch deletes should override this method.
         The default implementation calls :meth:`delete` for each key.
         """
-        self._check_write_allowed("bulk_delete")
-        self._check_capability("bulk_delete", self.capabilities.supports_bulk_delete)
+        self.check_write_allowed("bulk_delete")
+        self.check_capability("bulk_delete", self.capabilities.supports_bulk_delete)
         for pk in primary_keys:
             await self.delete(model_class, pk)
         return len(primary_keys)

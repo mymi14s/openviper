@@ -9,8 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from openviper.core.app_resolver import (
-    _SEARCH_PATTERN_CACHE,
-    _SEARCH_PATTERN_CACHE_MAX,
+    SEARCH_PATTERN_CACHE,
+    SEARCH_PATTERN_CACHE_MAX,
     AppResolver,
 )
 
@@ -21,7 +21,7 @@ class TestAppResolver:
     def setup_method(self):
         self.test_dir = tempfile.mkdtemp()
         self.resolver = AppResolver(project_root=self.test_dir)
-        _SEARCH_PATTERN_CACHE.clear()
+        SEARCH_PATTERN_CACHE.clear()
 
     def teardown_method(self):
         shutil.rmtree(self.test_dir)
@@ -79,7 +79,7 @@ class TestAppResolver:
 
     def test_resolve_app_search_patterns_cache(self):
         cache_key = (self.resolver.project_root, "cachedapp")
-        _SEARCH_PATTERN_CACHE[cache_key] = "/fake/path"
+        SEARCH_PATTERN_CACHE[cache_key] = "/fake/path"
 
         path, found = self.resolver.resolve_app("cachedapp")
         assert found is True
@@ -96,20 +96,20 @@ class TestAppResolver:
         (Path(base_path) / "__init__.py").touch()
         (Path(base_path) / "routes.py").touch()
 
-        assert self.resolver._is_valid_app_directory(base_path) is True
+        assert self.resolver.is_valid_app_directory(base_path) is True
 
     def test_is_valid_app_directory_migrations_only(self):
         base_path = os.path.join(self.test_dir, "mig_app")
         os.makedirs(os.path.join(base_path, "migrations"))
         (Path(base_path) / "__init__.py").touch()
 
-        assert self.resolver._is_valid_app_directory(base_path) is True
+        assert self.resolver.is_valid_app_directory(base_path) is True
 
     def test_is_valid_app_directory_invalid(self):
         base_path = os.path.join(self.test_dir, "not_an_app")
         os.makedirs(base_path)
         # Missing __init__.py and models.py
-        assert self.resolver._is_valid_app_directory(base_path) is False
+        assert self.resolver.is_valid_app_directory(base_path) is False
 
     def test_resolve_all_apps(self):
         self._create_app("app1")
@@ -161,35 +161,31 @@ class TestAppResolver:
 
 
 class TestSearchPatternCacheBound:
-    """Test that _SEARCH_PATTERN_CACHE is bounded."""
+    """Test that SEARCH_PATTERN_CACHE is bounded."""
 
     def setup_method(self):
-        _SEARCH_PATTERN_CACHE.clear()
+        SEARCH_PATTERN_CACHE.clear()
 
     def teardown_method(self):
-        _SEARCH_PATTERN_CACHE.clear()
+        SEARCH_PATTERN_CACHE.clear()
 
     def test_cache_max_constant_is_positive(self):
-        assert _SEARCH_PATTERN_CACHE_MAX > 0
+        assert SEARCH_PATTERN_CACHE_MAX > 0
 
     def test_cache_evicts_oldest_when_full(self):
         """Filling beyond max should evict the oldest entry."""
-        # Fill cache to max
-        for i in range(_SEARCH_PATTERN_CACHE_MAX):
-            _SEARCH_PATTERN_CACHE[("root", f"app_{i}")] = f"/path/app_{i}"
+        for i in range(SEARCH_PATTERN_CACHE_MAX):
+            SEARCH_PATTERN_CACHE[("root", f"app_{i}")] = f"/path/app_{i}"
 
-        assert len(_SEARCH_PATTERN_CACHE) == _SEARCH_PATTERN_CACHE_MAX
+        assert len(SEARCH_PATTERN_CACHE) == SEARCH_PATTERN_CACHE_MAX
 
-        # The first entry should exist before eviction
-        assert ("root", "app_0") in _SEARCH_PATTERN_CACHE
+        assert ("root", "app_0") in SEARCH_PATTERN_CACHE
 
-        # Simulate what _try_search_patterns does when adding one more
         cache_key = ("root", "app_new")
-        if len(_SEARCH_PATTERN_CACHE) >= _SEARCH_PATTERN_CACHE_MAX:
-            _SEARCH_PATTERN_CACHE.pop(next(iter(_SEARCH_PATTERN_CACHE)))
-        _SEARCH_PATTERN_CACHE[cache_key] = "/path/app_new"
+        if len(SEARCH_PATTERN_CACHE) >= SEARCH_PATTERN_CACHE_MAX:
+            SEARCH_PATTERN_CACHE.pop(next(iter(SEARCH_PATTERN_CACHE)))
+        SEARCH_PATTERN_CACHE[cache_key] = "/path/app_new"
 
-        # Oldest entry should be evicted, new entry present
-        assert ("root", "app_0") not in _SEARCH_PATTERN_CACHE
-        assert ("root", "app_new") in _SEARCH_PATTERN_CACHE
-        assert len(_SEARCH_PATTERN_CACHE) == _SEARCH_PATTERN_CACHE_MAX
+        assert ("root", "app_0") not in SEARCH_PATTERN_CACHE
+        assert ("root", "app_new") in SEARCH_PATTERN_CACHE
+        assert len(SEARCH_PATTERN_CACHE) == SEARCH_PATTERN_CACHE_MAX

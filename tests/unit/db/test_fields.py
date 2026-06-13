@@ -885,7 +885,7 @@ class TestForeignKeyDescriptor:
         fake.id = 99
 
         obj = type("Obj", (), {"_relation_cache": {}})()
-        obj._set_related = lambda name, val: obj._relation_cache.__setitem__(name, val)
+        obj.set_related = lambda name, val: obj._relation_cache.__setitem__(name, val)
         f.__set__(obj, fake)
         assert obj.__dict__["author_id"] == 99
         assert obj._relation_cache["author"] is fake
@@ -1175,7 +1175,7 @@ class TestForeignKeyResolveTargetAppLabel:
 
 
 class TestLazyFKLoadBranches:
-    """Cover LazyFK._load: fk_id=None, resolve_target=None, not results, hydrate."""
+    """Cover LazyFK.load: fk_id=None, resolve_target=None, not results, hydrate."""
 
     @pytest.mark.asyncio
     async def test_load_returns_none_when_fk_id_none(self):
@@ -1223,7 +1223,7 @@ class TestLazyFKLoadBranches:
         fk.resolve_target = MagicMock(return_value=mock_model)
         inst = MagicMock()
         inst._relation_cache = {}
-        inst._set_related = lambda name, val: inst._relation_cache.__setitem__(name, val)
+        inst.set_related = lambda name, val: inst._relation_cache.__setitem__(name, val)
         lazy = LazyFK(fk, inst, fk_id=1)
         result = await lazy._load()
         assert result is hydrated

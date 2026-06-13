@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 cache_instances: dict[str, BaseCache] = {}
 cache_lock: threading.Lock = threading.Lock()
 
-_BACKEND_MAP: dict[str, type[BaseCache]] = {
+BACKEND_MAP: dict[str, type[BaseCache]] = {
     "openviper.cache.InMemoryCache": InMemoryCache,
     "openviper.cache.RedisCache": RedisCache,
     "openviper.cache.DatabaseCache": DatabaseCache,
@@ -57,8 +57,8 @@ def get_cache(alias: str = "default") -> BaseCache:
         backend_path: str = cast("str", config["BACKEND"])
         options: dict[str, Any] = cast("dict[str, Any]", config.get("OPTIONS", {}))
         backend_cls: type[BaseCache]
-        if backend_path in _BACKEND_MAP:
-            backend_cls = _BACKEND_MAP[backend_path]
+        if backend_path in BACKEND_MAP:
+            backend_cls = BACKEND_MAP[backend_path]
         else:
             backend_cls = cast("type[BaseCache]", import_string(backend_path))
         instance = backend_cls(**options)

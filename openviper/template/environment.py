@@ -8,25 +8,24 @@ all configured filters and globals before the first template render.
 from __future__ import annotations
 
 import functools
-import importlib
 import logging
 import os
 from typing import TYPE_CHECKING, Any, cast
 
 from openviper.conf import settings
 from openviper.template import plugin_loader
+from openviper.template.paths import PROJECT_ROOT, iter_app_dirs, validate_path_and_warn
 
-_jinja2_available: bool = False
-_SandboxedEnvironment: Any = None
-_FileSystemLoader: Any = None
-_select_autoescape: Any = None
+jinja2_available: bool = False
+SandboxedEnvironment: Any = None
+FileSystemLoader: Any = None
+select_autoescape: Any = None
 
 try:
-    from jinja2 import FileSystemLoader as _FileSystemLoader
-    from jinja2 import select_autoescape as _select_autoescape
-    from jinja2.sandbox import SandboxedEnvironment as _SandboxedEnvironment
+    from jinja2 import FileSystemLoader, select_autoescape
+    from jinja2.sandbox import SandboxedEnvironment
 
-    _jinja2_available = True
+    jinja2_available = True
 except ImportError:
     pass
 
@@ -34,26 +33,6 @@ if TYPE_CHECKING:
     from jinja2.sandbox import SandboxedEnvironment as SandboxedEnvironmentType
 
 logger = logging.getLogger("openviper.template.environment")
-
-
-def resolve_project_root() -> str:
-    """Return the absolute path to the project root directory.
-
-    Walks up from the settings module to find a stable root.  Falls back to
-    the current working directory when a settings module path is unavailable.
-    """
-    settings_module = os.environ.get("OPENVIPER_SETTINGS_MODULE", "")
-    if settings_module:
-        try:
-            mod = importlib.import_module(settings_module)
-            if hasattr(mod, "__file__") and mod.__file__:
-                return os.path.dirname(os.path.abspath(mod.__file__))
-        except ImportError:
-            pass
-    return os.path.abspath(".")
-
-
-PROJECT_ROOT: str = resolve_project_root()
 
 
 @functools.lru_cache(maxsize=16)
@@ -76,33 +55,19 @@ def get_jinja2_env(search_paths: tuple[str, ...]) -> SandboxedEnvironmentType:
     Raises:
         ImportError: If ``jinja2`` is not installed.
     """
-    if not _jinja2_available:
+    if not jinja2_available:
         raise ImportError("jinja2 is required for template rendering")
     auto_reload = getattr(settings, "TEMPLATE_AUTO_RELOAD", True)
     env = cast(
         "SandboxedEnvironmentType",
-        _SandboxedEnvironment(
-            loader=_FileSystemLoader(list(search_paths)),
-            autoescape=_select_autoescape(enabled_extensions=("html", "jinja2"), default=True),
+        SandboxedEnvironment(
+            loader=FileSystemLoader(list(search_paths)),
+            autoescape=select_autoescape(enabled_extensions=("html", "jinja2"), default=True),
             auto_reload=auto_reload,
         ),
     )
     plugin_loader.load(env)
     return env
-
-
-def validate_path_within_root(path: str, root: str) -> str | None:
-    """Resolve *path* and return it only if it resides within *root*.
-
-    Neutralises directory-traversal tokens (``../``), encoded slashes, and
-    double-decoding edge cases per the path-normalization security matrix.
-    Returns ``None`` when the resolved path escapes *root*.
-    """
-    resolved = os.path.realpath(path)
-    root_resolved = os.path.realpath(root)
-    if resolved == root_resolved or resolved.startswith(root_resolved + os.sep):
-        return resolved
-    return None
 
 
 def get_template_directories() -> tuple[str, ...]:
@@ -117,37 +82,16 @@ def get_template_directories() -> tuple[str, ...]:
     if settings.TEMPLATES_DIR:
         templates_dir = settings.TEMPLATES_DIR
         if isinstance(templates_dir, str):
-            project_templates = os.path.abspath(templates_dir)
-            validated = validate_path_within_root(project_templates, PROJECT_ROOT)
+            validated = validate_path_and_warn(
+                os.path.abspath(templates_dir), PROJECT_ROOT, "TEMPLATES_DIR"
+            )
             if validated is not None and os.path.isdir(validated):
                 paths.append(validated)
-            elif validated is None:
-                logger.warning(
-                    "TEMPLATES_DIR %r escapes project root; skipping.",
-                    templates_dir,
-                )
 
-    installed_apps: tuple[str, ...] | list[str] = cast(
-        "tuple[str, ...] | list[str]", settings.INSTALLED_APPS
-    )
-    for app_label in installed_apps:
-        try:
-            mod = importlib.import_module(app_label)
-            if not (hasattr(mod, "__file__") and mod.__file__):
-                continue
-            app_templates = os.path.join(os.path.dirname(mod.__file__), "templates")
-            abs_path = os.path.abspath(app_templates)
-            validated = validate_path_within_root(abs_path, PROJECT_ROOT)
-            if validated is not None and os.path.isdir(validated):
-                if validated not in paths:
-                    paths.append(validated)
-            elif validated is None:
-                logger.warning(
-                    "App %r template path %r escapes project root; skipping.",
-                    app_label,
-                    abs_path,
-                )
-        except ImportError:
-            continue
+    for app_label, app_dir in iter_app_dirs():
+        abs_path = os.path.abspath(os.path.join(app_dir, "templates"))
+        validated = validate_path_and_warn(abs_path, PROJECT_ROOT, f"App {app_label!r} template")
+        if validated is not None and os.path.isdir(validated) and validated not in paths:
+            paths.append(validated)
 
     return tuple(paths)

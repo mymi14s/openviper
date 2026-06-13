@@ -11,17 +11,13 @@ import os
 import threading
 from pathlib import Path
 
+from openviper.core.management.base import BaseCommand
+
 logger = logging.getLogger(__name__)
 
-# Bounded LRU avoids repeated os.walk in long-running processes.
-_SEARCH_PATTERN_CACHE_MAX = 256
-_SEARCH_PATTERN_CACHE: dict[tuple[str, str], str | None] = {}
-_CACHE_LOCK = threading.Lock()
-
-_ANSI_GREEN = "\033[92m"
-_ANSI_RED = "\033[91m"
-_ANSI_BLUE = "\033[94m"
-_ANSI_END = "\033[0m"
+SEARCH_PATTERN_CACHE_MAX = 256
+SEARCH_PATTERN_CACHE: dict[tuple[str, str], str | None] = {}
+CACHE_LOCK = threading.Lock()
 
 
 class AppResolver:
@@ -39,11 +35,12 @@ class AppResolver:
         Args:
             project_root: Project root directory (default: current directory)
         """
-        self.project_root = project_root or self._get_project_root()
+        self.project_root = project_root or self.get_project_root()
         self.app_cache: dict[str, tuple[str | None, bool]] = {}
+        self.styler = BaseCommand()
 
     @staticmethod
-    def _get_project_root() -> str:
+    def get_project_root() -> str:
         """Get project root directory."""
         return os.getcwd()
 
@@ -59,17 +56,17 @@ class AppResolver:
         if app_name in self.app_cache:
             return self.app_cache[app_name]
 
-        app_path = self._try_direct_path(app_name)
+        app_path = self.try_direct_path(app_name)
         if app_path:
             self.app_cache[app_name] = (app_path, True)
             return app_path, True
 
-        app_path = self._try_relative_path(app_name)
+        app_path = self.try_relative_path(app_name)
         if app_path:
             self.app_cache[app_name] = (app_path, True)
             return app_path, True
 
-        app_path = self._try_search_patterns(app_name)
+        app_path = self.try_search_patterns(app_name)
         if app_path:
             self.app_cache[app_name] = (app_path, True)
             return app_path, True
@@ -77,7 +74,7 @@ class AppResolver:
         self.app_cache[app_name] = (None, False)
         return None, False
 
-    def _try_direct_path(self, app_name: str) -> str | None:
+    def try_direct_path(self, app_name: str) -> str | None:
         """Try direct path resolution.
 
         Args:
@@ -90,18 +87,18 @@ class AppResolver:
             return None
 
         direct_path = os.path.join(self.project_root, app_name)
-        if self._is_valid_app_directory(direct_path):
+        if self.is_valid_app_directory(direct_path):
             return direct_path
 
         if "." in app_name:
             converted = app_name.replace(".", "/")
             converted_path = os.path.join(self.project_root, converted)
-            if self._is_valid_app_directory(converted_path):
+            if self.is_valid_app_directory(converted_path):
                 return converted_path
 
         return None
 
-    def _try_relative_path(self, app_name: str) -> str | None:
+    def try_relative_path(self, app_name: str) -> str | None:
         """Try relative path resolution.
 
         Args:
@@ -123,12 +120,12 @@ class AppResolver:
 
         for search_dir in search_dirs:
             app_path = os.path.join(self.project_root, search_dir, base_name)
-            if self._is_valid_app_directory(app_path):
+            if self.is_valid_app_directory(app_path):
                 return app_path
 
         return None
 
-    def _try_search_patterns(self, app_name: str) -> str | None:
+    def try_search_patterns(self, app_name: str) -> str | None:
         """Try fuzzy search patterns.
 
         Uses a global cache to avoid repeated os.walk calls which are expensive.
@@ -142,9 +139,9 @@ class AppResolver:
         base_name = app_name.split(".")[-1]
 
         cache_key = (self.project_root, base_name)
-        with _CACHE_LOCK:
-            if cache_key in _SEARCH_PATTERN_CACHE:
-                return _SEARCH_PATTERN_CACHE[cache_key]
+        with CACHE_LOCK:
+            if cache_key in SEARCH_PATTERN_CACHE:
+                return SEARCH_PATTERN_CACHE[cache_key]
 
         result = None
         for root, dirs, _files in os.walk(self.project_root):
@@ -166,18 +163,18 @@ class AppResolver:
 
             if base_name in dirs:
                 app_path = os.path.join(root, base_name)
-                if self._is_valid_app_directory(app_path):
+                if self.is_valid_app_directory(app_path):
                     result = app_path
                     break
 
-        with _CACHE_LOCK:
-            if len(_SEARCH_PATTERN_CACHE) >= _SEARCH_PATTERN_CACHE_MAX:
-                _SEARCH_PATTERN_CACHE.pop(next(iter(_SEARCH_PATTERN_CACHE)))
-            _SEARCH_PATTERN_CACHE[cache_key] = result
+        with CACHE_LOCK:
+            if len(SEARCH_PATTERN_CACHE) >= SEARCH_PATTERN_CACHE_MAX:
+                SEARCH_PATTERN_CACHE.pop(next(iter(SEARCH_PATTERN_CACHE)))
+            SEARCH_PATTERN_CACHE[cache_key] = result
         return result
 
     @staticmethod
-    def _is_valid_app_directory(path: str) -> bool:
+    def is_valid_app_directory(path: str) -> bool:
         """Check if directory is a valid OpenViper app.
 
         Resolves symlinks to prevent traversal through symbolic links.
@@ -260,19 +257,20 @@ class AppResolver:
         """
         resolved = self.resolve_all_apps(installed_apps)
 
-        print(f"\n{_ANSI_BLUE}App Locations:{_ANSI_END}\n")
+        s = self.styler
+        print(f"\n{s.style_notice('App Locations:')}\n")
 
         found = resolved.get("found", {})
         if isinstance(found, dict):
             for app_name, app_path in found.items():
                 rel_path = os.path.relpath(app_path, self.project_root)
-                print(f"  {_ANSI_GREEN}✓{_ANSI_END} {app_name}: {rel_path}")
+                print(f"  {s.style_success('✓')} {app_name}: {rel_path}")
 
         not_found = resolved.get("not_found", [])
         if not_found:
-            print(f"\n{_ANSI_RED}Not Found:{_ANSI_END}\n")
+            print(f"\n{s.style_error('Not Found:')}\n")
             for app_name in not_found:
-                print(f"  {_ANSI_RED}✗{_ANSI_END} {app_name}")
+                print(f"  {s.style_error('✗')} {app_name}")
 
         print()
 
@@ -284,9 +282,10 @@ class AppResolver:
             app_name: App name that wasn't found
             search_paths: Paths that were searched
         """
-        print(f"\n{_ANSI_RED}")
+        styler = BaseCommand()
+        print()
         print("=" * 70)
-        print(f"ERROR: App '{app_name}' not found")
+        print(styler.style_error(f"ERROR: App '{app_name}' not found"))
         print("=" * 70)
         print(f"\nThe app '{app_name}' was not found in your project.")
         print("\nPossible solutions:\n")
@@ -301,7 +300,7 @@ class AppResolver:
         print("   ├── models.py (or routes.py)")
         print("   └── migrations/ (optional)\n")
         print("For more help, visit: https://openviper.dev/docs/apps")
-        print(f"{_ANSI_END}\n")
+        print()
 
     @staticmethod
     def print_app_not_in_settings_error(app_name: str, app_path: str) -> None:
@@ -311,9 +310,10 @@ class AppResolver:
             app_name: App name
             app_path: Path where app was found
         """
-        print(f"\n{_ANSI_RED}")
+        styler = BaseCommand()
+        print()
         print("=" * 70)
-        print(f"ERROR: App '{app_name}' exists but not in INSTALLED_APPS")
+        print(styler.style_error(f"ERROR: App '{app_name}' exists but not in INSTALLED_APPS"))
         print("=" * 70)
         print(f"\nApp directory found: {app_path}")
         print("\nTo use this app, add it to INSTALLED_APPS in settings.py:\n")
@@ -322,4 +322,4 @@ class AppResolver:
         print(f'    "{app_name}",')
         print("]")
         print("\nFor more help, visit: https://openviper.dev/docs/apps")
-        print(f"{_ANSI_END}\n")
+        print()

@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import logging
 import time
 from pathlib import Path
 from typing import Any
 
 import orjson
 
-from openviper.cache.base import BaseCache
+from openviper.cache.base import BaseCache, deserialize_cache_value
 from openviper.cache.validation import validate_cache_key
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR: str = ".cache/openviper"
 DEFAULT_KEY_PREFIX: str = "ov:cache:"
@@ -55,12 +52,12 @@ class FileCache(BaseCache):
         self._prefix: str = key_prefix
         self._lock: asyncio.Lock = asyncio.Lock()
 
-    def _filepath(self, key: str) -> Path:
+    def filepath(self, key: str) -> Path:
         """Return the file path for a given cache key."""
         filename = safe_filename(f"{self._prefix}{key}")
         return self._cache_dir / filename
 
-    async def _ensure_dir(self) -> None:
+    async def ensure_dir(self) -> None:
         """Create the cache directory if it does not exist."""
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, lambda: self._cache_dir.mkdir(parents=True, exist_ok=True))
@@ -68,7 +65,7 @@ class FileCache(BaseCache):
     async def get(self, key: str, default: Any = None) -> Any:  # noqa: ANN401
         """Fetch a value from the cache, returning *default* on miss."""
         validate_cache_key(key)
-        filepath = self._filepath(key)
+        filepath = self.filepath(key)
         loop = asyncio.get_running_loop()
 
         try:
@@ -76,24 +73,22 @@ class FileCache(BaseCache):
         except FileNotFoundError:
             return default
 
-        try:
-            entry: dict[str, Any] = orjson.loads(raw)
-        except ValueError, TypeError:
-            logger.debug("Failed to deserialize cached file for key %r", key, exc_info=True)
+        result = deserialize_cache_value(raw, key)
+        if not isinstance(result, dict):
             return default
 
-        expiry = entry.get("expiry")
+        expiry = result.get("expiry")
         if expiry is not None and time.time() >= expiry:
             await self.delete(key)
             return default
 
-        return entry.get("value", default)
+        return result.get("value", default)
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:  # noqa: ANN401
         """Store a value in the cache with an optional TTL in seconds."""
         validate_cache_key(key)
-        await self._ensure_dir()
-        filepath = self._filepath(key)
+        await self.ensure_dir()
+        filepath = self.filepath(key)
         expiry: float | None = time.time() + ttl if ttl is not None else None
         entry: dict[str, Any] = {"value": value, "expiry": expiry, "key": key}
         serialized: bytes = orjson.dumps(entry)
@@ -103,7 +98,7 @@ class FileCache(BaseCache):
     async def delete(self, key: str) -> None:
         """Remove a value from the cache."""
         validate_cache_key(key)
-        filepath = self._filepath(key)
+        filepath = self.filepath(key)
         loop = asyncio.get_running_loop()
         with contextlib.suppress(FileNotFoundError):
             await loop.run_in_executor(None, filepath.unlink, True)
@@ -112,19 +107,19 @@ class FileCache(BaseCache):
         """Remove all cache files in the cache directory."""
         loop = asyncio.get_running_loop()
 
-        def _clear_dir() -> None:
+        def clear_dir() -> None:
             if not self._cache_dir.exists():
                 return
             for f in self._cache_dir.iterdir():
                 with contextlib.suppress(OSError):
                     f.unlink()
 
-        await loop.run_in_executor(None, _clear_dir)
+        await loop.run_in_executor(None, clear_dir)
 
     async def has_key(self, key: str) -> bool:
         """Check if a key exists in the cache and is not expired."""
         validate_cache_key(key)
-        filepath = self._filepath(key)
+        filepath = self.filepath(key)
         loop = asyncio.get_running_loop()
 
         try:
@@ -132,12 +127,11 @@ class FileCache(BaseCache):
         except FileNotFoundError:
             return False
 
-        try:
-            entry: dict[str, Any] = orjson.loads(raw)
-        except ValueError, TypeError:
+        result = deserialize_cache_value(raw, key)
+        if not isinstance(result, dict):
             return False
 
-        expiry = entry.get("expiry")
+        expiry = result.get("expiry")
         if expiry is not None and time.time() >= expiry:
             await self.delete(key)
             return False

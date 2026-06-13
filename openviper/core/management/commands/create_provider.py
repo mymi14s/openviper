@@ -6,8 +6,9 @@ import argparse
 import os
 
 from openviper.core.management.base import BaseCommand, CommandError
+from openviper.core.management.utils import validate_identifier
 
-_PROVIDER_TEMPLATE = '''\
+PROVIDER_TEMPLATE = '''\
 """{{ provider_title }} AI provider."""
 
 from __future__ import annotations
@@ -88,7 +89,7 @@ def get_providers() -> list[AIProvider]:
     return [{{ class_name }}(config)]
 '''
 
-_TEST_TEMPLATE = '''\
+TEST_TEMPLATE = '''\
 """Tests for {{ provider_title }} provider."""
 
 from __future__ import annotations
@@ -138,7 +139,7 @@ def test_get_providers():
     assert all(isinstance(p, AIProvider) for p in providers)
 '''
 
-_INIT_TEMPLATE = '''\
+INIT_TEMPLATE = '''\
 """{{ provider_title }} provider package."""
 
 from .provider import {{ class_name }}, get_providers
@@ -146,7 +147,7 @@ from .provider import {{ class_name }}, get_providers
 __all__ = ["{{ class_name }}", "get_providers"]
 '''
 
-_README_TEMPLATE = """\
+README_TEMPLATE = """\
 # {{ provider_title }} Provider
 
 A custom AI provider for [openviper](https://github.com/anthropics/openviper).
@@ -260,8 +261,7 @@ class Command(BaseCommand):
 
     def handle(self, **options) -> None:  # type: ignore[override]
         name: str = options["name"].replace("-", "_")
-        if not name.isidentifier():
-            raise CommandError(f"'{name}' is not a valid Python identifier after normalisation.")
+        validate_identifier(name, "provider name")
 
         base_dir = os.path.realpath(options.get("output_dir") or os.getcwd())
         pkg_dir = os.path.join(base_dir, name)
@@ -288,13 +288,13 @@ class Command(BaseCommand):
         os.makedirs(tests_dir, exist_ok=True)
 
         files = {
-            os.path.join(pkg_dir, "__init__.py"): render_provider_template(_INIT_TEMPLATE, ctx),
-            os.path.join(pkg_dir, "provider.py"): render_provider_template(_PROVIDER_TEMPLATE, ctx),
+            os.path.join(pkg_dir, "__init__.py"): render_provider_template(INIT_TEMPLATE, ctx),
+            os.path.join(pkg_dir, "provider.py"): render_provider_template(PROVIDER_TEMPLATE, ctx),
             os.path.join(tests_dir, "__init__.py"): "",
             os.path.join(tests_dir, f"test_{name}.py"): render_provider_template(
-                _TEST_TEMPLATE, ctx
+                TEST_TEMPLATE, ctx
             ),
-            os.path.join(pkg_dir, "README.md"): render_provider_template(_README_TEMPLATE, ctx),
+            os.path.join(pkg_dir, "README.md"): render_provider_template(README_TEMPLATE, ctx),
         }
 
         for filepath, content in files.items():

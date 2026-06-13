@@ -60,12 +60,17 @@ PYTHON_TO_JSON_TYPE: dict[type, dict[str, str]] = {
     list: {"type": "array"},
     dict: {"type": "object"},
 }
-DOCSTRING_TYPE_TO_SCHEMA: dict[str, dict[str, str]] = {
+PATH_TYPE_TO_SCHEMA: dict[str, dict[str, str]] = {
+    "str": {"type": "string"},
     "int": {"type": "integer"},
     "float": {"type": "number"},
-    "str": {"type": "string"},
+    "uuid": {"type": "string", "format": "uuid"},
+    "path": {"type": "string"},
+    "slug": {"type": "string"},
+}
+
+DOCSTRING_TYPE_TO_SCHEMA: dict[str, dict[str, str]] = PATH_TYPE_TO_SCHEMA | {
     "bool": {"type": "boolean"},
-    "bytes": {"type": "string", "format": "binary"},
     "list": {"type": "array"},
     "dict": {"type": "object"},
     "UUID": {"type": "string", "format": "uuid"},
@@ -219,14 +224,7 @@ def extract_path_params(path: str) -> list[dict[str, Any]]:
             )
             continue
         conv = m.group(2) or "str"
-        type_schema: dict[str, Any] = {
-            "str": {"type": "string"},
-            "int": {"type": "integer"},
-            "float": {"type": "number"},
-            "uuid": {"type": "string", "format": "uuid"},
-            "path": {"type": "string"},
-            "slug": {"type": "string"},
-        }.get(conv, {"type": "string"})
+        type_schema: dict[str, Any] = PATH_TYPE_TO_SCHEMA.get(conv, {"type": "string"}).copy()
         params.append(
             {
                 "name": name,
@@ -476,6 +474,24 @@ def collect_brace_block(
     return block_lines, index
 
 
+def render_brace_block(
+    label: str,
+    lines: list[str],
+    start_index: int,
+    remainder: str,
+    paragraph: list[str],
+    rendered: list[str],
+) -> int:
+    """Flush *paragraph*, render a labelled brace-block section, and return the next index."""
+    flush_paragraph(paragraph, rendered)
+    block_lines, next_index = collect_brace_block(lines, start_index, remainder)
+    rendered.append(
+        f"<p><strong>{html.escape(label)}:</strong></p>"
+        f"<pre><code>{html.escape(chr(10).join(block_lines))}</code></pre>",
+    )
+    return next_index
+
+
 def format_operation_description(docstring: str) -> str:
     """Render structured docstrings as safe HTML for documentation UIs."""
     if not docstring:
@@ -508,23 +524,13 @@ def format_operation_description(docstring: str) -> str:
             continue
 
         if stripped.startswith(("Body:", "Request:")) and "{" in stripped:
-            flush_paragraph(paragraph, rendered)
             label, remainder = stripped.split(":", maxsplit=1)
-            block_lines, index = collect_brace_block(lines, index + 1, remainder)
-            rendered.append(
-                f"<p><strong>{html.escape(label)}:</strong></p>"
-                f"<pre><code>{html.escape(chr(10).join(block_lines))}</code></pre>",
-            )
+            index = render_brace_block(label, lines, index + 1, remainder, paragraph, rendered)
             continue
 
         if stripped.startswith(("Example Request:", "Example Response:")):
-            flush_paragraph(paragraph, rendered)
             label, remainder = stripped.split(":", maxsplit=1)
-            block_lines, index = collect_brace_block(lines, index + 1, remainder)
-            rendered.append(
-                f"<p><strong>{html.escape(label)}:</strong></p>"
-                f"<pre><code>{html.escape(chr(10).join(block_lines))}</code></pre>",
-            )
+            index = render_brace_block(label, lines, index + 1, remainder, paragraph, rendered)
             continue
 
         paragraph.append(stripped)
@@ -813,7 +819,7 @@ def generate_openapi_schema(
     cache_key = hashlib.sha256(raw_key.encode()).hexdigest()
 
     cached_entry: dict[str, Any] | None = SCHEMA_CACHE_STORE[0]
-    if cached_entry is not None and cached_entry.get("_cache_key") == cache_key:
+    if cached_entry is not None and cached_entry.get("cache_key") == cache_key:
         return cast("dict[str, Any]", cached_entry.get("schema"))
 
     paths: dict[str, dict[str, Any]] = {}
@@ -867,5 +873,5 @@ def generate_openapi_schema(
         "security": [{"BearerAuth": []}, {"SessionAuth": []}, {"TokenAuth": []}],
     }
 
-    SCHEMA_CACHE_STORE[0] = {"_cache_key": cache_key, "schema": schema}
+    SCHEMA_CACHE_STORE[0] = {"cache_key": cache_key, "schema": schema}
     return schema

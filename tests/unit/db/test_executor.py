@@ -594,13 +594,21 @@ class TestApplyLookupEdgeCases:
         compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
         assert "<= 0" in compiled
 
-    def test_regex_with_complex_pattern(self) -> None:
+    def test_regex_with_safe_complex_pattern(self) -> None:
         clause = apply_lookup(self.col, "regex", r"^(foo|bar)\d+$")
         assert clause is not None
 
-    def test_iregex_with_complex_pattern(self) -> None:
+    def test_iregex_with_safe_complex_pattern(self) -> None:
         clause = apply_lookup(self.col, "iregex", r"^(foo|bar)\d+$")
         assert clause is not None
+
+    def test_regex_with_newline_rejected(self) -> None:
+        with pytest.raises(FieldError):
+            apply_lookup(self.col, "regex", "foo\nbar")
+
+    def test_iregex_with_newline_rejected(self) -> None:
+        with pytest.raises(FieldError):
+            apply_lookup(self.col, "iregex", "foo\nbar")
 
     def test_date_with_datetime_value(self) -> None:
         dt = datetime.datetime(2026, 4, 19, 14, 30, 0)
@@ -1494,7 +1502,7 @@ class TestExecuteSave:
 
     @pytest.mark.asyncio
     async def test_update_existing_instance(self):
-        p = Post._from_row({"id": 5, "title": "Old", "views": 10, "author_id": None})
+        p = Post.from_row({"id": 5, "title": "Old", "views": 10, "author_id": None})
 
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock(return_value=MagicMock())
@@ -1560,7 +1568,7 @@ class TestExecuteSave:
     async def test_uuid_pk_excluded_from_update_set_clause(self):
         """UUID primary keys must not appear in the UPDATE SET clause."""
         uid = uuid.uuid4()
-        otp = OtpRecord._from_row({"id": uid, "otp": "111111"})
+        otp = OtpRecord.from_row({"id": uid, "otp": "111111"})
 
         mock_conn = AsyncMock()
         mock_result = MagicMock()
@@ -1597,7 +1605,7 @@ class TestExecuteSave:
 class TestExecuteDeleteInstance:
     @pytest.mark.asyncio
     async def test_delete_instance(self):
-        p = Post._from_row({"id": 7, "title": "Bye", "views": 0, "author_id": None})
+        p = Post.from_row({"id": 7, "title": "Bye", "views": 0, "author_id": None})
 
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock(return_value=MagicMock())
@@ -1613,7 +1621,7 @@ class TestExecuteDeleteInstance:
 
     @pytest.mark.asyncio
     async def test_delete_instance_with_bypass(self):
-        p = Post._from_row({"id": 8, "title": "Gone", "views": 0, "author_id": None})
+        p = Post.from_row({"id": 8, "title": "Gone", "views": 0, "author_id": None})
 
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock(return_value=MagicMock())
@@ -1928,14 +1936,14 @@ class TestExecuteBulkUpdate:
 
     @pytest.mark.asyncio
     async def test_empty_fields(self):
-        p = Post._from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
+        p = Post.from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
         result = await execute_bulk_update(Post, [p], [])
         assert result == 0
 
     @pytest.mark.asyncio
     async def test_bulk_update_runs(self):
-        p1 = Post._from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
-        p2 = Post._from_row({"id": 2, "title": "B", "views": 5, "author_id": None})
+        p1 = Post.from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
+        p2 = Post.from_row({"id": 2, "title": "B", "views": 5, "author_id": None})
         p1.title = "Updated A"
         p2.title = "Updated B"
 
@@ -1968,7 +1976,7 @@ class TestExecuteBulkUpdate:
     @pytest.mark.asyncio
     async def test_bulk_update_with_batch_size(self):
         posts = [
-            Post._from_row({"id": i, "title": f"P{i}", "views": 0, "author_id": None})
+            Post.from_row({"id": i, "title": f"P{i}", "views": 0, "author_id": None})
             for i in range(1, 5)
         ]
 
@@ -1985,7 +1993,7 @@ class TestExecuteBulkUpdate:
 
     @pytest.mark.asyncio
     async def test_bulk_update_extra_field_not_in_model(self):
-        p = Post._from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
+        p = Post.from_row({"id": 1, "title": "A", "views": 0, "author_id": None})
         p.extra = "val"  # not in model fields
 
         mock_conn = AsyncMock()

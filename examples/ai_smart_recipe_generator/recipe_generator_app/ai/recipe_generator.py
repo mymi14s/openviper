@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import logging
 
-from openviper.ai.router import ModelRouter
+from recipe_generator_app.ai.base import (
+    AIServiceBase,
+    JsonValue,
+    cached_factory,
+    format_ingredients,
+    strip_ai_json_response,
+)
 
 logger = logging.getLogger(__name__)
-
-type JsonScalar = str | int | float | bool | None
-type JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 class RecipeResult:
@@ -51,7 +54,7 @@ class RecipeResult:
         }
 
 
-class RecipeGenerator:
+class RecipeGenerator(AIServiceBase):
     """AI-powered recipe generator.
 
     Uses :class:`~openviper.ai.router.ModelRouter` for provider-agnostic
@@ -63,21 +66,7 @@ class RecipeGenerator:
         recipe = await generator.generate_recipe(["chicken", "garlic", "lemon"])
     """
 
-    def __init__(self, model_name: str = "llama3") -> None:
-        self.model_name = model_name
-        self._router = ModelRouter()
-        self._available = False
-        self.init_router()
-
-    def init_router(self) -> None:
-        try:
-            self._router.set_model(self.model_name)
-            self._router._get_provider()
-            self._available = True
-            logger.info("RecipeGenerator: using model '%s'", self.model_name)
-        except Exception as exc:
-            logger.warning("RecipeGenerator: model '%s' not available - %s", self.model_name, exc)
-            self._available = False
+    default_model = "llama3"
 
     async def generate_recipe(
         self,
@@ -93,11 +82,10 @@ class RecipeGenerator:
         Returns:
             :class:`RecipeResult` with title, ingredients, and instructions.
         """
-        if not self._available:
+        if not self.available:
             return self.fallback_recipe(ingredients)
 
-        ingredient_str = ", ".join(ingredients)
-        pref_note = f" Dietary preference: {dietary_preferences}." if dietary_preferences else ""
+        ingredient_str, pref_note = format_ingredients(ingredients, dietary_preferences)
 
         prompt = (
             "You are a professional chef AI. Create a recipe using the following ingredients.\n"
@@ -110,21 +98,14 @@ class RecipeGenerator:
         )
 
         try:
-            raw = await self._router.generate(prompt, temperature=0.7)
+            raw = await self.router.generate(prompt, temperature=0.7)
             return self.parse_recipe(raw, ingredients)
         except Exception as exc:
             logger.error("RecipeGenerator: generation failed - %s", exc)
             return self.fallback_recipe(ingredients)
 
     def parse_recipe(self, raw: str, ingredients: list[str]) -> RecipeResult:
-        text = raw.strip()
-        # Strip markdown fences if present
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
-        if "{" in text and "}" in text:
-            text = text[text.find("{") : text.rfind("}") + 1]
+        text = strip_ai_json_response(raw)
 
         try:
             data = json.loads(text)
@@ -171,11 +152,10 @@ class RecipeGenerator:
         Returns:
             List of :class:`RecipeResult` objects.
         """
-        if not self._available:
+        if not self.available:
             return [self.fallback_recipe(ingredients)]
 
-        ingredient_str = ", ".join(ingredients)
-        pref_note = f" Dietary preference: {dietary_preferences}." if dietary_preferences else ""
+        ingredient_str, pref_note = format_ingredients(ingredients, dietary_preferences)
 
         prompt = (
             f"You are a professional chef AI. Create {count} different recipes using some or all "
@@ -188,14 +168,8 @@ class RecipeGenerator:
         )
 
         try:
-            raw = await self._router.generate(prompt, temperature=0.8)
-            text = raw.strip()
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
-            if "[" in text and "]" in text:
-                text = text[text.find("[") : text.rfind("]") + 1]
+            raw = await self.router.generate(prompt, temperature=0.8)
+            text = strip_ai_json_response(raw, is_array=True)
 
             data_list = json.loads(text)
             return [
@@ -214,12 +188,9 @@ class RecipeGenerator:
             return [self.fallback_recipe(ingredients)]
 
 
-# Module-level cache keyed by model name
 generators: dict[str, RecipeGenerator] = {}
 
 
 def get_recipe_generator(model_name: str = "gemini-2.5-flash") -> RecipeGenerator:
     """Return a cached :class:`RecipeGenerator` for *model_name*."""
-    if model_name not in generators:
-        generators[model_name] = RecipeGenerator(model_name=model_name)
-    return generators[model_name]
+    return cached_factory(generators, RecipeGenerator, model_name)

@@ -10,30 +10,31 @@ from openviper.serializers import ModelSerializer
 
 from .models import UserProfile
 
+country_field = CountryField(null=True)
 
-class ProfileCodeSerializer(ModelSerializer):
+
+class ProfileSerializer(ModelSerializer):
+    """Base serializer for UserProfile with country field representation."""
+
+    class Meta:
+        model = UserProfile
+        fields = ["id", "name", "email", "country"]
+
+    def serialize_country(self, instance: UserProfile, full: bool) -> dict:
+        data = super().serialize(instance)
+        data["country"] = country_field.to_representation(instance.country, full=full)
+        return data
+
+
+class ProfileCodeSerializer(ProfileSerializer):
     """Serialize a UserProfile, returning country as a plain ISO code."""
 
-    class Meta:
-        model = UserProfile
-        fields = ["id", "name", "email", "country"]
-
     def serialize(self, instance: UserProfile) -> dict:
-        data = super().serialize(instance)
-        field = CountryField(null=True)
-        data["country"] = field.to_representation(instance.country, full=False)
-        return data
+        return self.serialize_country(instance, full=False)
 
 
-class ProfileFullSerializer(ModelSerializer):
+class ProfileFullSerializer(ProfileSerializer):
     """Serialize a UserProfile, returning country as a full dict object."""
 
-    class Meta:
-        model = UserProfile
-        fields = ["id", "name", "email", "country"]
-
     def serialize(self, instance: UserProfile) -> dict:
-        data = super().serialize(instance)
-        field = CountryField(null=True)
-        data["country"] = field.to_representation(instance.country, full=True)
-        return data
+        return self.serialize_country(instance, full=True)

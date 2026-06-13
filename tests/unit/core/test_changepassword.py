@@ -51,21 +51,21 @@ class TestChangePasswordCommand:
 
 class TestHandleWithOptions:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
-    @patch("openviper.core.management.commands.changepassword.asyncio.run")
+    @patch("openviper.core.management.commands.changepassword.run_async_command")
     def test_handle_with_username_and_password(
-        self, mock_asyncio_run, mock_get_user_model, command, mock_user_model
+        self, mock_run_async, mock_get_user_model, command, mock_user_model
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
 
         command.handle(username="testuser", password="newpass123")
 
-        mock_asyncio_run.assert_called_once()
+        mock_run_async.assert_called_once()
 
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch("builtins.input", side_effect=["testuser"])
     @patch(
-        "openviper.core.management.commands.changepassword.getpass.getpass",
+        "openviper.core.management.utils.getpass.getpass",
         side_effect=["newpass", "newpass"],
     )
     def test_handle_prompts_for_username_and_password(
@@ -119,7 +119,7 @@ class TestUserLookup:
 class TestPasswordValidation:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch(
-        "openviper.core.management.commands.changepassword.getpass.getpass",
+        "openviper.core.management.utils.getpass.getpass",
         side_effect=["pass1", "pass2", "pass3", "pass3"],
     )
     def test_handle_password_mismatch_retries(
@@ -134,7 +134,7 @@ class TestPasswordValidation:
 
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch(
-        "openviper.core.management.commands.changepassword.getpass.getpass",
+        "openviper.core.management.utils.getpass.getpass",
         side_effect=["", "pass", "pass"],
     )
     def test_handle_blank_password_retries(
@@ -168,7 +168,7 @@ class TestCancellation:
 
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch(
-        "openviper.core.management.commands.changepassword.getpass.getpass",
+        "openviper.core.management.utils.getpass.getpass",
         side_effect=KeyboardInterrupt,
     )
     def test_handle_password_prompt_cancelled(
@@ -177,7 +177,8 @@ class TestCancellation:
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
 
-        command.handle(username="testuser", password=None)
+        with pytest.raises(CommandError, match="Operation cancelled"):
+            command.handle(username="testuser", password=None)
 
         captured = capsys.readouterr()
         assert "Operation cancelled" in captured.out
@@ -235,7 +236,7 @@ class TestEdgeCases:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch("builtins.input", return_value="  testuser  ")
     @patch(
-        "openviper.core.management.commands.changepassword.getpass.getpass",
+        "openviper.core.management.utils.getpass.getpass",
         side_effect=["pass", "pass"],
     )
     def test_handle_strips_whitespace_from_username(

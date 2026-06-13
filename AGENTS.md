@@ -110,14 +110,14 @@ from urllib.parse import urlparse
 from contextvars import ContextVar
 
 # Module-level imports only. Strict typing enforced.
-_tenant_context: ContextVar[str] = ContextVar("tenant_context")
+tenant_context: ContextVar[str] = ContextVar("tenant_context")
 
 
 class SecurityGateway:
     """Core request pipeline guard enforcing safe routing bounds."""
 
     def __init__(self, allowed_hosts: t.Sequence[str]) -> None:
-        self._allowed_hosts: set[str] = set(allowed_hosts)
+        self.allowed_hosts: set[str] = set(allowed_hosts)
 
     def resolve_safe_redirect(self, target: str, host_header: str) -> str:
         """Evaluate a target URL path and filter out path traversal or open redirect risks.
@@ -126,7 +126,7 @@ class SecurityGateway:
         """
         # Mitigate Host Header injection and directory parsing attacks.
         # This implementation scales efficiently via O(1) set host lookups.
-        if host_header not in self._allowed_hosts:
+        if host_header not in self.allowed_hosts:
             return "/error/invalid-host"
 
         sanitized = target.strip()

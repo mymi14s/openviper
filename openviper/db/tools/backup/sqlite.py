@@ -13,7 +13,7 @@ class SQLiteBackupEngine(BackupEngine):
 
     engine_name = "sqlite"
 
-    def _extract_db_path(self, database_url: str) -> Path:
+    def extract_db_path(self, database_url: str) -> Path:
         """Return the filesystem path encoded in a ``sqlite:///`` URL.
 
         Args:
@@ -56,7 +56,7 @@ class SQLiteBackupEngine(BackupEngine):
         Returns:
             Path to the copied file inside *work_dir*.
         """
-        db_path = self._extract_db_path(database_url)
+        db_path = self.extract_db_path(database_url)
         dest = work_dir / "backup.sql"
 
         shutil.copy2(str(db_path), str(dest))
@@ -80,7 +80,7 @@ class SQLiteBackupEngine(BackupEngine):
         Raises:
             FileExistsError: When the target exists and *force* is ``False``.
         """
-        db_path = self._extract_db_path(database_url)
+        db_path = self.extract_db_path(database_url)
 
         if db_path.exists() and not force:
             raise FileExistsError(

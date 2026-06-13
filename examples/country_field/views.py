@@ -23,8 +23,6 @@ if TYPE_CHECKING:
 
 router = Router(prefix="/profiles")
 
-_country_field = CountryField(null=True)
-
 
 class ProfileListView(View):
     """List user profiles, optionally filtered by country code."""

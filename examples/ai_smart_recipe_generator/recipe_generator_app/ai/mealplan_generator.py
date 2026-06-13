@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import logging
 
-from openviper.ai.router import ModelRouter
+from recipe_generator_app.ai.base import (
+    AIServiceBase,
+    JsonValue,
+    cached_factory,
+    format_ingredients,
+    strip_ai_json_response,
+)
 
 logger = logging.getLogger(__name__)
-
-type JsonScalar = str | int | float | bool | None
-type JsonValue = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
 DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 MEALS = ["breakfast", "lunch", "dinner"]
@@ -27,7 +30,7 @@ class MealPlanResult:
         available: bool = True,
     ) -> None:
         self.title = title
-        self.plan = plan  # {day: {meal: recipe_name}}
+        self.plan = plan
         self.shopping_items = shopping_items or []
         self.available = available
 
@@ -45,7 +48,7 @@ class MealPlanResult:
         return list(self.plan.keys())
 
 
-class MealPlanGenerator:
+class MealPlanGenerator(AIServiceBase):
     """AI-powered meal plan generator.
 
     Organises recipes into daily/weekly meal plans using AI.
@@ -56,21 +59,7 @@ class MealPlanGenerator:
         plan = await generator.generate_weekly_plan(["pasta", "chicken", "vegetables"])
     """
 
-    def __init__(self, model_name: str = "llama3") -> None:
-        self.model_name = model_name
-        self._router = ModelRouter()
-        self._available = False
-        self.init_router()
-
-    def init_router(self) -> None:
-        try:
-            self._router.set_model(self.model_name)
-            self._router._get_provider()
-            self._available = True
-            logger.info("MealPlanGenerator: using model '%s'", self.model_name)
-        except Exception as exc:
-            logger.warning("MealPlanGenerator: model '%s' not available - %s", self.model_name, exc)
-            self._available = False
+    default_model = "llama3"
 
     async def generate_weekly_plan(
         self,
@@ -88,11 +77,10 @@ class MealPlanGenerator:
         Returns:
             :class:`MealPlanResult` with day-by-day meal plan and shopping list.
         """
-        if not self._available:
+        if not self.available:
             return self.fallback_plan(days)
 
-        ingredient_str = ", ".join(ingredients)
-        pref_note = f" Dietary preference: {dietary_preferences}." if dietary_preferences else ""
+        ingredient_str, pref_note = format_ingredients(ingredients, dietary_preferences)
         day_list = DAYS_OF_WEEK[:days]
 
         prompt = (
@@ -108,20 +96,14 @@ class MealPlanGenerator:
         )
 
         try:
-            raw = await self._router.generate(prompt, temperature=0.7)
+            raw = await self.router.generate(prompt, temperature=0.7)
             return self.parse_plan(raw, days)
         except Exception as exc:
             logger.error("MealPlanGenerator: generation failed - %s", exc)
             return self.fallback_plan(days)
 
     def parse_plan(self, raw: str, days: int) -> MealPlanResult:
-        text = raw.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
-        if "{" in text and "}" in text:
-            text = text[text.find("{") : text.rfind("}") + 1]
+        text = strip_ai_json_response(raw)
 
         try:
             data = json.loads(text)
@@ -181,12 +163,9 @@ class MealPlanGenerator:
         )
 
 
-# Module-level cache keyed by model name
 generators: dict[str, MealPlanGenerator] = {}
 
 
 def get_mealplan_generator(model_name: str = "gemini-2.5-flash") -> MealPlanGenerator:
     """Return a cached :class:`MealPlanGenerator` for *model_name*."""
-    if model_name not in generators:
-        generators[model_name] = MealPlanGenerator(model_name=model_name)
-    return generators[model_name]
+    return cached_factory(generators, MealPlanGenerator, model_name)

@@ -13,7 +13,7 @@ import typing as t
 logger = logging.getLogger(__name__)
 
 
-class _DebugRequest(t.Protocol):
+class DebugRequest(t.Protocol):
     """Minimal protocol for request objects passed to the debug page."""
 
     @property
@@ -317,18 +317,35 @@ def get_source_context(
     return result
 
 
-def sanitize_header_value(key: str, value: str) -> str:
-    """Mask *value* when *key* is in :data:`SENSITIVE_HEADERS`."""
-    if key.lower() in SENSITIVE_HEADERS:
+def sanitize_sensitive_value(key: str, value: str, sensitive_set: frozenset[str]) -> str:
+    """Mask *value* when *key* (case-insensitive) is in *sensitive_set*."""
+    if key.lower() in sensitive_set:
         return "********"
     return value
+
+
+def sanitize_header_value(key: str, value: str) -> str:
+    """Mask *value* when *key* is in :data:`SENSITIVE_HEADERS`."""
+    return sanitize_sensitive_value(key, value, SENSITIVE_HEADERS)
 
 
 def sanitize_query_param(key: str, value: str) -> str:
     """Mask *value* when *key* is in :data:`SENSITIVE_QUERY_PARAMS`."""
-    if key.lower() in SENSITIVE_QUERY_PARAMS:
-        return "********"
-    return value
+    return sanitize_sensitive_value(key, value, SENSITIVE_QUERY_PARAMS)
+
+
+def render_frame_header(filename: str, lineno: int, name: str) -> str:
+    """Render the common frame-header HTML shared by all traceback frames."""
+    return (
+        f'<div class="frame">'
+        f'<div class="frame-header">'
+        f'<span class="frame-file">{esc(filename)}</span>'
+        f'<span class="frame-sep">in</span>'
+        f'<span class="frame-func">{esc(name)}</span>'
+        f'<span class="frame-sep">line</span>'
+        f'<span class="frame-lineno">{esc(lineno)}</span>'
+        f"</div>"
+    )
 
 
 def render_frame(frame: traceback.FrameSummary) -> str:
@@ -340,16 +357,9 @@ def render_frame(frame: traceback.FrameSummary) -> str:
     # Prevent rendering source from non-file scheme locations.
     if filename.startswith("<") and filename.endswith(">"):
         return (
-            f'<div class="frame">'
-            f'<div class="frame-header">'
-            f'<span class="frame-file">{esc(filename)}</span>'
-            f'<span class="frame-sep">in</span>'
-            f'<span class="frame-func">{esc(name)}</span>'
-            f'<span class="frame-sep">line</span>'
-            f'<span class="frame-lineno">{esc(lineno)}</span>'
-            f"</div>"
-            f'<div class="frame-source"><div class="empty-note">Source unavailable.</div></div>'
-            f"</div>"
+            render_frame_header(filename, lineno, name)
+            + '<div class="frame-source"><div class="empty-note">Source unavailable.</div></div>'
+            + "</div>"
         )
 
     source_lines = get_source_context(filename, lineno)
@@ -366,16 +376,19 @@ def render_frame(frame: traceback.FrameSummary) -> str:
     source_html = "".join(source_html_parts)
 
     return (
-        f'<div class="frame">'
-        f'<div class="frame-header">'
-        f'<span class="frame-file">{esc(filename)}</span>'
-        f'<span class="frame-sep">in</span>'
-        f'<span class="frame-func">{esc(name)}</span>'
-        f'<span class="frame-sep">line</span>'
-        f'<span class="frame-lineno">{esc(lineno)}</span>'
-        f"</div>"
-        f'<div class="frame-source">{source_html}</div>'
-        f"</div>"
+        render_frame_header(filename, lineno, name)
+        + f'<div class="frame-source">{source_html}</div>'
+        + "</div>"
+    )
+
+
+def render_chain_note(label: str, chained_exc: BaseException) -> str:
+    """Render a single chained-exception note with redacted details."""
+    chain_type = esc(type(chained_exc).__name__)
+    chain_msg = esc(redact_credentials(str(chained_exc)[:MAX_EXC_MSG_LEN]))
+    return (
+        f'<div class="chain-note">{esc(redact_credentials(label))} '
+        f"<strong>{chain_type}: {chain_msg}</strong></div>"
     )
 
 
@@ -384,25 +397,34 @@ def render_exception_chain(exc: BaseException) -> str:
     cause = exc.__cause__
     context_exc = exc.__context__
     if cause is not None:
-        label = "The above exception was the direct cause of the following:"
-        chain_type = esc(type(cause).__name__)
-        chain_msg = esc(redact_credentials(str(cause)[:MAX_EXC_MSG_LEN]))
-        return (
-            f'<div class="chain-note">{esc(redact_credentials(label))} '
-            f"<strong>{chain_type}: {chain_msg}</strong></div>"
+        return render_chain_note(
+            "The above exception was the direct cause of the following:",
+            cause,
         )
     if context_exc is not None and not exc.__suppress_context__:
-        label = "During handling of the above exception, another exception occurred:"
-        chain_type = esc(type(context_exc).__name__)
-        chain_msg = esc(redact_credentials(str(context_exc)[:MAX_EXC_MSG_LEN]))
-        return (
-            f'<div class="chain-note">{esc(redact_credentials(label))} '
-            f"<strong>{chain_type}: {chain_msg}</strong></div>"
+        return render_chain_note(
+            "During handling of the above exception, another exception occurred:",
+            context_exc,
         )
     return ""
 
 
-def render_request_section(request: _DebugRequest) -> str:
+def render_kv_row(key: str, value: str) -> str:
+    """Render a single key/value row as an HTML table row."""
+    return f'<tr><td class="key">{esc(key)}</td><td class="val">{esc(value)}</td></tr>'
+
+
+def render_kv_table(section_title: str, rows: list[str], empty_note: str) -> str:
+    """Render a titled section containing either a key/value table or an empty note."""
+    table_html = (
+        f'<table class="info-table">{"".join(rows)}</table>'
+        if rows
+        else f'<p class="empty-note">{empty_note}</p>'
+    )
+    return f'<div class="subsection-title">{section_title}</div>{table_html}'
+
+
+def render_request_section(request: DebugRequest) -> str:
     """Render request metadata as HTML. Sensitive headers are masked."""
     try:
         method = esc(request.method)
@@ -412,8 +434,8 @@ def render_request_section(request: _DebugRequest) -> str:
         return ""
 
     rows: list[str] = [
-        f'<tr><td class="key">Method</td><td class="val">{method}</td></tr>',
-        f'<tr><td class="key">Path</td><td class="val">{path}</td></tr>',
+        render_kv_row("Method", method),
+        render_kv_row("Path", path),
     ]
 
     query_rows: list[str] = []
@@ -421,9 +443,7 @@ def render_request_section(request: _DebugRequest) -> str:
         query_params = dict(request.query_params)
         for k, v in sorted(query_params.items()):
             safe_v = sanitize_query_param(k, v)
-            query_rows.append(
-                f'<tr><td class="key">{esc(k)}</td><td class="val">{esc(safe_v)}</td></tr>'
-            )
+            query_rows.append(render_kv_row(k, safe_v))
     except Exception:
         logger.warning("Failed to extract query params for debug page", exc_info=True)
 
@@ -432,23 +452,12 @@ def render_request_section(request: _DebugRequest) -> str:
         headers = dict(request.headers)
         for k, v in sorted(headers.items()):
             safe_v = sanitize_header_value(k, v)
-            header_rows.append(
-                f'<tr><td class="key">{esc(k)}</td><td class="val">{esc(safe_v)}</td></tr>'
-            )
+            header_rows.append(render_kv_row(k, safe_v))
     except Exception:
         logger.warning("Failed to extract headers for debug page", exc_info=True)
 
-    query_html = '<div class="subsection-title">Query Parameters</div>' + (
-        f'<table class="info-table">{"".join(query_rows)}</table>'
-        if query_rows
-        else '<p class="empty-note">No query parameters.</p>'
-    )
-
-    headers_html = '<div class="subsection-title">Headers</div>' + (
-        f'<table class="info-table">{"".join(header_rows)}</table>'
-        if header_rows
-        else '<p class="empty-note">No headers.</p>'
-    )
+    query_html = render_kv_table("Query Parameters", query_rows, "No query parameters.")
+    headers_html = render_kv_table("Headers", header_rows, "No headers.")
 
     return (
         '<div class="section">'
@@ -460,7 +469,7 @@ def render_request_section(request: _DebugRequest) -> str:
     )
 
 
-def render_debug_page(exc: BaseException, request: _DebugRequest | None = None) -> str:
+def render_debug_page(exc: BaseException, request: DebugRequest | None = None) -> str:
     """Render a self-contained HTML 500 page for *exc*.
 
     Args:

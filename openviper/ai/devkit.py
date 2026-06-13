@@ -77,9 +77,9 @@ class StreamingAdapter:
         self._executor = executor
 
     def __aiter__(self) -> AsyncIterator[str]:
-        return self._iter()
+        return self.iter()
 
-    async def _iter(self) -> AsyncIterator[str]:
+    async def iter(self) -> AsyncIterator[str]:
         def next_token(it: Iterator[str]) -> str | None:
             try:
                 return next(it)

@@ -18,8 +18,8 @@ const router = useRouter()
 const adminStore = useAdminStore()
 const alertsStore = useAlertsStore()
 
-const formData = ref<Record<string, any>>({})
-const originalData = ref<Record<string, any>>({})
+const formData = ref<Record<string, unknown>>({})
+const originalData = ref<Record<string, unknown>>({})
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 
@@ -45,7 +45,7 @@ onMounted(async () => {
 
 watch(model, (newModel) => {
   if (!newModel) return
-  const initial: Record<string, any> = {}
+  const initial: Record<string, unknown> = {}
   for (const field of newModel.fields) {
     if (field.default !== undefined) {
       initial[field.name] = field.default
@@ -81,9 +81,10 @@ async function handleSubmit() {
     } else if (adminStore.error) {
       alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
     }
-  } catch (err: any) {
-    if (err.response?.status === 409 && err.response?.data?.existing_id != null) {
-      const data = err.response.data
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { status?: number; data?: { existing_id?: string; app_label?: string; model_name?: string; errors?: Record<string, string>; detail?: string } } }
+    if (axiosErr.response?.status === 409 && axiosErr.response?.data?.existing_id != null) {
+      const data = axiosErr.response.data
       const appLabel = data.app_label ?? props.appLabel
       const modelName = data.model_name ?? props.modelName
       alertsStore.show({
@@ -96,11 +97,11 @@ async function handleSubmit() {
         },
       })
     } else {
-      const responseErrors = err.response?.data?.errors
+      const responseErrors = axiosErr.response?.data?.errors
       if (responseErrors && Object.keys(responseErrors).some((k) => k !== '__all__')) {
         errors.value = responseErrors
       } else {
-        const msg = responseErrors?.__all__ || err.response?.data?.detail || 'An error occurred while saving.'
+        const msg = responseErrors?.__all__ || axiosErr.response?.data?.detail || 'An error occurred while saving.'
         alertsStore.show({ type: 'error', title: 'Save Failed', message: msg })
       }
     }

@@ -227,11 +227,11 @@ class TestCountryField:
 
     def test_column_type_includes_length(self) -> None:
         field = CountryField()
-        assert field._column_type == "CHAR(2)"
+        assert field.column_type == "CHAR(2)"
 
     def test_column_type_respects_custom_max_length(self) -> None:
         field = CountryField(max_length=3, strict=False)
-        assert field._column_type == "CHAR(3)"
+        assert field.column_type == "CHAR(3)"
 
     def test_to_python_uppercase(self) -> None:
         field = CountryField()

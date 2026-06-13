@@ -35,7 +35,7 @@ class ArrayField(Field):
             subclass.
     """
 
-    _column_type = "TEXT"
+    column_type = "TEXT"
 
     def __init__(
         self,
@@ -58,14 +58,14 @@ class ArrayField(Field):
     @property
     def base_column_type(self) -> str:
         """Public accessor for the base field's column type string."""
-        return self.base_field._column_type
+        return self.base_field.column_type
 
     @property
     def db_column_type(self) -> str:
         """Return the column type string for DDL generation.
 
         On PostgreSQL the type is derived from the base field's
-        ``_column_type`` with ``[]`` appended.  On other backends the
+        ``column_type`` with ``[]`` appended.  On other backends the
         column is stored as JSON text.
         """
         backend = get_backend()

@@ -88,6 +88,17 @@ _REDoS_PATTERN: re.Pattern[str] = re.compile(
     re.VERBOSE,
 )
 
+# Reject regex operators that have no legitimate use in simple DB lookups
+# and could enable ReDoS or DB-specific behavior exploitation.
+_UNSAFE_REGEX_CHARS: frozenset[str] = frozenset(
+    {
+        "\x00",  # Null byte injection.
+        "\n",  # Newline injection.
+        "\r",  # Carriage return injection.
+        "\x1a",  # DB-specific sentinel characters.
+    }
+)
+
 
 def validate_regex_pattern(pattern: str) -> None:
     """Reject regex patterns that could cause catastrophic backtracking (ReDoS).
@@ -104,6 +115,8 @@ def validate_regex_pattern(pattern: str) -> None:
         raise FieldError(
             f"Regex pattern contains potentially catastrophic nested quantifiers: {pattern!r}"
         )
+    if any(char in _UNSAFE_REGEX_CHARS for char in pattern):
+        raise FieldError(f"Regex pattern contains disallowed characters: {pattern!r}")
 
 
 def assert_safe_table_name(name: str) -> None:
@@ -297,7 +310,7 @@ class _QueryCache:
             return None
         expire, rows = entry
         if time.monotonic() > expire:
-            self._remove_key(key)
+            self.remove_key(key)
             return None
         self._store.move_to_end(key)
         return rows
@@ -318,9 +331,9 @@ class _QueryCache:
         table_name = key.split(":", 1)[0]
         self._table_index.setdefault(table_name, set()).add(key)
         while len(self._store) > self._max_size:
-            self._pop_oldest()
+            self.pop_oldest()
 
-    def _remove_key(self, key: str) -> None:
+    def remove_key(self, key: str) -> None:
         """Remove a key from the store and secondary index."""
         self._store.pop(key, None)
         table_name = key.split(":", 1)[0]
@@ -330,7 +343,7 @@ class _QueryCache:
             if not bucket:
                 del self._table_index[table_name]
 
-    def _pop_oldest(self) -> None:
+    def pop_oldest(self) -> None:
         """Evict the oldest entry from the store and secondary index."""
         key, _ = self._store.popitem(last=False)
         table_name = key.split(":", 1)[0]
@@ -751,7 +764,7 @@ def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) ->
     model_meta_cls = model_registry.model_meta_cls
     if model_meta_cls is None:
         raise RuntimeError("Model metadata registry is not initialised.")
-    camel_to_snake = cast("Callable[[str], str]", model_meta_cls._camel_to_snake)
+    camel_to_snake = cast("Callable[[str], str]", model_meta_cls.camel_to_snake)
 
     if "." in target_str:
         parts = target_str.split(".")
@@ -809,7 +822,7 @@ def build_table(table_name: str, model_cls: type) -> sa.Table:
     columns: list[sa.Column[Any]] = []
     added_columns: set[str] = set()
     for _name, field in cast("Any", model_cls)._fields.items():
-        if field._column_type == "":
+        if field.column_type == "":
             continue  # ManyToMany - no column
 
         col_name = field.column_name
@@ -1882,7 +1895,7 @@ async def execute_save(
         await enforce_single_model_constraint(model_cls)
 
     table = get_table(model_cls)
-    instance._apply_auto_fields()
+    instance.apply_auto_fields()
 
     await load_soft_removed_columns()
     soft_removed = get_soft_removed_columns(model_cls._table_name)
@@ -2037,6 +2050,7 @@ async def execute_values(
     annotations: dict[str, Any] = getattr(qs, "_annotations", {})
 
     traversal_fields: list[str] = []
+    traversal_fields_set: set[str] = set()
     simple_fields: list[str] = []
     has_traversal = False
 
@@ -2046,6 +2060,7 @@ async def execute_values(
                 continue  # annotation - handled below
             if "__" in fname:
                 traversal_fields.append(fname)
+                traversal_fields_set.add(fname)
                 has_traversal = True
             else:
                 simple_fields.append(fname)
@@ -2053,7 +2068,7 @@ async def execute_values(
     order_traversal_fields: list[str] = []
     for ofield in qs._order:
         col_name = ofield.lstrip("-")
-        if "__" in col_name and col_name not in traversal_fields:
+        if "__" in col_name and col_name not in traversal_fields_set:
             order_traversal_fields.append(col_name)
             has_traversal = True
 
@@ -2116,7 +2131,7 @@ async def execute_values(
                 sa_expr = ann_expr_as_sa(table, annotations[fname])
                 if sa_expr is not None:
                     wanted_cols.append(sa_expr.label(fname))
-            elif fname in traversal_fields:
+            elif fname in traversal_fields_set:
                 traversal = traversal_lookups[fname]
                 final_table = get_table(traversal.final_model)
                 col_name = traversal.final_field.column_name
@@ -2315,12 +2330,16 @@ async def execute_bulk_update(
     table = get_table(model_cls)
     field_defs = cast("Any", model_cls)._fields
 
+    # Precompute the mapping from requested field names to column names and
+    # field definitions once, avoiding repeated dict lookups in the per-object
+    # inner loop below.
+    prepared_fields: list[tuple[str, Any, str]] = []
     col_map: dict[str, str] = {}
     for fname in fields:
-        if fname in field_defs:
-            col_map[fname] = field_defs[fname].column_name
-        else:
-            col_map[fname] = fname
+        field_def = field_defs.get(fname)
+        col_name = field_def.column_name if field_def else fname
+        col_map[fname] = col_name
+        prepared_fields.append((fname, field_def, col_name))
 
     param_rows: list[dict[str, Any]] = []
     for obj in objs:
@@ -2328,12 +2347,9 @@ async def execute_bulk_update(
         if pk_val is None:
             continue
         params: dict[str, Any] = {"_pk": pk_val}
-        for fname in fields:
+        for fname, field_def, col_name in prepared_fields:
             raw_val = getattr(obj, fname, None)
-            if fname in field_defs:
-                params[col_map[fname]] = field_defs[fname].to_db(raw_val)
-            else:
-                params[col_map[fname]] = raw_val
+            params[col_name] = field_def.to_db(raw_val) if field_def else raw_val
         param_rows.append(params)
 
     if not param_rows:

@@ -49,9 +49,9 @@ class TraversalLookup:
         self.parts: list[TraversalStep] = []
         self.final_field: Field | None = None
         self.final_model: type[Model] | None = None
-        self._parse()
+        self.parse()
 
-    def _parse(self) -> None:
+    def parse(self) -> None:
         """Parse and validate the traversal path."""
         parts = self.key.split("__")
         current_model = self.model_cls

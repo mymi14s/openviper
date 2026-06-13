@@ -16,6 +16,7 @@ from openviper.testing.assertions import (
     assert_response_json,
     assert_status,
     assert_validation_error,
+    get_objects_manager,
 )
 from openviper.testing.auth import (
     attach_bearer_token,
@@ -64,6 +65,7 @@ from openviper.testing.tasks import (
     TaskQueue,
     assert_task_count,
     assert_task_queued,
+    require_dramatiq,
 )
 
 __all__ = [
@@ -103,6 +105,8 @@ __all__ = [
     "assert_task_queued",
     "assert_validation_error",
     "attach_bearer_token",
+    "get_objects_manager",
+    "require_dramatiq",
     "attach_session_cookie",
     "create_event_recorder",
     "create_mailoutbox",

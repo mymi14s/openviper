@@ -37,6 +37,17 @@ Unsure where to begin contributing to OpenViper? You can start by looking throug
 
 All Python code is formatted with `black` and linted with `ruff`.
 
+Key conventions (see `AGENTS.md` for full details):
+
+- **Python 3.14+** syntax only. No legacy constructs.
+- **Strict typing** - `mypy --strict` must pass. Avoid `Any`.
+- **No leading underscores** on functions or methods unless truly necessary (e.g., framework dunder overrides). Global/module-level functions must never use a leading underscore.
+- **No alias renaming** - defining `_Foo = Foo` is forbidden. Name symbols directly without the underscore prefix.
+- **DRY** - extract repetitive logic into shared helpers. No duplicated code blocks.
+- **All imports at module level** - inline imports inside functions are forbidden.
+- **No inline comments describing what the code does** - comments explain *why*, not *what*.
+- **Security-first** - parameterized queries, input validation, path normalization, session rotation, and no raw string interpolation in SQL.
+
 ### Documentation Styleguide
 
 We use Sphinx and reStructuredText (RST) for documentation. Please ensure any new features are documented in the `docs/` directory.

@@ -29,8 +29,8 @@ class TestTrailingSlashBypass:
         route_without = Route("/admin/", {"GET"}, handler=lambda r: r, name="admin_slash")
 
         # Both should compile successfully
-        assert route_with._regex is not None
-        assert route_without._regex is not None
+        assert route_with.compiled_regex is not None
+        assert route_without.compiled_regex is not None
 
     def test_route001_normalize_preserves_trailing_slash(self):
         """Path normalization must not add or remove trailing slashes."""
@@ -158,8 +158,8 @@ class TestRoutePrecedence:
         route_broad = Route("/api/{version}/users", {"GET"}, handler=lambda r: r)
 
         # Both should compile; specificity determines order
-        assert route_specific._is_literal is True
-        assert route_broad._is_literal is False
+        assert route_specific.is_literal is True
+        assert route_broad.is_literal is False
 
 
 class TestRegexReDoS:
@@ -266,13 +266,13 @@ class TestUnknownConverterRejection:
         """All built-in converter types must be accepted."""
         for conv in ("str", "int", "float", "path", "uuid", "slug"):
             route = Route(f"/{{{conv}_val:{conv}}}", {"GET"}, handler=lambda r: r)
-            assert route._regex is not None
+            assert route.compiled_regex is not None
 
     def test_route007_default_converter_accepted(self):
         """Parameters without an explicit type default to 'str'."""
         route = Route("/users/{id}", {"GET"}, handler=lambda r: r)
-        assert route._regex is not None
-        assert "id" in route._converters
+        assert route.compiled_regex is not None
+        assert "id" in route.param_converters
 
 
 class TestUrlForSanitization:

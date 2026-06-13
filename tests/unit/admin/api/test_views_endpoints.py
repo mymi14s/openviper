@@ -10,6 +10,18 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from openviper.admin.api import views
+from openviper.exceptions import PermissionDenied
+
+
+def raise_permission_denied(request):
+    """Raise PermissionDenied to simulate failed admin access check."""
+    raise PermissionDenied("Admin access required.")
+
+
+def allow_admin_access(request):
+    """No-op to simulate passing admin access check."""
+    pass
+
 
 # Ensure router is initialized at module scope for coverage
 router = views.get_admin_router()
@@ -79,7 +91,7 @@ async def test_admin_refresh_token(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_admin_current_user(monkeypatch):
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
     req = MagicMock()
     req.user = MagicMock(id=1, username="u", email="e", is_staff=True, is_superuser=False)
     handler = get_handler("/auth/me/", "GET")
@@ -94,21 +106,21 @@ async def test_list_by_app_with_filters(monkeypatch):
     This test verifies that filter_ prefixed query params trigger the filter branch.
     The actual filtering is tested via the check_admin_access rejection.
     """
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
     req.query_params = {"filter_status": "active"}
 
     handler = get_handler("/models/{app_label}/{model_name}/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_create_by_app_readonly_field_skip(monkeypatch):
     """Test create_instance_by_app skips readonly fields."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_add_permission.return_value = True
@@ -146,7 +158,7 @@ async def test_create_by_app_readonly_field_skip(monkeypatch):
 @pytest.mark.asyncio
 async def test_create_by_app_value_error(monkeypatch):
     """Test create_instance_by_app ValueError handling."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_add_permission.return_value = True
@@ -176,33 +188,33 @@ async def test_create_by_app_value_error(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_instance_by_app_no_admin_access(monkeypatch):
     """Test get_instance_by_app admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/{obj_id}/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_update_by_app_no_admin_access(monkeypatch):
     """Test update_instance_by_app admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/{obj_id}/", "PUT")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_update_by_app_readonly_skip(monkeypatch):
     """Test update_instance_by_app skips readonly fields."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_change_permission.return_value = True
@@ -243,39 +255,39 @@ async def test_update_by_app_readonly_skip(monkeypatch):
 @pytest.mark.asyncio
 async def test_delete_by_app_no_admin_access(monkeypatch):
     """Test delete_instance_by_app admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/{obj_id}/", "DELETE")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_bulk_action_by_app_no_admin_access(monkeypatch):
     """Test bulk_action_by_app admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/bulk-action/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_export_by_app_no_admin_access(monkeypatch):
     """Test export_instances_by_app admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/export/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel")
 
 
@@ -283,7 +295,7 @@ async def test_export_by_app_no_admin_access(monkeypatch):
 async def test_export_by_app_with_datetime_field(monkeypatch):
     """Test export_instances_by_app with datetime serialization."""
 
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
     monkeypatch.setattr(views, "check_model_permission", lambda r, m, p: True)
 
     model_admin = MagicMock()
@@ -319,26 +331,26 @@ async def test_export_by_app_with_datetime_field(monkeypatch):
 @pytest.mark.asyncio
 async def test_history_by_app_no_admin_access(monkeypatch):
     """Test get_instance_history_by_app admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/{obj_id}/history/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_legacy_list_no_admin_access(monkeypatch):
     """Test legacy list_instances admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
@@ -348,14 +360,14 @@ async def test_legacy_list_with_filters(monkeypatch):
 
     Tests that the admin access check is enforced before filters are applied.
     """
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
     req.query_params = {"filter_status": "active"}
 
     handler = get_handler("/models/{model_name}/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
@@ -365,34 +377,34 @@ async def test_legacy_list_with_datetime_field(monkeypatch):
 
     Tests admin check is enforced - datetime serialization tested in compact tests.
     """
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
     req.query_params = {"page": "1"}
 
     handler = get_handler("/models/{model_name}/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_legacy_create_no_admin_access(monkeypatch):
     """Test legacy create_instance admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_legacy_create_no_add_permission(monkeypatch):
     """Test legacy create_instance add permission."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_add_permission.return_value = False
@@ -407,7 +419,7 @@ async def test_legacy_create_no_add_permission(monkeypatch):
     req.user = MagicMock(is_staff=True)
 
     handler = get_handler("/models/{model_name}/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
@@ -417,13 +429,13 @@ async def test_legacy_create_readonly_skip(monkeypatch):
 
     Tests that admin access check is enforced - readonly field skip tested in compact tests.
     """
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
@@ -431,7 +443,7 @@ async def test_legacy_create_readonly_skip(monkeypatch):
 async def test_legacy_create_with_datetime(monkeypatch):
     """Test legacy create response datetime."""
 
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_add_permission.return_value = True
@@ -463,13 +475,13 @@ async def test_legacy_create_with_datetime(monkeypatch):
 @pytest.mark.asyncio
 async def test_legacy_get_no_admin_access(monkeypatch):
     """Test legacy get_instance admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/{obj_id}/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel", "1")
 
 
@@ -477,7 +489,7 @@ async def test_legacy_get_no_admin_access(monkeypatch):
 async def test_legacy_get_with_model_info(monkeypatch):
     """Test legacy get_instance with model info."""
 
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_view_permission.return_value = True
@@ -515,20 +527,20 @@ async def test_legacy_get_with_model_info(monkeypatch):
 @pytest.mark.asyncio
 async def test_legacy_update_no_admin_access(monkeypatch):
     """Test legacy update_instance admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/{obj_id}/", "PATCH")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_legacy_update_no_change_permission(monkeypatch):
     """Test legacy update change permission."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_change_permission.return_value = False
@@ -548,14 +560,14 @@ async def test_legacy_update_no_change_permission(monkeypatch):
     req.user = MagicMock(is_staff=True)
 
     handler = get_handler("/models/{model_name}/{obj_id}/", "PATCH")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_legacy_update_readonly_and_set(monkeypatch):
     """Test legacy update readonly skip and set."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_change_permission.return_value = True
@@ -592,7 +604,7 @@ async def test_legacy_update_readonly_and_set(monkeypatch):
 async def test_legacy_update_response_datetime(monkeypatch):
     """Test legacy update response datetime."""
 
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_admin.has_change_permission.return_value = True
@@ -626,46 +638,46 @@ async def test_legacy_update_response_datetime(monkeypatch):
 @pytest.mark.asyncio
 async def test_legacy_delete_no_admin_access(monkeypatch):
     """Test legacy delete_instance admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/{obj_id}/", "DELETE")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_bulk_delete_no_admin_access(monkeypatch):
     """Test bulk_delete admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/bulk-delete/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_bulk_action_no_admin_access(monkeypatch):
     """Test bulk_action admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/bulk-action/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_bulk_action_over_1000_limit(monkeypatch):
     """Test bulk_action 1000 item limit."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_admin = MagicMock()
     model_class = MagicMock()
@@ -686,26 +698,26 @@ async def test_bulk_action_over_1000_limit(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_filter_options_no_admin_access(monkeypatch):
     """Test get_filter_options admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/filters/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
 @pytest.mark.asyncio
 async def test_export_no_admin_access(monkeypatch):
     """Test export_instances admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/export/", "POST")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel")
 
 
@@ -713,7 +725,7 @@ async def test_export_no_admin_access(monkeypatch):
 async def test_export_with_datetime(monkeypatch):
     """Test export datetime serialization."""
 
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
     monkeypatch.setattr(views, "check_model_permission", lambda r, m, p: True)
 
     model_admin = MagicMock()
@@ -747,20 +759,20 @@ async def test_export_with_datetime(monkeypatch):
 @pytest.mark.asyncio
 async def test_get_history_no_admin_access(monkeypatch):
     """Test get_instance_history admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{model_name}/{obj_id}/history/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "TestModel", "1")
 
 
 @pytest.mark.asyncio
 async def test_get_history_not_found(monkeypatch):
     """Test get_instance_history instance not found."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     model_class = MagicMock()
     model_class.__name__ = "TestModel"
@@ -780,7 +792,7 @@ async def test_get_history_not_found(monkeypatch):
 async def test_get_history_with_records(monkeypatch):
     """Test get_instance_history with records."""
 
-    monkeypatch.setattr(views, "check_admin_access", lambda req: True)
+    monkeypatch.setattr(views, "require_admin_access", allow_admin_access)
 
     instance = MagicMock()
     instance.id = 1
@@ -798,6 +810,7 @@ async def test_get_history_with_records(monkeypatch):
     record.change_message = "Created"
 
     monkeypatch.setattr(views.admin, "get_model_by_name", lambda m: model_class)
+    monkeypatch.setattr(views.admin, "get_model_admin_by_name", lambda m: MagicMock())
     monkeypatch.setattr(views, "get_change_history", AsyncMock(return_value=[record]))
 
     req = MagicMock()
@@ -811,11 +824,11 @@ async def test_get_history_with_records(monkeypatch):
 @pytest.mark.asyncio
 async def test_fk_search_no_admin_access(monkeypatch):
     """Test fk_search admin check."""
-    monkeypatch.setattr(views, "check_admin_access", lambda req: False)
+    monkeypatch.setattr(views, "require_admin_access", raise_permission_denied)
 
     req = MagicMock()
     req.user = MagicMock(is_staff=False)
 
     handler = get_handler("/models/{app_label}/{model_name}/fk-search/", "GET")
-    with pytest.raises(views.PermissionDenied):
+    with pytest.raises(PermissionDenied):
         await handler(req, "testapp", "TestModel")

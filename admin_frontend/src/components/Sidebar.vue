@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ModelConfig } from '@/types/admin'
 import { computed, ref } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
@@ -28,7 +29,7 @@ const filteredModelsByApp = computed(() => {
   }
 
   const query = searchQuery.value.toLowerCase()
-  const filtered: Record<string, any[]> = {}
+  const filtered: Record<string, ModelConfig[]> = {}
 
   Object.entries(modelsByApp.value).forEach(([app, models]) => {
     const filteredModels = models.filter(model =>

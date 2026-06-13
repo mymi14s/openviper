@@ -55,6 +55,8 @@ for postgis_name in ("geometry", "geography", "point", "polygon", "linestring"):
 
 logger = logging.getLogger("openviper.migrations")
 
+UNSET = object()
+
 
 async def maybe_await(value: object) -> object:
     """Await coroutine/mock results, otherwise return plain values."""
@@ -99,14 +101,14 @@ class _MigrationLogger:
     }
 
     @classmethod
-    def _supports_color(cls) -> bool:
+    def supports_color(cls) -> bool:
         """Check if terminal supports color."""
         return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
     @classmethod
-    def _colorize(cls, text: str, color: str) -> str:
+    def colorize(cls, text: str, color: str) -> str:
         """Colorize text if terminal supports it."""
-        if cls._supports_color():
+        if cls.supports_color():
             return f"{cls.COLORS.get(color, '')}{text}{cls.COLORS['END']}"
         return text
 
@@ -114,29 +116,29 @@ class _MigrationLogger:
     def log_applying(cls, app_name: str, migration_name: str) -> None:
         """Log migration start (no newline)."""
         msg = f"Applying {app_name} - {migration_name} ... "
-        print(cls._colorize(msg, "CYAN"), end="", flush=True)
+        print(cls.colorize(msg, "CYAN"), end="", flush=True)
 
     @classmethod
     def log_status(cls, status: MigrationStatus, error: str | None = None) -> None:
         """Log migration status after applying."""
         if status == MigrationStatus.OK:
-            print(cls._colorize("✓ OK", "GREEN"))
+            print(cls.colorize("✓ OK", "GREEN"))
         elif status == MigrationStatus.SKIP:
-            print(cls._colorize("⊘ SKIP", "YELLOW"))
+            print(cls.colorize("⊘ SKIP", "YELLOW"))
         elif status == MigrationStatus.ERROR:
-            print(cls._colorize("✗ ERROR", "RED"))
+            print(cls.colorize("✗ ERROR", "RED"))
             if error:
-                print(f"  {cls._colorize(f'Error: {error}', 'RED')}")
+                print(f"  {cls.colorize(f'Error: {error}', 'RED')}")
         elif status == MigrationStatus.ROLLBACK:
-            print(cls._colorize("⬅ ROLLBACK", "BLUE"))
+            print(cls.colorize("⬅ ROLLBACK", "BLUE"))
         else:
-            print(cls._colorize("⋯ PENDING", "BLUE"))
+            print(cls.colorize("⋯ PENDING", "BLUE"))
 
     @classmethod
     def log_summary(cls, migrations: list[tuple[str, str, MigrationStatus]]) -> None:
         """Log summary of all migrations."""
         print("\n" + "=" * 70)
-        print(cls._colorize("Migration Summary", "BOLD"))
+        print(cls.colorize("Migration Summary", "BOLD"))
         print("=" * 70)
 
         stats = {
@@ -153,16 +155,16 @@ class _MigrationLogger:
         total = sum(stats.values())
 
         print(f"\nTotal migrations: {total}")
-        print(f"  {cls._colorize(f'✓ OK: {stats[MigrationStatus.OK]}', 'GREEN')}")
-        print(f"  {cls._colorize(f'⊘ SKIP: {stats[MigrationStatus.SKIP]}', 'YELLOW')}")
-        print(f"  {cls._colorize(f'✗ ERROR: {stats[MigrationStatus.ERROR]}', 'RED')}")
-        print(f"  {cls._colorize(f'⬅ ROLLBACK: {stats[MigrationStatus.ROLLBACK]}', 'BLUE')}")
+        print(f"  {cls.colorize(f'✓ OK: {stats[MigrationStatus.OK]}', 'GREEN')}")
+        print(f"  {cls.colorize(f'⊘ SKIP: {stats[MigrationStatus.SKIP]}', 'YELLOW')}")
+        print(f"  {cls.colorize(f'✗ ERROR: {stats[MigrationStatus.ERROR]}', 'RED')}")
+        print(f"  {cls.colorize(f'⬅ ROLLBACK: {stats[MigrationStatus.ROLLBACK]}', 'BLUE')}")
 
         if stats[MigrationStatus.ERROR] == 0:
-            print(f"\n{cls._colorize('✓ All migrations completed successfully!', 'GREEN')}\n")
+            print(f"\n{cls.colorize('✓ All migrations completed successfully!', 'GREEN')}\n")
         else:
             print(
-                f"\n{cls._colorize('✗ Some migrations failed. Please review errors above.', 'RED')}"
+                f"\n{cls.colorize('✗ Some migrations failed. Please review errors above.', 'RED')}"
                 "\n"
             )
 
@@ -713,23 +715,28 @@ class RestoreColumn(Operation):
 
 @dataclass
 class AlterColumn(Operation):
-    """Alter an existing column's type, nullability, default, autoincrement, or primary key."""
+    """Alter an existing column's type, nullability, default, autoincrement, or primary key.
+
+    ``default`` uses ``UNSET`` as the sentinel for "no change".  When
+    ``default`` is ``None``, the column default is explicitly dropped.
+    ``old_default`` follows the same convention.
+    """
 
     table_name: str
     column_name: str
     column_type: str | None = None
     nullable: bool | None = None
-    default: Any = None
+    default: Any = field(default_factory=lambda: UNSET)
     old_type: str | None = None
     old_nullable: bool | None = None
-    old_default: Any = None
+    old_default: Any = field(default_factory=lambda: UNSET)
     autoincrement: bool | None = None
     old_autoincrement: bool | None = None
     primary_key: bool | None = None
     old_primary_key: bool | None = None
     using: str | None = None  # PostgreSQL USING clause for type conversions
 
-    def _build_alter_sql(
+    def build_alter_sql(
         self,
         target_type: str | None,
         source_type: str | None,
@@ -877,22 +884,30 @@ class AlterColumn(Operation):
                         f" {quoted_column} {raw_type} {null_str}"
                     )
 
-        if target_default is not None:
-            if dialect in ("postgresql", "mysql"):
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ALTER COLUMN"
-                    f" {quoted_column} SET DEFAULT {sql_literal(target_default)}"
-                )
-            elif dialect == "mssql":
-                stmts.append(
-                    f"ALTER TABLE {quoted_table} ADD DEFAULT"
-                    f" {sql_literal(target_default)} FOR {quoted_column}"
-                )
+        if target_default is not UNSET:
+            if target_default is None:
+                if dialect in ("postgresql", "mysql"):
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} DROP DEFAULT"
+                    )
+                elif dialect == "mssql":
+                    stmts.append(f"ALTER TABLE {quoted_table} DROP DEFAULT")
+            else:
+                if dialect in ("postgresql", "mysql"):
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ALTER COLUMN"
+                        f" {quoted_column} SET DEFAULT {sql_literal(target_default)}"
+                    )
+                elif dialect == "mssql":
+                    stmts.append(
+                        f"ALTER TABLE {quoted_table} ADD DEFAULT"
+                        f" {sql_literal(target_default)} FOR {quoted_column}"
+                    )
 
         return stmts
 
     def forward_sql(self) -> list[str]:
-        return self._build_alter_sql(
+        return self.build_alter_sql(
             target_type=self.column_type,
             source_type=self.old_type,
             target_autoincrement=self.autoincrement,
@@ -905,7 +920,7 @@ class AlterColumn(Operation):
         )
 
     def backward_sql(self) -> list[str]:
-        return self._build_alter_sql(
+        return self.build_alter_sql(
             target_type=self.old_type,
             source_type=self.column_type,
             target_autoincrement=self.old_autoincrement,
@@ -1294,6 +1309,10 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
                 adj[dep_node].append(node)
                 in_degree[node] += 1
 
+    # Sort each adjacency list once so the main loop avoids per-node sorts.
+    for dep_node in adj:
+        adj[dep_node].sort(key=lambda n: migration_order[n])
+
     # Stable sort preserves original order for independent nodes.
     queue = deque(
         sorted(
@@ -1307,8 +1326,7 @@ def sort_migrations(migrations: list[MigrationRecord]) -> list[MigrationRecord]:
         curr = queue.popleft()
         sorted_nodes.append(curr)
 
-        neighbors = sorted(adj[curr], key=lambda n: migration_order[n])
-        for neighbor in neighbors:
+        for neighbor in adj[curr]:
             in_degree[neighbor] -= 1
             if in_degree[neighbor] == 0:
                 queue.append(neighbor)
@@ -1563,7 +1581,7 @@ class MigrationExecutor:
         self.apps_dir = apps_dir
         self.resolved_apps = resolved_apps
 
-    async def _ensure_migration_table(self, db_alias: str = "default") -> None:
+    async def ensure_migration_table(self, db_alias: str = "default") -> None:
         table = get_migration_table()
         soft_table = get_soft_removed_table()
         engine = await self.get_engine_for_alias(db_alias)
@@ -1572,8 +1590,8 @@ class MigrationExecutor:
             await conn.run_sync(lambda sync_conn: table.create(sync_conn, checkfirst=True))
             await conn.run_sync(lambda sync_conn: soft_table.create(sync_conn, checkfirst=True))
 
-    async def _applied_migrations(self, db_alias: str = "default") -> set[tuple[str, str]]:
-        await self._ensure_migration_table(db_alias=db_alias)
+    async def applied_migrations(self, db_alias: str = "default") -> set[tuple[str, str]]:
+        await self.ensure_migration_table(db_alias=db_alias)
         table = get_migration_table()
         engine = await self.get_engine_for_alias(db_alias)
         async with engine.connect() as conn:
@@ -1617,11 +1635,11 @@ class MigrationExecutor:
             List of applied migration names (e.g. ``["0001_initial"]``).
         """
         db_alias = database or "default"
-        await self._ensure_migration_table(db_alias=db_alias)
+        await self.ensure_migration_table(db_alias=db_alias)
         all_migrations = discover_migrations(
             apps_dir=self.apps_dir, resolved_apps=self.resolved_apps
         )
-        applied = await self._applied_migrations(db_alias=db_alias)
+        applied = await self.applied_migrations(db_alias=db_alias)
         engine = await self.get_engine_for_alias(db_alias)
         table = get_migration_table()
 
@@ -1632,7 +1650,7 @@ class MigrationExecutor:
         deferred_fk_stmts: list[str] = []
 
         if verbose:
-            print(f"\n{_MigrationLogger._colorize('Starting migrations...', 'BLUE')}\n")
+            print(f"\n{_MigrationLogger.colorize('Starting migrations...', 'BLUE')}\n")
 
         for record in all_migrations:
             if target_app and record.app != target_app:

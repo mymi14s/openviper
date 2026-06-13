@@ -74,18 +74,22 @@ def assert_error_code(response: httpx.Response, code: str) -> None:
     assert contains_validation_field(payload, code), msg
 
 
-async def assert_model_exists(model_class: type[object], **filters: object) -> None:
+def get_objects_manager(model_class: type[object]) -> object:
+    """Retrieve the ``objects`` manager from a model class or raise ``AttributeError``."""
     manager = getattr(model_class, "objects", None)
     if manager is None:
         raise AttributeError(f"{model_class!r} has no 'objects' manager.")
+    return manager
+
+
+async def assert_model_exists(model_class: type[object], **filters: object) -> None:
+    manager = get_objects_manager(model_class)
     found = await manager.filter(**filters).exists()
     assert found, f"Expected {model_class!r} matching {filters!r} to exist."
 
 
 async def assert_model_count(model_class: type[object], expected: int, **filters: object) -> None:
-    manager = getattr(model_class, "objects", None)
-    if manager is None:
-        raise AttributeError(f"{model_class!r} has no 'objects' manager.")
+    manager = get_objects_manager(model_class)
     queryset = manager.filter(**filters) if filters else manager.all()
     actual = await queryset.count()
     assert actual == expected, f"Expected {expected} {model_class!r} rows, got {actual}."

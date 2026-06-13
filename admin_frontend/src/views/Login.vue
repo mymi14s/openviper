@@ -41,8 +41,10 @@ async function handleLogin() {
         redirect = '/dashboard'
       }
 
-      // Ensure redirect is a valid absolute path within the admin area
-      if (!redirect.startsWith('/')) {
+      // Sanitize redirect: must be an absolute path within the admin area.
+      // Reject protocol-relative URLs (e.g. //evil.com), non-/ paths, and
+      // any path that escapes the app root.
+      if (!redirect.startsWith('/') || redirect.startsWith('//')) {
         redirect = '/dashboard'
       }
 

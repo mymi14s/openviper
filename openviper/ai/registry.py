@@ -40,7 +40,7 @@ class ProviderRegistry:
 
     def __init__(self) -> None:
         self._model_map: dict[str, AIProvider] = {}
-        # RLock (reentrant) so that _ensure_loaded → _load_from_settings →
+        # RLock (reentrant) so that ensure_loaded → load_from_settings →
         # register_provider can re-acquire the lock on the same thread without
         # deadlocking.
         self._lock = threading.RLock()
@@ -187,7 +187,7 @@ class ProviderRegistry:
 
         Raises ModelNotFoundError if no provider is registered for *model_id*.
         """
-        self._ensure_loaded()
+        self.ensure_loaded()
         # Lock-free read after initialization for better performance
         provider = self._model_map.get(model_id)
         if provider is None:
@@ -196,13 +196,13 @@ class ProviderRegistry:
 
     def list_models(self) -> list[str]:
         """Return all registered model IDs (sorted)."""
-        self._ensure_loaded()
+        self.ensure_loaded()
         # Lock-free read after initialization for better performance
         return sorted(self._model_map)
 
     def list_provider_names(self) -> list[str]:
         """Return the unique provider names that have been registered."""
-        self._ensure_loaded()
+        self.ensure_loaded()
         # Lock-free read after initialization for better performance
         return sorted({p.provider_name() for p in self._model_map.values()})
 
@@ -212,28 +212,28 @@ class ProviderRegistry:
             self._model_map.clear()
             self._loaded = False
 
-    def _ensure_loaded(self) -> None:
+    def ensure_loaded(self) -> None:
         """Load from settings exactly once (double-checked locking)."""
         if self._loaded:
             return
         with self._lock:
             if not self._loaded:
-                self._load_from_settings()
+                self.load_from_settings()
                 self._loaded = True
 
-    def _load_from_settings(self) -> None:
+    def load_from_settings(self) -> None:
         """Instantiate providers from ``settings.AI_PROVIDERS`` and register them."""
         if not getattr(settings, "ENABLE_AI_PROVIDERS", False):
             return
         try:
             providers_cfg: dict[str, object] = getattr(settings, "AI_PROVIDERS", {}) or {}
 
-            known_providers = ["openai", "anthropic", "ollama", "gemini", "grok"]
+            _known_providers = frozenset({"openai", "anthropic", "ollama", "gemini", "grok"})
 
             for name, spec in providers_cfg.items():
                 provider_type = spec.get("provider")
                 if not provider_type:
-                    for known in known_providers:
+                    for known in _known_providers:
                         if known in name.lower():
                             provider_type = known
                             break

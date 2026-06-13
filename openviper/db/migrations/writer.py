@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import re
 import sys
+import typing as t
 from collections import deque
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,6 +17,7 @@ if TYPE_CHECKING:
     from openviper.db.models import Model
 from openviper.db.fields import CheckConstraint, ForeignKey, UniqueConstraint
 from openviper.db.migrations.executor import (
+    UNSET,
     AddColumn,
     AddConstraint,
     AlterColumn,
@@ -34,14 +37,15 @@ from openviper.exceptions import MigrationError
 
 # Column type substrings that require the PostGIS extension.
 _POSTGIS_TYPE_MARKERS = ("GEOMETRY", "GEOGRAPHY", "RASTER", "TOPOGEOMETRY")
+_POSTGIS_RE = re.compile(r"geometry|geography|raster|topogeometry", flags=re.IGNORECASE)
 
 
 def needs_postgis(model_classes: list[type[Any]]) -> bool:
     """Return True if any field in *model_classes* requires the PostGIS extension."""
     for model_cls in model_classes:
         for field in model_cls._fields.values():
-            col_type = (field._column_type or "").upper()
-            if any(marker in col_type for marker in _POSTGIS_TYPE_MARKERS):
+            col_type = (field.column_type or "").upper()
+            if _POSTGIS_RE.search(col_type):
                 return True
     return False
 
@@ -52,11 +56,11 @@ def needs_postgis_ops(operations: list[Any]) -> bool:
         if isinstance(op, CreateTable):
             for col in op.columns:
                 col_type = (col.get("type") or "").upper()
-                if any(marker in col_type for marker in _POSTGIS_TYPE_MARKERS):
+                if _POSTGIS_RE.search(col_type):
                     return True
         elif isinstance(op, AddColumn):
             col_type = (op.column_type or "").upper()
-            if any(marker in col_type for marker in _POSTGIS_TYPE_MARKERS):
+            if _POSTGIS_RE.search(col_type):
                 return True
     return False
 
@@ -64,7 +68,7 @@ def needs_postgis_ops(operations: list[Any]) -> bool:
 def format_columns(model_cls: type[Model]) -> str:
     lines = []
     for _name, field in model_cls._fields.items():
-        if field._column_type == "":
+        if field.column_type == "":
             continue
 
         validate_identifier(
@@ -73,7 +77,7 @@ def format_columns(model_cls: type[Model]) -> str:
 
         col: dict[str, Any] = {
             "name": field.column_name,
-            "type": field._column_type,
+            "type": field.column_type,
             "nullable": field.null,
         }
         if field.primary_key:
@@ -138,9 +142,10 @@ def sort_models_topologically(model_classes: list[type[Model]]) -> list[type[Mod
 
     # If circular, append remaining to not lose data
     if len(sorted_nodes) < len(model_classes):
-        remaining = [node for node in in_degree if node not in sorted_nodes]
-        for node in remaining:
-            sorted_nodes.append(node)
+        seen = set(sorted_nodes)
+        for node in in_degree:
+            if node not in seen:
+                sorted_nodes.append(node)
 
     return [lookup[node] for node in sorted_nodes]
 
@@ -332,12 +337,11 @@ def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str
             continue
         cols: list[dict[str, Any]] = []
         for _name, field in model_cls._fields.items():
-            if field._column_type == "":
+            if field.column_type == "":
                 continue
             col: dict[str, Any] = {
                 "name": field.column_name,
-                "type": field._column_type,
-                "field_class": type(field).__name__,
+                "type": field.column_type,
                 "nullable": field.null,
             }
             if field.primary_key:
@@ -346,8 +350,7 @@ def model_state_snapshot(model_classes: list[type[Model]]) -> dict[str, dict[str
                 col["autoincrement"] = True
             if field.unique:
                 col["unique"] = True
-            if field.default is not None and not callable(field.default):
-                col["default"] = field.default
+            col["default"] = field.default if not callable(field.default) else None
             cols.append(col)
         cols.sort(key=lambda c: c["name"])
 
@@ -591,10 +594,12 @@ def parse_remove_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> Non
     table_data = state.get(table_name, {"columns": [], "indexes": [], "unique_together": []})
     cols = table_data["columns"]
     removed_col = None
+    kept: list[dict[str, t.Any]] = []
     for c in cols:
         if c.get("name") == column_name:
             removed_col = dict(c)
-            break
+        else:
+            kept.append(c)
 
     # Also check for column_type keyword in the operation itself
     column_type = get_keyword_str(node, "column_type")
@@ -606,7 +611,7 @@ def parse_remove_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> Non
 
     _soft_removed_columns[(table_name, column_name)] = removed_col
 
-    table_data["columns"] = [c for c in cols if c.get("name") != column_name]
+    table_data["columns"] = kept
     state[table_name] = table_data
 
 
@@ -621,6 +626,13 @@ def parse_alter_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> None
     if not table_data:
         return
     cols = table_data["columns"]
+
+    has_default_kw = False
+    for kw in node.keywords:
+        if kw.arg == "default":
+            has_default_kw = True
+            break
+
     for col in cols:
         if col.get("name") == column_name:
             new_type = get_keyword_str(node, "column_type")
@@ -635,6 +647,8 @@ def parse_alter_column(node: ast.Call, state: dict[str, dict[str, Any]]) -> None
                     col["autoincrement"] = bool(kw.value.value)
                 if kw.arg == "primary_key" and isinstance(kw.value, ast.Constant):
                     col["primary_key"] = bool(kw.value.value)
+            if not has_default_kw:
+                col.pop("default", None)
             break
 
 
@@ -694,12 +708,27 @@ def ast_dict_to_dict(node: ast.Dict) -> dict[str, Any]:
     return result
 
 
+def normalize_state(state: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Normalize state dicts for deterministic comparison.
+
+    * Missing ``default`` keys are filled with ``None`` so that columns
+      without a default compare equal regardless of whether the key is
+      present.
+    * ``field_class`` keys are stripped because they are not tracked in
+      :func:`model_state_snapshot` and should not affect diffs.
+    """
+    for table_data in state.values():
+        for col in table_data["columns"]:
+            col.setdefault("default", None)
+            col.pop("field_class", None)
+    return state
+
+
 def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> bool:
     """Return ``True`` if the models differ from what existing migrations cover.
 
     Virtual models are excluded because they are not backed by database tables.
     """
-    # Virtual models have no database representation.
     db_model_classes = [
         cls
         for cls in model_classes
@@ -707,8 +736,8 @@ def has_model_changes(model_classes: list[type[Model]], migrations_dir: str) -> 
     ]
     if not db_model_classes:
         return False
-    current = model_state_snapshot(db_model_classes)
-    existing = read_migrated_state(migrations_dir)
+    current = normalize_state(model_state_snapshot(db_model_classes))
+    existing = normalize_state(read_migrated_state(migrations_dir))
     return current != existing
 
 
@@ -740,6 +769,8 @@ def diff_states(
     Returns a list of :class:`Operation` objects that would bring the
     database from *existing* to *current*.
     """
+    current = normalize_state(current)
+    existing = normalize_state(existing)
 
     ops: list[Operation] = []
 
@@ -890,18 +921,12 @@ def diff_states(
             type_changed = cur.get("type") != old.get("type")
             nullable_changed = cur.get("nullable") != old.get("nullable")
             default_changed = cur.get("default") != old.get("default")
-            field_class_changed = (
-                cur.get("field_class")
-                and old.get("field_class")
-                and cur.get("field_class") != old.get("field_class")
-            )
             autoincrement_changed = cur.get("autoincrement") != old.get("autoincrement")
             primary_key_changed = cur.get("primary_key") != old.get("primary_key")
             if (
                 type_changed
                 or nullable_changed
                 or default_changed
-                or field_class_changed
                 or autoincrement_changed
                 or primary_key_changed
             ):
@@ -909,16 +934,18 @@ def diff_states(
                     AlterColumn(
                         table_name=table_name,
                         column_name=col_name,
-                        column_type=cur.get("type"),
-                        nullable=cur.get("nullable"),
-                        default=cur.get("default"),
-                        old_type=old.get("type"),
-                        old_nullable=old.get("nullable"),
-                        old_default=old.get("default"),
-                        autoincrement=cur.get("autoincrement"),
-                        old_autoincrement=old.get("autoincrement"),
-                        primary_key=cur.get("primary_key"),
-                        old_primary_key=old.get("primary_key"),
+                        column_type=cur.get("type") if type_changed else None,
+                        nullable=cur.get("nullable") if nullable_changed else None,
+                        default=cur.get("default") if default_changed else UNSET,
+                        old_type=old.get("type") if type_changed else None,
+                        old_nullable=old.get("nullable") if nullable_changed else None,
+                        old_default=old.get("default") if default_changed else UNSET,
+                        autoincrement=(cur.get("autoincrement") if autoincrement_changed else None),
+                        old_autoincrement=(
+                            old.get("autoincrement") if autoincrement_changed else None
+                        ),
+                        primary_key=(cur.get("primary_key") if primary_key_changed else None),
+                        old_primary_key=(old.get("primary_key") if primary_key_changed else None),
                     )
                 )
 
@@ -1023,14 +1050,20 @@ def format_operation(op: Operation) -> str:
             parts.append(f"        column_type={op.column_type!r}")
         if op.nullable is not None:
             parts.append(f"        nullable={op.nullable!r}")
-        if op.default is not None:
-            parts.append(f"        default={op.default!r}")
+        if op.default is not UNSET:
+            if op.default is None:
+                parts.append("        default=None")
+            else:
+                parts.append(f"        default={op.default!r}")
         if op.old_type is not None:
             parts.append(f"        old_type={op.old_type!r}")
         if op.old_nullable is not None:
             parts.append(f"        old_nullable={op.old_nullable!r}")
-        if op.old_default is not None:
-            parts.append(f"        old_default={op.old_default!r}")
+        if op.old_default is not UNSET:
+            if op.old_default is None:
+                parts.append("        old_default=None")
+            else:
+                parts.append(f"        old_default={op.old_default!r}")
         if op.autoincrement is not None:
             parts.append(f"        autoincrement={op.autoincrement!r}")
         if op.old_autoincrement is not None:

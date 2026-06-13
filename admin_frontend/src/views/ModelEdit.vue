@@ -23,8 +23,8 @@ const router = useRouter()
 const adminStore = useAdminStore()
 const alertsStore = useAlertsStore()
 
-const formData = ref<Record<string, any>>({})
-const originalData = ref<Record<string, any>>({})
+const formData = ref<Record<string, unknown>>({})
+const originalData = ref<Record<string, unknown>>({})
 const errors = ref<Record<string, string>>({})
 const saving = ref(false)
 const showSuccess = ref(false)
@@ -147,13 +147,14 @@ async function handleSubmit() {
     } else if (adminStore.error) {
       alertsStore.show({ type: 'error', title: 'Save Failed', message: adminStore.error })
     }
-  } catch (err: any) {
-    const responseErrors = err.response?.data?.errors
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { errors?: Record<string, string>; detail?: string; __all__?: string } } }
+    const responseErrors = axiosErr.response?.data?.errors
     if (responseErrors && Object.keys(responseErrors).some((k) => k !== '__all__')) {
       errors.value = responseErrors
       scrollToFirstError(errors.value)
     } else {
-      const msg = responseErrors?.__all__ || err.response?.data?.detail || 'An error occurred while saving.'
+      const msg = responseErrors?.__all__ || axiosErr.response?.data?.detail || 'An error occurred while saving.'
       alertsStore.show({ type: 'error', title: 'Save Failed', message: msg })
     }
   } finally {

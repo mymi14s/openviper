@@ -12,25 +12,25 @@ import typing as t
 class Registry:
     """Thread-safe registry of task actors and periodic schedules."""
 
-    _instance: Registry | None = None
-    _lock = threading.Lock()
+    instance: Registry | None = None
+    lock = threading.Lock()
 
-    _actors: dict[str, t.Callable[..., t.Any]]
-    _actor_queues: dict[str, str]
-    _periodic: dict[str, dict[str, t.Any]]
-    _discovered_apps: set[str]
+    actors_store: dict[str, t.Callable[..., t.Any]]
+    actor_queues_store: dict[str, str]
+    periodic_store: dict[str, dict[str, t.Any]]
+    discovered_apps: set[str]
 
     def __new__(cls) -> Registry:
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    instance = super().__new__(cls)
-                    instance._actors = {}
-                    instance._actor_queues = {}
-                    instance._periodic = {}
-                    instance._discovered_apps = set()
-                    cls._instance = instance
-        return cls._instance
+        if cls.instance is None:
+            with cls.lock:
+                if cls.instance is None:
+                    obj = super().__new__(cls)
+                    obj.actors_store = {}
+                    obj.actor_queues_store = {}
+                    obj.periodic_store = {}
+                    obj.discovered_apps = set()
+                    cls.instance = obj
+        return cls.instance
 
     def register_actor(
         self,
@@ -40,26 +40,26 @@ class Registry:
         queue_name: str = "default",
     ) -> None:
         """Register *fn* under *name*. Raises on duplicate."""
-        if name in self._actors:
+        if name in self.actors_store:
             raise ValueError(f"Actor '{name}' is already registered")
-        self._actors[name] = fn
-        self._actor_queues[name] = queue_name
+        self.actors_store[name] = fn
+        self.actor_queues_store[name] = queue_name
 
     def get_actor(self, name: str) -> t.Callable[..., t.Any]:
         """Return the callable registered under *name*."""
         try:
-            return self._actors[name]
+            return self.actors_store[name]
         except KeyError:
             raise KeyError(f"Actor '{name}' not found in registry") from None
 
     def get_actor_queue(self, name: str) -> str:
         """Return the queue name for the actor registered under *name*."""
-        return self._actor_queues.get(name, "default")
+        return self.actor_queues_store.get(name, "default")
 
     @property
     def actors(self) -> dict[str, t.Callable[..., t.Any]]:
         """Snapshot of all registered actors."""
-        return dict(self._actors)
+        return dict(self.actors_store)
 
     def register_periodic(
         self,
@@ -73,9 +73,9 @@ class Registry:
         app_label: str | None = None,
     ) -> None:
         """Register a periodic schedule entry under *name*."""
-        if name in self._periodic:
+        if name in self.periodic_store:
             raise ValueError(f"Periodic job '{name}' is already registered")
-        self._periodic[name] = {
+        self.periodic_store[name] = {
             "name": name,
             "schedule": schedule,
             "cron": cron,
@@ -88,19 +88,19 @@ class Registry:
     @property
     def periodic_jobs(self) -> dict[str, dict[str, t.Any]]:
         """Snapshot of all registered periodic schedules."""
-        return dict(self._periodic)
+        return dict(self.periodic_store)
 
     def mark_discovered(self, app_label: str) -> None:
         """Record that *app_label* has been scanned for tasks."""
-        self._discovered_apps.add(app_label)
+        self.discovered_apps.add(app_label)
 
     def is_discovered(self, app_label: str) -> bool:
         """Return whether *app_label* has already been scanned."""
-        return app_label in self._discovered_apps
+        return app_label in self.discovered_apps
 
     def clear(self) -> None:
         """Remove all registrations. Intended for test teardown."""
-        self._actors.clear()
-        self._actor_queues.clear()
-        self._periodic.clear()
-        self._discovered_apps.clear()
+        self.actors_store.clear()
+        self.actor_queues_store.clear()
+        self.periodic_store.clear()
+        self.discovered_apps.clear()

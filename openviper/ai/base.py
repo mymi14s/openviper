@@ -169,7 +169,9 @@ class AIProvider(abc.ABC):
         elif isinstance(model_cfg, str):
             ids.add(model_cfg)
 
-        return sorted(ids)
+        cached = sorted(ids)
+        self._supported_models_cache = cached
+        return cached
 
     def provider_name(self) -> str:
         """Return the canonical name for this provider (same as the ``name`` class attribute)."""

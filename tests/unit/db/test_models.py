@@ -56,7 +56,7 @@ class TestModelInstance:
 
     def test_model_to_dict(self):
         u = self.User(name="Alice", age=30)
-        d = u._to_dict()  # Correct method name
+        d = u.to_dict()  # Correct method name
         assert d["name"] == "Alice"
         assert d["age"] == 30
 
@@ -216,19 +216,19 @@ class TestCheckPermCached:
 
 class TestModelMetaExtractAppName:
     def test_empty_module_returns_default(self):
-        assert ModelMeta._extract_app_name("", "Foo") == "default"
+        assert ModelMeta.extract_app_name("", "Foo") == "default"
 
     def test_apps_blog_models(self):
-        assert ModelMeta._extract_app_name("apps.blog.models", "Post") == "blog"
+        assert ModelMeta.extract_app_name("apps.blog.models", "Post") == "blog"
 
     def test_openviper_auth_models(self):
-        assert ModelMeta._extract_app_name("openviper.auth.models", "User") == "auth"
+        assert ModelMeta.extract_app_name("openviper.auth.models", "User") == "auth"
 
     def test_single_part_returns_default(self):
-        assert ModelMeta._extract_app_name("models", "Foo") == "default"
+        assert ModelMeta.extract_app_name("models", "Foo") == "default"
 
     def test_two_parts_fallback(self):
-        assert ModelMeta._extract_app_name("myapp.models", "Foo") == "myapp"
+        assert ModelMeta.extract_app_name("myapp.models", "Foo") == "myapp"
 
 
 class TestFExpressions:
@@ -656,9 +656,9 @@ class TestModelInitEdgeCases:
         with pytest.raises(TypeError, match="does not accept private"):
             self.Profile(_secret="bad")
 
-    def test_extra_kwargs_set_as_attributes(self):
-        p = self.Profile(name="Alice", custom_attr="extra")
-        assert p.custom_attr == "extra"
+    def test_extra_kwargs_rejection(self):
+        with pytest.raises(TypeError, match="received unexpected keyword argument"):
+            self.Profile(name="Alice", custom_attr="extra")
 
     def test_default_values_applied(self):
         p = self.Profile(name="Bob")
@@ -694,21 +694,21 @@ class TestSetGetRelated:
 
     def test_set_and_get_related(self):
         a = self.Article(title="Test")
-        assert a._get_related("author") is None
-        a._set_related("author", "fake_author")
-        assert a._get_related("author") == "fake_author"
+        assert a.get_related("author") is None
+        a.set_related("author", "fake_author")
+        assert a.get_related("author") == "fake_author"
 
     def test_set_related_initializes_cache(self):
         a = self.Article(title="Test")
         assert a._relation_cache is None
-        a._set_related("x", 1)
+        a.set_related("x", 1)
         assert a._relation_cache is not None
         assert a._relation_cache["x"] == 1
 
     def test_get_related_no_cache(self):
         a = self.Article(title="Test")
         a._relation_cache = None
-        assert a._get_related("anything") is None
+        assert a.get_related("anything") is None
 
 
 class TestContentType:
@@ -738,14 +738,14 @@ class TestChangeDetection:
 
     def test_snapshot(self):
         s = self.Setting(key="k1", value="v1")
-        snap = s._snapshot()
+        snap = s.snapshot()
         assert snap["key"] == "k1"
         assert snap["value"] == "v1"
 
     def test_get_changed_fields(self):
         s = self.Setting(key="k1", value="v1")
         s.value = "v2"
-        changed = s._get_changed_fields()
+        changed = s.get_changed_fields()
         assert "value" in changed
         assert changed["value"] == "v1"
 
@@ -757,7 +757,7 @@ class TestChangeDetection:
 
     def test_no_changes(self):
         s = self.Setting(key="k1", value="v1")
-        changed = s._get_changed_fields()
+        changed = s.get_changed_fields()
         assert changed == {}
 
 
@@ -771,39 +771,39 @@ class TestFromRow:
 
     def test_from_row(self):
         row = {"id": 1, "title": "Hello", "body": "World"}
-        p = self.Post._from_row(row)
+        p = self.Post.from_row(row)
         assert p.id == 1
         assert p.title == "Hello"
         assert p.body == "World"
 
     def test_from_row_extra_columns(self):
         row = {"id": 1, "title": "Hello", "body": "World", "extra_col": 42}
-        p = self.Post._from_row(row)
+        p = self.Post.from_row(row)
         assert p.extra_col == 42
 
     def test_from_row_fast(self):
         row = {"id": 1, "title": "Hello", "body": "World"}
-        p = self.Post._from_row_fast(row)
+        p = self.Post.from_row_fast(row)
         assert p.id == 1
         assert p.title == "Hello"
         assert p.body == "World"
 
     def test_from_row_fast_extra_columns(self):
         row = {"id": 1, "title": "Hello", "body": "World", "computed": 99}
-        p = self.Post._from_row_fast(row)
+        p = self.Post.from_row_fast(row)
         assert p.computed == 99
 
     def test_from_row_fast_defaults(self):
         row = {"id": 1}
-        p = self.Post._from_row_fast(row)
+        p = self.Post.from_row_fast(row)
         assert p.title is None
         assert p.body is None
 
     def test_from_row_fast_initial_change_detection_baseline(self):
         row = {"id": 1, "title": "Hello", "body": "World"}
-        p = self.Post._from_row_fast(row)
+        p = self.Post.from_row_fast(row)
         assert p.has_changed is False
-        assert p._get_changed_fields() == {}
+        assert p.get_changed_fields() == {}
 
 
 class TestTriggerEvent:
@@ -820,7 +820,7 @@ class TestTriggerEvent:
             patch("openviper.db.models.get_dispatcher", return_value=mock_dispatcher),
             patch("openviper.db.models.dispatch_decorator_handlers"),
         ):
-            e._trigger_event("after_insert")
+            e.trigger_event("after_insert")
             mock_dispatcher.trigger.assert_called_once()
 
     def test_trigger_event_without_dispatcher(self):
@@ -829,13 +829,13 @@ class TestTriggerEvent:
             patch("openviper.db.models.get_dispatcher", return_value=None),
             patch("openviper.db.models.dispatch_decorator_handlers") as mock_dec,
         ):
-            e._trigger_event("after_insert")
+            e.trigger_event("after_insert")
             mock_dec.assert_called_once()
 
     def test_trigger_event_exception_suppressed(self):
         e = self.Evt(name="test")
         with patch("openviper.db.models.get_dispatcher", side_effect=RuntimeError("boom")):
-            e._trigger_event("after_insert")
+            e.trigger_event("after_insert")
 
 
 class TestModelEquality:
@@ -1470,19 +1470,19 @@ class TestFromRowFast:
     def test_from_row_fast_with_col_name_in_row(self):
         """col_name in row."""
         row = {"id": 1, "name": "Alice"}
-        inst = self.Entity._from_row_fast(row)
+        inst = self.Entity.from_row_fast(row)
         assert inst.name == "Alice"
 
     def test_from_row_fast_with_field_name_fallback(self):
         """name in row (fallback)."""
         row = {"id": 1, "name": "Bob"}
-        inst = self.Entity._from_row_fast(row)
+        inst = self.Entity.from_row_fast(row)
         assert inst.name == "Bob"
 
     def test_from_row_fast_missing_field_uses_default(self):
         """missing field, callable default."""
         row = {"id": 1}
-        inst = self.Entity._from_row_fast(row)
+        inst = self.Entity.from_row_fast(row)
         assert inst.name == "default_name"
 
     def test_from_row_fast_missing_field_none(self):
@@ -1495,19 +1495,19 @@ class TestFromRowFast:
                 table_name = "from_row_nodef"
 
         row = {"id": 1}
-        inst = NoDefault._from_row_fast(row)
+        inst = NoDefault.from_row_fast(row)
         assert inst.val is None
 
     def test_from_row_fast_extra_columns(self):
         """extra annotation columns."""
         row = {"id": 1, "name": "X", "total_views": 100}
-        inst = self.Entity._from_row_fast(row)
+        inst = self.Entity.from_row_fast(row)
         assert inst.__dict__["total_views"] == 100
 
     def test_from_row_extra_columns(self):
         """_from_row includes extra keys."""
         row = {"id": 1, "name": "Y", "annotation_val": 42}
-        inst = self.Entity._from_row(row)
+        inst = self.Entity.from_row(row)
         assert inst.__dict__.get("annotation_val") == 42
 
 
@@ -1558,7 +1558,7 @@ class TestBulkOperationsExtended:
         with (
             patch("openviper.db.models.check_permission_for_model", new_callable=AsyncMock),
             patch("openviper.db.models.begin", return_value=mock_conn),
-            patch.object(self.Record, "_get_insert_statement", return_value=MagicMock()),
+            patch.object(self.Record, "get_insert_statement", return_value=MagicMock()),
         ):
             result = await self.Record.objects.bulk_create(objs, batch_size=2)
             assert len(result) == 5
@@ -1650,7 +1650,7 @@ class TestModelChangedFieldsFK:
         pet = self.Pet(name="Rex")
         pet._previous_state = {"name": "Rex", "owner": 1}
         pet.__dict__["owner_id"] = 2  # changed FK
-        changed = pet._get_changed_fields()
+        changed = pet.get_changed_fields()
         assert "owner" in changed
 
     def test_has_changed_property(self):
@@ -1681,7 +1681,7 @@ class TestModelValidate:
 
 
 class TestModelInitUnknownKwargs:
-    """Unknown kwargs are set as dynamic attributes (not rejected)."""
+    """Unknown kwargs are rejected to prevent mass assignment."""
 
     class Profile(Model):
         name = CharField()
@@ -1689,11 +1689,10 @@ class TestModelInitUnknownKwargs:
         class Meta:
             table_name = "profiles"
 
-    def test_unknown_kwarg_set_as_attribute(self):
-        """Non-private kwargs not matching any field are set as attributes."""
-        p = self.Profile(name="Alice", extra_col="bonus")
-        assert p.name == "Alice"
-        assert p.extra_col == "bonus"
+    def test_unknown_kwarg_rejected(self):
+        """Non-private kwargs not matching any field raise TypeError."""
+        with pytest.raises(TypeError, match="received unexpected keyword argument"):
+            self.Profile(name="Alice", extra_col="bonus")
 
     def test_private_kwarg_raises_type_error(self):
         """Kwargs starting with '_' raise TypeError to protect internal state."""
@@ -1703,7 +1702,7 @@ class TestModelInitUnknownKwargs:
     def test_from_row_sets_extra_columns_as_attributes(self):
         """_from_row sets annotation columns as dynamic attributes."""
         row = {"name": "Alice", "annotation_count": 42}
-        p = self.Profile._from_row(row)
+        p = self.Profile.from_row(row)
         assert p.name == "Alice"
         assert p.annotation_count == 42
 

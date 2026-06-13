@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import re
+import typing as t
 
 from openviper.contrib.fields.countries.cache import get_countries, get_country
 from openviper.contrib.fields.countries.data import COUNTRY_CODES, CountryInfo
 
 ALPHA2_PATTERN: re.Pattern[str] = re.compile(r"^[A-Z]{2}$")
+
+type FieldName = t.Literal["name", "dial_code"]
 
 
 def validate_country(
@@ -32,21 +35,29 @@ def validate_country(
     return False
 
 
+def lookup_country_field(
+    code: str,
+    field: FieldName,
+    extra: tuple[tuple[str, str, str], ...] = (),
+) -> str | None:
+    """Return a specific field from CountryInfo for code, falling back to extras."""
+    normalised = code.upper() if isinstance(code, str) else ""
+    info: CountryInfo | None = get_country(normalised)
+    if info is not None:
+        return t.cast("str", info.get(field))
+    if extra:
+        entry = get_countries(extra).get(normalised)
+        if entry is not None:
+            return t.cast("str", entry.get(field))
+    return None
+
+
 def get_country_name(
     code: str,
     extra: tuple[tuple[str, str, str], ...] = (),
 ) -> str | None:
     """Return English country name for code, or None."""
-    normalised = code.upper() if isinstance(code, str) else ""
-    info: CountryInfo | None = get_country(normalised)
-    if info is not None:
-        return info["name"]
-    if extra:
-        registry = get_countries(extra)
-        entry = registry.get(normalised)
-        if entry is not None:
-            return entry["name"]
-    return None
+    return lookup_country_field(code, "name", extra)
 
 
 def get_dial_code(
@@ -54,16 +65,7 @@ def get_dial_code(
     extra: tuple[tuple[str, str, str], ...] = (),
 ) -> str | None:
     """Return international dialling code for code, or None."""
-    normalised = code.upper() if isinstance(code, str) else ""
-    info: CountryInfo | None = get_country(normalised)
-    if info is not None:
-        return info["dial_code"]
-    if extra:
-        registry = get_countries(extra)
-        entry = registry.get(normalised)
-        if entry is not None:
-            return entry["dial_code"]
-    return None
+    return lookup_country_field(code, "dial_code", extra)
 
 
 def search_country(

@@ -214,7 +214,7 @@ class AdminRegistry:
         for model_class, model_admin in self._registry.items():
             if getattr(getattr(model_class, "Meta", None), "abstract", False):
                 continue
-            app_name = self._get_app_label(model_class)
+            app_name = self.get_app_label(model_class)
             if app_name not in groups:
                 groups[app_name] = []
             groups[app_name].append((model_class, model_admin))
@@ -236,7 +236,7 @@ class AdminRegistry:
         model_name_lower = model_name.lower()
         app_label_lower = app_label.lower()
         for model_class, model_admin in self._registry.items():
-            model_app = self._get_app_label(model_class).lower()
+            model_app = self.get_app_label(model_class).lower()
             if model_class.__name__.lower() == model_name_lower and model_app == app_label_lower:
                 return model_admin
         return self.get_model_admin_by_name(model_name)
@@ -257,7 +257,7 @@ class AdminRegistry:
         model_name_lower = model_name.lower()
         app_label_lower = app_label.lower()
         for model_class in self._registry:
-            model_app = self._get_app_label(model_class).lower()
+            model_app = self.get_app_label(model_class).lower()
             if model_class.__name__.lower() == model_name_lower and model_app == app_label_lower:
                 return model_class
         return self.get_model_by_name(model_name)
@@ -266,13 +266,13 @@ class AdminRegistry:
         """Alias for tests. Returns list of model classes."""
         return list(self._registry.keys())
 
-    def _get_app_label(self, model_class: type[Model]) -> str:
+    def get_app_label(self, model_class: type[Model]) -> str:
         """Helper for tests. Returns app label."""
         if hasattr(model_class, "Meta") and hasattr(model_class.Meta, "app_label"):
             return model_class.Meta.app_label
         return getattr(model_class, "_app_name", "default")
 
-    def _get_model_name(self, model_class: type[Model]) -> str:
+    def get_model_name(self, model_class: type[Model]) -> str:
         """Helper for tests. Returns lowercase model name."""
         return model_class.__name__.lower()
 
@@ -290,9 +290,9 @@ class AdminRegistry:
             return {}
         info = admin_instance.get_model_info()
         if "model_name" not in info:
-            info["model_name"] = self._get_model_name(model_class)
+            info["model_name"] = self.get_model_name(model_class)
         if "app_label" not in info:
-            info["app_label"] = self._get_app_label(model_class)
+            info["app_label"] = self.get_app_label(model_class)
         return info
 
     def get_all_model_configs(self) -> list[dict]:

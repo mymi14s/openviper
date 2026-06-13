@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from openviper.db.models import Model
     from openviper.http.request import Request
 
+from openviper.admin.constants import is_admin_user
+from openviper.exceptions import PermissionDenied
+
 
 def check_admin_access(request: Request) -> bool:
     """Check if user has access to admin panel.
@@ -28,7 +31,20 @@ def check_admin_access(request: Request) -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
 
-    return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+    return is_admin_user(user)
+
+
+def require_admin_access(request: Request) -> None:
+    """Require admin access or raise PermissionDenied.
+
+    Args:
+        request: The current request.
+
+    Raises:
+        PermissionDenied: If user does not have admin access.
+    """
+    if not check_admin_access(request):
+        raise PermissionDenied("Admin access required.")
 
 
 def check_model_permission(

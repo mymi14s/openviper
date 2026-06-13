@@ -13,18 +13,18 @@ from openviper.db.tools.backup.sqlite import SQLiteBackupEngine
 class TestSQLiteBackupEngineExtractPath:
     def test_sqlite_triple_slash_url(self) -> None:
         engine = SQLiteBackupEngine()
-        path = engine._extract_db_path("sqlite:///mydb.sqlite3")
+        path = engine.extract_db_path("sqlite:///mydb.sqlite3")
         assert str(path) == "mydb.sqlite3"
 
     def test_sqlite_asyncio_url(self) -> None:
         engine = SQLiteBackupEngine()
-        path = engine._extract_db_path("sqlite+aiosqlite:///db.sqlite3")
+        path = engine.extract_db_path("sqlite+aiosqlite:///db.sqlite3")
         assert str(path) == "db.sqlite3"
 
     def test_in_memory_url_raises(self) -> None:
         engine = SQLiteBackupEngine()
         with pytest.raises(ValueError, match="In-memory"):
-            engine._extract_db_path("sqlite:///:memory:")
+            engine.extract_db_path("sqlite:///:memory:")
 
 
 class TestSQLiteBackupEngineDump:
@@ -37,7 +37,7 @@ class TestSQLiteBackupEngineDump:
         work_dir.mkdir()
 
         engine = SQLiteBackupEngine()
-        with patch.object(engine, "_extract_db_path", return_value=db_file):
+        with patch.object(engine, "extract_db_path", return_value=db_file):
             result = await engine.dump("sqlite:///mydb.sqlite3", work_dir)
 
         assert result == work_dir / "backup.sql"
@@ -55,7 +55,7 @@ class TestSQLiteBackupEngineRestore:
         db_file = tmp_path / "restored.sqlite3"
 
         engine = SQLiteBackupEngine()
-        with patch.object(engine, "_extract_db_path", return_value=db_file):
+        with patch.object(engine, "extract_db_path", return_value=db_file):
             await engine.restore("sqlite:///restored.sqlite3", backup, force=True)
 
         assert db_file.read_bytes() == b"SQLite data"
@@ -68,7 +68,7 @@ class TestSQLiteBackupEngineRestore:
         db_file.write_bytes(b"existing")
 
         engine = SQLiteBackupEngine()
-        with patch.object(engine, "_extract_db_path", return_value=db_file):
+        with patch.object(engine, "extract_db_path", return_value=db_file):
             with pytest.raises(FileExistsError, match="already exists"):
                 await engine.restore("sqlite:///existing.sqlite3", backup, force=False)
 
@@ -80,7 +80,7 @@ class TestSQLiteBackupEngineRestore:
         db_file.write_bytes(b"old data")
 
         engine = SQLiteBackupEngine()
-        with patch.object(engine, "_extract_db_path", return_value=db_file):
+        with patch.object(engine, "extract_db_path", return_value=db_file):
             await engine.restore("sqlite:///target.sqlite3", backup, force=True)
 
         assert db_file.read_bytes() == b"new data"

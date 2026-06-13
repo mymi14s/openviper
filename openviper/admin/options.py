@@ -9,11 +9,13 @@ from __future__ import annotations
 import copy
 import functools
 import logging
+import re
 import typing as t
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from openviper.admin.actions import AdminAction
+from openviper.admin.constants import is_admin_user
 from openviper.admin.fields import get_field_schema
 from openviper.db.backends.registry import backend_registry
 
@@ -229,7 +231,7 @@ class ModelAdmin:
         if self.fields is not None:
             return list(self.fields)
         all_fields = list(self._fields.keys())
-        excluded = self.get_exclude(request, obj)
+        excluded = set(self.get_exclude(request, obj))
         is_create = obj is None or getattr(obj, "pk", None) is None
 
         fields = []
@@ -272,19 +274,10 @@ class ModelAdmin:
         if self.sensitive_fields:
             return list(self.sensitive_fields)
 
-        default_sensitive = [
-            "password",
-            "token",
-            "secret",
-            "key",
-            "api_key",
-            "access_token",
-            "refresh_token",
-        ]
+        # Precompiled regex avoids re-building the pattern on every call.
+        _sensitive_re = re.compile(r"password|token|secret|key|api_key|access_token|refresh_token")
         return [
-            f
-            for f in getattr(obj or self.model, "_fields", {})
-            if any(s in f.lower() for s in default_sensitive)
+            f for f in getattr(obj or self.model, "_fields", {}) if _sensitive_re.search(f.lower())
         ]
 
     def get_readonly_fields(
@@ -344,7 +337,27 @@ class ModelAdmin:
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
+
+    def check_virtual_capability(self, capability: str) -> bool:
+        """Check if the virtual backend supports a given capability.
+
+        Returns False if the model is virtual and the backend lacks the
+        given capability. Returns True for non-virtual models or when
+        the capability is present.
+        """
+        meta = getattr(self.model, "_meta", None)
+        if meta is None or not isinstance(getattr(meta, "virtual", None), bool):
+            return True
+        if getattr(meta, "read_only", False):
+            return False
+        if getattr(meta, "virtual", False):
+            backend_name = getattr(meta, "backend", None)
+            if backend_name:
+                backend = backend_registry.get(backend_name)
+                if backend and not getattr(backend.capabilities, capability, True):
+                    return False
+        return True
 
     def has_add_permission(self, request: Request | None = None) -> bool:
         """Check if user can add new instances.
@@ -355,22 +368,14 @@ class ModelAdmin:
         Returns:
             True if user has add permission.
         """
-        meta = getattr(self.model, "_meta", None)
-        if meta is not None and isinstance(getattr(meta, "virtual", None), bool):
-            if getattr(meta, "read_only", False):
-                return False
-            if getattr(meta, "virtual", False):
-                backend_name = getattr(meta, "backend", None)
-                if backend_name:
-                    backend = backend_registry.get(backend_name)
-                    if backend and not getattr(backend.capabilities, "supports_create", True):
-                        return False
+        if not self.check_virtual_capability("supports_create"):
+            return False
         if request is None:
             return True
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
 
     def has_change_permission(
         self, request: Request | None = None, obj: Model | None = None
@@ -384,22 +389,14 @@ class ModelAdmin:
         Returns:
             True if user has change permission.
         """
-        meta = getattr(self.model, "_meta", None)
-        if meta is not None and isinstance(getattr(meta, "virtual", None), bool):
-            if getattr(meta, "read_only", False):
-                return False
-            if getattr(meta, "virtual", False):
-                backend_name = getattr(meta, "backend", None)
-                if backend_name:
-                    backend = backend_registry.get(backend_name)
-                    if backend and not getattr(backend.capabilities, "supports_update", True):
-                        return False
+        if not self.check_virtual_capability("supports_update"):
+            return False
         if request is None:
             return True
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
 
     def has_delete_permission(
         self, request: Request | None = None, obj: Model | None = None
@@ -413,22 +410,14 @@ class ModelAdmin:
         Returns:
             True if user has delete permission.
         """
-        meta = getattr(self.model, "_meta", None)
-        if meta is not None and isinstance(getattr(meta, "virtual", None), bool):
-            if getattr(meta, "read_only", False):
-                return False
-            if getattr(meta, "virtual", False):
-                backend_name = getattr(meta, "backend", None)
-                if backend_name:
-                    backend = backend_registry.get(backend_name)
-                    if backend and not getattr(backend.capabilities, "supports_delete", True):
-                        return False
+        if not self.check_virtual_capability("supports_delete"):
+            return False
         if request is None:
             return True
         user = getattr(request, "user", None)
         if user is None:
             return False
-        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+        return is_admin_user(user)
 
     async def save_model(
         self,
@@ -562,8 +551,8 @@ class ModelAdmin:
             }
             return info
 
-        sensitive_fields = self.get_sensitive_fields()
-        excluded_fields = self.get_exclude()
+        sensitive_fields = set(self.get_sensitive_fields())
+        excluded_fields = set(self.get_exclude())
 
         fields_info = {}
         for field_name, field in self._fields.items():

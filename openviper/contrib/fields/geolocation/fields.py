@@ -12,11 +12,9 @@ from typing import TYPE_CHECKING, Any, cast
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql.base import PGDialect
 
-from openviper.conf import settings
+from openviper.contrib.fields.dbutils import is_postgresql
 from openviper.contrib.fields.geolocation.geometry import Point
-from openviper.db import connection as db_connection
 from openviper.db.fields import Field
-from openviper.db.utils import get_default_database_url
 
 if TYPE_CHECKING:
     from openviper.contrib.fields.geolocation.types import GeoJSONObject, PointOwner
@@ -36,23 +34,6 @@ def register_postgis_types() -> None:
 
 
 register_postgis_types()
-
-
-def is_postgresql() -> bool:
-    """Return True if the configured engine targets PostgreSQL."""
-    try:
-        if db_connection._engine is not None:
-            url = str(db_connection._engine.url)
-            return "postgresql" in url or "postgres" in url
-    except (AttributeError, TypeError):  # fmt: skip
-        pass
-    # Fall back to settings when no engine has been configured yet.
-    try:
-        url = get_default_database_url(settings)
-        return "postgresql" in url or "postgres" in url
-    except (AttributeError, TypeError):  # fmt: skip
-        pass
-    return False
 
 
 class AdaptiveGeometryType(sa.types.TypeDecorator[object]):
@@ -90,7 +71,7 @@ class PostGISGeometryType(sa.types.UserDefinedType[object]):
 class PointField(Field):
     """ORM field storing a geographic Point."""
 
-    _column_type = "GEOMETRY(Point,4326)"
+    column_type = "GEOMETRY(Point,4326)"
 
     def __init__(
         self,

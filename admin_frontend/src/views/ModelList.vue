@@ -6,7 +6,7 @@ import { useAlertsStore } from '@/stores/alerts'
 import DataTable from '@/components/DataTable.vue'
 import Pagination from '@/components/Pagination.vue'
 import FilterSidebar from '@/components/FilterSidebar.vue'
-import type { FilterOption } from '@/types/admin'
+import type { FilterOption, ModelInstance } from '@/types/admin'
 
 const props = defineProps<{
   appLabel: string
@@ -23,7 +23,7 @@ const selectedIds = ref<Array<string | number>>([])
 const selectedAction = ref('')
 const showBulkConfirm = ref(false)
 const filterOptions = ref<FilterOption[]>([])
-const activeFilters = ref<Record<string, any>>({})
+const activeFilters = ref<Record<string, unknown>>({})
 
 function filterStorageKey(appLabel: string, modelName: string): string {
   return `openviper_filters__${appLabel}__${modelName}`
@@ -33,16 +33,16 @@ function sortStorageKey(appLabel: string, modelName: string): string {
   return `openviper_sort__${appLabel}__${modelName}`
 }
 
-function loadSavedFilters(appLabel: string, modelName: string): Record<string, any> {
+function loadSavedFilters(appLabel: string, modelName: string): Record<string, unknown> {
   try {
     const raw = localStorage.getItem(filterStorageKey(appLabel, modelName))
-    return raw ? (JSON.parse(raw) as Record<string, any>) : {}
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
   } catch {
     return {}
   }
 }
 
-function saveFilters(appLabel: string, modelName: string, filters: Record<string, any>): void {
+function saveFilters(appLabel: string, modelName: string, filters: Record<string, unknown>): void {
   if (Object.keys(filters).length === 0) {
     localStorage.removeItem(filterStorageKey(appLabel, modelName))
   } else {
@@ -155,7 +155,7 @@ async function loadData(page: number = 1) {
   }
 }
 
-function handleFilterChange(filters: Record<string, any>) {
+function handleFilterChange(filters: Record<string, unknown>) {
   activeFilters.value = { ...filters }
   saveFilters(props.appLabel, props.modelName, activeFilters.value)
   loadData(1)
@@ -201,11 +201,11 @@ function handlePageChange(page: number) {
 }
 
 function handlePerPageChange(perPage: number) {
-  adminStore.pagination.perPage = perPage
+  adminStore.setPerPage(perPage)
   loadData(1)
 }
 
-function handleRowClick(instance: any) {
+function handleRowClick(instance: ModelInstance) {
   if (canChange.value) {
     router.push(`/${props.appLabel}/${props.modelName}/${instance.id}`)
   }

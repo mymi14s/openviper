@@ -276,3 +276,109 @@ class TestPluginIntegration:
 
         assert "answer" in env.globals
         assert env.globals["answer"]() == 42
+
+
+class TestApplyToEnv:
+    def setup_method(self):
+        plugin_loader.reset()
+
+    def test_apply_to_env_copies_filters(self):
+        plugin_loader.STATE.filters["upper"] = lambda x: x.upper()
+        env = mock_env()
+        plugin_loader.apply_to_env(env)
+        assert "upper" in env.filters
+        assert env.filters["upper"]("hi") == "HI"
+
+    def test_apply_to_env_copies_globals(self):
+        plugin_loader.STATE.globals["site_name"] = lambda: "openviper"
+        env = mock_env()
+        plugin_loader.apply_to_env(env)
+        assert "site_name" in env.globals
+        assert env.globals["site_name"]() == "openviper"
+
+    def test_apply_to_env_skips_when_empty(self):
+        env = mock_env()
+        plugin_loader.apply_to_env(env)
+        assert not env.filters
+        assert not env.globals
+
+    def test_apply_to_env_does_not_mutate_state(self):
+        plugin_loader.STATE.filters["f"] = lambda x: x
+        env = mock_env()
+        plugin_loader.apply_to_env(env)
+        env.filters["injected"] = lambda x: x
+        assert "injected" not in plugin_loader.STATE.filters
+
+
+class TestScanPluginDirs:
+    def test_returns_both_filters_and_globals(self, tmp_path):
+        filters_dir = tmp_path / "filters"
+        globals_dir = tmp_path / "globals"
+        filters_dir.mkdir()
+        globals_dir.mkdir()
+        (filters_dir / "upper.py").write_text("def upper(v):\n    return str(v).upper()\n")
+        (globals_dir / "site.py").write_text("def site_name():\n    return 'openviper'\n")
+        result = plugin_loader.scan_plugin_dirs(str(tmp_path))
+        assert "upper" in result["filters"]
+        assert "site_name" in result["globals"]
+
+    def test_nonexistent_root_returns_empty_dicts(self, tmp_path):
+        result = plugin_loader.scan_plugin_dirs(str(tmp_path / "no_such_dir"))
+        assert not result["filters"]
+        assert not result["globals"]
+
+    def test_missing_subdirs_return_empty(self, tmp_path):
+        (tmp_path / "filters").mkdir()
+        result = plugin_loader.scan_plugin_dirs(str(tmp_path))
+        assert not result["globals"]
+
+
+class TestMergeScanned:
+    def test_merges_filters_and_globals(self, tmp_path):
+        filters_dir = tmp_path / "filters"
+        globals_dir = tmp_path / "globals"
+        filters_dir.mkdir()
+        globals_dir.mkdir()
+        (filters_dir / "upper.py").write_text("def upper(v):\n    return str(v).upper()\n")
+        (globals_dir / "site.py").write_text("def site_name():\n    return 'openviper'\n")
+        merged_filters: dict[str, object] = {}
+        merged_globals: dict[str, object] = {}
+        plugin_loader.merge_scanned(str(tmp_path), merged_filters, merged_globals)
+        assert "upper" in merged_filters
+        assert "site_name" in merged_globals
+
+    def test_merge_preserves_existing_entries(self, tmp_path):
+        filters_dir = tmp_path / "filters"
+        filters_dir.mkdir()
+        (filters_dir / "lower.py").write_text("def lower(v):\n    return str(v).lower()\n")
+        merged_filters: dict[str, object] = {"existing": lambda x: x}
+        merged_globals: dict[str, object] = {}
+        plugin_loader.merge_scanned(str(tmp_path), merged_filters, merged_globals)
+        assert "existing" in merged_filters
+        assert "lower" in merged_filters
+
+    def test_merge_with_empty_dir(self, tmp_path):
+        merged_filters: dict[str, object] = {}
+        merged_globals: dict[str, object] = {}
+        plugin_loader.merge_scanned(str(tmp_path / "no_such_dir"), merged_filters, merged_globals)
+        assert not merged_filters
+        assert not merged_globals
+
+
+class TestLogRegistered:
+    def test_logs_filters_when_present(self, caplog):
+        plugin_loader.STATE.filters["f"] = lambda x: x
+        with caplog.at_level("DEBUG", logger="openviper.template.plugin_loader"):
+            plugin_loader.log_registered("filter", plugin_loader.STATE.filters)
+        assert any("filter" in r.message for r in caplog.records)
+
+    def test_logs_globals_when_present(self, caplog):
+        plugin_loader.STATE.globals["g"] = lambda: None
+        with caplog.at_level("DEBUG", logger="openviper.template.plugin_loader"):
+            plugin_loader.log_registered("global", plugin_loader.STATE.globals)
+        assert any("global" in r.message for r in caplog.records)
+
+    def test_skips_logging_when_empty(self, caplog):
+        with caplog.at_level("DEBUG", logger="openviper.template.plugin_loader"):
+            plugin_loader.log_registered("filter", {})
+        assert not any("Registered" in r.message for r in caplog.records)

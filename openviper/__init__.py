@@ -57,7 +57,7 @@ def setup(force: bool = False) -> None:
     reloading from ``OPENVIPER_SETTINGS_MODULE`` regardless of prior
     configuration state.
     """
-    settings._setup(force=force)
+    settings.setup(force=force)
 
 
 __all__ = [

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
-import getpass
 
 from openviper.auth.utils import get_user_model
 from openviper.core.management.base import BaseCommand, CommandError
+from openviper.core.management.utils import model_field_names, prompt_password, run_async_command
 
 
 class Command(BaseCommand):
@@ -43,7 +42,7 @@ class Command(BaseCommand):
                 if not username:
                     raise CommandError("Username is required.")
 
-            field_names = set(getattr(User, "_fields", {}).keys()) or {"username"}
+            field_names = model_field_names(User)
             if "username" in field_names:
                 user = await User.objects.get_or_none(username=username)
             elif "email" in field_names:
@@ -58,32 +57,10 @@ class Command(BaseCommand):
             self.stdout(f"Changing password for user '{username}'")
 
             if not password:
-                while True:
-                    try:
-                        password = getpass.getpass("New password: ")
-                        if not password:
-                            self.stderr(self.style_error("Password cannot be blank."))
-                            continue
-                        confirm = getpass.getpass("Retype new password: ")
-                    except EOFError, KeyboardInterrupt:
-                        self.stdout("\nOperation cancelled.")
-                        return
-
-                    if password != confirm:
-                        self.stderr(self.style_error("Passwords do not match. Try again."))
-                        continue
-                    break
+                password = prompt_password(self, "New password: ", "Retype new password: ")
 
             await user.set_password(password)
             await user.save()
             self.stdout(self.style_success(f"Password changed successfully for user '{username}'."))
 
-        run_coro = run_command()
-        try:
-            asyncio.run(run_coro)
-        except CommandError:
-            raise
-        except Exception as exc:
-            raise CommandError(str(exc)) from exc
-        finally:
-            run_coro.close()
+        run_async_command(run_command())

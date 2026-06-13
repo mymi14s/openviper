@@ -27,7 +27,7 @@ class TaskResultTracker:
     """Retrieve results for previously enqueued task messages."""
 
     def __init__(self, backend_url: str | None = None) -> None:
-        self._backend_url = backend_url
+        self.backend_url = backend_url
 
     def get_result(
         self,
@@ -41,7 +41,7 @@ class TaskResultTracker:
         Raises :class:`ResultsBackendDisabledError` when no backend
         URL is configured.
         """
-        if not self._backend_url:
+        if not self.backend_url:
             raise ResultsBackendDisabledError(
                 "No results backend configured. "
                 "Set TASKS['backend_url'] to enable result retrieval."
@@ -49,7 +49,7 @@ class TaskResultTracker:
 
         broker = get_broker()
         results = dramatiq.results.Results(backend=self.create_backend(broker))
-        message = broker.get_actor(proxy.actor_name).message(*proxy._args, **proxy._kwargs)
+        message = broker.get_actor(proxy.actor_name).message(*proxy.args, **proxy.kwargs)
         return results.get_result(message, block=block, timeout=timeout)
 
     def create_backend(self, broker: Broker) -> object:
@@ -59,7 +59,7 @@ class TaskResultTracker:
                 "dramatiq.results.backends is not available. "
                 "Install with: pip install 'openviper[tasks-redis]'"
             )
-        url = self._backend_url
+        url = self.backend_url
         if url and url.startswith("redis://"):
             return dramatiq.results.backends.RedisBackend(url)
         raise ResultsBackendDisabledError(f"Unsupported results backend URL: {url!r}")

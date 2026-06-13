@@ -316,7 +316,7 @@ class TestPointFieldAttributes:
 
     def test_column_type_property(self) -> None:
         f = PointField()
-        assert f._column_type == "GEOMETRY(Point,4326)"
+        assert f.column_type == "GEOMETRY(Point,4326)"
 
 
 class TestPostGISBackend:

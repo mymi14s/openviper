@@ -50,9 +50,9 @@ except ImportError:
     psycopg2 = None
 
 try:
-    import prometheus_client as _prometheus_client  # noqa: F811
+    import prometheus_client as prometheus_client
 except ImportError:
-    _prometheus_client = None
+    prometheus_client = None
 
 try:
     from dramatiq.broker import default_middleware as dramatiq_defaults
@@ -60,9 +60,9 @@ except ImportError:
     dramatiq_defaults = None  # type: ignore[assignment]
 
 try:
-    from dramatiq.middleware.prometheus import Prometheus as _Prometheus
+    from dramatiq.middleware.prometheus import Prometheus as PrometheusMiddleware
 except ImportError:
-    _Prometheus = None  # type: ignore[assignment,misc]
+    PrometheusMiddleware = None  # type: ignore[assignment,misc]
 
 BROKER_INSTANCE: Broker | None = None
 
@@ -75,8 +75,8 @@ def default_middleware() -> list:
     if dramatiq_defaults is None:
         return []
     middleware = [m() for m in dramatiq_defaults]
-    if _prometheus_client is None and _Prometheus is not None:
-        middleware = [m for m in middleware if not isinstance(m, _Prometheus)]
+    if prometheus_client is None and PrometheusMiddleware is not None:
+        middleware = [m for m in middleware if not isinstance(m, PrometheusMiddleware)]
     return middleware
 
 
@@ -97,24 +97,15 @@ def get_broker() -> Broker:
     broker_url = str(cfg.get("broker_url", ""))
 
     if broker_type == "redis":
-        if not broker_url:
-            raise OpenViperTasksConfigurationError(
-                ["TASKS['broker_url'] is required for the redis broker"]
-            )
+        require_broker_url(broker_type, broker_url)
         broker = create_redis_broker(broker_url, cfg)
     elif broker_type == "rabbitmq":
-        if not broker_url:
-            raise OpenViperTasksConfigurationError(
-                ["TASKS['broker_url'] is required for the rabbitmq broker"]
-            )
+        require_broker_url(broker_type, broker_url)
         broker = create_rabbitmq_broker(broker_url, cfg)
     elif broker_type == "sqs":
         broker = create_sqs_broker(cfg)
     elif broker_type == "postgresql":
-        if not broker_url:
-            raise OpenViperTasksConfigurationError(
-                ["TASKS['broker_url'] is required for the postgresql broker"]
-            )
+        require_broker_url(broker_type, broker_url)
         broker = create_postgresql_broker(broker_url, cfg)
     elif broker_type == "stub":
         broker = create_stub_broker(cfg)
@@ -130,15 +121,29 @@ def get_broker() -> Broker:
     return BROKER_INSTANCE
 
 
+def register_broker(broker: Broker) -> Broker:
+    """Set *broker* as the global Dramatiq broker and return it."""
+    dramatiq.set_broker(broker)
+    return broker
+
+
+def require_broker_url(broker_type: str, broker_url: str) -> None:
+    """Raise :class:`OpenViperTasksConfigurationError` when *broker_url* is empty."""
+    if not broker_url:
+        raise OpenViperTasksConfigurationError(
+            [f"TASKS['broker_url'] is required for the {broker_type} broker"]
+        )
+
+
 def create_redis_broker(url: str, cfg: ConfigMap) -> Broker:
     """Create a RedisBroker from *url*."""
     if dramatiq.brokers.redis is None:
         raise OpenViperTasksConfigurationError(
             ["redis package is not installed. Install with: pip install 'openviper[tasks-redis]'"]
         )
-    broker: Broker = dramatiq.brokers.redis.RedisBroker(url=url, middleware=default_middleware())
-    dramatiq.set_broker(broker)
-    return broker
+    return register_broker(
+        dramatiq.brokers.redis.RedisBroker(url=url, middleware=default_middleware())
+    )
 
 
 def create_rabbitmq_broker(url: str, cfg: ConfigMap) -> Broker:
@@ -147,12 +152,9 @@ def create_rabbitmq_broker(url: str, cfg: ConfigMap) -> Broker:
         raise OpenViperTasksConfigurationError(
             ["pika package is not installed. Install with: pip install 'openviper[tasks-rabbitmq]'"]
         )
-    broker: Broker = dramatiq.brokers.rabbitmq.RabbitmqBroker(
-        url=url,
-        middleware=default_middleware(),
+    return register_broker(
+        dramatiq.brokers.rabbitmq.RabbitmqBroker(url=url, middleware=default_middleware())
     )
-    dramatiq.set_broker(broker)
-    return broker
 
 
 def create_sqs_broker(cfg: ConfigMap) -> Broker:
@@ -172,9 +174,7 @@ def create_sqs_broker(cfg: ConfigMap) -> Broker:
         kwargs["endpoint_url"] = endpoint_url
     kwargs["middleware"] = default_middleware() + user_middleware
 
-    broker: Broker = dramatiq_sqs.SQSBroker(**kwargs)
-    dramatiq.set_broker(broker)
-    return broker
+    return register_broker(dramatiq_sqs.SQSBroker(**kwargs))
 
 
 def create_postgresql_broker(url: str, cfg: ConfigMap) -> Broker:
@@ -191,9 +191,7 @@ def create_postgresql_broker(url: str, cfg: ConfigMap) -> Broker:
         maxconn=cfg.get("pg_max_connections", 10),
         dsn=url,
     )
-    broker: Broker = PostgresBroker(pool, middleware=default_middleware())
-    dramatiq.set_broker(broker)
-    return broker
+    return register_broker(PostgresBroker(pool, middleware=default_middleware()))
 
 
 def create_stub_broker(cfg: ConfigMap) -> Broker:
@@ -202,9 +200,7 @@ def create_stub_broker(cfg: ConfigMap) -> Broker:
         raise OpenViperTasksConfigurationError(
             ["dramatiq.brokers.stub is not available. Ensure dramatiq is installed correctly."]
         )
-    broker: Broker = dramatiq.brokers.stub.StubBroker(middleware=default_middleware())
-    dramatiq.set_broker(broker)
-    return broker
+    return register_broker(dramatiq.brokers.stub.StubBroker(middleware=default_middleware()))
 
 
 def reset_broker() -> None:

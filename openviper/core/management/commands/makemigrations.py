@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import importlib
-import inspect
 import os
 import sys
 from collections import deque
@@ -13,6 +12,7 @@ from pathlib import Path
 from openviper.conf import settings
 from openviper.core.app_resolver import AppResolver
 from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import discover_models_in_module, report_app_not_found
 from openviper.db.fields import ForeignKey
 from openviper.db.migrations.executor import (  # noqa: N814
     AddColumn,
@@ -32,9 +32,9 @@ from openviper.db.migrations.writer import (
     write_initial_migration,
     write_migration,
 )
-from openviper.db.models import Model, ModelMeta, check_primary_keys
+from openviper.db.models import ModelMeta, check_primary_keys
 
-_MAX_NAME_LENGTH = 40
+MAX_NAME_LENGTH = 40
 
 
 def auto_migration_name(ops: list) -> str:
@@ -72,8 +72,8 @@ def auto_migration_name(ops: list) -> str:
             deduped.append(part)
 
     name = "_".join(deduped)
-    if len(name) > _MAX_NAME_LENGTH:
-        name = name[:_MAX_NAME_LENGTH].rsplit("_", 1)[0]
+    if len(name) > MAX_NAME_LENGTH:
+        name = name[:MAX_NAME_LENGTH].rsplit("_", 1)[0]
     return name
 
 
@@ -123,19 +123,7 @@ class Command(BaseCommand):
 
         if app_labels and not_found_apps:
             for app_name in not_found_apps:
-                self.stdout(
-                    self.style_error(
-                        f"\nError: App '{app_name}' does not exist or could not be found."
-                    )
-                )
-                AppResolver.print_app_not_found_error(
-                    app_name,
-                    [
-                        f"{app_name}/",
-                        f"apps/{app_name}/",
-                        f"src/{app_name}/",
-                    ],
-                )
+                report_app_not_found(self, app_name)
             if not resolved_apps:
                 return
 
@@ -170,31 +158,13 @@ class Command(BaseCommand):
             if not empty:
                 try:
                     mod = importlib.import_module(f"{app_name}.models")
-                    for _name, obj in inspect.getmembers(mod, inspect.isclass):
-                        if (
-                            issubclass(obj, Model)
-                            and obj is not Model
-                            and obj.__module__ == mod.__name__
-                        ):
-                            meta = getattr(obj, "Meta", None)
-                            if meta and getattr(meta, "abstract", False):
-                                continue
-                            model_classes.append(obj)
+                    model_classes.extend(discover_models_in_module(mod))
                 except ImportError, ModuleNotFoundError:
                     try:
                         sys.path.insert(0, app_path)
                         qualified_name = f"{app_name}.models"
                         mod = importlib.import_module(qualified_name)
-                        for _name, obj in inspect.getmembers(mod, inspect.isclass):
-                            if (
-                                issubclass(obj, Model)
-                                and obj is not Model
-                                and obj.__module__ == mod.__name__
-                            ):
-                                meta = getattr(obj, "Meta", None)
-                                if meta and getattr(meta, "abstract", False):
-                                    continue
-                                model_classes.append(obj)
+                        model_classes.extend(discover_models_in_module(mod))
                     except ImportError, ModuleNotFoundError:
                         pass
                     finally:

@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import orjson
 
-from openviper.cache.base import BaseCache
+from openviper.cache.base import BaseCache, deserialize_cache_value
 from openviper.cache.validation import validate_cache_key
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_PREFIX: str = "ov:cache:"
 
@@ -49,21 +46,17 @@ class MemcachedCache(BaseCache):
         self._prefix: str = key_prefix
         self._client: mcache_lib.Client = mcache_lib.Client(host=host, port=port, **kwargs)
 
-    def _prefixed(self, key: str) -> str:
+    def prefixed(self, key: str) -> str:
         """Return *key* with the configured prefix prepended."""
         return f"{self._prefix}{key}"
 
     async def get(self, key: str, default: Any = None) -> Any:  # noqa: ANN401
         """Fetch a value from the cache, returning *default* on miss."""
         validate_cache_key(key)
-        value = await self._client.get(self._prefixed(key).encode())
+        value = await self._client.get(self.prefixed(key).encode())
         if value is None:
             return default
-        try:
-            return orjson.loads(value)
-        except ValueError, TypeError:
-            logger.debug("Failed to deserialize cached value for key %r", key, exc_info=True)
-            return value
+        return deserialize_cache_value(value, key)
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:  # noqa: ANN401
         """Store a value in the cache with an optional TTL in seconds."""
@@ -72,12 +65,12 @@ class MemcachedCache(BaseCache):
             serialized: bytes = orjson.dumps(value)
         else:
             serialized = orjson.dumps(value)
-        await self._client.set(self._prefixed(key).encode(), serialized, exptime=ttl or 0)
+        await self._client.set(self.prefixed(key).encode(), serialized, exptime=ttl or 0)
 
     async def delete(self, key: str) -> None:
         """Remove a value from the cache."""
         validate_cache_key(key)
-        await self._client.delete(self._prefixed(key).encode())
+        await self._client.delete(self.prefixed(key).encode())
 
     async def clear(self) -> None:
         """Flush all keys in the Memcached instance.
@@ -91,7 +84,7 @@ class MemcachedCache(BaseCache):
     async def has_key(self, key: str) -> bool:
         """Check if a key exists in the cache."""
         validate_cache_key(key)
-        value = await self._client.get(self._prefixed(key).encode())
+        value = await self._client.get(self.prefixed(key).encode())
         return value is not None
 
 

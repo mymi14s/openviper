@@ -2,8 +2,12 @@
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue'
-  const component: DefineComponent<{}, {}, any>
+  const component: DefineComponent<object, object, unknown>
   export default component
+}
+
+declare module 'vue3-sfc-loader' {
+  export function loadModule(url: string, options: Record<string, unknown>): Promise<unknown>
 }
 
 interface ImportMetaEnv {

@@ -110,7 +110,7 @@ class TestAuthMiddlewareJWT:
 
         mw = AuthenticationMiddleware(app)
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -165,7 +165,7 @@ class TestAuthMiddlewareJWT:
             captured["user"] = scope.get("user")
 
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=inactive)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=inactive)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -300,7 +300,7 @@ class TestAuthMiddlewarePrecedence:
             ]
         )
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=jwt_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=jwt_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)
@@ -390,7 +390,7 @@ class TestAuthMiddlewareContextVar:
             seen = ctx_user.get(None)
 
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)

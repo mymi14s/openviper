@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import typing
+import urllib.parse
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, cast
 
@@ -167,9 +168,9 @@ class OpenViper:
         self._handler_param_cache: dict[object, dict[str, object]] = {}
 
         if should_register_openapi():
-            self._register_openapi_routes()
+            self.register_openapi_routes()
 
-        self._autodiscover_routes()
+        self.autodiscover_routes()
 
     def get(self, path: str, **kwargs: object) -> Callable[..., object]:
         return self.router.get(path, **kwargs)
@@ -204,7 +205,7 @@ class OpenViper:
         else:
             self.router.include_router(router)
 
-    def _autodiscover_routes(self) -> None:
+    def autodiscover_routes(self) -> None:
         """Auto-discover and register route_paths from the project routes module.
 
         Derives the routes module from the ``OPENVIPER_SETTINGS_MODULE`` env var
@@ -249,7 +250,7 @@ class OpenViper:
             routes_module_path,
         )
 
-    async def _call_installed_app_ready_hooks(self) -> None:
+    async def call_installed_app_ready_hooks(self) -> None:
         """Call ``ready()`` on every installed app that exposes one.
 
         For each entry in ``settings.INSTALLED_APPS`` OpenViper looks for a
@@ -303,7 +304,7 @@ class OpenViper:
                     f"ready() for installed app {app_label!r} raised an error: {exc}"
                 ) from exc
 
-    async def _call_installed_app_startup_hooks(self) -> None:
+    async def call_installed_app_startup_hooks(self) -> None:
         """Call ``startup()`` from installed app ``lifecycle.py`` modules."""
         self._started_apps.clear()
         for app_label in getattr(settings, "INSTALLED_APPS", ()):
@@ -324,13 +325,13 @@ class OpenViper:
                     await result
                 logger.debug("Called startup() for installed app %r.", app_label)
             except Exception as exc:
-                await self._call_installed_app_shutdown_hooks()
+                await self.call_installed_app_shutdown_hooks()
                 raise RuntimeError(
                     f"startup() for installed app {app_label!r} raised an error: {exc}"
                 ) from exc
             self._started_apps.append(app_label)
 
-    async def _call_installed_app_shutdown_hooks(self) -> None:
+    async def call_installed_app_shutdown_hooks(self) -> None:
         """Call ``shutdown()`` for started lifecycle apps in reverse order."""
         errors: list[tuple[str, Exception]] = []
         for app_label in reversed(self._started_apps):
@@ -383,7 +384,7 @@ class OpenViper:
 
         return decorator
 
-    def _register_openapi_routes(self) -> None:
+    def register_openapi_routes(self) -> None:
         """Register /open-api/openapi.json, /open-api/docs, /open-api/redoc routes."""
 
         @self.router.get(self.openapi_url, name="openapi_schema")
@@ -429,12 +430,12 @@ class OpenViper:
         """
         self._middleware_app = None
 
-    def _get_middleware_app(self) -> ASGIApp:
+    def get_middleware_app(self) -> ASGIApp:
         if self._middleware_app is None:
-            self._middleware_app = self._build_middleware_stack()
+            self._middleware_app = self.build_middleware_stack()
         return self._middleware_app
 
-    def _build_middleware_stack(self) -> ASGIApp:
+    def build_middleware_stack(self) -> ASGIApp:
         raw_middleware: list[MiddlewareEntry] = []
 
         for mw_path in getattr(settings, "MIDDLEWARE", []):
@@ -442,9 +443,9 @@ class OpenViper:
 
         resolved_middleware = self.resolve_middleware(raw_middleware)
 
-        app = build_middleware_stack(self._core_app, resolved_middleware)
+        app = build_middleware_stack(self.core_app, resolved_middleware)
 
-        has_custom_root = self._has_custom_root_route()
+        has_custom_root = self.has_custom_root_route()
         app = DefaultLandingMiddleware(
             app,
             debug=self.debug,
@@ -454,7 +455,7 @@ class OpenViper:
 
         app = ServerErrorMiddleware(app, debug=self.debug)
 
-        app = self._add_static_file_serving(app)
+        app = self.add_static_file_serving(app)
 
         return app
 
@@ -486,7 +487,7 @@ class OpenViper:
             "max_age": getattr(settings, "CORS_MAX_AGE", 600),
         }
 
-    def _add_static_file_serving(self, app: ASGIApp) -> ASGIApp:
+    def add_static_file_serving(self, app: ASGIApp) -> ASGIApp:
         """Wrap the app with static and media file serving in DEBUG mode.
 
         Both ``self.debug`` and the ``ENVIRONMENT`` variable are checked so
@@ -514,7 +515,7 @@ class OpenViper:
 
         return app
 
-    def _has_custom_root_route(self) -> bool:
+    def has_custom_root_route(self) -> bool:
         """Check if the user has defined a GET / route (excluding OpenAPI routes)."""
         openapi_names = {"openapi_schema", "swagger_ui", "redoc_ui"}
         for route in self.router.routes:
@@ -524,21 +525,21 @@ class OpenViper:
                     return True
         return False
 
-    async def _core_app(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
+    async def core_app(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         """Resolve route and call the handler (inner ASGI callable)."""
         if scope["type"] == "lifespan":
-            await self._handle_lifespan(scope, receive, send)
+            await self.handle_lifespan(scope, receive, send)
             return
 
         if scope["type"] == "http":
-            await self._handle_http(scope, receive, send)
+            await self.handle_http(scope, receive, send)
             return
 
         if scope["type"] == "websocket":
-            await self._handle_unrouted_websocket(receive, send)
+            await self.handle_unrouted_websocket(receive, send)
             return
 
-    async def _handle_unrouted_websocket(self, receive: ASGIReceive, send: ASGISend) -> None:
+    async def handle_unrouted_websocket(self, receive: ASGIReceive, send: ASGISend) -> None:
         """Close any WebSocket connection that reaches the core app unhandled.
 
         Plugins that handle WebSocket must be added as middleware so they
@@ -549,7 +550,7 @@ class OpenViper:
         if event.get("type") == "websocket.connect":
             await send({"type": "websocket.close", "code": 4404})
 
-    async def _handle_http(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
+    async def handle_http(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         request = Request(scope, receive)
         request.user = scope.get("user")
         request.auth = scope.get("auth")
@@ -566,11 +567,11 @@ class OpenViper:
 
             response = await self.call_handler(handler, request)
         except NotFound as exc:
-            response = self._try_append_slash_redirect(request) or await self._handle_exception(
+            response = self.try_append_slash_redirect(request) or await self.handle_exception(
                 request, exc
             )
         except Exception as exc:
-            response = await self._handle_exception(request, exc)
+            response = await self.handle_exception(request, exc)
         finally:
             current_request.reset(token)
             current_router.reset(router_token)
@@ -643,7 +644,7 @@ class OpenViper:
             return JSONResponse(result.model_dump())
         return JSONResponse(result)
 
-    def _try_append_slash_redirect(self, request: Request) -> RedirectResponse | None:
+    def try_append_slash_redirect(self, request: Request) -> RedirectResponse | None:
         """Return a 301 redirect to ``path + "/"`` in production when the route exists.
 
         Only active when ``settings.DEBUG`` is falsy and the request path does
@@ -659,8 +660,8 @@ class OpenViper:
         path = request.path
         if path.endswith("/"):
             return None
-        # Reject paths containing directory-traversal sequences.
-        if ".." in path:
+        # Reject paths containing literal or percent-encoded traversal sequences.
+        if ".." in path or ".." in urllib.parse.unquote(path):
             return None
         slash_path = path + "/"
         # Ensure the slash-appended path is still a safe relative path.
@@ -674,7 +675,7 @@ class OpenViper:
         location = slash_path + (f"?{qs.decode()}" if qs else "")
         return RedirectResponse(location, status_code=301)
 
-    async def _handle_exception(self, request: Request, exc: Exception) -> Response:
+    async def handle_exception(self, request: Request, exc: Exception) -> Response:
         """Dispatch to the appropriate exception handler or return generic error."""
         # Walk the MRO to find the most specific registered handler
         for exc_type in type(exc).__mro__:
@@ -686,7 +687,7 @@ class OpenViper:
                 return self.coerce_response(result)
 
         if isinstance(exc, HTTPException):
-            return self._create_error_response(
+            return self.create_error_response(
                 request,
                 {"detail": exc.detail},
                 status_code=exc.status_code,
@@ -700,7 +701,7 @@ class OpenViper:
                 if self.debug
                 else "Requested resource not found. Run migrations if needed."
             )
-            return self._create_error_response(
+            return self.create_error_response(
                 request,
                 {"error": "TableNotFound", "detail": detail},
                 status_code=503,
@@ -709,7 +710,7 @@ class OpenViper:
         if isinstance(exc, (FieldError, QueryError)):
             # In production, avoid leaking internal field names or query structure.
             detail = str(exc) if self.debug else "Invalid request parameters."
-            return self._create_error_response(
+            return self.create_error_response(
                 request,
                 {"error": type(exc).__name__, "detail": detail},
                 status_code=400,
@@ -718,11 +719,11 @@ class OpenViper:
         logger.exception("Unhandled exception: %s", exc)
         if self.debug:
             return HTMLResponse(render_debug_page(exc, request), status_code=500)
-        return self._create_error_response(
+        return self.create_error_response(
             request, {"detail": "Internal Server Error"}, status_code=500
         )
 
-    def _create_error_response(
+    def create_error_response(
         self,
         request: Request,
         content: dict[str, object],
@@ -747,22 +748,20 @@ class OpenViper:
 
         return JSONResponse(content, status_code=status_code, headers=headers)
 
-    async def _handle_lifespan(
-        self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend
-    ) -> None:
+    async def handle_lifespan(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         """ASGI lifespan events: startup and shutdown."""
         while True:
             message = await receive()
             if message["type"] == "lifespan.startup":
                 try:
-                    self._get_middleware_app()
+                    self.get_middleware_app()
 
                     if should_register_openapi():
                         self.get_openapi_schema()
 
-                    await self._call_installed_app_ready_hooks()
+                    await self.call_installed_app_ready_hooks()
 
-                    await self._call_installed_app_startup_hooks()
+                    await self.call_installed_app_startup_hooks()
 
                     for handler in self._startup_handlers:
                         result = handler()
@@ -775,7 +774,7 @@ class OpenViper:
 
             elif message["type"] == "lifespan.shutdown":
                 try:
-                    await self._call_installed_app_shutdown_hooks()
+                    await self.call_installed_app_shutdown_hooks()
                     for handler in self._shutdown_handlers:
                         result = handler()
                         if inspect.isawaitable(result):
@@ -786,7 +785,7 @@ class OpenViper:
                 break  # exit the lifespan event loop
 
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
-        app = self._get_middleware_app()
+        app = self.get_middleware_app()
         await app(scope, receive, send)
 
     def run(

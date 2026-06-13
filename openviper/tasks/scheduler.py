@@ -63,31 +63,31 @@ class Scheduler:
     """Daemon-thread scheduler for ``every`` and ``cron`` periodic jobs."""
 
     def __init__(self) -> None:
-        self._running = threading.Event()
-        self._stop_event = threading.Event()
-        self._thread: threading.Thread | None = None
+        self.running_event = threading.Event()
+        self.stop_event = threading.Event()
+        self.thread: threading.Thread | None = None
 
     def start(self) -> None:
         """Start the scheduler daemon thread."""
-        if self._thread is not None and self._thread.is_alive():
+        if self.thread is not None and self.thread.is_alive():
             return
-        self._running.set()
-        self._stop_event.clear()
-        self._thread = threading.Thread(
+        self.running_event.set()
+        self.stop_event.clear()
+        self.thread = threading.Thread(
             target=self.run_loop,
             name="openviper-scheduler",
             daemon=True,
         )
-        self._thread.start()
+        self.thread.start()
         print("Scheduler thread started")
 
     def stop(self) -> None:
         """Signal stop and join the scheduler thread."""
-        self._running.clear()
-        self._stop_event.set()
-        if self._thread is not None:
-            self._thread.join(timeout=5.0)
-            self._thread = None
+        self.running_event.clear()
+        self.stop_event.set()
+        if self.thread is not None:
+            self.thread.join(timeout=5.0)
+            self.thread = None
         logger.info("Scheduler thread stopped")
 
     def run_loop(self) -> None:
@@ -123,7 +123,7 @@ class Scheduler:
             self.enqueue_periodic(job)
             last_fired[job["name"]] = time.monotonic()
 
-        while self._running.is_set():
+        while self.running_event.is_set():
             now = time.monotonic()
             now_dt = datetime.datetime.now(tz=datetime.UTC)
             for name, entry in registry.periodic_jobs.items():
@@ -156,7 +156,7 @@ class Scheduler:
                     if now - last >= interval and self.claim_enqueue(name):
                         self.enqueue_periodic(entry)
                         last_fired[name] = now
-            self._stop_event.wait(TICK_INTERVAL)
+            self.stop_event.wait(TICK_INTERVAL)
 
     def claim_enqueue(self, name: str) -> bool:
         """Atomically claim enqueue rights via conditional UPDATE on

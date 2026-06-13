@@ -6,8 +6,9 @@ import argparse
 from pathlib import Path
 
 from openviper.core.management.base import BaseCommand, CommandError
+from openviper.core.management.utils import validate_identifier
 
-_COMMAND_TEMPLATE = '''"""{command_name} management command."""
+COMMAND_TEMPLATE = '''"""{command_name} management command."""
 
 from __future__ import annotations
 
@@ -46,11 +47,9 @@ class Command(BaseCommand):
 
     def handle(self, **options: object) -> None:
         command_name = str(options["command_name"])
+        validate_identifier(command_name, "command name")
         app_name = str(options["app_name"])
         base_dir = Path(str(options.get("directory") or ".")).resolve()
-
-        if not command_name.isidentifier():
-            raise CommandError(f"'{command_name}' is not a valid Python identifier.")
 
         app_relative_path = Path(app_name)
         if app_relative_path.is_absolute() or ".." in app_relative_path.parts:
@@ -76,6 +75,6 @@ class Command(BaseCommand):
             raise CommandError(f"Command file '{file_path}' already exists.")
 
         with file_path.open("w", encoding="utf-8") as fh:
-            fh.write(_COMMAND_TEMPLATE.format(command_name=command_name))
+            fh.write(COMMAND_TEMPLATE.format(command_name=command_name))
 
         self.stdout(self.style_success(f"Created command '{command_name}' at {file_path}"))

@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const searchQuery   = ref('')
-const options       = ref<Array<{ value: any; label: string }>>([])
+const options       = ref<Array<{ value: string | number | boolean; label: string }>>([])
 const isLoading     = ref(false)
 const showList      = ref(false)
 const selectedLabel = ref('')
@@ -83,7 +83,7 @@ function onSearchInput(event: Event) {
   }, 300)
 }
 
-function selectOption(option: { value: any; label: string }) {
+function selectOption(option: { value: string | number | boolean; label: string }) {
   emit('update:modelValue', option.value)
   selectedLabel.value = option.label
   searchQuery.value   = option.label
@@ -178,7 +178,7 @@ function openView() {
 }
 
 /** Called when a new record is saved in the create modal */
-function handleCreated(record: Record<string, any>) {
+function handleCreated(record: Record<string, unknown>) {
   // record is the raw API response; emit its id so the parent updates,
   // then the existing watch → loadInitialValue will resolve the display label.
   emit('update:modelValue', record.id ?? null)

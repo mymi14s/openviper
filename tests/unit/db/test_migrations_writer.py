@@ -34,7 +34,7 @@ class DummyField:
         default=None,
     ) -> None:
         self.column_name = column_name
-        self._column_type = column_type
+        self.column_type = column_type
         self.null = null
         self.primary_key = primary_key
         self.auto_increment = auto_increment
@@ -55,7 +55,7 @@ def testformat_columns_rejects_invalid_column_identifier() -> None:
 def testformat_columns_rejects_invalid_fk_target_table_identifier() -> None:
     class DummyForeignKey:
         def __init__(self) -> None:
-            self._column_type = "INTEGER"
+            self.column_type = "INTEGER"
             self.column_name = "owner_id"
             self.null = True
             self.primary_key = False
@@ -201,7 +201,6 @@ class TestDiffStatesAutoincrement:
                     {
                         "name": "id",
                         "type": "INTEGER",
-                        "field_class": "IntegerField",
                         "nullable": False,
                         "primary_key": True,
                     },
@@ -217,7 +216,6 @@ class TestDiffStatesAutoincrement:
                     {
                         "name": "id",
                         "type": "INTEGER",
-                        "field_class": "IntegerField",
                         "nullable": False,
                         "primary_key": True,
                         "autoincrement": True,
@@ -244,7 +242,6 @@ class TestDiffStatesAutoincrement:
                     {
                         "name": "id",
                         "type": "INTEGER",
-                        "field_class": "IntegerField",
                         "nullable": False,
                         "primary_key": True,
                     },
@@ -260,7 +257,6 @@ class TestDiffStatesAutoincrement:
                     {
                         "name": "id",
                         "type": "INTEGER",
-                        "field_class": "IntegerField",
                         "nullable": False,
                         "primary_key": True,
                         "autoincrement": True,
@@ -286,7 +282,6 @@ class TestDiffStatesAutoincrement:
                     {
                         "name": "id",
                         "type": "INTEGER",
-                        "field_class": "IntegerField",
                         "nullable": False,
                         "primary_key": True,
                         "autoincrement": True,
@@ -302,7 +297,6 @@ class TestDiffStatesAutoincrement:
                     {
                         "name": "id",
                         "type": "INTEGER",
-                        "field_class": "IntegerField",
                         "nullable": False,
                         "primary_key": False,
                         "autoincrement": True,

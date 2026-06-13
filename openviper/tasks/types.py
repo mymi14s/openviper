@@ -16,7 +16,7 @@ class TaskMessageProxy:
     results backend is configured.
     """
 
-    __slots__ = ("_message_id", "_actor_name", "_args", "_kwargs", "_queue_name")
+    __slots__ = ("message_id_value", "actor_name_value", "args", "kwargs", "queue_name_value")
 
     def __init__(
         self,
@@ -26,23 +26,23 @@ class TaskMessageProxy:
         queue_name: str = "default",
         message_id: str | None = None,
     ) -> None:
-        self._actor_name = actor_name
-        self._args = args
-        self._kwargs = kwargs
-        self._queue_name = queue_name
-        self._message_id = message_id or ""
+        self.actor_name_value = actor_name
+        self.args = args
+        self.kwargs = kwargs
+        self.queue_name_value = queue_name
+        self.message_id_value = message_id or ""
 
     @property
     def actor_name(self) -> str:
-        return self._actor_name
+        return self.actor_name_value
 
     @property
     def queue_name(self) -> str:
-        return self._queue_name
+        return self.queue_name_value
 
     @property
     def message_id(self) -> str:
-        return self._message_id
+        return self.message_id_value
 
     def get_result(
         self,

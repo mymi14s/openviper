@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import orjson
 
-from openviper.cache.base import BaseCache
+from openviper.cache.base import BaseCache, deserialize_cache_value
 from openviper.cache.validation import validate_cache_key
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_PREFIX: str = "ov:cache:"
 
@@ -43,21 +40,17 @@ class RedisCache(BaseCache):
         self._prefix: str = key_prefix
         self._client: redis_lib.Redis = redis_lib.Redis(**kwargs)
 
-    def _prefixed(self, key: str) -> str:
+    def prefixed(self, key: str) -> str:
         """Return *key* with the configured prefix prepended."""
         return f"{self._prefix}{key}"
 
     async def get(self, key: str, default: Any = None) -> Any:  # noqa: ANN401
         """Fetch a value from the cache, returning *default* on miss."""
         validate_cache_key(key)
-        value = await self._client.get(self._prefixed(key))
+        value = await self._client.get(self.prefixed(key))
         if value is None:
             return default
-        try:
-            return orjson.loads(value)
-        except ValueError, TypeError:
-            logger.debug("Failed to deserialize cached value for key %r", key, exc_info=True)
-            return value
+        return deserialize_cache_value(value, key)
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:  # noqa: ANN401
         """Store a value in the cache with an optional TTL."""
@@ -66,12 +59,12 @@ class RedisCache(BaseCache):
             serialized: bytes = orjson.dumps(value)
         else:
             serialized = value
-        await self._client.set(self._prefixed(key), serialized, ex=ttl)
+        await self._client.set(self.prefixed(key), serialized, ex=ttl)
 
     async def delete(self, key: str) -> None:
         """Remove a value from the cache."""
         validate_cache_key(key)
-        await self._client.delete(self._prefixed(key))
+        await self._client.delete(self.prefixed(key))
 
     async def clear(self) -> None:
         """Delete only keys that match this cache's prefix.
@@ -92,4 +85,4 @@ class RedisCache(BaseCache):
     async def has_key(self, key: str) -> bool:
         """Check if a key exists in the cache."""
         validate_cache_key(key)
-        return bool(await self._client.exists(self._prefixed(key)))
+        return bool(await self._client.exists(self.prefixed(key)))

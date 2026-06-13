@@ -232,20 +232,20 @@ class TestGetCache:
 
 
 class TestDatabaseCacheGetModel:
-    """Tests for the internal _get_model() helper in DatabaseCache."""
+    """Tests for the internal get_model() helper in DatabaseCache."""
 
     def test_returns_cache_entry_class(self):
-        """_get_model() returns the CacheEntry model class."""
+        """get_model() returns the CacheEntry model class."""
         cache = DatabaseCache()
-        model = cache._get_model()
+        model = cache.get_model()
         # CacheEntry may be None if import failed, but in a test env it should resolve
         assert model is not None
 
     def test_caches_model_lookup(self):
-        """_get_model() stores the result on _model_cache for subsequent calls."""
+        """get_model() stores the result on _model_cache for subsequent calls."""
         cache = DatabaseCache()
-        first = cache._get_model()
-        second = cache._get_model()
+        first = cache.get_model()
+        second = cache.get_model()
         assert first is second
         assert cache._model_cache is first
 
@@ -301,7 +301,7 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.db_backend.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"data": "test"}
             result = await cache.get("test_key")
 
@@ -345,7 +345,7 @@ class TestDatabaseCacheOperations:
             mock_tz.is_naive = timezone.is_naive
             mock_tz.make_aware.return_value = fake_entry.expires_at.replace(tzinfo=timezone.utc)
 
-            with patch("openviper.cache.db_backend.orjson") as mock_orjson:
+            with patch("openviper.cache.base.orjson") as mock_orjson:
                 mock_orjson.loads.return_value = "test_value"
                 result = await cache.get("test_key")
 
@@ -371,7 +371,7 @@ class TestDatabaseCacheOperations:
                 tzinfo=None
             )
 
-            with patch("openviper.cache.db_backend.orjson") as mock_orjson:
+            with patch("openviper.cache.base.orjson") as mock_orjson:
                 mock_orjson.loads.return_value = "test_value"
                 result = await cache.get("test_key")
 
@@ -390,7 +390,7 @@ class TestDatabaseCacheOperations:
         fake_qs.first = AsyncMock(return_value=fake_entry)
         fake_cls.objects.filter.return_value = fake_qs
 
-        with patch("openviper.cache.db_backend.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = ValueError("Parse error")
             result = await cache.get("test_key")
 
@@ -581,7 +581,7 @@ class TestRedisCacheOperations:
         json_bytes = b'{"key": "value"}'
         mock_client.get = AsyncMock(return_value=json_bytes)
 
-        with patch("openviper.cache.redis.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"key": "value"}
             result = await cache.get("test_key")
 
@@ -594,7 +594,7 @@ class TestRedisCacheOperations:
         raw_bytes = b"plain_text"
         mock_client.get = AsyncMock(return_value=raw_bytes)
 
-        with patch("openviper.cache.redis.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = ValueError("Parse error")
             result = await cache.get("test_key")
 
@@ -697,14 +697,14 @@ async def test_redis_cache_get_set(mock_redis_client):
 
         # Test get (JSON)
         mock_redis_client.get.return_value = b'{"data": 123}'
-        with patch("openviper.cache.redis.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"data": 123}
             val = await cache.get("my_key")
         assert val == {"data": 123}
 
         # Test get (Raw value on orjson error)
         mock_redis_client.get.return_value = b"raw string"
-        with patch("openviper.cache.redis.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = ValueError("parse error")
             val = await cache.get("my_key")
         assert val == b"raw string"
@@ -811,11 +811,11 @@ class TestRedisCacheKeyPrefix:
             assert cache._prefix == "myapp:"
 
     def test_prefixed_key_format(self):
-        """ "_prefixed must prepend the prefix to the key."""
+        """prefixed() must prepend the prefix to the key."""
 
         with patch("openviper.cache.redis.redis_lib"):
             cache = RedisCache()
-            assert cache._prefixed("test") == "ov:cache:test"
+            assert cache.prefixed("test") == "ov:cache:test"
 
     @pytest.mark.asyncio
     async def test_clear_uses_scan_not_flushdb(self):
@@ -867,7 +867,7 @@ class TestMemcachedCacheOperations:
         cache, mock_client = self._patched_memcached_cache()
         json_bytes = b'{"key": "value"}'
         mock_client.get = AsyncMock(return_value=json_bytes)
-        with patch("openviper.cache.memcached.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"key": "value"}
             result = await cache.get("test_key")
         assert result == {"key": "value"}
@@ -877,7 +877,7 @@ class TestMemcachedCacheOperations:
         cache, mock_client = self._patched_memcached_cache()
         raw_bytes = b"plain_text"
         mock_client.get = AsyncMock(return_value=raw_bytes)
-        with patch("openviper.cache.memcached.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = ValueError("Parse error")
             result = await cache.get("test_key")
         assert result == raw_bytes
@@ -1005,7 +1005,7 @@ class TestFileCacheOperations:
         # Manually push the expiry into the past by rewriting the file
         import orjson as _orjson
 
-        filepath = cache._filepath("k")
+        filepath = cache.filepath("k")
         entry = _orjson.loads(filepath.read_bytes())
         entry["expiry"] = time.time() - 1
         filepath.write_bytes(_orjson.dumps(entry))
@@ -1034,7 +1034,7 @@ class TestFileCacheOperations:
         await cache.set("k", "v", ttl=1)
         import orjson as _orjson
 
-        filepath = cache._filepath("k")
+        filepath = cache.filepath("k")
         entry = _orjson.loads(filepath.read_bytes())
         entry["expiry"] = time.time() - 1
         filepath.write_bytes(_orjson.dumps(entry))
@@ -1091,7 +1091,7 @@ class TestDragonflyCacheOperations:
         cache, mock_client = self._patched_dragonfly_cache()
         json_bytes = b'{"key": "value"}'
         mock_client.get = AsyncMock(return_value=json_bytes)
-        with patch("openviper.cache.redis.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.return_value = {"key": "value"}
             result = await cache.get("test_key")
         assert result == {"key": "value"}
@@ -1101,7 +1101,7 @@ class TestDragonflyCacheOperations:
         cache, mock_client = self._patched_dragonfly_cache()
         raw_bytes = b"plain_text"
         mock_client.get = AsyncMock(return_value=raw_bytes)
-        with patch("openviper.cache.redis.orjson") as mock_orjson:
+        with patch("openviper.cache.base.orjson") as mock_orjson:
             mock_orjson.loads.side_effect = ValueError("Parse error")
             result = await cache.get("test_key")
         assert result == raw_bytes

@@ -10,7 +10,8 @@ import json
 import pytest
 from jinja2.sandbox import SandboxedEnvironment, SecurityError
 
-from openviper.template.environment import get_jinja2_env, validate_path_within_root
+from openviper.template.environment import get_jinja2_env
+from openviper.template.paths import validate_path_within_root
 from openviper.template.plugin_loader import UNSAFE_CALLABLE_NAMES, scan_directory
 
 

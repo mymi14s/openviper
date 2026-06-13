@@ -123,14 +123,10 @@ class NOT:
         self.first = first
 
     async def has_permission(self, request: Request, view: View) -> bool:
-        if isinstance(self.first, OperandHolder):
-            return not await self.first().has_permission(request, view)
-        return not await self.first.has_permission(request, view)
+        return not await resolve_permission(self.first, request, view)
 
     async def has_object_permission(self, request: Request, view: View, obj: object) -> bool:
-        if isinstance(self.first, OperandHolder):
-            return not await self.first().has_object_permission(request, view, obj)
-        return not await self.first.has_object_permission(request, view, obj)
+        return not await resolve_object_permission(self.first, request, view, obj)
 
 
 class OperandHolder:
@@ -162,11 +158,16 @@ class AllowAny(BasePermission):
         return True
 
 
+def is_user_authenticated(request: Request) -> bool:
+    """Return whether *request* has an authenticated user attached."""
+    return bool(request.user and request.user.is_authenticated)
+
+
 class IsAuthenticated(BasePermission):
     """Allow only authenticated users."""
 
     async def has_permission(self, request: Request, view: View) -> bool:
-        return bool(request.user and request.user.is_authenticated)
+        return is_user_authenticated(request)
 
 
 class IsAdmin(BasePermission):
@@ -174,9 +175,7 @@ class IsAdmin(BasePermission):
 
     async def has_permission(self, request: Request, view: View) -> bool:
         return bool(
-            request.user
-            and request.user.is_authenticated
-            and (request.user.is_staff or request.user.is_superuser)
+            is_user_authenticated(request) and (request.user.is_staff or request.user.is_superuser)
         )
 
 
@@ -186,7 +185,7 @@ class IsAuthenticatedOrReadOnly(BasePermission):
     async def has_permission(self, request: Request, view: View) -> bool:
         if request.method in ("GET", "HEAD", "OPTIONS"):
             return True
-        return bool(request.user and request.user.is_authenticated)
+        return is_user_authenticated(request)
 
 
 class HasRole(BasePermission):
@@ -196,7 +195,7 @@ class HasRole(BasePermission):
         self.role_name = role_name
 
     async def has_permission(self, request: Request, view: View) -> bool:
-        if not request.user or not request.user.is_authenticated:
+        if not is_user_authenticated(request):
             return False
         return await request.user.has_role(self.role_name)
 
@@ -208,6 +207,6 @@ class HasPermission(BasePermission):
         self.codename = codename
 
     async def has_permission(self, request: Request, view: View) -> bool:
-        if not request.user or not request.user.is_authenticated:
+        if not is_user_authenticated(request):
             return False
         return await request.user.has_perm(self.codename)

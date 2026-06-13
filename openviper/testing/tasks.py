@@ -22,6 +22,14 @@ except ImportError:
     TaskMessageProxy = None  # type: ignore[assignment, misc]
 
 
+def require_dramatiq(feature: str) -> None:
+    """Raise RuntimeError if dramatiq is not installed."""
+    if dramatiq is None:
+        raise RuntimeError(
+            f"dramatiq is required for {feature}. Install it with: pip install openviper[tasks]"
+        )
+
+
 class TaskQueue:
     """In-memory capture of task messages for test assertions.
 
@@ -51,11 +59,7 @@ class TaskQueue:
     @contextmanager
     def patch(self) -> t.Iterator[TaskQueue]:
         """Context manager that intercepts ``actor.send()`` calls."""
-        if dramatiq is None:
-            raise RuntimeError(
-                "dramatiq is required for TaskQueue.patch(). "
-                "Install it with: pip install openviper[tasks]"
-            )
+        require_dramatiq("TaskQueue.patch()")
 
         def capturing_send(
             self_actor: dramatiq.Actor,

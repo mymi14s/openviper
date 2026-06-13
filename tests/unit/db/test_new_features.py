@@ -49,7 +49,7 @@ def reset_model_registry():
 class TestSmallIntegerField:
     def test_column_type_is_smallint(self) -> None:
         f = SmallIntegerField()
-        assert f._column_type == "SMALLINT"
+        assert f.column_type == "SMALLINT"
 
     def test_to_python_rejects_upper_bound(self) -> None:
         f = SmallIntegerField()
@@ -81,7 +81,7 @@ class TestBigAutoField:
 
     def test_column_type_is_bigint(self) -> None:
         f = BigAutoField()
-        assert f._column_type == "BIGINT"
+        assert f.column_type == "BIGINT"
 
     def test_to_python_converts_int(self) -> None:
         f = BigAutoField()
@@ -123,7 +123,7 @@ class TestNullBooleanField:
 class TestDurationField:
     def test_column_type_is_bigint(self) -> None:
         f = DurationField()
-        assert f._column_type == "BIGINT"
+        assert f.column_type == "BIGINT"
 
     def test_to_python_timedelta_passthrough(self) -> None:
         f = DurationField()
@@ -483,7 +483,7 @@ class TestQuerySetSelectForUpdate:
 
     def test_clone_preserves_flags(self) -> None:
         qs = QuerySet(self.Item).select_for_update(nowait=True)
-        cloned = qs._clone()
+        cloned = qs.clone()
         assert cloned._for_update is True
         assert cloned._for_update_nowait is True
 

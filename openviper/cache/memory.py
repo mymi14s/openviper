@@ -102,9 +102,10 @@ class InMemoryCache(BaseCache):
         """Return all cache keys, optionally filtered by prefix."""
         async with self._lock:
             now = time.time()
-            expired = [k for k, (_, exp) in self._data.items() if exp is not None and now >= exp]
-            for k in expired:
-                del self._data[k]
-            if prefix:
-                return [k for k in self._data if k.startswith(prefix)]
-            return list(self._data)
+            result: list[str] = []
+            for key, (_, exp) in self._data.items():
+                if exp is not None and now >= exp:
+                    del self._data[key]
+                elif not prefix or key.startswith(prefix):
+                    result.append(key)
+            return result

@@ -238,10 +238,10 @@ class TestPeriodicIntegration:
         """The scheduler must start and stop cleanly."""
         scheduler = Scheduler()
         scheduler.start()
-        assert scheduler._thread is not None
-        assert scheduler._thread.is_alive()
+        assert scheduler.thread is not None
+        assert scheduler.thread.is_alive()
         scheduler.stop()
-        assert scheduler._thread is None
+        assert scheduler.thread is None
 
 
 class TestDiscoveryIntegration:

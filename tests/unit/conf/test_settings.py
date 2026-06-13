@@ -312,7 +312,7 @@ class TestValidateSettings:
         assert len(exc_info.value.errors) >= 2
 
     def test_setup_uses_custom_settings_module(self, monkeypatch, tmp_path):
-        """_setup loads a custom Settings subclass from OPENVIPER_SETTINGS_MODULE."""
+        """setup loads a custom Settings subclass from OPENVIPER_SETTINGS_MODULE."""
         settings_file = tmp_path / "custom_settings.py"
         settings_file.write_text("""
 import dataclasses
@@ -332,12 +332,12 @@ class CustomSettings(Settings):
         settings_mod.SETTINGS_CLASS_CACHE.clear()
 
         lazy = LazySettings()
-        lazy._setup()
-        assert lazy._instance.DEBUG is False
-        assert lazy._instance.PROJECT_NAME == "CustomProject"
+        lazy.setup()
+        assert lazy.instance.DEBUG is False
+        assert lazy.instance.PROJECT_NAME == "CustomProject"
 
     def test_setup_uses_cached_settings_class(self, monkeypatch, tmp_path):
-        """_setup uses cached Settings class on second load."""
+        """setup uses cached Settings class on second load."""
         settings_file = tmp_path / "cached_settings.py"
         settings_file.write_text("""
 import dataclasses
@@ -358,16 +358,16 @@ class CachedSettings(Settings):
 
         # First load
         lazy1 = LazySettings()
-        lazy1._setup()
+        lazy1.setup()
         assert "cached_settings" in settings_mod.SETTINGS_CLASS_CACHE
 
         # Second load should use cache
         lazy2 = LazySettings()
-        lazy2._setup()
-        assert lazy2._instance.PROJECT_NAME == "Cached"
+        lazy2.setup()
+        assert lazy2.instance.PROJECT_NAME == "Cached"
 
     def test_setup_import_error_raises(self, monkeypatch):
-        """_setup raises RuntimeError when the settings module cannot be imported."""
+        """setup raises RuntimeError when the settings module cannot be imported."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "nonexistent_module")
 
         # Clear caches
@@ -377,10 +377,10 @@ class CachedSettings(Settings):
 
         lazy = LazySettings()
         with pytest.raises(RuntimeError, match="Could not import"):
-            lazy._setup()
+            lazy.setup()
 
     def test_setup_no_settings_subclass_raises(self, monkeypatch, tmp_path):
-        """_setup raises RuntimeError when module has no Settings subclass."""
+        """setup raises RuntimeError when module has no Settings subclass."""
         settings_file = tmp_path / "no_subclass.py"
         settings_file.write_text("""
 # No Settings subclass here
@@ -397,35 +397,35 @@ DEBUG = True
 
         lazy = LazySettings()
         with pytest.raises(RuntimeError, match="contains no Settings subclass"):
-            lazy._setup()
+            lazy.setup()
 
     def test_setup_auto_generates_secret_key_for_development(self, monkeypatch):
-        """_setup auto-generates SECRET_KEY for development/test."""
+        """setup auto-generates SECRET_KEY for development/test."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
         monkeypatch.setenv("OPENVIPER_ENV", "development")
         monkeypatch.delenv("SECRET_KEY", raising=False)
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
         # SECRET_KEY should be auto-generated (not empty)
-        assert lazy._instance.SECRET_KEY != ""
-        assert len(lazy._instance.SECRET_KEY) > 40
+        assert lazy.instance.SECRET_KEY != ""
+        assert len(lazy.instance.SECRET_KEY) > 40
 
     def test_setup_does_not_generate_secret_key_for_production(self, monkeypatch):
-        """_setup does not auto-generate SECRET_KEY for production."""
+        """setup does not auto-generate SECRET_KEY for production."""
         monkeypatch.setenv("OPENVIPER_SETTINGS_MODULE", "")
         monkeypatch.setenv("OPENVIPER_ENV", "production")
         monkeypatch.delenv("SECRET_KEY", raising=False)
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
         # SECRET_KEY remains empty in production
-        assert lazy._instance.SECRET_KEY == ""
+        assert lazy.instance.SECRET_KEY == ""
 
     def test_setup_replaces_insecure_change_me_in_dev(self, monkeypatch, tmp_path):
-        """_setup replaces INSECURE-CHANGE-ME in development."""
+        """setup replaces INSECURE-CHANGE-ME in development."""
         monkeypatch.delenv("SECRET_KEY", raising=False)
         settings_file = tmp_path / "insecure_settings.py"
         settings_file.write_text("""
@@ -447,13 +447,13 @@ class InsecureSettings(Settings):
         settings_mod.SETTINGS_CLASS_CACHE.clear()
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
-        assert lazy._instance.SECRET_KEY != "INSECURE-CHANGE-ME"
-        assert len(lazy._instance.SECRET_KEY) > 40
+        assert lazy.instance.SECRET_KEY != "INSECURE-CHANGE-ME"
+        assert len(lazy.instance.SECRET_KEY) > 40
 
     def test_setup_auto_includes_project_app(self, monkeypatch, tmp_path):
-        """_setup auto-prepends project app to INSTALLED_APPS."""
+        """setup auto-prepends project app to INSTALLED_APPS."""
         settings_file = tmp_path / "myproject" / "settings.py"
         settings_file.parent.mkdir()
         settings_file.write_text("""
@@ -473,9 +473,9 @@ class MyProjectSettings(Settings):
         settings_mod.SETTINGS_CLASS_CACHE.clear()
 
         lazy = LazySettings()
-        lazy._setup()
+        lazy.setup()
 
-        assert "myproject" in lazy._instance.INSTALLED_APPS
+        assert "myproject" in lazy.instance.INSTALLED_APPS
 
 
 class TestConfigureLogging:

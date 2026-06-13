@@ -107,7 +107,7 @@ class TestAllowedMethods:
                 return Response(b"")
 
         view = MyView()
-        allowed = view._allowed_methods()
+        allowed = view.allowed_methods()
         assert "GET" in allowed
         assert "POST" in allowed
 
@@ -117,7 +117,7 @@ class TestAllowedMethods:
                 return Response(b"")
 
         view = OnlyGetView()
-        allowed = view._allowed_methods()
+        allowed = view.allowed_methods()
         assert "POST" not in allowed
         assert "DELETE" not in allowed
 
@@ -127,8 +127,8 @@ class TestAllowedMethods:
                 return Response(b"")
 
         view = MyView()
-        a1 = view._allowed_methods()
-        a2 = view._allowed_methods()
+        a1 = view.allowed_methods()
+        a2 = view.allowed_methods()
         assert a1 is a2
 
 
@@ -220,7 +220,7 @@ class TestRegister:
 class TestViewInit:
     def test_kwargs_set_as_attributes(self):
         class CustomView(View):
-            _ALLOWED_KWARGS = frozenset({"my_attr"})
+            ALLOWED_KWARGS = frozenset({"my_attr"})
 
         view = CustomView(my_attr="hello")
         assert view.my_attr == "hello"
@@ -234,5 +234,5 @@ class TestViewInit:
             delattr(View, _key)
         view = View()
         assert _key not in type(view).__dict__
-        view._allowed_methods()
+        view.allowed_methods()
         assert _key in type(view).__dict__

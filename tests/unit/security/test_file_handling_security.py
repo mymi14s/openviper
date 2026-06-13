@@ -38,16 +38,16 @@ class TestUploadFilenameSanitization:
         storage = FileSystemStorage()
         root = Path(storage.location).resolve()
         for payload in PATH_TRAVERSAL_PAYLOADS:
-            # _validate_name must sanitize path traversal sequences
-            result = storage._validate_name(payload)
-            full = storage._full_path(result)
+            # validate_name must sanitize path traversal sequences
+            result = storage.validate_name(payload)
+            full = storage.full_path(result)
             assert str(full).startswith(str(root))
 
     def test_file001_storage_rejects_absolute_paths(self):
         """FileSystemStorage must not allow absolute paths as filenames."""
         storage = FileSystemStorage()
-        # _validate_name must strip leading slashes from absolute paths
-        result = storage._validate_name("/etc/passwd")
+        # validate_name must strip leading slashes from absolute paths
+        result = storage.validate_name("/etc/passwd")
         assert not result.startswith("/")
 
     def test_file001_max_component_length(self):
@@ -58,12 +58,12 @@ class TestUploadFilenameSanitization:
         """Hidden filenames (leading dot) must be replaced to prevent serving config files."""
         storage = FileSystemStorage()
         # .htaccess, .env, .gitignore must be sanitized
-        assert not storage._validate_name(".htaccess").startswith(".")
-        assert not storage._validate_name(".env").startswith(".")
-        assert not storage._validate_name(".gitignore").startswith(".")
+        assert not storage.validate_name(".htaccess").startswith(".")
+        assert not storage.validate_name(".env").startswith(".")
+        assert not storage.validate_name(".gitignore").startswith(".")
         # Leading dot is replaced with underscore
-        assert storage._validate_name(".htaccess") == "_htaccess"
-        assert storage._validate_name(".env") == "_env"
+        assert storage.validate_name(".htaccess") == "_htaccess"
+        assert storage.validate_name(".env") == "_env"
 
     def test_file001_hidden_filename_regex(self):
         """The hidden filename regex must match leading dots."""

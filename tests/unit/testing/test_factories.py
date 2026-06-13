@@ -137,7 +137,7 @@ def test_post_generation_callback_is_stored() -> None:
 # ── get_model_class ───────────────────────────────────────────────────────
 
 
-def test_model_factory_raises_when_meta_model_is_unset() -> None:
+def test_model_factory_raises_when_meta_model_isunset() -> None:
     class BrokenFactory(ModelFactory[FactoryUser]):
         class Meta:
             model = None
@@ -179,3 +179,34 @@ def test_evaluate_factory_value_builds_related_factory() -> None:
     result = evaluate_factory_value(related, {})
 
     assert isinstance(result, FactoryProfile)
+
+
+# ── iter_factory_classes ─────────────────────────────────────────────────
+
+
+def test_iter_factory_classes_yields_non_base_classes() -> None:
+    classes = list(UserFactory.iter_factory_classes())
+
+    assert ModelFactory not in classes
+    assert object not in classes
+    assert UserFactory in classes
+
+
+def test_iter_factory_classes_includes_intermediate_subclasses() -> None:
+
+    class MiddleFactory(ModelFactory[FactoryUser]):
+        class Meta:
+            model = FactoryUser
+
+        middle_field: object = "middle"
+
+    class LeafFactory(MiddleFactory):
+        class Meta:
+            model = FactoryUser
+
+        leaf_field: object = "leaf"
+
+    classes = list(LeafFactory.iter_factory_classes())
+
+    assert MiddleFactory in classes
+    assert LeafFactory in classes

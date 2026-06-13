@@ -215,7 +215,7 @@ class TestSendEmail:
         mock_send.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_send_email_auto_detects_background_when_unset(self, email_settings):
+    async def test_send_email_auto_detects_background_whenunset(self, email_settings):
         """When background is absent, worker availability is auto-detected."""
         del email_settings.EMAIL["background"]
 

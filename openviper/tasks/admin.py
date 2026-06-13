@@ -86,3 +86,15 @@ class ScheduledJobAdmin(ModelAdmin):
     list_filter = ["status", "trigger_source", "app"]
     search_fields = ["name", "app"]
     actions = [RunNowAction]
+
+    def has_delete_permission(
+        self, request: Request | None = None, obj: t.Any | None = None
+    ) -> bool:
+        """Disable deletion of scheduled jobs."""
+        return False
+
+    def get_actions(self, request: Request | None = None) -> dict[str, t.Any]:
+        """Return actions with ``delete_selected`` removed."""
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions

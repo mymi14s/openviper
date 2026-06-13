@@ -15,13 +15,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   /** Emitted after a successful create with the raw API response */
-  created: [record: Record<string, any>]
+  created: [record: Record<string, unknown>]
 }>()
 
 const isLoading = ref(false)
 const isSaving  = ref(false)
 const modelConfig = ref<ModelConfig | null>(null)
-const formData    = ref<Record<string, any>>({})
+const formData    = ref<Record<string, unknown>>({})
 const errors      = ref<Record<string, string>>({})
 const saveError   = ref<string | null>(null)
 
@@ -72,7 +72,7 @@ async function loadModel() {
 
     if (props.mode === 'create') {
       // Initialise form with field defaults
-      const defaults: Record<string, any> = {}
+      const defaults: Record<string, unknown> = {}
       for (const field of config.fields) {
         if (['id', 'created_at', 'updated_at'].includes(field.name)) continue
         defaults[field.name] = field.default ?? null
@@ -83,7 +83,7 @@ async function loadModel() {
       const instance = await adminStore.getForeignKeyModelInstance(
         appLabel, modelName, String(props.recordId)
       )
-      formData.value = { ...(instance as Record<string, any>) }
+      formData.value = { ...(instance as Record<string, unknown>) }
     }
   } catch (e) {
     console.error('[ForeignKeyModal] failed to load model:', e)
@@ -106,13 +106,14 @@ async function handleSave() {
 
   try {
     const record = await adminStore.createForeignKeyInstance(appLabel, modelName, formData.value)
-    emit('created', record as Record<string, any>)
+    emit('created', record as Record<string, unknown>)
     emit('close')
-  } catch (err: any) {
-    if (err.response?.data?.errors) {
-      errors.value = err.response.data.errors
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { errors?: Record<string, string>; detail?: string } } }
+    if (axiosErr.response?.data?.errors) {
+      errors.value = axiosErr.response.data.errors
     } else {
-      saveError.value = err.response?.data?.detail ?? 'An error occurred while saving.'
+      saveError.value = axiosErr.response?.data?.detail ?? 'An error occurred while saving.'
     }
   } finally {
     isSaving.value = false

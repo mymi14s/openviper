@@ -17,6 +17,7 @@ from openviper.auth.hooks import auth_hooks, build_auth_hook_context
 from openviper.auth.models import AnonymousUser
 from openviper.auth.request_state import set_auth_state
 from openviper.auth.session.store import Session, get_session_store
+from openviper.auth.session.utils import get_session_cookie_config
 from openviper.auth.sessions import delete_session
 from openviper.auth.user import get_user_by_id
 from openviper.auth.utils import get_user_model
@@ -246,26 +247,19 @@ async def login(request: object, user: Authenticable, response: object | None = 
     context.session = new_session
 
     if response is not None:
-        cookie_name = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
-        cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
-        session_timeout = getattr(settings, "SESSION_TIMEOUT", datetime.timedelta(hours=1))
-        if isinstance(session_timeout, datetime.timedelta):
-            max_age_seconds = int(session_timeout.total_seconds())
-        else:
-            max_age_seconds = int(session_timeout)
-
-        expires_timestamp = int(time.time()) + max_age_seconds
+        config = get_session_cookie_config()
+        expires_timestamp = int(time.time()) + config.max_age
 
         auth_response.set_cookie(
-            key=cookie_name,
+            key=config.cookie_name,
             value=session_key,
-            max_age=max_age_seconds,
+            max_age=config.max_age,
             expires=expires_timestamp,
-            httponly=getattr(settings, "SESSION_COOKIE_HTTPONLY", True),
-            secure=getattr(settings, "SESSION_COOKIE_SECURE", True),
-            samesite=getattr(settings, "SESSION_COOKIE_SAMESITE", "lax"),
-            path=getattr(settings, "SESSION_COOKIE_PATH", "/"),
-            domain=cookie_domain,
+            httponly=config.httponly,
+            secure=config.secure,
+            samesite=config.samesite,
+            path=config.path,
+            domain=config.domain,
         )
 
     await auth_hooks.run_on_login(context)
@@ -282,9 +276,7 @@ async def logout(request: object, response: object | None = None) -> None:
         response: Optional Response object. When supplied the session cookie
             is cleared on the response automatically.
     """
-    cookie_name = "sessionid"
-    with contextlib.suppress(AttributeError):
-        cookie_name = settings.SESSION_COOKIE_NAME
+    cookie_name = get_session_cookie_config().cookie_name
 
     auth_request = cast("AuthRequest", request)
     auth_response = cast("AuthResponse", response)

@@ -14,6 +14,7 @@ from __future__ import annotations
 import inspect
 import itertools
 import logging
+import urllib.parse
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -54,7 +55,10 @@ VALID_PARAM_RE: re.Pattern[str] = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 # Characters and patterns that must never appear in a request path.
 NULL_BYTE_RE: re.Pattern[str] = re.compile(r"\x00")
 TRAVERSAL_RE: re.Pattern[str] = re.compile(r"(?:^|/)\.\.(?:/|$)")
-ENCODED_SLASH_RE: re.Pattern[str] = re.compile(r"%2[fF]|%5[cC]%2[fF]")
+# Reject percent-encoded slash variants, including double-encoded forms.
+ENCODED_SLASH_RE: re.Pattern[str] = re.compile(
+    r"%2[fF]|%5[cC]%2[fF]|%25(?:32|35)[46][46]?[fF]|%253[fF]"
+)
 
 ANNOTATION_CONVERTERS: dict[object, str] = {
     int: "int",
@@ -92,7 +96,8 @@ def sanitize_request_path(path: str) -> str:
     before route resolution.
 
     - Rejects null bytes (``\\x00``).
-    - Rejects encoded slashes (``%2F``, ``%2f``, ``%5C%2F``).
+    - Rejects encoded slashes (``%2F``, ``%2f``, ``%5C%2F``) and
+      double-encoded equivalents (``%252F``).
     - Rejects directory traversal (``..`` segment).
     - Collapses consecutive slashes (``//foo`` → ``/foo``).
 
@@ -106,6 +111,11 @@ def sanitize_request_path(path: str) -> str:
         raise PathSecurityError(f"Encoded slash in path: {path!r}")
 
     if TRAVERSAL_RE.search(path):
+        raise PathSecurityError(f"Directory traversal in path: {path!r}")
+
+    # Reject percent-encoded traversal sequences that decode to "..".
+    decoded = urllib.parse.unquote(path)
+    if TRAVERSAL_RE.search(decoded):
         raise PathSecurityError(f"Directory traversal in path: {path!r}")
 
     if "//" not in path:
@@ -230,12 +240,14 @@ class Route:
     tags: list[str] = field(default_factory=list)
 
     # Compiled
-    _regex: re.Pattern[str] = field(init=False, repr=False)
-    _converters: dict[str, Callable[[str], str | int | float]] = field(init=False, repr=False)
+    compiled_regex: re.Pattern[str] = field(init=False, repr=False)
+    param_converters: dict[str, Callable[[str], str | int | float]] = field(init=False, repr=False)
     # Cached first segment for dispatch index
-    _first_segment: str | None = field(init=False, repr=False)
+    first_segment: str | None = field(init=False, repr=False)
     # Flag for paths without parameters (enables exact match fast path)
-    _is_literal: bool = field(init=False, repr=False)
+    is_literal: bool = field(init=False, repr=False)
+    # Precomputed specificity tuple for O(1) dispatch-index sorting.
+    _specificity: tuple[int, int] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         for m in ANY_PARAM_RE.finditer(self.path):
@@ -248,18 +260,19 @@ class Route:
                     "(start with a letter or underscore, "
                     "contain only letters, digits, underscores)."
                 )
-        self._regex, self._converters = compile_path(self.path)
+        self.compiled_regex, self.param_converters = compile_path(self.path)
         self.methods = {m.upper() for m in self.methods}
-        self._first_segment = route_first_segment(self.path)
-        self._is_literal = "{" not in self.path
+        self.first_segment = route_first_segment(self.path)
+        self.is_literal = "{" not in self.path
+        self._specificity = route_specificity(self.path)
 
     def match(self, path: str) -> dict[str, str | int | float] | None:
         """Return path params dict if path matches, else None."""
-        m = self._regex.match(path)
+        m = self.compiled_regex.match(path)
         if m is None:
             return None
         params: dict[str, str | int | float] = {}
-        for name, conv in self._converters.items():
+        for name, conv in self.param_converters.items():
             params[name] = conv(m.group(name))
         return params
 
@@ -295,45 +308,45 @@ class Router:
         self.middlewares: list[Middleware] = middlewares or []
         self.tags: list[str] = tags or []
         self.namespace: str | None = namespace
-        self._routes: list[Route] = []
-        self._sub_routers: list[tuple[str, Router]] = []
-        self._parents: set[Router] = set()
+        self.routes_store: list[Route] = []
+        self.sub_routers: list[tuple[str, Router]] = []
+        self.parents: set[Router] = set()
         # Cache - invalidated whenever routes or sub-routers change.
-        self._cached_routes: list[Route] | None = None
+        self.cached_routes: list[Route] | None = None
         # First static segment -> candidate routes.
         # The DYNAMIC bucket holds routes with a dynamic first segment.
-        self._index: dict[str, list[Route]] | None = None
+        self.dispatch_index: dict[str, list[Route]] | None = None
         # Name index: route name -> route (for O(1) url_for lookups)
-        self._name_index: dict[str, Route] | None = None
+        self.name_index: dict[str, Route] | None = None
         # Exact match index: literal path -> candidate routes.
         # Groups routes by literal path for multi-method fast-path.
-        self._exact_index: dict[str, list[Route]] | None = None
+        self.exact_index: dict[str, list[Route]] | None = None
 
-    def _invalidate(self) -> None:
+    def invalidate(self) -> None:
         """Mark the route cache and dispatch index stale.
 
         Propagates invalidation up to all parent routers.
         """
-        self._cached_routes = None
-        self._index = None
-        self._name_index = None
-        self._exact_index = None
+        self.cached_routes = None
+        self.dispatch_index = None
+        self.name_index = None
+        self.exact_index = None
 
-        for parent in self._parents:
-            parent._invalidate()
+        for parent in self.parents:
+            parent.invalidate()
 
-    def _build_index(self, routes: list[Route]) -> dict[str, list[Route]]:
+    def build_index(self, routes: list[Route]) -> dict[str, list[Route]]:
         """Build dispatch index by first path segment, pre-sorted by specificity."""
         index: dict[str, list[Route]] = {}
         for route in routes:
-            seg = route._first_segment
+            seg = route.first_segment
             key = seg if seg is not None else DYNAMIC
             index.setdefault(key, []).append(route)
         for bucket in index.values():
-            bucket.sort(key=lambda r: route_specificity(r.path), reverse=True)
+            bucket.sort(key=lambda r: r._specificity, reverse=True)
         return index
 
-    def _build_name_index(self, routes: list[Route]) -> dict[str, Route]:
+    def build_name_index(self, routes: list[Route]) -> dict[str, Route]:
         """Build name index for O(1) url_for() lookup."""
         name_index: dict[str, Route] = {}
         for route in routes:
@@ -350,7 +363,7 @@ class Router:
                 name_index[route.name] = route
         return name_index
 
-    def _build_exact_index(self, routes: list[Route]) -> dict[str, list[Route]]:
+    def build_exact_index(self, routes: list[Route]) -> dict[str, list[Route]]:
         """Build exact match index grouping all routes by literal path.
 
         Groups all routes that share the same literal path so every registered
@@ -359,7 +372,7 @@ class Router:
         exact_index: dict[str, list[Route]] = {}
         for route in routes:
             # Routes passed here are already absolute (from self.routes).
-            if route._is_literal:
+            if route.is_literal:
                 exact_index.setdefault(route.path, []).append(route)
         return exact_index
 
@@ -374,7 +387,7 @@ class Router:
 
         def decorator(func: Handler) -> Handler:
             # Store path exactly as provided.
-            self._routes.append(
+            self.routes_store.append(
                 Route(
                     path=path,
                     methods=set(methods),
@@ -384,8 +397,8 @@ class Router:
                     tags=list(self.tags),
                 )
             )
-            self._invalidate()
-            self._register_actions(path, func)
+            self.invalidate()
+            self.register_actions(path, func)
             return func
 
         return decorator
@@ -471,7 +484,7 @@ class Router:
         if methods is None:
             view_class = getattr(handler, "view_class", None)
             if view_class is not None:
-                self._add_inferred_view_routes(
+                self.add_inferred_view_routes(
                     path,
                     handler,
                     view_class,
@@ -483,7 +496,7 @@ class Router:
         name = namespace or handler.__name__
         # Path is prefixed by this router's prefix and
         # parent prefixes during flattening in .routes.
-        self._routes.append(
+        self.routes_store.append(
             Route(
                 path=path,
                 methods=set(methods),
@@ -493,10 +506,10 @@ class Router:
                 tags=list(self.tags),
             )
         )
-        self._invalidate()
-        self._register_actions(path, handler)
+        self.invalidate()
+        self.register_actions(path, handler)
 
-    def _add_inferred_view_routes(
+    def add_inferred_view_routes(
         self,
         path: str,
         handler: Handler,
@@ -516,7 +529,7 @@ class Router:
         base_name = namespace or handler.__name__
         for inferred_path, inferred_methods in route_methods.items():
             methods = [*inferred_methods, "OPTIONS"]
-            self._routes.append(
+            self.routes_store.append(
                 Route(
                     path=inferred_path,
                     methods=set(methods),
@@ -526,16 +539,16 @@ class Router:
                     tags=list(self.tags),
                 )
             )
-        self._invalidate()
-        self._register_actions(path, handler)
+        self.invalidate()
+        self.register_actions(path, handler)
 
-    def _register_actions(self, path: str, handler: Handler) -> None:
+    def register_actions(self, path: str, handler: Handler) -> None:
         """Discover and register custom actions attached to a handler.
 
         This allows class-based views to automatically register @action
         methods when the main view is mounted.
         """
-        actions = getattr(handler, "_openviper_actions", [])
+        actions = getattr(handler, "openviper_actions", [])
         view_class = getattr(handler, "view_class", None)
         if not (actions and view_class):
             return
@@ -583,18 +596,18 @@ class Router:
         if namespace is not None:
             router.namespace = namespace
         # Track parent for invalidation propagation
-        router._parents.add(self)
+        router.parents.add(self)
 
         # We store the base prefix to apply during flattening
-        self._sub_routers.append((prefix, router))
-        self._invalidate()
+        self.sub_routers.append((prefix, router))
+        self.invalidate()
 
     @property
     def routes(self) -> list[Route]:
         """All routes including sub-router routes, flattened and absolute (cached)."""
-        if self._cached_routes is None:
+        if self.cached_routes is None:
 
-            def _get_absolute(router: Router, current_abs: str, ns_prefix: str = "") -> list[Route]:
+            def get_absolute(router: Router, current_abs: str, ns_prefix: str = "") -> list[Route]:
                 base = normalize_path(current_abs.rstrip("/") + router.prefix)
 
                 # Accumulate the namespace chain: parent_ns + this_router_ns
@@ -607,7 +620,7 @@ class Router:
                 res = []
 
                 # Accumulate local routes
-                for r in router._routes:
+                for r in router.routes_store:
                     ns_name = f"{branch_ns}{r.name}" if r.name and branch_ns else r.name
                     res.append(
                         Route(
@@ -621,31 +634,31 @@ class Router:
                     )
 
                 # Accumulate sub-router routes recursively
-                for extra_prefix, sub in router._sub_routers:
-                    res.extend(_get_absolute(sub, base + (extra_prefix or ""), branch_ns))
+                for extra_prefix, sub in router.sub_routers:
+                    res.extend(get_absolute(sub, base + (extra_prefix or ""), branch_ns))
 
                 return res
 
-            all_routes = _get_absolute(self, "")
-            self._cached_routes = all_routes
+            all_routes = get_absolute(self, "")
+            self.cached_routes = all_routes
 
             # Build indices
-            self._index = self._build_index(all_routes)
-            self._name_index = self._build_name_index(all_routes)
-            self._exact_index = self._build_exact_index(all_routes)
+            self.dispatch_index = self.build_index(all_routes)
+            self.name_index = self.build_name_index(all_routes)
+            self.exact_index = self.build_exact_index(all_routes)
 
-        return self._cached_routes
+        return self.cached_routes
 
-    def _all_relative_routes(self) -> list[Route]:
+    def all_relative_routes(self) -> list[Route]:
         """Return all local and sub-router routes relative to THIS router's root.
 
         This includes sub-router routes prefixed with their respective mount points.
         It does NOT include this router's own prefix.
         """
-        res = list(self._routes)
-        for extra_prefix, sub in self._sub_routers:
+        res = list(self.routes_store)
+        for extra_prefix, sub in self.sub_routers:
             mount = (extra_prefix or "").rstrip("/")
-            for r in sub._all_relative_routes():
+            for r in sub.all_relative_routes():
                 res.append(
                     Route(
                         path=normalize_path(mount + r.path),
@@ -658,20 +671,20 @@ class Router:
                 )
         return res
 
-    def _candidate_routes(self, path: str) -> Iterable[Route]:
+    def candidate_routes(self, path: str) -> Iterable[Route]:
         """Return only the routes that *could* match *path* using the dispatch index.
 
         This narrows the search from O(n) over all routes to O(k) where k is the
         number of routes sharing the same first path segment, plus dynamic-first
         routes.  The index is built lazily on first access and cached.
         """
-        if self._index is None:
+        if self.dispatch_index is None:
             _ = self.routes  # trigger lazy build
-        # _index is guaranteed non-None after self.routes is accessed above
+        # dispatch_index is guaranteed non-None after self.routes is accessed above
         stripped = path.lstrip("/")
         seg = stripped.partition("/")[0]
-        static_bucket = self._index.get(seg, ())  # type: ignore[union-attr]
-        dynamic_bucket = self._index.get(DYNAMIC, ())  # type: ignore[union-attr]
+        static_bucket = self.dispatch_index.get(seg, ())  # type: ignore[union-attr]
+        dynamic_bucket = self.dispatch_index.get(DYNAMIC, ())  # type: ignore[union-attr]
         return itertools.chain(static_bucket, dynamic_bucket)
 
     def resolve(self, method: str, path: str) -> tuple[Route, dict[str, str | int | float]]:
@@ -689,7 +702,7 @@ class Router:
         path = sanitize_request_path(path)
 
         # Trigger lazy build of indices if needed
-        if self._exact_index is None:
+        if self.exact_index is None:
             _ = self.routes
 
         candidates: list[str] = [path]
@@ -704,14 +717,14 @@ class Router:
         params: dict[str, str | int | float] = {}
 
         for candidate in candidates:
-            exact_routes = self._exact_index.get(candidate)  # type: ignore[union-attr]
+            exact_routes = self.exact_index.get(candidate)  # type: ignore[union-attr]
             if exact_routes:
                 for exact_route in exact_routes:
                     allowed_methods.update(exact_route.methods)
                     if method in exact_route.methods:
                         return exact_route, {}
 
-            for route in self._candidate_routes(candidate):
+            for route in self.candidate_routes(candidate):
                 p = route.match(candidate)
                 if p is not None:
                     allowed_methods.update(route.methods)
@@ -748,14 +761,14 @@ class Router:
             KeyError: Route name not found.
             ValueError: A path parameter value contains disallowed characters.
         """
-        if self._name_index is None:
+        if self.name_index is None:
             _ = self.routes
 
-        route = self._name_index.get(name)  # type: ignore[union-attr]
+        route = self.name_index.get(name)  # type: ignore[union-attr]
         if route is None:
             raise KeyError(f"No route named '{name}'")
 
-        def _replace(m: re.Match[str]) -> str:
+        def replace_placeholder(m: re.Match[str]) -> str:
             key = m.group(1)
             if key not in path_params:
                 # Preserve placeholder when key is absent.
@@ -769,7 +782,7 @@ class Router:
                 )
             return value
 
-        return str(PARAM_PLACEHOLDER_RE.sub(_replace, route.path))
+        return str(PARAM_PLACEHOLDER_RE.sub(replace_placeholder, route.path))
 
     def __repr__(self) -> str:
         return f"Router(prefix={self.prefix!r}, routes={len(self.routes)})"
@@ -791,11 +804,11 @@ def include(router: Router, prefix: str = "", namespace: str | None = None) -> R
         router.namespace = namespace
     if prefix:
         wrapper = Router(prefix=normalize_path(prefix + router.prefix))
-        wrapper._routes = list(router._routes)
-        wrapper._sub_routers = list(router._sub_routers)
+        wrapper.routes_store = list(router.routes_store)
+        wrapper.sub_routers = list(router.sub_routers)
         wrapper.middlewares = router.middlewares
         wrapper.tags = list(router.tags)
         wrapper.namespace = router.namespace
-        router._parents.add(wrapper)
+        router.parents.add(wrapper)
         return wrapper
     return router

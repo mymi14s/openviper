@@ -24,6 +24,8 @@ except ImportError:
 if TYPE_CHECKING:
     from openviper.db.fields import Field
 
+from openviper.db.fields import DEFAULT_ALLOWED_TAGS
+
 logger = logging.getLogger(__name__)
 
 FIELD_COMPONENT_MAP: dict[str, str] = {
@@ -35,6 +37,7 @@ FIELD_COMPONENT_MAP: dict[str, str] = {
     "DecimalField": "number",
     "CharField": "text",
     "TextField": "textarea",
+    "HTMLField": "html",
     "EmailField": "email",
     "URLField": "url",
     "BooleanField": "checkbox",
@@ -127,6 +130,12 @@ def get_field_widget_config(field: Field) -> dict[str, t.Any]:
 
     if field_class_name == "TextField":
         config["rows"] = 5
+
+    if field_class_name == "HTMLField":
+        config["rows"] = 8
+
+        config["allowed_tags"] = sorted(getattr(field, "allowed_tags", DEFAULT_ALLOWED_TAGS))
+        config["strip_comments"] = getattr(field, "strip_comments", True)
 
     if field_class_name == "DateTimeField":
         config["auto_now"] = getattr(field, "auto_now", False)
@@ -396,6 +405,9 @@ def coerce_field_value(field: Field, value: t.Any) -> t.Any:
                 except json.JSONDecodeError as exc:
                     raise ValueError(f"Invalid JSON format: {str(exc)}") from exc
             return value
+
+        if field_class_name == "HTMLField":
+            return str(value) if value is not None else None
 
         if field_class_name == "UUIDField":
             if value == "":

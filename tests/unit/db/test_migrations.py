@@ -40,16 +40,16 @@ from openviper.db.migrations.executor import (
 class TestMigrationLogger:
     def test_supports_color(self):
         with patch.object(sys.stdout, "isatty", return_value=True):
-            assert _MigrationLogger._supports_color() is True
+            assert _MigrationLogger.supports_color() is True
         with patch.object(sys.stdout, "isatty", return_value=False):
-            assert _MigrationLogger._supports_color() is False
+            assert _MigrationLogger.supports_color() is False
 
     def test_colorize(self):
-        with patch.object(_MigrationLogger, "_supports_color", return_value=True):
-            res = _MigrationLogger._colorize("test", "GREEN")
+        with patch.object(_MigrationLogger, "supports_color", return_value=True):
+            res = _MigrationLogger.colorize("test", "GREEN")
             assert "\033[92mtest" in res
-        with patch.object(_MigrationLogger, "_supports_color", return_value=False):
-            res = _MigrationLogger._colorize("test", "GREEN")
+        with patch.object(_MigrationLogger, "supports_color", return_value=False):
+            res = _MigrationLogger.colorize("test", "GREEN")
             assert res == "test"
 
     def test_log_methods(self):
@@ -294,7 +294,7 @@ class TestMigrationExecutor:
             mock_conn = AsyncMock()
             mock_engine.begin.return_value.__aenter__.return_value = mock_conn
 
-            await ex._ensure_migration_table()
+            await ex.ensure_migration_table()
             assert mock_get_engine.called
 
     @pytest.mark.asyncio
@@ -318,7 +318,7 @@ class TestMigrationExecutor:
             mock_result.__iter__.return_value = [row]
             mock_conn.execute.return_value = mock_result
 
-            applied = await ex._applied_migrations()
+            applied = await ex.applied_migrations()
             assert ("app1", "0001") in applied
 
     @pytest.mark.asyncio
@@ -326,8 +326,8 @@ class TestMigrationExecutor:
         ex = MigrationExecutor()
         with (
             patch("openviper.db.migrations.executor.get_engine", new_callable=AsyncMock),
-            patch.object(ex, "_ensure_migration_table", new_callable=AsyncMock),
-            patch.object(ex, "_applied_migrations", new_callable=AsyncMock) as mock_applied,
+            patch.object(ex, "ensure_migration_table", new_callable=AsyncMock),
+            patch.object(ex, "applied_migrations", new_callable=AsyncMock) as mock_applied,
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[]),
         ):
             mock_applied.return_value = set()
@@ -361,8 +361,8 @@ class TestMigrationExecutor:
             app="app1", name="0001", dependencies=[], operations=[RunSQL("FAIL")], path=""
         )
         with (
-            patch.object(ex, "_ensure_migration_table", new_callable=AsyncMock),
-            patch.object(ex, "_applied_migrations", return_value=set(), new_callable=AsyncMock),
+            patch.object(ex, "ensure_migration_table", new_callable=AsyncMock),
+            patch.object(ex, "applied_migrations", return_value=set(), new_callable=AsyncMock),
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[m1]),
             patch(
                 "openviper.db.migrations.executor.get_engine", new_callable=AsyncMock
@@ -926,9 +926,9 @@ class TestMigrationExecutorMigrate:
         mock_engine.begin = fake_begin
 
         with (
-            patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
+            patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
             patch.object(
-                executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()
+                executor, "applied_migrations", new_callable=AsyncMock, return_value=set()
             ),
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[record]),
             patch(
@@ -955,10 +955,10 @@ class TestMigrationExecutorMigrate:
             app="test", name="0001_initial", dependencies=[], operations=[], path=""
         )
         with (
-            patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
+            patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
             patch.object(
                 executor,
-                "_applied_migrations",
+                "applied_migrations",
                 new_callable=AsyncMock,
                 return_value={("test", "0001_initial")},
             ),
@@ -992,9 +992,9 @@ class TestMigrationExecutorMigrate:
         mock_engine.begin = fake_begin
 
         with (
-            patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
+            patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
             patch.object(
-                executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()
+                executor, "applied_migrations", new_callable=AsyncMock, return_value=set()
             ),
             patch("openviper.db.migrations.executor.discover_migrations", return_value=[record]),
             patch(

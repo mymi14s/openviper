@@ -5,7 +5,7 @@ Covers:
 - S2: unsafe bytes() fallback rejection in persist_files
 - B1: field_is_optional correctly handles falsy defaults (False, 0, "")
 - B2: create() uses exclude_none=True to avoid clobbering DB defaults
-- B3: update() uses exclude_unset=True to avoid clobbering existing values
+- B3: update() uses excludeunset=True to avoid clobbering existing values
 - P1: compute_excluded deduplication helper
 - General: serialize_many / serialize_many_json / paginate excluded-fields logic
 """
@@ -137,7 +137,7 @@ class TestComputeExcluded:
 
 class TestModelSerializerCreate:
     @pytest.mark.asyncio
-    async def test_create_does_not_pass_none_for_unset_optional(self):
+    async def test_create_does_not_pass_none_forunset_optional(self):
         """create() must not send None for optional fields the caller omitted."""
 
         class FakeModel:

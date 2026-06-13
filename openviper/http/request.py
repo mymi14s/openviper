@@ -73,6 +73,30 @@ def validate_host_port(raw: str) -> bool:
     return True
 
 
+def is_host_allowed(host: str) -> bool:
+    """Return True when *host* is allowed by settings.ALLOWED_HOSTS.
+
+    Supports exact hostnames, wildcard ``*``, and subdomain patterns
+    starting with ``.``. Prevents Host header injection by rejecting
+    any host not explicitly permitted by project settings.
+    """
+    from openviper.conf import settings
+
+    allowed = getattr(settings, "ALLOWED_HOSTS", ())
+    if not allowed:
+        return True
+    if "*" in allowed:
+        return True
+    host_lower = host.lower().split(":", 1)[0]
+    for pattern in allowed:
+        pattern = pattern.lower()
+        if pattern == host_lower:
+            return True
+        if pattern.startswith(".") and (host_lower == pattern[1:] or host_lower.endswith(pattern)):
+            return True
+    return False
+
+
 class Request:
     """Encapsulates an HTTP request.
 
@@ -484,11 +508,11 @@ class URL:
             if (self.scheme == "https" and port == 443) or (self.scheme == "http" and port == 80):
                 return host_val
             return f"{host_val}:{port}"
-        # Host header is untrusted; validate before use to prevent injection.
+        # Host header is untrusted; validate format and whitelist before use.
         for name, value in cast("list[tuple[bytes, bytes]]", self._scope.get("headers", [])):
             if name == b"host":
                 raw = value.decode("latin-1")
-                if validate_host_port(raw):
+                if validate_host_port(raw) and is_host_allowed(raw):
                     return raw
                 return "localhost"
         return "localhost"

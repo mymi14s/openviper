@@ -409,7 +409,7 @@ class TestAdminRegistry:
         registry = AdminRegistry()
         model = make_model_class("User", "auth")
 
-        app_label = registry._get_app_label(model)
+        app_label = registry.get_app_label(model)
         assert app_label == "auth"
 
     def test_get_app_label_from_meta(self):
@@ -420,7 +420,7 @@ class TestAdminRegistry:
             class Meta:
                 app_label = "auth_meta"
 
-        app_label = registry._get_app_label(MockMetaModel)
+        app_label = registry.get_app_label(MockMetaModel)
         assert app_label == "auth_meta"
 
     def test_get_app_label_fallback(self):
@@ -430,7 +430,7 @@ class TestAdminRegistry:
         class MockNoMetaModel:
             _app_name = "auth_fallback"
 
-        app_label = registry._get_app_label(MockNoMetaModel)
+        app_label = registry.get_app_label(MockNoMetaModel)
         assert app_label == "auth_fallback"
 
     def test_get_model_name_helper(self):
@@ -438,7 +438,7 @@ class TestAdminRegistry:
         registry = AdminRegistry()
         model = make_model_class("User")
 
-        model_name = registry._get_model_name(model)
+        model_name = registry.get_model_name(model)
         assert model_name == "user"
 
 

@@ -19,7 +19,7 @@ from openviper.debug.traceback_page import render_debug_page
 from openviper.http.request import Request
 
 if TYPE_CHECKING:
-    from openviper.debug.traceback_page import _DebugRequest
+    from openviper.debug.traceback_page import DebugRequest
     from openviper.http.types import ASGIMessage, ASGIReceive, ASGIScope, ASGISend
     from openviper.middleware.base import ASGIApp
 
@@ -97,7 +97,7 @@ class ServerErrorMiddleware:
     ) -> None:
         """Render and send the HTML debug traceback page."""
         request = Request(scope, receive)
-        body = render_debug_page(exc, cast("_DebugRequest", request)).encode("utf-8")
+        body = render_debug_page(exc, cast("DebugRequest", request)).encode("utf-8")
         headers = [
             (b"content-type", b"text/html; charset=utf-8"),
             (b"content-length", str(len(body)).encode()),

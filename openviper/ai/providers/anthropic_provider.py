@@ -28,7 +28,7 @@ class AnthropicProvider(AIProvider):
         super().__init__(config)
         self._client: AsyncAnthropic | None = None
 
-    def _get_client(self) -> AsyncAnthropic:
+    def get_client(self) -> AsyncAnthropic:
         """Get or create a persistent Anthropic client."""
         if self._client is None:
             if AsyncAnthropic is None:
@@ -47,7 +47,7 @@ class AnthropicProvider(AIProvider):
 
     async def generate(self, prompt: str, **kwargs: object) -> str:
         prompt, kwargs = await self.before_inference(prompt, kwargs)
-        client = self._get_client()
+        client = self.get_client()
         model = kwargs.pop("model", self.default_model) or ""
         max_tokens = kwargs.pop("max_tokens", self.config.get("max_tokens"))
         extra = filter_kwargs(kwargs, ALLOWED_KWARGS, provider="AnthropicProvider")
@@ -63,7 +63,7 @@ class AnthropicProvider(AIProvider):
 
     async def stream(self, prompt: str, **kwargs: object) -> AsyncIterator[str]:
         prompt, kwargs = await self.before_inference(prompt, kwargs)
-        client = self._get_client()
+        client = self.get_client()
         model = kwargs.pop("model", self.default_model) or ""
         max_tokens = kwargs.pop("max_tokens", self.config.get("max_tokens"))
         extra = filter_kwargs(kwargs, ALLOWED_KWARGS, provider="AnthropicProvider")

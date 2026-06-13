@@ -112,7 +112,7 @@ class TestRegistryReset:
         registry.register_provider(FakeProvider({"model": "m1"}))
         assert registry.list_models() == ["m1"]
         registry.reset()
-        # After reset, _loaded is False - set it back to skip _load_from_settings
+        # After reset, _loaded is False - set it back to skip load_from_settings
         registry._loaded = True
         assert registry.list_models() == []
 

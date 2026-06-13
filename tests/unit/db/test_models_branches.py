@@ -166,7 +166,7 @@ async def test_bulk_update_ignore_permissions_executes():
     mock_update.assert_awaited_once()
 
 
-# ── Manager._trigger_bulk_event ───────────────────────────────────────────────
+# ── Manager.trigger_bulk_event ───────────────────────────────────────────────
 
 
 def test_trigger_bulk_event_with_dispatcher():
@@ -175,7 +175,7 @@ def test_trigger_bulk_event_with_dispatcher():
         patch("openviper.db.models.get_dispatcher", return_value=mock_dispatcher),
         patch("openviper.db.models.dispatch_decorator_handlers"),
     ):
-        BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
+        BulkItem.objects.trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
     mock_dispatcher.trigger.assert_called_once()
 
 
@@ -184,13 +184,13 @@ def test_trigger_bulk_event_without_dispatcher():
         patch("openviper.db.models.get_dispatcher", return_value=None),
         patch("openviper.db.models.dispatch_decorator_handlers") as mock_dec,
     ):
-        BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
+        BulkItem.objects.trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
     mock_dec.assert_called_once()
 
 
 def test_trigger_bulk_event_exception_suppressed():
     with patch("openviper.db.models.get_dispatcher", side_effect=RuntimeError("boom")):
-        BulkItem.objects._trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
+        BulkItem.objects.trigger_bulk_event("myapp.BulkItem", "pre_bulk_create", [])
 
 
 # ── QuerySet all() with ignore_permissions ────────────────────────────────────
@@ -341,9 +341,9 @@ def test_hydrate_select_related_sets_none_when_all_values_null():
     row = {"id": 1, "title": "Test", "author__id": None, "author__name": None}
 
     Post._fields["author"].resolve_target = lambda: Author
-    qs._hydrate_select_related(instance, row)
+    qs.hydrate_select_related(instance, row)
 
-    assert instance._get_related("author") is None
+    assert instance.get_related("author") is None
 
 
 def test_hydrate_select_related_sets_instance_when_values_present():
@@ -357,9 +357,9 @@ def test_hydrate_select_related_sets_instance_when_values_present():
     row = {"id": 1, "title": "Test", "author__id": 5, "author__name": "Alice"}
 
     Post._fields["author"].resolve_target = lambda: Author
-    qs._hydrate_select_related(instance, row)
+    qs.hydrate_select_related(instance, row)
 
-    related = instance._get_related("author")
+    related = instance.get_related("author")
     assert related is not None
     assert related.name == "Alice"
 
@@ -373,7 +373,7 @@ def test_hydrate_select_related_skips_unknown_field():
     instance._previous_state = {}
 
     row = {"id": 1, "title": "Test"}
-    qs._hydrate_select_related(instance, row)
+    qs.hydrate_select_related(instance, row)
 
 
 # ── _from_row / _from_row_fast ────────────────────────────────────────────────
@@ -382,14 +382,14 @@ def test_hydrate_select_related_skips_unknown_field():
 def test_from_row_col_name_in_row():
     """Field's column_name is in the row (e.g. 'author_id')."""
     row = {"id": 1, "title": "Hello", "author_id": 42}
-    p = Post._from_row(row)
+    p = Post.from_row(row)
     assert p.title == "Hello"
 
 
 def test_from_row_fast_fk_uses_col_name_key():
     """ForeignKey in _from_row_fast stores under column_name key."""
     row = {"id": 1, "title": "Hello", "author_id": 99}
-    p = Post._from_row_fast(row)
+    p = Post.from_row_fast(row)
     assert p.__dict__.get("author_id") == 99
 
 
@@ -413,7 +413,7 @@ async def test_validate_fk_alias_set_skips_null_check():
 def test_apply_auto_fields_auto_now_always_sets():
     obj = TimestampModel()
     obj.updated_at = None
-    obj._apply_auto_fields()
+    obj.apply_auto_fields()
     assert obj.updated_at is not None
 
 
@@ -421,7 +421,7 @@ def test_apply_auto_fields_auto_now_add_skips_if_set():
     obj = TimestampModel()
     existing_time = datetime.datetime(2020, 1, 1)
     obj.created_at = existing_time
-    obj._apply_auto_fields()
+    obj.apply_auto_fields()
     assert obj.created_at == existing_time
 
 
@@ -435,7 +435,7 @@ def test_apply_auto_fields_uuid_auto_generates():
 
     obj = UUIDModel(name="test")
     obj.id = None
-    obj._apply_auto_fields()
+    obj.apply_auto_fields()
     assert obj.id is not None
 
 
@@ -451,7 +451,7 @@ def test_apply_auto_fields_uuid_auto_preserves_existing():
 
     existing_uuid = uuid_mod.uuid4()
     obj = UUIDModel2(id=existing_uuid, name="test")
-    obj._apply_auto_fields()
+    obj.apply_auto_fields()
     assert obj.id == existing_uuid
 
 
@@ -461,7 +461,7 @@ def test_apply_auto_fields_uuid_auto_preserves_existing():
 def test_to_dict_fk_uses_column_name():
     p = Post(title="Hello")
     p.__dict__["author_id"] = 42
-    d = p._to_dict()
+    d = p.to_dict()
     assert "author_id" in d
     assert d["author_id"] == 42
 
@@ -615,9 +615,9 @@ def test_hydrate_select_related_resolved_cls_none_skips():
     original = Post._fields["author"].resolve_target
     Post._fields["author"].resolve_target = lambda: None
     try:
-        qs._hydrate_select_related(instance, row)
+        qs.hydrate_select_related(instance, row)
         # No related set because related_cls is None
-        assert instance._get_related("author") is None
+        assert instance.get_related("author") is None
     finally:
         Post._fields["author"].resolve_target = original
 
@@ -632,8 +632,8 @@ def test_hydrate_select_related_fast_sets_none_when_all_values_null():
     sr_mappings = {"author": (Author, [("author__id", "id"), ("author__name", "name")])}
     row = {"id": 1, "title": "Test", "author__id": None, "author__name": None}
 
-    qs._hydrate_select_related_fast(instance, row, sr_mappings)
-    assert instance._get_related("author") is None
+    qs.hydrate_select_related_fast(instance, row, sr_mappings)
+    assert instance.get_related("author") is None
 
 
 # ── _do_prefetch_related: skip branches ──────────────────────────────────────
@@ -645,7 +645,7 @@ async def test_do_prefetch_related_field_none_skips():
     qs = QuerySet(BranchNote)
     qs._prefetch_related = ["nonexistent_field"]
     # Should not raise
-    await qs._do_prefetch_related([])
+    await qs.do_prefetch_related([])
 
 
 @pytest.mark.asyncio
@@ -660,7 +660,7 @@ async def test_do_prefetch_related_related_cls_none_skips():
         p = Post.__new__(Post)
         p.__dict__["author_id"] = 5
         p._relation_cache = None
-        await qs._do_prefetch_related([p])
+        await qs.do_prefetch_related([p])
     finally:
         Post._fields["author"].resolve_target = original
 
@@ -679,7 +679,7 @@ async def test_do_prefetch_related_no_fk_ids_continues_and_no_tasks_returns():
         patch("openviper.db.models.execute_select", new_callable=AsyncMock) as mock_exec,
         patch("openviper.db.models.check_perm_cached", new_callable=AsyncMock),
     ):
-        await qs._do_prefetch_related([p])
+        await qs.do_prefetch_related([p])
         # execute_select should NOT be called (no tasks)
     mock_exec.assert_not_awaited()
 
@@ -706,7 +706,7 @@ async def test_do_prefetch_related_lazy_fk_ids_collected():
         ),
         patch("openviper.db.models.check_perm_cached", new_callable=AsyncMock),
     ):
-        await qs._do_prefetch_related([post])
+        await qs.do_prefetch_related([post])
 
 
 @pytest.mark.asyncio
@@ -731,9 +731,9 @@ async def test_do_prefetch_related_lazy_fk_result_mapping():
         ),
         patch("openviper.db.models.check_perm_cached", new_callable=AsyncMock),
     ):
-        await qs._do_prefetch_related([post])
+        await qs.do_prefetch_related([post])
 
-    related = post._get_related("author")
+    related = post.get_related("author")
     assert related is not None
     assert related.name == "Alice"
 
@@ -782,7 +782,7 @@ def test_from_row_uses_field_name_when_col_name_absent():
     """col_name not in row but field name is → use field name."""
     # Use "author" key (the field name) instead of "author_id" (the column name)
     row = {"id": 1, "title": "Hello", "author": 42}
-    p = Post._from_row(row)
+    p = Post.from_row(row)
     assert p.title == "Hello"
     # The author value should be loaded from "author" key
     assert p.__dict__.get("author_id") == 42 or p.__dict__.get("author") == 42
@@ -791,7 +791,7 @@ def test_from_row_uses_field_name_when_col_name_absent():
 def test_from_row_fast_uses_field_name_when_col_name_absent():
     """col_name not in row but field name is → use field name."""
     row = {"id": 1, "title": "Hello", "author": 42}
-    p = Post._from_row_fast(row)
+    p = Post.from_row_fast(row)
     assert p.title == "Hello"
     # "author" key used since "author_id" not in row
     assert p.__dict__.get("author_id") == 42 or p.__dict__.get("author") == 42

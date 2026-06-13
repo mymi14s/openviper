@@ -5,11 +5,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from openviper.conf import settings as settings
 from openviper.core.management.base import BaseCommand, CommandError
+from openviper.core.management.utils import resolve_db_url
 from openviper.db.tools.restore.restore_engine import restore_backup
 from openviper.db.tools.utils.validators import ValidationError
-from openviper.db.utils import get_default_database_url
 
 
 class RestoreDBCommand(BaseCommand):
@@ -35,17 +34,12 @@ class RestoreDBCommand(BaseCommand):
         )
 
     def handle(self, **options: object) -> None:  # type: ignore[override]
-        asyncio.run(self._async_handle(**options))
+        asyncio.run(self.async_handle(**options))
 
-    async def _async_handle(self, **options: object) -> None:
+    async def async_handle(self, **options: object) -> None:
         backup_file: str = str(options["file"])
         force: bool = bool(options.get("force", False))
-        db_url: str | None = options.get("db")  # type: ignore[assignment]
-
-        if not db_url:
-            db_url = get_default_database_url(settings)
-        if not db_url:
-            raise CommandError("No default DATABASES URL configured. Use --db to specify one.")
+        db_url = resolve_db_url(options)
 
         self.stdout(self.style_notice(f"Restoring database from: {backup_file}"))
 
@@ -58,15 +52,13 @@ class RestoreDBCommand(BaseCommand):
 
         try:
             await restore_backup(backup_file, db_url, force=force)
-        except ValidationError as exc:
-            raise CommandError(str(exc)) from exc
-        except FileExistsError as exc:
-            raise CommandError(str(exc)) from exc
-        except FileNotFoundError as exc:
-            raise CommandError(str(exc)) from exc
-        except ValueError as exc:
-            raise CommandError(str(exc)) from exc
-        except RuntimeError as exc:
+        except (
+            ValidationError,
+            FileExistsError,
+            FileNotFoundError,
+            ValueError,
+            RuntimeError,
+        ) as exc:
             raise CommandError(str(exc)) from exc
 
         self.stdout(self.style_success("\nDatabase restored successfully."))

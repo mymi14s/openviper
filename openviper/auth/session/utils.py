@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import secrets
+from dataclasses import dataclass
 
 import sqlalchemy as sa
 
 from openviper.auth.cache_utils import ensure_table
+from openviper.conf import settings
 from openviper.db.connection import get_metadata
 from openviper.utils import timezone
 
@@ -64,3 +67,46 @@ async def ensure_session_table() -> None:
 def reset_session_table_ensured() -> None:
     """Reset the table-ensured flag (for testing only)."""
     _SESSION_ENSURED[0] = False
+
+
+@dataclass
+class SessionCookieConfig:
+    """Session cookie configuration read from settings."""
+
+    cookie_name: str
+    httponly: bool
+    samesite: str
+    secure: bool
+    path: str
+    domain: str | None
+    max_age: int
+
+
+def get_session_cookie_config() -> SessionCookieConfig:
+    """Read session cookie settings from the application configuration.
+
+    Returns a SessionCookieConfig with all cookie parameters resolved,
+    including max_age computed from SESSION_TIMEOUT (which may be a
+    timedelta or an integer number of seconds).
+    """
+    cookie_name: str = getattr(settings, "SESSION_COOKIE_NAME", "sessionid")
+    httponly: bool = getattr(settings, "SESSION_COOKIE_HTTPONLY", True)
+    samesite: str = getattr(settings, "SESSION_COOKIE_SAMESITE", "lax")
+    secure: bool = getattr(settings, "SESSION_COOKIE_SECURE", True)
+    path: str = getattr(settings, "SESSION_COOKIE_PATH", "/")
+    domain: str | None = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+    timeout = getattr(settings, "SESSION_TIMEOUT", datetime.timedelta(hours=1))
+    if isinstance(timeout, datetime.timedelta):
+        max_age = int(timeout.total_seconds())
+    else:
+        max_age = int(timeout)
+
+    return SessionCookieConfig(
+        cookie_name=cookie_name,
+        httponly=httponly,
+        samesite=samesite,
+        secure=secure,
+        path=path,
+        domain=domain,
+        max_age=max_age,
+    )

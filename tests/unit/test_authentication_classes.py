@@ -47,7 +47,7 @@ class TestJWTAuthentication:
         fake_user.is_active = True
 
         with patch(
-            "openviper.auth.authentications.get_user_cached", new=AsyncMock(return_value=fake_user)
+            "openviper.auth.authentications.get_user_by_id", new=AsyncMock(return_value=fake_user)
         ):
             with patch(
                 "openviper.auth.authentications.is_token_revoked", new=AsyncMock(return_value=False)

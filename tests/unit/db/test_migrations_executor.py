@@ -189,12 +189,12 @@ async def test_migrate_verbose_triggers_cache_invalidation_and_sync_warning(caps
                 ):
                     with patch.object(
                         MigrationExecutor,
-                        "_ensure_migration_table",
+                        "ensure_migration_table",
                         new=AsyncMock(),
                     ):
                         with patch.object(
                             MigrationExecutor,
-                            "_applied_migrations",
+                            "applied_migrations",
                             new=AsyncMock(return_value=set()),
                         ):
                             with patch(

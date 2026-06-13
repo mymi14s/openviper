@@ -22,6 +22,7 @@ from openviper.testing.tasks import (
     TaskQueue,
     assert_task_count,
     assert_task_queued,
+    require_dramatiq,
 )
 
 
@@ -93,3 +94,7 @@ def test_snapshot_creates_and_compares_file(tmp_path: Path) -> None:
 
     snapshot.assert_matches("payload.json", {"ok": True})
     snapshot.assert_matches("payload.json", {"ok": True})
+
+
+def test_require_dramatiq_does_not_raise_when_dramatiq_installed() -> None:
+    require_dramatiq("test feature")

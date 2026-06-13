@@ -11,12 +11,7 @@ from unittest.mock import patch
 import pytest
 import pytest_asyncio
 
-try:
-    import dramatiq
-except ImportError:
-    dramatiq = None  # type: ignore[assignment]
-
-from openviper.testing.tasks import TaskQueue
+from openviper.testing.tasks import TaskQueue, require_dramatiq
 
 if t.TYPE_CHECKING:
     import httpx
@@ -45,6 +40,7 @@ from openviper.testing.events import EventRecorder
 from openviper.testing.factories import SuperuserFactory, UserFactory
 from openviper.testing.mail import TestEmail
 from openviper.testing.settings import (
+    DatabaseIsolation,
     OpenViperTestConfig,
     PytestConfigProtocol,
     load_app,
@@ -94,14 +90,24 @@ async def client(app: OpenViper) -> AsyncIterator[httpx.AsyncClient]:
         yield test_client
 
 
-@pytest_asyncio.fixture
-async def db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
+async def build_and_enter_database(
+    openviper_test_config: OpenViperTestConfig,
+    isolation: DatabaseIsolation | None = None,
+    migrate: bool | None = None,
+) -> AsyncIterator[TestDatabase]:
+    """Shared helper for database fixtures to eliminate duplicated setup logic."""
     database = build_test_database(
         openviper_test_config.database_url,
-        openviper_test_config.database_isolation,
-        openviper_test_config.migrate,
+        isolation or openviper_test_config.database_isolation,
+        migrate if migrate is not None else openviper_test_config.migrate,
     )
     async with database_context(database) as test_database:
+        yield test_database
+
+
+@pytest_asyncio.fixture
+async def db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
+    async for test_database in build_and_enter_database(openviper_test_config):
         yield test_database
 
 
@@ -109,34 +115,23 @@ async def db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDa
 async def transactional_db(
     openviper_test_config: OpenViperTestConfig,
 ) -> AsyncIterator[TestDatabase]:
-    database = build_test_database(
-        openviper_test_config.database_url,
-        "recreate",
-        openviper_test_config.migrate,
-    )
-    async with database_context(database) as test_database:
+    async for test_database in build_and_enter_database(
+        openviper_test_config, isolation="recreate"
+    ):
         yield test_database
 
 
 @pytest_asyncio.fixture
 async def migrated_db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
-    database = build_test_database(
-        openviper_test_config.database_url,
-        openviper_test_config.database_isolation,
-        migrate=True,
-    )
-    async with database_context(database) as test_database:
+    async for test_database in build_and_enter_database(openviper_test_config, migrate=True):
         yield test_database
 
 
 @pytest_asyncio.fixture
 async def isolated_db(openviper_test_config: OpenViperTestConfig) -> AsyncIterator[TestDatabase]:
-    database = build_test_database(
-        openviper_test_config.database_url,
-        "recreate",
-        migrate=True,
-    )
-    async with database_context(database) as test_database:
+    async for test_database in build_and_enter_database(
+        openviper_test_config, isolation="recreate", migrate=True
+    ):
         yield test_database
 
 
@@ -259,25 +254,11 @@ def create_task_queue() -> tuple[TaskQueue, contextlib.ExitStack]:
             my_task.send(1, 2)
         assert_task_queued(queue, "my_task")
     """
-    if dramatiq is None:
-        raise RuntimeError(
-            "dramatiq is required for create_task_queue(). "
-            "Install it with: pip install openviper[tasks]"
-        )
+    require_dramatiq("create_task_queue()")
 
     queue = TaskQueue()
     patches = contextlib.ExitStack()
-
-    def capturing_send(
-        self_actor: dramatiq.Actor,
-        *,
-        args: tuple[t.Any, ...] = (),
-        kwargs: dict[str, t.Any] | None = None,
-        **opts: t.Any,
-    ) -> t.Any:
-        queue.add(self_actor.actor_name, *args, **(kwargs or {}))
-
-    patches.enter_context(patch.object(dramatiq.Actor, "send_with_options", capturing_send))
+    patches.enter_context(queue.patch())
     return queue, patches
 
 
@@ -396,9 +377,9 @@ def snapshot(tmp_path: Path) -> Snapshot:
 
 async def run_lifespan_event(app: OpenViper, event_type: str) -> None:
     if event_type == "lifespan.startup":
-        app._get_middleware_app()
+        app.get_middleware_app()
         app.get_openapi_schema()
-        await app._call_installed_app_ready_hooks()
+        await app.call_installed_app_ready_hooks()
         handlers = app._startup_handlers
     elif event_type == "lifespan.shutdown":
         handlers = app._shutdown_handlers

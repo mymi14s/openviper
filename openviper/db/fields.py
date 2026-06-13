@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import functools
+import html
 import inspect
 import ipaddress
 import json
@@ -12,6 +13,7 @@ import logging
 import math
 import os
 import re
+import typing as t
 import urllib.parse
 import uuid
 import zoneinfo
@@ -39,6 +41,42 @@ _UTC_ZONE = zoneinfo.ZoneInfo("UTC")
 logger = logging.getLogger(__name__)
 
 
+def _detect_content_type(content: bytes) -> str | None:
+    """Return a MIME type based on magic numbers, or None if unknown."""
+    if content.startswith(bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])):
+        return "image/png"
+    if content.startswith(bytes([0xFF, 0xD8])):
+        return "image/jpeg"
+    if content[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    if content.startswith(b"BM"):
+        return "image/bmp"
+    if content.startswith(bytes([0x50, 0x4B, 0x03, 0x04])):
+        return "application/zip"
+    if content.startswith(b"%PDF"):
+        return "application/pdf"
+    # Common plain-text markers
+    if content[:5].lower() == b"<html" or b"<!doctype html" in content[:128].lower():
+        return "text/html"
+    return None
+
+
+_EXT_TO_MIME: dict[str, list[str]] = {
+    "png": ["image/png"],
+    "jpg": ["image/jpeg"],
+    "jpeg": ["image/jpeg"],
+    "gif": ["image/gif"],
+    "webp": ["image/webp"],
+    "bmp": ["image/bmp"],
+    "zip": ["application/zip"],
+    "pdf": ["application/pdf"],
+    "html": ["text/html"],
+    "htm": ["text/html"],
+}
+
+
 class Field:
     """Base field descriptor.
     Args:
@@ -55,6 +93,16 @@ class Field:
     """
 
     _column_type: str = "TEXT"
+
+    @property
+    def column_type(self) -> str:
+        """Return the SQL column type for this field."""
+        return self._column_type
+
+    @column_type.setter
+    def column_type(self, value: str) -> None:
+        """Allow subclasses to override the SQL column type."""
+        self._column_type = value
 
     def __init__(
         self,
@@ -658,8 +706,8 @@ class ForeignKey(Field):
             obj.__dict__[self.column_name] = value.id
             # Cache the resolved instance so subsequent descriptor reads
             # skip a DB query.
-            if hasattr(obj, "_set_related"):
-                obj._set_related(self.name, value)
+            if hasattr(obj, "set_related"):
+                obj.set_related(self.name, value)
         else:
             # Write directly to __dict__ to bypass this descriptor and avoid
             # infinite recursion.
@@ -724,8 +772,8 @@ class LazyFK:
 
         self._loaded_obj = results[0]
 
-        if hasattr(self.instance, "_set_related"):
-            self.instance._set_related(self.fk_field.name, self._loaded_obj)
+        if hasattr(self.instance, "set_related"):
+            self.instance.set_related(self.fk_field.name, self._loaded_obj)
 
         return self._loaded_obj
 
@@ -1353,6 +1401,12 @@ class FileField(CharField):
                 f"allowed size ({self.max_file_size} bytes)."
             )
 
+        # Validate actual content against the declared type/extension.
+        declared_type = (
+            getattr(value, "content_type", None) if isinstance(value, UploadFile) else None
+        )
+        self._validate_content_type(content, declared_type or "", filename)
+
         filename = self._sanitize_filename(filename)
 
         media_root = Path(getattr(settings, "MEDIA_DIR", "./media")).absolute().resolve()
@@ -1390,6 +1444,30 @@ class FileField(CharField):
 
         relative_path = str(upload_path / dest_filename)
         setattr(instance, self.name, relative_path)
+
+    def _validate_content_type(self, content: bytes, declared: str, filename: str) -> None:
+        """Validate uploaded content structurally via magic numbers.
+
+        Rejects uploads where the declared content type does not match the
+        actual file signature.  This prevents attackers from serving
+        executable content under a benign MIME type or extension.
+        """
+        ext = os.path.splitext(filename)[1].lstrip(".").lower()
+        detected = _detect_content_type(content)
+        if detected is None:
+            return
+        allowed = {declared.lower()} if declared else set()
+        allowed.update(_EXT_TO_MIME.get(ext, []))
+        if not allowed or detected in allowed:
+            return
+        # Some image types are reported with overlapping signatures; permit
+        # common image families when the extension also claims an image type.
+        if detected.startswith("image/") and any(a.startswith("image/") for a in allowed):
+            return
+        raise ValueError(
+            f"Field '{self.name}': declared content type {declared!r} does not "
+            f"match detected file signature {detected!r}."
+        )
 
     @staticmethod
     def _sanitize_filename(filename: str) -> str:
@@ -1515,6 +1593,115 @@ class ImageField(FileField):
                 f"Field '{self.name}': file extension '.{ext}' is not allowed. "
                 f"Allowed extensions: {sorted(self.allowed_extensions)}."
             )
+
+
+nh3_lib: t.Any
+
+try:
+    import nh3 as nh3_lib
+except ImportError:
+    nh3_lib = None
+
+DEFAULT_ALLOWED_TAGS: frozenset[str] = frozenset(
+    {
+        "a",
+        "abbr",
+        "acronym",
+        "b",
+        "blockquote",
+        "br",
+        "code",
+        "em",
+        "i",
+        "img",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "small",
+        "strong",
+        "sub",
+        "sup",
+        "ul",
+    }
+)
+
+DEFAULT_ALLOWED_ATTRIBUTES: dict[str, frozenset[str]] = {
+    "a": frozenset({"href", "title"}),
+    "img": frozenset({"src", "alt", "title"}),
+}
+
+DEFAULT_ALLOWED_SCHEMES: frozenset[str] = frozenset({"http", "https", "mailto"})
+
+
+class HTMLField(TextField):
+    """HTML content field with XSS sanitization.
+
+    Stores raw HTML but sanitizes input on assignment using *nh3*
+    (preferred) or ``html.escape`` as a safe fallback. Configurable
+    allowed tags, attributes, and URL schemes restrict what markup
+    survives the cleaning pass.
+
+    Args:
+        allowed_tags: Set of HTML tags that survive sanitization.
+            Defaults to ``DEFAULT_ALLOWED_TAGS``.
+        allowed_attributes: Mapping of tag names to sets of allowed
+            attribute names.  Defaults to ``DEFAULT_ALLOWED_ATTRIBUTES``.
+        allowed_schemes: URL schemes permitted in ``href`` and ``src``
+            attributes.  Defaults to ``DEFAULT_ALLOWED_SCHEMES``.
+        strip_comments: Remove HTML comments during sanitization.
+    """
+
+    column_type = "TEXT"
+
+    def __init__(
+        self,
+        allowed_tags: frozenset[str] | None = None,
+        allowed_attributes: dict[str, frozenset[str]] | None = None,
+        allowed_schemes: frozenset[str] | None = None,
+        strip_comments: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.allowed_tags = allowed_tags if allowed_tags is not None else DEFAULT_ALLOWED_TAGS
+        self.allowed_attributes = (
+            allowed_attributes if allowed_attributes is not None else DEFAULT_ALLOWED_ATTRIBUTES
+        )
+        self.allowed_schemes = (
+            allowed_schemes if allowed_schemes is not None else DEFAULT_ALLOWED_SCHEMES
+        )
+        self.strip_comments = strip_comments
+
+    def sanitize(self, value: str) -> str:
+        """Strip dangerous HTML markup from *value*.
+
+        Uses *nh3* for tag/attribute-level sanitization when available.
+        Falls back to full HTML entity escaping via ``html.escape`` when
+        *nh3* is not installed, which neutralises all tags and is safe but
+        loses formatting.
+        """
+        if nh3_lib is not None:
+            return t.cast(
+                "str",
+                nh3_lib.clean(
+                    value,
+                    tags=self.allowed_tags,
+                    attributes=self.allowed_attributes,
+                    url_schemes=self.allowed_schemes,
+                    strip_comments=self.strip_comments,
+                ),
+            )
+        return html.escape(value)
+
+    def to_python(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        return self.sanitize(str(value))
+
+    def validate(self, value: Any) -> None:
+        super().validate(value)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"Field '{self.name}': expected a string, got {type(value).__name__}.")
 
 
 class SmallIntegerField(IntegerField):

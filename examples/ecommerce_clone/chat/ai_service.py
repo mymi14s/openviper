@@ -34,7 +34,7 @@ def get_router() -> ModelRouter:
         router = ModelRouter()
         try:
             router.set_model(MODEL_NAME)
-            router._get_provider()
+            router.get_provider()
             log.info("Chat AI: using model '%s'", MODEL_NAME)
         except Exception as exc:
             log.warning("Chat AI: model '%s' not available - %s", MODEL_NAME, exc)

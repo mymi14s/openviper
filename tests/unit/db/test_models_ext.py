@@ -56,10 +56,10 @@ def test_model_meta_validation():
 
 
 def test_extract_app_name_edge_cases():
-    assert ModelMeta._extract_app_name("", "Test") == "default"
-    assert ModelMeta._extract_app_name("testmod", "Test") == "default"
-    assert ModelMeta._extract_app_name("project.apps.blog.models", "Post") == "blog"
-    assert ModelMeta._extract_app_name("openviper.auth.models", "User") == "auth"
+    assert ModelMeta.extract_app_name("", "Test") == "default"
+    assert ModelMeta.extract_app_name("testmod", "Test") == "default"
+    assert ModelMeta.extract_app_name("project.apps.blog.models", "Post") == "blog"
+    assert ModelMeta.extract_app_name("openviper.auth.models", "User") == "auth"
 
 
 def test_f_expression_arithmetic():

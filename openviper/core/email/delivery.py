@@ -16,17 +16,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("openviper.email")
 
-_EMAIL_LOGGING_CONFIGURED = False
-_EMAIL_LOGGING_LOCK = threading.Lock()
+EMAIL_LOGGING_CONFIGURED = False
+EMAIL_LOGGING_LOCK = threading.Lock()
 
 
 def configure_email_log() -> None:
     """Initialise email file logging from project settings."""
-    global _EMAIL_LOGGING_CONFIGURED
-    if _EMAIL_LOGGING_CONFIGURED:
+    global EMAIL_LOGGING_CONFIGURED
+    if EMAIL_LOGGING_CONFIGURED:
         return
-    with _EMAIL_LOGGING_LOCK:
-        if _EMAIL_LOGGING_CONFIGURED:
+    with EMAIL_LOGGING_LOCK:
+        if EMAIL_LOGGING_CONFIGURED:
             return
         try:
             email_cfg = read_email_config()
@@ -61,7 +61,7 @@ def configure_email_log() -> None:
             if RotatingFileHandler not in existing_types:
                 email_logger.addHandler(handler)
 
-            _EMAIL_LOGGING_CONFIGURED = True
+            EMAIL_LOGGING_CONFIGURED = True
         except Exception:
             logger.debug("Email log configuration failed", exc_info=True)
 

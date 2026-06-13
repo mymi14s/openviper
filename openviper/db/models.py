@@ -32,6 +32,7 @@ import inspect
 import json
 import logging
 import re
+import typing as t
 import uuid
 from collections.abc import AsyncGenerator
 from contextvars import ContextVar
@@ -247,7 +248,7 @@ class ModelMeta(type):
 
         namespace["_fields"] = fields
 
-        app_name = mcs._extract_app_name(namespace.get("__module__", ""), name)
+        app_name = mcs.extract_app_name(namespace.get("__module__", ""), name)
         namespace["_app_name"] = app_name
         namespace["_model_name"] = name
 
@@ -318,7 +319,7 @@ class ModelMeta(type):
                     break
 
         if not table_name:
-            model_snake = mcs._camel_to_snake(name)
+            model_snake = mcs.camel_to_snake(name)
             if app_name and app_name != "default" and name != "Model" and not is_abstract:
                 table_name = f"{app_name}_{model_snake}".lower()
             else:
@@ -336,7 +337,7 @@ class ModelMeta(type):
                     raise FieldError(f"unique_together field '{f_name}' not found on {name}")
 
         for f_name in ordering:
-            clean_name = f_name[1:] if f_name.startswith("-") else f_name
+            clean_name = f_name.lstrip("-")
             if clean_name not in fields:
                 raise FieldError(f"Ordering field '{clean_name}' not found on {name}")
 
@@ -360,6 +361,15 @@ class ModelMeta(type):
         namespace["_verbose_name_plural"] = verbose_name_plural
         namespace["_ordering"] = ordering
         namespace["_cache_ttl"] = getattr(meta, "cache_ttl", 0) if meta else 0
+
+        # Cache immutable field membership lookups on the class so that
+        # Model.__init__ does not rebuild these collections per instance.
+        namespace["_known_fields"] = set(fields.keys())
+        namespace["_col_to_field"] = {
+            field.column_name: field_name
+            for field_name, field in fields.items()
+            if hasattr(field, "column_name")
+        }
 
         cls = super().__new__(mcs, name, bases, namespace)
 
@@ -430,7 +440,7 @@ class ModelMeta(type):
         return cls
 
     @staticmethod
-    def _extract_app_name(module: str, model_name: str) -> str:
+    def extract_app_name(module: str, model_name: str) -> str:
         """Extract app name from module path.
 
         Examples:
@@ -454,7 +464,7 @@ class ModelMeta(type):
         return parts[-2] if len(parts) >= 2 else "default"
 
     @staticmethod
-    def _camel_to_snake(name: str) -> str:
+    def camel_to_snake(name: str) -> str:
         """Convert CamelCase to snake_case.
 
         Examples:
@@ -523,29 +533,29 @@ class F:
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def _combine(self, other: Any, op: str) -> _FExpr:
+    def combine(self, other: Any, op: str) -> _FExpr:
         return _FExpr(self, op, other)
 
     def __add__(self, other: Any) -> _FExpr:
-        return self._combine(other, "+")
+        return self.combine(other, "+")
 
     def __radd__(self, other: Any) -> _FExpr:
         return _FExpr(other, "+", self)
 
     def __sub__(self, other: Any) -> _FExpr:
-        return self._combine(other, "-")
+        return self.combine(other, "-")
 
     def __rsub__(self, other: Any) -> _FExpr:
         return _FExpr(other, "-", self)
 
     def __mul__(self, other: Any) -> _FExpr:
-        return self._combine(other, "*")
+        return self.combine(other, "*")
 
     def __rmul__(self, other: Any) -> _FExpr:
         return _FExpr(other, "*", self)
 
     def __truediv__(self, other: Any) -> _FExpr:
-        return self._combine(other, "/")
+        return self.combine(other, "/")
 
     def __repr__(self) -> str:
         return f"F({self.name!r})"
@@ -570,20 +580,20 @@ class _FExpr:
         self.op = op
         self.rhs = rhs
 
-    def _combine(self, other: Any, op: str) -> _FExpr:
+    def combine(self, other: Any, op: str) -> _FExpr:
         return _FExpr(self, op, other)
 
     def __add__(self, other: Any) -> _FExpr:
-        return self._combine(other, "+")
+        return self.combine(other, "+")
 
     def __sub__(self, other: Any) -> _FExpr:
-        return self._combine(other, "-")
+        return self.combine(other, "-")
 
     def __mul__(self, other: Any) -> _FExpr:
-        return self._combine(other, "*")
+        return self.combine(other, "*")
 
     def __truediv__(self, other: Any) -> _FExpr:
-        return self._combine(other, "/")
+        return self.combine(other, "/")
 
     def __repr__(self) -> str:
         return f"_FExpr({self.lhs!r} {self.op} {self.rhs!r})"
@@ -677,17 +687,17 @@ class Q:
         self.negated: bool = False
         self.children: list[Any] = list(kwargs.items())
 
-    def _combine(self, other: Q, conn: str) -> Q:
+    def combine(self, other: Q, conn: str) -> Q:
         q = Q()
         q.connector = conn
         q.children = [self, other]
         return q
 
     def __and__(self, other: Q) -> Q:
-        return self._combine(other, self.AND)
+        return self.combine(other, self.AND)
 
     def __or__(self, other: Q) -> Q:
-        return self._combine(other, self.OR)
+        return self.combine(other, self.OR)
 
     def __invert__(self) -> Q:
         q = Q()
@@ -767,9 +777,13 @@ def build_keyset_q(order_fields: list[str], cursor_values: dict[str, Any]) -> Q 
 
     DESC fields use ``__lt`` instead of ``__gt``.
     Returns ``None`` when any required cursor value is missing.
+
+    The prefix equality chain is accumulated incrementally so the algorithm
+    runs in O(n) with respect to the number of ordering fields.
     """
     or_parts: list[Q] = []
-    for i, field_expr in enumerate(order_fields):
+    prefix: Q | None = None
+    for field_expr in order_fields:
         is_desc = field_expr.startswith("-")
         fname = field_expr.lstrip("-")
         if fname not in cursor_values:
@@ -777,13 +791,14 @@ def build_keyset_q(order_fields: list[str], cursor_values: dict[str, Any]) -> Q 
         # Strict inequality skips the cursor row itself.
         lookup = f"{fname}__lt" if is_desc else f"{fname}__gt"
         part: Q = Q(**{lookup: cursor_values[fname]})
-        # Tie-breaking preserves total ordering across duplicate values.
-        for prev_expr in reversed(order_fields[:i]):
-            prev_fname = prev_expr.lstrip("-")
-            if prev_fname not in cursor_values:
-                break
-            part = Q(**{prev_fname: cursor_values[prev_fname]}) & part
+        if prefix is not None:
+            part = prefix & part
         or_parts.append(part)
+
+        # Extend the equality prefix for the next ordering field.
+        eq = Q(**{fname: cursor_values[fname]})
+        prefix = eq if prefix is None else prefix & eq
+
     if not or_parts:
         return None
     result = or_parts[0]
@@ -968,13 +983,13 @@ class Manager:
                 self.model, "create", ignore_permissions=ignore_permissions
             )
             for obj in objs:
-                obj._apply_auto_fields()
-            records = [o._to_dict() for o in objs]
+                obj.apply_auto_fields()
+            records = [o.to_dict() for o in objs]
 
             model_path = f"{self.model.__module__}.{self.model.__name__}"
-            self._trigger_bulk_event(model_path, "pre_bulk_create", objs)
+            self.trigger_bulk_event(model_path, "pre_bulk_create", objs)
 
-            stmt = self.model._get_insert_statement()
+            stmt = self.model.get_insert_statement()
             # executemany in a single transaction is ~40-60% faster.
             async with begin() as conn:
                 if batch_size is not None and batch_size > 0 and len(records) > batch_size:
@@ -985,7 +1000,7 @@ class Manager:
                 else:
                     await conn.execute(stmt, records)
 
-            self._trigger_bulk_event(model_path, "post_bulk_create", objs)
+            self.trigger_bulk_event(model_path, "post_bulk_create", objs)
             return objs
         finally:
             if token:
@@ -1019,18 +1034,18 @@ class Manager:
                 self.model, "update", ignore_permissions=ignore_permissions
             )
             model_path = f"{self.model.__module__}.{self.model.__name__}"
-            self._trigger_bulk_event(model_path, "pre_bulk_update", objs)
+            self.trigger_bulk_event(model_path, "pre_bulk_update", objs)
 
             total = await execute_bulk_update(self.model, objs, fields, batch_size=batch_size)
 
-            self._trigger_bulk_event(model_path, "post_bulk_update", objs)
+            self.trigger_bulk_event(model_path, "post_bulk_update", objs)
             return total
         finally:
             if token:
                 ignore_permissions_ctx.reset(token)
 
     @staticmethod
-    def _trigger_bulk_event(model_path: str, event_name: str, objs: list[Any]) -> None:
+    def trigger_bulk_event(model_path: str, event_name: str, objs: list[Any]) -> None:
         """Fire a bulk lifecycle event (best-effort, exceptions suppressed)."""
         try:
             dispatcher = get_dispatcher()
@@ -1195,6 +1210,27 @@ class Page:
         return f"<Page {self.number} of {self.num_pages} ({len(self.items)} items)>"
 
 
+def detect_traversal_collisions(
+    traversal_fields: list[str],
+) -> tuple[dict[str, str], set[str]]:
+    """Detect key collisions among traversal field short names.
+
+    Returns (final_keys, collisions) where final_keys maps each traversal
+    field to its short name and collisions contains short names that appear
+    more than once.
+    """
+    final_keys: dict[str, str] = {}
+    seen_shorts: set[str] = set()
+    collisions: set[str] = set()
+    for tf in traversal_fields:
+        short = tf.rsplit("__", 1)[-1]
+        if short in seen_shorts:
+            collisions.add(short)
+        seen_shorts.add(short)
+        final_keys[tf] = short
+    return final_keys, collisions
+
+
 def remap_traversal_keys(
     rows: list[dict[str, Any]], fields: tuple[str, ...] | None
 ) -> list[dict[str, Any]]:
@@ -1209,15 +1245,7 @@ def remap_traversal_keys(
     traversal_fields = [f for f in fields if "__" in f]
     if not traversal_fields:
         return rows
-    final_keys: dict[str, str] = {}
-    seen_shorts: set[str] = set()
-    collisions: set[str] = set()
-    for tf in traversal_fields:
-        short = tf.rsplit("__", 1)[-1]
-        if short in seen_shorts:
-            collisions.add(short)
-        seen_shorts.add(short)
-        final_keys[tf] = short
+    final_keys, collisions = detect_traversal_collisions(traversal_fields)
     remap: dict[str, str] = {
         tf: short for tf, short in final_keys.items() if short not in collisions
     }
@@ -1236,13 +1264,7 @@ def remap_field_keys(fields: tuple[str, ...] | None) -> tuple[str, ...] | None:
     traversal_fields = [f for f in fields if "__" in f]
     if not traversal_fields:
         return fields
-    seen_shorts: set[str] = set()
-    collisions: set[str] = set()
-    for tf in traversal_fields:
-        short = tf.rsplit("__", 1)[-1]
-        if short in seen_shorts:
-            collisions.add(short)
-        seen_shorts.add(short)
+    _, collisions = detect_traversal_collisions(traversal_fields)
     remap: dict[str, str] = {
         tf: tf.rsplit("__", 1)[-1]
         for tf in traversal_fields
@@ -1286,7 +1308,7 @@ class QuerySet:
 
     def filter(self, *args: Any, **kwargs: Any) -> QuerySet:
         ignore_permissions = kwargs.pop("ignore_permissions", None)
-        clone = self._clone()
+        clone = self.clone()
         if ignore_permissions is not None:
             clone._ignore_permissions = ignore_permissions
         if kwargs:
@@ -1296,7 +1318,7 @@ class QuerySet:
         return clone
 
     def exclude(self, *args: Any, **kwargs: Any) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         if kwargs:
             clone._excludes.append(kwargs)
         for q in args:
@@ -1304,22 +1326,22 @@ class QuerySet:
         return clone
 
     def order_by(self, *fields: str) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         clone._order = list(fields)
         return clone
 
     def limit(self, n: int) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         clone._limit = n
         return clone
 
     def offset(self, n: int) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         clone._offset = n
         return clone
 
     def distinct(self) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         clone._distinct = True
         return clone
 
@@ -1349,19 +1371,19 @@ class QuerySet:
         """
         if nowait and skip_locked:
             raise ValueError("select_for_update() cannot use both nowait=True and skip_locked=True")
-        clone = self._clone()
+        clone = self.clone()
         clone._for_update = True
         clone._for_update_nowait = nowait
         clone._for_update_skip_locked = skip_locked
         return clone
 
     def select_related(self, *fields: str) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         clone._select_related = list(fields)
         return clone
 
     def prefetch_related(self, *fields: str) -> QuerySet:
-        clone = self._clone()
+        clone = self.clone()
         clone._prefetch_related = list(fields)
         return clone
 
@@ -1375,7 +1397,7 @@ class QuerySet:
 
            posts = await Post.objects.only("id", "title").all()
         """
-        clone = self._clone()
+        clone = self.clone()
         clone._only_fields = list(fields)
         clone._defer_fields = []
         return clone
@@ -1390,7 +1412,7 @@ class QuerySet:
 
            posts = await Post.objects.defer("body", "raw_html").all()
         """
-        clone = self._clone()
+        clone = self.clone()
         clone._defer_fields = list(fields)
         clone._only_fields = []
         return clone
@@ -1406,7 +1428,7 @@ class QuerySet:
            users = await User.objects.using('replica').all()
            await User.objects.using('default').create(email='a@example.com')
         """
-        clone = self._clone()
+        clone = self.clone()
         clone._db_alias = alias
         return clone
 
@@ -1428,7 +1450,7 @@ class QuerySet:
            for post in posts:
                print(post.like_count, post.double_views)
         """
-        clone = self._clone()
+        clone = self.clone()
         clone._annotations = {**self._annotations, **kwargs}
         return clone
 
@@ -1514,11 +1536,11 @@ class QuerySet:
     async def virtual_list(self) -> list[Model]:
         """Fetch and hydrate rows through the configured virtual backend."""
         if self._model._meta.single:
-            return await self._virtual_list_single()
+            return await self.virtual_list_single()
         rows = await self.virtual_backend().list(self._model, self.virtual_query_spec())
-        return [self._model._from_row_fast(dict(row)) for row in rows]
+        return [self._model.from_row_fast(dict(row)) for row in rows]
 
-    async def _virtual_list_single(self) -> list[Model]:
+    async def virtual_list_single(self) -> list[Model]:
         """Fetch the single logical record, then apply user filters in-memory.
 
         Virtual backends may contain stray rows due to race conditions or
@@ -1540,7 +1562,7 @@ class QuerySet:
         rows = await backend.list(self._model, single_spec)
         if not rows:
             return []
-        instance = self._model._from_row_fast(dict(rows[0]))
+        instance = self._model.from_row_fast(dict(rows[0]))
         # Apply user filters in-memory.
         if self._filters or self._excludes:
             for filt in self._filters:
@@ -1677,12 +1699,12 @@ class QuerySet:
                     if sr_prefixes
                     else row
                 )
-                instance = self._model._from_row_fast(main_row)
+                instance = self._model.from_row_fast(main_row)
                 if self._select_related:
-                    self._hydrate_select_related_fast(instance, row, sr_mappings)
+                    self.hydrate_select_related_fast(instance, row, sr_mappings)
                 instances.append(instance)
             if self._prefetch_related:
-                await self._do_prefetch_related(instances)
+                await self.do_prefetch_related(instances)
             return instances
         except ModelPermissionError:
             return []
@@ -1697,7 +1719,7 @@ class QuerySet:
                 row = await self.virtual_backend().get(self._model, primary_key)
                 if row is None:
                     raise DoesNotExist(f"{self._model.__name__} matching query does not exist.")
-                return self._model._from_row_fast(dict(row))
+                return self._model.from_row_fast(dict(row))
         clone = self.limit(2)
         results = await clone.all()
         if not results:
@@ -2055,7 +2077,7 @@ class QuerySet:
             if len(chunk) < size:
                 break
 
-    def _hydrate_select_related(self, instance: Model, row: dict[str, Any]) -> None:
+    def hydrate_select_related(self, instance: Model, row: dict[str, Any]) -> None:
         """Attach select_related model instances from prefixed row keys to *instance*.
 
         Also caches the related instances for smart descriptor access.
@@ -2070,13 +2092,13 @@ class QuerySet:
             prefix = f"{field_name}__"
             related_row = {k[len(prefix) :]: v for k, v in row.items() if k.startswith(prefix)}
             if related_row and any(v is not None for v in related_row.values()):
-                related_instance = related_cls._from_row_fast(related_row)
-                instance._set_related(field_name, related_instance)
+                related_instance = related_cls.from_row_fast(related_row)
+                instance.set_related(field_name, related_instance)
             else:
-                instance._set_related(field_name, None)
+                instance.set_related(field_name, None)
 
     @staticmethod
-    def _hydrate_select_related_fast(
+    def hydrate_select_related_fast(
         instance: Model,
         row: dict[str, Any],
         sr_mappings: dict[str, tuple[type, list[tuple[str, str]]]],
@@ -2085,12 +2107,12 @@ class QuerySet:
         for field_name, (related_cls, key_pairs) in sr_mappings.items():
             related_row = {unprefixed: row[prefixed] for prefixed, unprefixed in key_pairs}
             if related_row and any(v is not None for v in related_row.values()):
-                related_instance = related_cls._from_row_fast(related_row)
-                instance._set_related(field_name, related_instance)
+                related_instance = related_cls.from_row_fast(related_row)
+                instance.set_related(field_name, related_instance)
             else:
-                instance._set_related(field_name, None)
+                instance.set_related(field_name, None)
 
-    async def _do_prefetch_related(self, instances: list[Model]) -> None:
+    async def do_prefetch_related(self, instances: list[Model]) -> None:
         """Batch-load prefetch_related FK and M2M fields and attach them to *instances*.
 
         Collects all FK values from the main instances, groups by target model
@@ -2115,7 +2137,7 @@ class QuerySet:
             source_pks = [inst.pk for inst in instances if inst.pk is not None]
             if not source_pks:
                 for inst in instances:
-                    inst._set_related(field_name, [])
+                    inst.set_related(field_name, [])
                 continue
 
             try:
@@ -2156,7 +2178,7 @@ class QuerySet:
 
             for inst in instances:
                 tgt_pks = src_to_tgt_pks.get(inst.pk, [])
-                inst._set_related(
+                inst.set_related(
                     field_name,
                     [target_map[pk] for pk in tgt_pks if pk in target_map],
                 )
@@ -2175,7 +2197,7 @@ class QuerySet:
             fk_col = field.column_name if isinstance(field, ForeignKey) else field_name
             is_fk = isinstance(field, ForeignKey)
 
-            def _extract_id(
+            def extract_id(
                 inst: Any, _fk_col: str = fk_col, _is_fk: bool = is_fk, _fname: str = field_name
             ) -> int | None:
                 val = inst.__dict__.get(_fk_col) if _is_fk else getattr(inst, _fname, None)
@@ -2185,7 +2207,7 @@ class QuerySet:
                     return val.fk_id
                 return None
 
-            fk_ids = {pk for pk in (_extract_id(inst) for inst in instances) if pk is not None}
+            fk_ids = {pk for pk in (extract_id(inst) for inst in instances) if pk is not None}
             if not fk_ids:
                 continue
 
@@ -2216,9 +2238,9 @@ class QuerySet:
                     else getattr(inst, field_name, None)
                 )
                 if isinstance(fk_val, int):
-                    inst._set_related(field_name, related_map.get(fk_val))
+                    inst.set_related(field_name, related_map.get(fk_val))
                 elif isinstance(fk_val, LazyFK) and isinstance(fk_val.fk_id, int):
-                    inst._set_related(field_name, related_map.get(fk_val.fk_id))
+                    inst.set_related(field_name, related_map.get(fk_val.fk_id))
 
     def __aiter__(self) -> QuerySet:
         self._iter_results: list[Any] | None = None
@@ -2247,7 +2269,7 @@ class QuerySet:
         """
         return self.all().__await__()
 
-    def _clone(self) -> QuerySet:
+    def clone(self) -> QuerySet:
         clone = self.__class__(self._model)
         clone._filters = list(self._filters)
         clone._excludes = list(self._excludes)
@@ -2358,8 +2380,10 @@ class Model(metaclass=ModelMeta):
             else:
                 setattr(self, name, None)
 
-        # Reject underscore kwargs; forward unknown non-private kwargs.
-        known_fields = set(self._fields.keys())
+        # Reject underscore kwargs and unknown kwargs to prevent mass assignment.
+        # Field membership collections are cached on the class during ModelMeta.
+        known_fields: set[str] = cast("Any", self.__class__)._known_fields
+        col_to_field: dict[str, str] = cast("Any", self.__class__)._col_to_field
         for key in kwargs:
             if key.startswith("_"):
                 raise TypeError(
@@ -2367,25 +2391,14 @@ class Model(metaclass=ModelMeta):
                     f"keyword argument {key!r}. Internal attributes cannot be "
                     f"set via the constructor."
                 )
-            if key not in known_fields:
-                # FK column_name aliases must be recognised as known fields.
-                matched_column = False
-                for _fname, fobj in self._fields.items():
-                    if hasattr(fobj, "column_name") and fobj.column_name == key:
-                        matched_column = True
-                        break
-                if not matched_column:
-                    # Arbitrary kwargs must not shadow existing methods or descriptors.
-                    if hasattr(type(self), key) and callable(getattr(type(self), key)):
-                        raise TypeError(
-                            f"{self.__class__.__name__}() does not accept keyword "
-                            f"argument {key!r}: would shadow an existing method."
-                        )
-                    setattr(self, key, kwargs[key])
+            if key not in known_fields and key not in col_to_field:
+                raise TypeError(
+                    f"{self.__class__.__name__}() received unexpected keyword argument {key!r}"
+                )
 
-        self._previous_state: dict[str, Any] = self._snapshot()
+        self._previous_state: dict[str, Any] = self.snapshot()
 
-    def _set_related(self, field_name: str, obj: Any) -> None:
+    def set_related(self, field_name: str, obj: Any) -> None:
         """Store a loaded related object in the cache.
 
         Called by select_related/prefetch_related hydration.
@@ -2395,7 +2408,7 @@ class Model(metaclass=ModelMeta):
             self._relation_cache = {}
         self._relation_cache[field_name] = obj
 
-    def _get_related(self, field_name: str) -> Any:
+    def get_related(self, field_name: str) -> Any:
         """Retrieve a cached related object.
 
         Returns the cached instance if available, None otherwise.
@@ -2417,7 +2430,7 @@ class Model(metaclass=ModelMeta):
         """Return the content type identifier for this model class."""
         return f"{cast('Any', cls)._app_name}.{cast('Any', cls)._model_name}"
 
-    def _snapshot(self) -> dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Capture a shallow copy of all field values.
 
         For FK fields, reads the raw ID value from ``__dict__`` to avoid
@@ -2438,7 +2451,7 @@ class Model(metaclass=ModelMeta):
                 snap[name] = obj_dict.get(name, getattr(self, name, None))
         return snap
 
-    def _get_changed_fields(self) -> dict[str, Any]:
+    def get_changed_fields(self) -> dict[str, Any]:
         """Return a dict of ``{field_name: previous_value}`` for changed fields."""
         changed: dict[str, Any] = {}
         for name, field in self._fields.items():
@@ -2457,7 +2470,7 @@ class Model(metaclass=ModelMeta):
     @property
     def has_changed(self) -> bool:
         """``True`` if any field value differs from the last-saved state."""
-        return bool(self._get_changed_fields())
+        return bool(self.get_changed_fields())
 
     async def before_validate(self) -> None:
         """Called before :meth:`validate` during both create and update."""
@@ -2514,7 +2527,16 @@ class Model(metaclass=ModelMeta):
             )
 
         # Enforce unique_together in Python before DB round-trip.
+        await self._check_unique_together()
+
+    async def _check_unique_together(self) -> None:
+        """Validate unique_together constraints with batched DB lookups.
+
+        Concurrent existence checks reduce latency when a model defines
+        multiple composite unique constraints.
+        """
         is_create = not getattr(self, "_persisted", False)
+        tasks: list[tuple[list[str], dict[str, Any], Any]] = []
         for ut_fields in getattr(self.__class__, "_meta_unique_together", []):
             filter_kwargs: dict[str, Any] = {}
             skip = False
@@ -2531,7 +2553,14 @@ class Model(metaclass=ModelMeta):
             qs = self.__class__.objects.filter(**filter_kwargs)
             if not is_create:
                 qs = qs.exclude(id=self.id)
-            if await qs.exists():
+            tasks.append((ut_fields, filter_kwargs, qs.exists()))
+
+        if not tasks:
+            return
+
+        results = await asyncio.gather(*(t[2] for t in tasks))
+        for (_, filter_kwargs, _), exists in zip(tasks, results, strict=True):
+            if exists:
                 raise ValueError(
                     f"Duplicate entry: a {self.__class__.__name__} with "
                     + ", ".join(f"{k}={v!r}" for k, v in filter_kwargs.items())
@@ -2569,7 +2598,7 @@ class Model(metaclass=ModelMeta):
         """Primary key (aliased to ``id`` by default)."""
         return getattr(self, "id", None)
 
-    def _apply_auto_fields(self) -> None:
+    def apply_auto_fields(self) -> None:
         now = timezone.now()
         for name, field in self._fields.items():
             if isinstance(field, DateTimeField) and (
@@ -2581,7 +2610,7 @@ class Model(metaclass=ModelMeta):
                 if callable(default):
                     setattr(self, name, default())
 
-    def _to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for name, field in self._fields.items():
             if isinstance(field, ManyToManyField):
@@ -2643,7 +2672,7 @@ class Model(metaclass=ModelMeta):
             print(user.as_json(indent=2))
         """
 
-        def _default(obj: Any) -> Any:
+        def json_default(obj: Any) -> Any:
             if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
                 return obj.isoformat()
             if isinstance(obj, uuid.UUID):
@@ -2656,12 +2685,12 @@ class Model(metaclass=ModelMeta):
 
         return json.dumps(
             self.as_dict(include_relations=include_relations),
-            default=_default,
+            default=json_default,
             indent=indent,
         )
 
     @classmethod
-    def _from_row(cls: type[T], row: dict[str, Any]) -> T:
+    def from_row(cls: type[T], row: dict[str, Any]) -> T:
         field_data = {}
         extra_data = {}
         known_columns = set()
@@ -2685,7 +2714,7 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     @functools.cache
-    def _field_mapping(
+    def field_mapping(
         cls,
     ) -> tuple[
         tuple[tuple[str, str, str, bool], ...],
@@ -2711,14 +2740,14 @@ class Model(metaclass=ModelMeta):
         return tuple(specs), frozenset(field_names), frozenset(col_names)
 
     @classmethod
-    def _from_row_fast(cls: type[T], row: dict[str, Any]) -> T:
-        """Fast-path hydration that bypasses ``__init__`` and ``_snapshot()``.
+    def from_row_fast(cls: type[T], row: dict[str, Any]) -> T:
+        """Fast-path hydration that bypasses ``__init__`` and ``snapshot()``.
 
         Uses a per-model cached field mapping to avoid per-row introspection.
         Sets ``__dict__`` directly, skipping three full field iterations
         that ``__init__`` performs (defaults, extras, snapshot).
         """
-        specs, known_fields, known_cols = cls._field_mapping()
+        specs, known_fields, known_cols = cls.field_mapping()
 
         instance = cls.__new__(cls)
         inst_dict = instance.__dict__
@@ -2764,13 +2793,13 @@ class Model(metaclass=ModelMeta):
         return instance
 
     @classmethod
-    def _get_insert_statement(cls) -> Any:
+    def get_insert_statement(cls) -> Any:
         """Return a SQLAlchemy insert statement for this model's table."""
 
         table = get_table(cls)
         return insert(table)
 
-    def _trigger_event(self, event_name: str, **kwargs: Any) -> None:
+    def trigger_event(self, event_name: str, **kwargs: Any) -> None:
         """Fire MODEL_EVENTS handlers for *event_name* on this instance.
 
         A no-op when the task system is disabled or no handlers are registered
@@ -2837,20 +2866,20 @@ class Model(metaclass=ModelMeta):
             await enforce_single_model_constraint(type(self))
 
         # Capture pre-save diff for on_change field-level delta.
-        pre_save_state = self._get_changed_fields() if not is_create else {}
+        pre_save_state = self.get_changed_fields() if not is_create else {}
 
         try:
             await call_hook(self.before_validate)
-            self._trigger_event("before_validate")
+            self.trigger_event("before_validate")
             await call_hook(self.validate)
-            self._trigger_event("validate")
+            self.trigger_event("validate")
 
             if is_create:
                 await call_hook(self.before_insert)
-                self._trigger_event("before_insert")
+                self.trigger_event("before_insert")
 
             await call_hook(self.before_save)
-            self._trigger_event("before_save")
+            self.trigger_event("before_save")
 
             token = None
             if ignore_permissions:
@@ -2863,7 +2892,7 @@ class Model(metaclass=ModelMeta):
                             f"{self.__class__.__name__} is configured as read-only."
                         )
                     backend = backend_registry.get(self._meta.backend)
-                    data = self._to_dict()
+                    data = self.to_dict()
                     if is_create:
                         row = await backend.create(type(self), data)
                     else:
@@ -2881,24 +2910,24 @@ class Model(metaclass=ModelMeta):
 
                 if is_create:
                     await call_hook(self.after_insert)
-                    self._trigger_event("after_insert")
+                    self.trigger_event("after_insert")
                     # On creation every field is new, so the entire state is the change dict.
-                    initial_state = self._to_dict()
+                    initial_state = self.to_dict()
                     await call_hook(self.on_change, initial_state)
-                    self._trigger_event("on_change", change_dict=initial_state)
+                    self.trigger_event("on_change", change_dict=initial_state)
                 else:
                     await call_hook(self.on_update)
-                    self._trigger_event("on_update")
+                    self.trigger_event("on_update")
                     if pre_save_state:
                         await call_hook(self.on_change, pre_save_state)
-                        self._trigger_event("on_change", change_dict=pre_save_state)
+                        self.trigger_event("on_change", change_dict=pre_save_state)
             finally:
                 if token:
                     ignore_permissions_ctx.reset(token)
 
             # Snapshot must follow persistence so the next save() can diff
             # against the persisted state.
-            self._previous_state = self._snapshot()
+            self.previous_state = self.snapshot()
         except Exception as e:
             logger.error(
                 "Save failed for %s (pk=%s, is_create=%s): %s",
@@ -2925,7 +2954,7 @@ class Model(metaclass=ModelMeta):
 
         try:
             await call_hook(self.on_delete)
-            self._trigger_event("on_delete")
+            self.trigger_event("on_delete")
             token = None
             if ignore_permissions:
                 token = ignore_permissions_ctx.set(True)
@@ -2943,7 +2972,7 @@ class Model(metaclass=ModelMeta):
                 if token:
                     ignore_permissions_ctx.reset(token)
             await call_hook(self.after_delete)
-            self._trigger_event("after_delete")
+            self.trigger_event("after_delete")
         except Exception as e:
             logger.error(
                 "Delete failed for %s (pk=%s): %s",
@@ -2960,7 +2989,7 @@ class Model(metaclass=ModelMeta):
         updated = await self.__class__.objects.get(id=self.pk)
         for name in self._fields:
             setattr(self, name, getattr(updated, name))
-        self._previous_state = self._snapshot()
+        self._previous_state = self.snapshot()
 
     async def full_clean(self) -> None:
         """Run complete validation: field-level checks plus custom model validation.
@@ -3086,6 +3115,16 @@ class AbstractModel(Model):
 class TextChoice(StrEnum):
     """TextChoic with value + label."""
 
+    def __init_subclass__(cls, **kwargs: t.Any) -> None:
+        super().__init_subclass__(**kwargs)
+        value_map: dict[str, TextChoice] = {}
+        label_map: dict[str, TextChoice] = {}
+        for member in cls:
+            value_map[member.value] = member
+            label_map[member.label] = member
+        cls._value_map = value_map
+        cls._label_map = label_map
+
     def __new__(cls, value: str, label: str) -> TextChoice:
         obj = str.__new__(cls, value)
         obj._value_ = value
@@ -3110,14 +3149,14 @@ class TextChoice(StrEnum):
 
     @classmethod
     def from_value(cls, value: str) -> TextChoice:
-        for member in cls:
-            if member.value == value:
-                return member
-        raise ValueError(f"{value!r} is not a valid value for {cls.__name__}")
+        result = cast("Any", cls)._value_map.get(value)
+        if result is None:
+            raise ValueError(f"{value!r} is not a valid value for {cls.__name__}")
+        return cast("TextChoice", result)
 
     @classmethod
     def from_label(cls, label: str) -> TextChoice:
-        for member in cls:
-            if member.label == label:
-                return member
-        raise ValueError(f"{label!r} is not a valid label for {cls.__name__}")
+        result = cast("Any", cls)._label_map.get(label)
+        if result is None:
+            raise ValueError(f"{label!r} is not a valid label for {cls.__name__}")
+        return cast("TextChoice", result)

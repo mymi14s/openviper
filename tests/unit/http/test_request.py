@@ -83,8 +83,17 @@ class TestURL:
         scope = make_scope()
         scope["server"] = None
         scope["headers"] = [(b"host", b"myapp.io")]
-        url = URL(scope)
-        assert url.host == "myapp.io"
+        with patch.object(_req_mod, "is_host_allowed", return_value=True):
+            url = URL(scope)
+            assert url.host == "myapp.io"
+
+    def test_host_from_disallowed_header_falls_back_to_localhost(self):
+        scope = make_scope()
+        scope["server"] = None
+        scope["headers"] = [(b"host", b"evil.com")]
+        with patch.object(_req_mod, "is_host_allowed", return_value=False):
+            url = URL(scope)
+            assert url.host == "localhost"
 
     def test_host_defaults_to_localhost_when_no_server_no_header(self):
         scope = make_scope()

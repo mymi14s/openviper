@@ -60,8 +60,8 @@ import * as Vue from 'vue'
 export interface AdminExtension {
   id: string
   onRoute?:  (path: string, params: Record<string, string>) => void
-  onObject?: (object: Record<string, any>, model: Record<string, any>, params: Record<string, string>) => void
-  onList?:   (items: Record<string, any>[], model: Record<string, any>, params: Record<string, string>) => void
+  onObject?: (object: Record<string, unknown>, model: Record<string, unknown>, params: Record<string, string>) => void
+  onList?:   (items: Record<string, unknown>[], model: Record<string, unknown>, params: Record<string, string>) => void
 }
 
 /** Mutable context object exposed as `window.__ext` before each file runs. */
@@ -79,12 +79,12 @@ export interface AdminRegistry {
   getAll(): AdminExtension[]
 
   notifyRoute(path: string, params: Record<string, string>): void
-  notifyObject(object: Record<string, any> | null, model: Record<string, any> | null, params: Record<string, string>): void
-  notifyList(items: Record<string, any>[], model: Record<string, any> | null, params: Record<string, string>): void
+  notifyObject(object: Record<string, unknown> | null, model: Record<string, unknown> | null, params: Record<string, string>): void
+  notifyList(items: Record<string, unknown>[], model: Record<string, unknown> | null, params: Record<string, string>): void
 
-  readonly currentObject: Record<string, any> | null
-  readonly currentList:   Record<string, any>[]
-  readonly currentModel:  Record<string, any> | null
+  readonly currentObject: Record<string, unknown> | null
+  readonly currentList:   Record<string, unknown>[]
+  readonly currentModel:  Record<string, unknown> | null
 }
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
@@ -92,9 +92,9 @@ export interface AdminRegistry {
 function createRegistry(): AdminRegistry {
   const extensions: AdminExtension[] = []
 
-  let _currentObject: Record<string, any> | null = null
-  let _currentList:   Record<string, any>[]       = []
-  let _currentModel:  Record<string, any> | null  = null
+  let currentObject: Record<string, unknown> | null = null
+  let currentList:   Record<string, unknown>[]       = []
+  let currentModel:  Record<string, unknown> | null  = null
 
   const registry: AdminRegistry = {
     register(ext) {
@@ -113,8 +113,8 @@ function createRegistry(): AdminRegistry {
     },
 
     notifyObject(object, model, params) {
-      _currentObject = object
-      _currentModel  = model
+      currentObject = object
+      currentModel  = model
       if (!object) return
       for (const ext of extensions) {
         try { ext.onObject?.(object, model ?? {}, params) }
@@ -123,17 +123,17 @@ function createRegistry(): AdminRegistry {
     },
 
     notifyList(items, model, params) {
-      _currentList  = items
-      _currentModel = model
+      currentList  = items
+      currentModel = model
       for (const ext of extensions) {
         try { ext.onList?.(items, model ?? {}, params) }
         catch (err) { console.error(`[admin-ext] "${ext.id}" onList error:`, err) }
       }
     },
 
-    get currentObject() { return _currentObject },
-    get currentList()   { return _currentList },
-    get currentModel()  { return _currentModel },
+    get currentObject() { return currentObject },
+    get currentList()   { return currentList },
+    get currentModel()  { return currentModel },
   }
 
   return registry
@@ -156,7 +156,7 @@ function injectScript(url: string, extId: string): Promise<void> {
 
     // Expose the mutable context the script will write into
     const ctx: ExtensionContext = { id: extId }
-    ;(window as any).__ext = ctx
+    window.__ext = ctx
 
     const script = document.createElement('script')
     script.src = url
@@ -164,7 +164,7 @@ function injectScript(url: string, extId: string): Promise<void> {
 
     script.onload = () => {
       // Auto-register any hooks the script assigned to __ext
-      const filled = (window as any).__ext as ExtensionContext
+      const filled = window.__ext as ExtensionContext
       if (filled && (filled.onObject || filled.onList || filled.onRoute)) {
         window.__adminRegistry.register({
           id:       filled.id,
@@ -174,12 +174,12 @@ function injectScript(url: string, extId: string): Promise<void> {
         })
       }
       // Clean up the shared slot so the next extension starts fresh
-      ;(window as any).__ext = null
+      window.__ext = null
       resolve()
     }
 
     script.onerror = () => {
-      ;(window as any).__ext = null
+      window.__ext = null
       reject(new Error(`Failed to load extension: ${url}`))
     }
 
@@ -202,18 +202,18 @@ async function injectModule(url: string, extId: string): Promise<void> {
     const { loadModule } = await import('vue3-sfc-loader')
 
     const Component = await loadModule(url, {
-      moduleCache: { vue: Vue as any },
+      moduleCache: { vue: Vue as Record<string, unknown> },
       async getFile(fileUrl: string) {
         const res = await fetch(fileUrl)
         if (!res.ok) throw new Error(`[admin-ext] fetch failed: ${fileUrl}`)
         return res.text()
       },
-      addStyle(css: string) {
+      addStyle(cssContent: string) {
         const style = document.createElement('style')
-        style.textContent = css
+        style.textContent = cssContent
         document.head.appendChild(style)
       },
-    } as any)
+    } as Parameters<typeof loadModule>[1])
 
     // Mount into a non-visible host element; the SFC uses <Teleport> for UI
     const host = document.createElement('div')
@@ -225,11 +225,11 @@ async function injectModule(url: string, extId: string): Promise<void> {
   } else {
     // ── Generic ESM ── use window.__ext context pattern ─────────────────
     const ctx: ExtensionContext = { id: extId }
-    ;(window as any).__ext = ctx
+    window.__ext = ctx
 
     try {
       await import(/* @vite-ignore */ url)
-      const filled = (window as any).__ext as ExtensionContext
+      const filled = window.__ext as ExtensionContext
       if (filled && (filled.onObject || filled.onList || filled.onRoute)) {
         window.__adminRegistry.register({
           id:       filled.id,
@@ -239,7 +239,7 @@ async function injectModule(url: string, extId: string): Promise<void> {
         })
       }
     } finally {
-      ;(window as any).__ext = null
+      window.__ext = null
       const marker = document.createElement('script')
       marker.dataset.adminExt = url
       marker.type = 'text/placeholder'
@@ -284,6 +284,6 @@ export async function loadExtensions(): Promise<void> {
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
-if (!(window as any).__adminRegistry) {
-  ;(window as any).__adminRegistry = createRegistry()
+if (!window.__adminRegistry) {
+  window.__adminRegistry = createRegistry()
 }

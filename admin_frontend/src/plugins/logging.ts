@@ -6,7 +6,7 @@ const LoggingPlugin: AdminPlugin = {
   version: '1.0.0',
 
   install(app: App) {
-    app.config.globalProperties.$logAction = (action: string, details?: any) => {
+    app.config.globalProperties.$logAction = (action: string, details?: unknown) => {
       console.log(`[Admin Action] ${action}`, details || '')
     }
   },
@@ -16,12 +16,12 @@ const LoggingPlugin: AdminPlugin = {
       console.log(`[Logging Plugin] Model loaded: ${config.name}`)
     },
 
-    onBeforeSave(model: string, data: any) {
+    onBeforeSave(model: string, data: Record<string, unknown>) {
       console.log(`[Logging Plugin] Before save: ${model}`, data)
       return data
     },
 
-    onAfterSave(model: string, data: any) {
+    onAfterSave(model: string, data: Record<string, unknown>) {
       console.log(`[Logging Plugin] After save: ${model}`, data)
     },
 

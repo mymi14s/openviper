@@ -6,14 +6,14 @@ import type { FilterOption } from '@/types/admin'
 
 const props = defineProps<{
   filterOptions: FilterOption[]
-  initialFilters?: Record<string, any>
+  initialFilters?: Record<string, unknown>
 }>()
 
 const emit = defineEmits<{
-  (e: 'change', filters: Record<string, any>): void
+  (e: 'change', filters: Record<string, unknown>): void
 }>()
 
-const activeFilters = ref<Record<string, any>>({ ...(props.initialFilters ?? {}) })
+const activeFilters = ref<Record<string, unknown>>({ ...(props.initialFilters ?? {}) })
 
 watch(
   () => props.initialFilters,
@@ -32,7 +32,17 @@ onUnmounted(() => {
 
 const activeFilterCount = computed(() => Object.keys(activeFilters.value).length)
 
-function applyFilter(fieldName: string, value: any) {
+function isActiveChoice(fieldName: string, choiceValue: unknown): boolean {
+  return activeFilters.value[fieldName] !== undefined && String(activeFilters.value[fieldName]) === String(choiceValue)
+}
+
+function choiceClass(fieldName: string, choiceValue: unknown): string {
+  return isActiveChoice(fieldName, choiceValue)
+    ? 'bg-indigo-600 text-white font-medium'
+    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+}
+
+function applyFilter(fieldName: string, value: unknown) {
   if (value === undefined || value === null || value === '') {
     const copy = { ...activeFilters.value }
     delete copy[fieldName]
@@ -43,7 +53,7 @@ function applyFilter(fieldName: string, value: any) {
   emit('change', { ...activeFilters.value })
 }
 
-function handleChoiceFilter(fieldName: string, value: any) {
+function handleChoiceFilter(fieldName: string, value: unknown) {
   const current = activeFilters.value[fieldName]
   if (current !== undefined && String(current) === String(value)) {
     applyFilter(fieldName, '')
@@ -83,7 +93,7 @@ function onPointChange(fieldName: string) {
 
 function clearAll() {
   activeFilters.value = {}
-  emit('change', {} as Record<string, any>)
+  emit('change', {} as Record<string, unknown>)
 }
 </script>
 
@@ -201,9 +211,7 @@ function clearAll() {
             :key="String(choice.value)"
             @click="handleChoiceFilter(filter.name, choice.value)"
             class="w-full text-left px-2.5 py-1.5 rounded text-xs transition-colors"
-            :class="activeFilters[filter.name] !== undefined && String(activeFilters[filter.name]) === String(choice.value)
-              ? 'bg-indigo-600 text-white font-medium'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+            :class="choiceClass(filter.name, choice.value)"
           >
             {{ choice.label }}
           </button>

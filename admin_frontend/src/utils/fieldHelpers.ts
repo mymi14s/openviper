@@ -32,8 +32,9 @@ const FIELD_TYPE_MAP: Record<string, string> = {
   DateTimeField: 'datetime-local',
   TimeField: 'time',
   BooleanField: 'checkbox',
-  TextField: 'textarea',
-  JSONField: 'textarea',
+  TextField:           'textarea',
+  HTMLField:           'html',
+  JSONField:           'textarea',
   UUIDField: 'text',
   ForeignKey: 'select',
   OneToOneField: 'select',
@@ -56,6 +57,9 @@ export function getFieldComponent(field: ModelField): string {
   }
   if (field.type === 'CountryField' || field.component === 'country') {
     return 'country'
+  }
+  if (field.type === 'HTMLField' || field.component === 'html') {
+    return 'html'
   }
   if (field.type === 'PointField' || field.component === 'point') {
     return 'point'

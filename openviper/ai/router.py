@@ -20,16 +20,16 @@ class ModelRouter:
         default_model: Optional model to use before :meth:`set_model` is called.
     """
 
-    __slots__ = ("_registry", "_model", "_lock")
+    __slots__ = ("registry", "model", "lock")
 
     def __init__(
         self,
         registry: ProviderRegistry | None = None,
         default_model: str | None = None,
     ) -> None:
-        self._registry = registry or provider_registry
-        self._model: str | None = default_model
-        self._lock = threading.Lock()
+        self.registry = registry or provider_registry
+        self.model: str | None = default_model
+        self.lock = threading.Lock()
 
     def set_model(self, model: str) -> None:
         """Select the active model.
@@ -37,15 +37,15 @@ class ModelRouter:
         Args:
             model: Model ID (must be registered in the ProviderRegistry).
         """
-        with self._lock:
-            self._model = model
+        with self.lock:
+            self.model = model
 
     def get_model(self) -> str | None:
         """Return the currently active model ID, or ``None`` if unset."""
-        with self._lock:
-            return self._model
+        with self.lock:
+            return self.model
 
-    def _get_provider(self, model: str | None = None) -> AIProvider:
+    def get_provider(self, model: str | None = None) -> AIProvider:
         """Resolve the provider for *model* (falls back to active model).
 
         Args:
@@ -58,10 +58,10 @@ class ModelRouter:
             ModelNotFoundError: Neither *model* nor the active model is registered.
             RuntimeError: No model has been set and no override supplied.
         """
-        target = model if model is not None else self._model
+        target = model if model is not None else self.model
         if not target:
             raise RuntimeError("No model selected. Call model_router.set_model('model-id') first.")
-        return self._registry.get_by_model(target)
+        return self.registry.get_by_model(target)
 
     async def generate(self, prompt: str, *, model: str | None = None, **kwargs: object) -> str:
         """Generate a text completion.
@@ -74,7 +74,7 @@ class ModelRouter:
         Returns:
             Generated text string.
         """
-        return await self._get_provider(model).generate(prompt, **kwargs)
+        return await self.get_provider(model).generate(prompt, **kwargs)
 
     async def stream(
         self, prompt: str, *, model: str | None = None, **kwargs: object
@@ -89,7 +89,7 @@ class ModelRouter:
         Yields:
             Incremental text chunks.
         """
-        async for chunk in self._get_provider(model).stream(prompt, **kwargs):
+        async for chunk in self.get_provider(model).stream(prompt, **kwargs):
             yield chunk
 
     async def moderate(
@@ -105,7 +105,7 @@ class ModelRouter:
         Returns:
             Dict with ``classification``, ``confidence``, ``reason``, ``is_safe``.
         """
-        return await self._get_provider(model).moderate(content, **kwargs)
+        return await self.get_provider(model).moderate(content, **kwargs)
 
     async def embed(self, text: str, *, model: str | None = None, **kwargs: object) -> list[float]:
         """Return an embedding vector for *text*.
@@ -118,15 +118,15 @@ class ModelRouter:
         Returns:
             List of floats.
         """
-        return await self._get_provider(model).embed(text, **kwargs)
+        return await self.get_provider(model).embed(text, **kwargs)
 
     def list_models(self) -> list[str]:
         """Return all model IDs currently registered in the ProviderRegistry."""
-        return self._registry.list_models()
+        return self.registry.list_models()
 
     def __repr__(self) -> str:
-        with self._lock:
-            model = self._model
+        with self.lock:
+            model = self.model
         return f"ModelRouter(model={model!r})"
 
 

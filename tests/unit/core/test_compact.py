@@ -18,38 +18,29 @@ class TestAppResolverCacheEviction:
 
     def test_search_pattern_cache_eviction(self) -> None:
         """Test cache evicts oldest entry when at capacity."""
-        # Save original cache state
-        original_cache = app_resolver._SEARCH_PATTERN_CACHE.copy()
-        original_max = app_resolver._SEARCH_PATTERN_CACHE_MAX
+        original_cache = app_resolver.SEARCH_PATTERN_CACHE.copy()
+        original_max = app_resolver.SEARCH_PATTERN_CACHE_MAX
 
         try:
-            # Set small cache size
-            app_resolver._SEARCH_PATTERN_CACHE_MAX = 2
-            app_resolver._SEARCH_PATTERN_CACHE.clear()
+            app_resolver.SEARCH_PATTERN_CACHE_MAX = 2
+            app_resolver.SEARCH_PATTERN_CACHE.clear()
 
-            # Add entries to fill cache
-            app_resolver._SEARCH_PATTERN_CACHE["key1"] = "value1"
-            app_resolver._SEARCH_PATTERN_CACHE["key2"] = "value2"
+            app_resolver.SEARCH_PATTERN_CACHE["key1"] = "value1"
+            app_resolver.SEARCH_PATTERN_CACHE["key2"] = "value2"
 
-            # Adding third entry should trigger eviction
-            assert len(app_resolver._SEARCH_PATTERN_CACHE) >= app_resolver._SEARCH_PATTERN_CACHE_MAX
+            assert len(app_resolver.SEARCH_PATTERN_CACHE) >= app_resolver.SEARCH_PATTERN_CACHE_MAX
 
-            # Simulate the eviction logic
-            if len(app_resolver._SEARCH_PATTERN_CACHE) >= app_resolver._SEARCH_PATTERN_CACHE_MAX:
-                app_resolver._SEARCH_PATTERN_CACHE.pop(
-                    next(iter(app_resolver._SEARCH_PATTERN_CACHE))
-                )
+            if len(app_resolver.SEARCH_PATTERN_CACHE) >= app_resolver.SEARCH_PATTERN_CACHE_MAX:
+                app_resolver.SEARCH_PATTERN_CACHE.pop(next(iter(app_resolver.SEARCH_PATTERN_CACHE)))
 
-            app_resolver._SEARCH_PATTERN_CACHE["key3"] = "value3"
+            app_resolver.SEARCH_PATTERN_CACHE["key3"] = "value3"
 
-            # Should have evicted key1
-            assert "key1" not in app_resolver._SEARCH_PATTERN_CACHE
-            assert "key3" in app_resolver._SEARCH_PATTERN_CACHE
+            assert "key1" not in app_resolver.SEARCH_PATTERN_CACHE
+            assert "key3" in app_resolver.SEARCH_PATTERN_CACHE
         finally:
-            # Restore
-            app_resolver._SEARCH_PATTERN_CACHE.clear()
-            app_resolver._SEARCH_PATTERN_CACHE.update(original_cache)
-            app_resolver._SEARCH_PATTERN_CACHE_MAX = original_max
+            app_resolver.SEARCH_PATTERN_CACHE.clear()
+            app_resolver.SEARCH_PATTERN_CACHE.update(original_cache)
+            app_resolver.SEARCH_PATTERN_CACHE_MAX = original_max
 
 
 class TestManagementInit:

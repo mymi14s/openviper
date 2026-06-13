@@ -28,16 +28,16 @@ Whether you're building lean APIs or full-scale platforms, OpenViper scales with
 |---|---|
 | 🔀 **Routing** | function-based and class-based (`View`) routes, path params, sub-routers, per-route middleware |
 | 🗄️ **ORM** | Async models, QuerySet API, migrations, lifecycle hooks, model events, protected queries |
-| 🔐 **Auth** | Session + JWT + token auth, Argon2id/bcrypt hashing, roles, permissions, `@login_required`, lifecycle hooks |
+| 🔐 **Auth** | Session + JWT + token auth, Argon2id/bcrypt hashing, roles, permissions, `@login_required`, OAuth2, lifecycle hooks, `ensure_authenticated()` |
 | 🖥️ **Admin UI** | Auto-discovered Vue 3 SPA - CRUD, bulk actions, change history, inlines, role-based visibility |
 | 🔧 **Middleware** | Auth, CORS, CSRF, rate-limiting, security headers, DB connection pinning |
 | ⚙️ **Background Tasks** | Dramatiq-backed task queue with retry, priorities, model-event hooks |
 | 🕐 **Scheduler** | Cron and interval periodic jobs built into the framework |
 | 🤖 **AI Registry** | Unified async API - OpenAI, Anthropic, Gemini, Ollama, Grok, custom providers, streaming, moderation |
-| 📦 **Serializers** | Pydantic v2-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware, readonly/writeonly fields |
+| 📦 **Serializers** | Pydantic v2-based, `ModelSerializer`, `Serializer`, nested, partial updates, role-aware, readonly/writeonly fields, `serialize_value()` |
 | 📄 **OpenAPI** | Live Swagger + ReDoc UIs auto-generated from your routes and type hints |
 | 📧 **Email** | Async email delivery with Jinja2 templates, Markdown rendering, SMTP/Console backends, attachments |
-| 💾 **Cache** | In-memory, Redis, Dragonfly, Memcached, and database cache backends with async API |
+| 💾 **Cache** | In-memory, Redis, Dragonfly, Memcached, and database cache backends with async API, `deserialize_cache_value()` |
 | 📁 **Storage** | Pluggable file storage API - FileSystemStorage, async uploads, media serving |
 | 🌐 **Static Files** | Development static serving, `collectstatic` for production, ETag/range support |
 | 🗺️ **Geolocation** | PostGIS-compatible `PointField` with haversine distance, WKT/EWKT/GeoJSON serialization |
@@ -233,6 +233,20 @@ class PostAdmin(ModelAdmin):
         return ActionResult(success=True, count=count, message=f"Published {count} posts.")
 ```
 
+Admin API helpers for custom endpoints:
+
+```python
+from openviper.admin.api.views import resolve_admin_model, require_admin_access
+from openviper.admin.api.serializers import serialize_value
+from openviper.exceptions import PermissionDenied, NotFound
+
+async def my_admin_endpoint(request, app_label, model_name):
+    require_admin_access(request)  # raises PermissionDenied if not admin
+    model_admin, model_class = resolve_admin_model(app_label, model_name)  # raises NotFound
+    instance = await model_class.objects.get_or_none(id=some_id)
+    return {"data": serialize_value(instance)}
+```
+
 Start the server:
 
 ```bash
@@ -240,6 +254,38 @@ python viperctl.py start-server    # or: openviper viperctl start-server .
 ```
 
 Visit `http://localhost:8000/admin`
+
+### Authentication & Authorization
+
+```python
+from openviper.auth.decorators import (
+    login_required, permission_required, role_required,
+    superuser_required, staff_required, ensure_authenticated,
+)
+from openviper.auth.session.utils import get_session_cookie_config
+
+@login_required
+async def dashboard(request):
+    return JSONResponse({"user": request.user.username})
+
+@permission_required("post.delete")
+async def delete_post(request, post_id: int):
+    ...
+
+@role_required("manager")
+async def reports(request):
+    ...
+
+# Programmatic auth check - raises Unauthorized if not authenticated
+def some_view(request, **kwargs):
+    req = ensure_authenticated(args, kwargs)
+    user = req.user
+
+# Session cookie configuration from settings
+config = get_session_cookie_config()
+# config.cookie_name, config.httponly, config.secure, config.samesite,
+# config.path, config.domain, config.max_age
+```
 
 ---
 

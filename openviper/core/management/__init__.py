@@ -23,7 +23,7 @@ from openviper.core.management.base import BaseCommand, CommandError
 
 logger = logging.getLogger(__name__)
 
-_BUILTIN_COMMANDS_PACKAGE = "openviper.core.management.commands"
+BUILTIN_COMMANDS_PACKAGE = "openviper.core.management.commands"
 
 
 def extract_settings_flag(argv: list[str]) -> tuple[str | None, list[str]]:
@@ -59,7 +59,7 @@ def auto_discover_settings(viperctl_path: str) -> str | None:
     """
     cwd = Path(viperctl_path).resolve().parent
 
-    def _has_settings(item: Path) -> bool:
+    def has_settings(item: Path) -> bool:
         """Return True when *item* is a package that ships a settings module.
 
         Supports both the single-file layout (``settings.py``) and the
@@ -70,10 +70,10 @@ def auto_discover_settings(viperctl_path: str) -> str | None:
         return (item / "settings.py").exists() or (item / "settings" / "__init__.py").exists()
 
     same_name = cwd / cwd.name
-    if _has_settings(same_name):
+    if has_settings(same_name):
         return f"{cwd.name}.settings"
 
-    candidates = [item for item in cwd.iterdir() if _has_settings(item)]
+    candidates = [item for item in cwd.iterdir() if has_settings(item)]
     if len(candidates) == 1:
         return f"{candidates[0].name}.settings"
 
@@ -88,7 +88,7 @@ def find_command(name: str) -> BaseCommand:
     """Return a Command instance for *name*, searching built-ins then installed apps."""
     module_name = name.replace("-", "_")
     try:
-        module = importlib.import_module(f"{_BUILTIN_COMMANDS_PACKAGE}.{module_name}")
+        module = importlib.import_module(f"{BUILTIN_COMMANDS_PACKAGE}.{module_name}")
         return cast("BaseCommand", module.Command())
     except ModuleNotFoundError:
         pass
@@ -130,7 +130,7 @@ def list_commands() -> list[str]:
 
     Results are cached since available commands don't change at runtime.
     """
-    pkg = importlib.import_module(_BUILTIN_COMMANDS_PACKAGE)
+    pkg = importlib.import_module(BUILTIN_COMMANDS_PACKAGE)
     pkg_path = pkg.__path__
     names = [
         name.replace("_", "-")

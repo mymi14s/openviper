@@ -100,7 +100,7 @@ def action(
     """
 
     def decorator(func: Callable[..., object]) -> Callable[..., object]:
-        func._openviper_action = {
+        func.openviper_action = {
             "methods": [m.upper() for m in methods or ["GET"]],
             "detail": detail,
             "url_path": url_path or func.__name__,
@@ -158,11 +158,11 @@ class View:
     #: Set to ``[]`` to explicitly disable throttling.
     throttle_classes: list[type[ThrottleProtocol] | ThrottleProtocol | str] | None = None
 
-    _ALLOWED_KWARGS: frozenset[str] = frozenset()
+    ALLOWED_KWARGS: frozenset[str] = frozenset()
 
     def __init__(self, **kwargs: object) -> None:
         for key, value in kwargs.items():
-            if key not in self._ALLOWED_KWARGS:
+            if key not in self.ALLOWED_KWARGS:
                 raise TypeError(f"Invalid keyword argument {key!r}")
             setattr(self, key, value)
 
@@ -288,19 +288,19 @@ class View:
 
     def http_method_not_allowed(self, request: Request, **kwargs: object) -> Response:
         """Return a 405 Method Not Allowed error."""
-        allowed = self._allowed_methods()
+        allowed = self.allowed_methods()
         raise MethodNotAllowed(allowed)
 
     async def options(self, request: Request, **kwargs: str) -> Response:
         """Handle OPTIONS by returning allowed methods in the ``Allow`` header."""
 
-        allowed = self._allowed_methods()
+        allowed = self.allowed_methods()
         return Response(
             status_code=204,
             headers={"Allow": ", ".join(allowed)},
         )
 
-    def _allowed_methods(self) -> list[str]:
+    def allowed_methods(self) -> list[str]:
         """Return sorted list of uppercase HTTP methods this view handles.
 
         Cached at the class level on first call - since handlers are class
@@ -366,10 +366,10 @@ class View:
             actions = []
             for attr_name in dir(cls):
                 attr = getattr(cls, attr_name, None)
-                action_info = getattr(attr, "_openviper_action", None)
+                action_info = getattr(attr, "openviper_action", None)
                 if action_info:
                     actions.append({**action_info, "method_name": attr_name})
-            view._openviper_actions = actions
+            view.openviper_actions = actions
 
         return view
 

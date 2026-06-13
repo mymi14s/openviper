@@ -17,7 +17,7 @@ from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import anyio
 import orjson
@@ -133,6 +133,17 @@ def cache_clear() -> None:
 get_jinja2_env_cached.cache_clear = cache_clear
 
 
+async def send_complete_response(
+    send: ASGISend,
+    status: int,
+    headers: list[list[bytes]] | list[tuple[bytes, bytes]],
+    body: bytes = b"",
+) -> None:
+    """Send a complete ASGI response (start event + final body event)."""
+    await send({"type": "http.response.start", "status": status, "headers": headers})
+    await send({"type": "http.response.body", "body": body, "more_body": False})
+
+
 class Response:
     """Base HTTP response.
 
@@ -157,10 +168,10 @@ class Response:
     ) -> None:
         self.status_code = status_code
         self.media_type = media_type or type(self)._MEDIA_TYPE
-        self._headers = MutableHeaders(raw=self._build_raw_headers(headers or {}))
-        self.body = self._encode(content)
+        self._headers = MutableHeaders(raw=self.build_raw_headers(headers or {}))
+        self.body = self.encode(content)
 
-    def _encode(self, content: bytes | str | None) -> bytes:
+    def encode(self, content: bytes | str | None) -> bytes:
         if content is None:
             return b""
         if isinstance(content, bytes):
@@ -169,7 +180,7 @@ class Response:
             return content.encode(self.charset)
         raise TypeError(f"Response content must be str or bytes, not {type(content).__name__}")
 
-    def _build_raw_headers(self, extra: dict[str, str]) -> list[list[bytes]]:
+    def build_raw_headers(self, extra: dict[str, str]) -> list[list[bytes]]:
         raw: list[list[bytes]] = []
         content_type = self.media_type
         if content_type and "charset" not in content_type and "text" in content_type:
@@ -237,14 +248,7 @@ class Response:
         body = self.body
         if body:
             self._headers.set("content-length", str(len(body)))
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self.status_code,
-                "headers": self._headers.raw,
-            }
-        )
-        await send({"type": "http.response.body", "body": body, "more_body": False})
+        await send_complete_response(send, self.status_code, self._headers.raw, body)
 
 
 class JSONResponse(Response):
@@ -260,11 +264,11 @@ class JSONResponse(Response):
         headers: dict[str, str] | None = None,
         indent: int | None = None,
     ) -> None:
-        encoded = json_encode(content, default=self._default_encoder, indent=indent)
+        encoded = json_encode(content, default=self.default_encoder, indent=indent)
         super().__init__(encoded, status_code, headers)
 
     @staticmethod
-    def _default_encoder(obj: object) -> object:
+    def default_encoder(obj: object) -> object:
         if isinstance(obj, (datetime.datetime, datetime.date)):
             return obj.isoformat()
         if isinstance(obj, uuid.UUID):
@@ -298,11 +302,11 @@ class HTMLResponse(Response):
             raise ValueError("Cannot specify both 'content' and 'template'")
 
         if template:
-            content = self._render_template(template, context or {}, template_dir)
+            content = self.render_template(template, context or {}, template_dir)
 
         super().__init__(content, status_code, headers)
 
-    def _render_template(
+    def render_template(
         self, template: str, context: TemplateContext, template_dir: str | Path
     ) -> str:
         """Render a Jinja2 template; search paths cached by base_dir and installed apps."""
@@ -364,15 +368,27 @@ class RedirectResponse(Response):
         stripped = url.lstrip()
         if stripped.startswith("//"):
             raise ValueError(f"Protocol-relative redirect URLs are not allowed: {url!r}")
-        # Block path-traversal sequences in redirect targets.
-        if ".." in url:
+        # Decode twice for security checks to catch double-encoded sequences.
+        decoded = unquote(stripped)
+        double_decoded = unquote(decoded)
+        if (
+            ".." in decoded
+            or "/../" in decoded
+            or ".." in double_decoded
+            or "%2e" in stripped.lower()
+            or "%2f" in stripped.lower()
+            or "%5c" in stripped.lower()
+            or "\\" in decoded
+        ):
             raise ValueError(f"Redirect URL must not contain path traversal sequences: {url!r}")
         # Only allow http and https schemes in absolute redirect URLs.
-        parsed = urlparse(stripped)
+        parsed = urlparse(decoded)
         if parsed.scheme and parsed.scheme not in ("http", "https", ""):
             raise ValueError(f"Redirect URL has disallowed scheme '{parsed.scheme}': {url!r}")
         if parsed.scheme:
-            redirect_host = parsed.hostname or ""
+            if "@" in parsed.netloc:
+                raise ValueError(f"Redirect URL must not contain userinfo: {url!r}")
+            redirect_host = unquote(parsed.hostname or "")
             allowed_redirect_hosts = tuple(
                 getattr(settings, "ALLOWED_REDIRECT_HOSTS", getattr(settings, "ALLOWED_HOSTS", ()))
             )
@@ -396,7 +412,7 @@ class StreamingResponse(Response):
         self._content_iterator = content
         self.status_code = status_code
         self.media_type = media_type or "application/octet-stream"
-        self._headers = MutableHeaders(raw=self._build_raw_headers(headers or {}))
+        self._headers = MutableHeaders(raw=self.build_raw_headers(headers or {}))
         self.body = b""
 
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
@@ -461,13 +477,13 @@ class FileResponse(Response):
                 raise ValueError(f"Path {path!r} is outside the allowed directory {allowed_dir!r}")
         self.file_path = str(resolved)
         self.status_code = status_code
-        self.media_type = media_type or self._guess_media_type(path)
+        self.media_type = media_type or self.guess_media_type(path)
         self._filename = filename
-        self._headers = MutableHeaders(raw=self._build_raw_headers(headers or {}))
+        self._headers = MutableHeaders(raw=self.build_raw_headers(headers or {}))
         self.body = b""
 
     @staticmethod
-    def _guess_media_type(path: str) -> str:
+    def guess_media_type(path: str) -> str:
         mt, _ = mimetypes.guess_type(path)
         return mt or "application/octet-stream"
 
@@ -494,8 +510,7 @@ class FileResponse(Response):
         # Conditional request - If-None-Match (ETag).
         if_none_match = req_headers.get(b"if-none-match", b"").decode("latin-1").strip()
         if if_none_match and if_none_match in (etag, "*"):
-            await send({"type": "http.response.start", "status": 304, "headers": self._headers.raw})
-            await send({"type": "http.response.body", "body": b"", "more_body": False})
+            await send_complete_response(send, 304, self._headers.raw)
             return
 
         # Conditional request - If-Modified-Since.
@@ -504,10 +519,7 @@ class FileResponse(Response):
             try:
                 ims_ts = email.utils.parsedate_to_datetime(if_modified_since).timestamp()
                 if int(fstat.st_mtime) <= int(ims_ts):
-                    await send(
-                        {"type": "http.response.start", "status": 304, "headers": self._headers.raw}
-                    )
-                    await send({"type": "http.response.body", "body": b"", "more_body": False})
+                    await send_complete_response(send, 304, self._headers.raw)
                     return
             except TypeError, ValueError:
                 pass
@@ -533,10 +545,7 @@ class FileResponse(Response):
                 if range_start > range_end or range_start >= file_size:
                     # Range Not Satisfiable - respond with 416.
                     self._headers.set("content-range", f"bytes */{file_size}")
-                    await send(
-                        {"type": "http.response.start", "status": 416, "headers": self._headers.raw}
-                    )
-                    await send({"type": "http.response.body", "body": b"", "more_body": False})
+                    await send_complete_response(send, 416, self._headers.raw)
                     return
                 range_end = min(range_end, file_size - 1)
                 is_partial = True
@@ -614,37 +623,23 @@ class GZipResponse(Response):
             # Collect the full streamed body by intercepting ASGI events.
             collected_parts: list[bytes] = []
 
-            async def _collecting_send(event: ASGIMessage) -> None:
+            async def collecting_send(event: ASGIMessage) -> None:
                 if event["type"] == "http.response.body":
                     part = cast("bytes", event.get("body", b""))
                     if part:
                         collected_parts.append(part)
 
-            await inner(scope, receive, _collecting_send)
+            await inner(scope, receive, collecting_send)
             body = b"".join(collected_parts)
 
         if should_skip or len(body) < self._minimum_size:
             # Skip compression for small or pre-compressed bodies.
             inner._headers.set("content-length", str(len(body)))
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": inner.status_code,
-                    "headers": inner._headers.raw,
-                }
-            )
-            await send({"type": "http.response.body", "body": body, "more_body": False})
+            await send_complete_response(send, inner.status_code, inner._headers.raw, body)
             return
 
         body = gzip.compress(body, self._compresslevel)
         inner._headers.set("content-encoding", "gzip")
         inner._headers.set("vary", "Accept-Encoding")
         inner._headers.set("content-length", str(len(body)))
-        await send(
-            {
-                "type": "http.response.start",
-                "status": inner.status_code,
-                "headers": inner._headers.raw,
-            }
-        )
-        await send({"type": "http.response.body", "body": body, "more_body": False})
+        await send_complete_response(send, inner.status_code, inner._headers.raw, body)

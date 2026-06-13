@@ -11,28 +11,10 @@ from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
 
-from openviper.conf import settings
-from openviper.db import connection as db_connection
-from openviper.db.utils import get_default_database_url
+from openviper.contrib.fields.dbutils import is_postgresql
 
 if TYPE_CHECKING:
     from openviper.contrib.fields.array_fields.base import ArrayField
-
-
-def is_postgresql() -> bool:
-    """Return True if the configured database engine targets PostgreSQL."""
-    try:
-        if db_connection._engine is not None:
-            url = str(db_connection._engine.url)
-            return "postgresql" in url or "postgres" in url
-    except AttributeError, TypeError:
-        pass
-    try:
-        url = get_default_database_url(settings)
-        return "postgresql" in url or "postgres" in url
-    except AttributeError, TypeError:
-        pass
-    return False
 
 
 class BaseArrayBackend:
@@ -99,21 +81,21 @@ class FallbackJsonBackend(BaseArrayBackend):
         return sa.Text()
 
 
-_backend: BaseArrayBackend | None = None
+cached_backend: BaseArrayBackend | None = None
 
 
 def get_backend() -> BaseArrayBackend:
     """Return the appropriate array backend based on the configured database."""
-    global _backend
-    if _backend is not None:
-        return _backend
+    global cached_backend
+    if cached_backend is not None:
+        return cached_backend
 
-    _backend = PostgresArrayBackend() if is_postgresql() else FallbackJsonBackend()
+    cached_backend = PostgresArrayBackend() if is_postgresql() else FallbackJsonBackend()
 
-    return _backend
+    return cached_backend
 
 
 def reset_backend() -> None:
     """Reset the cached backend.  Useful for testing with different configs."""
-    global _backend
-    _backend = None
+    global cached_backend
+    cached_backend = None

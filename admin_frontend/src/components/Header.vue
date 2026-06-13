@@ -12,7 +12,7 @@ const themeStore = useThemeStore()
 const adminStore = useAdminStore()
 
 const searchQuery = ref('')
-const searchResults = ref<any[]>([])
+const searchResults = ref<Array<{ app_label: string; model_name: string; id: string | number; display: string; score: number }>>([])
 const showSearchResults = ref(false)
 const showUserMenu = ref(false)
 const showPasswordModal = ref(false)
@@ -47,7 +47,7 @@ async function handleSearch() {
   }, 300)
 }
 
-function selectResult(result: any) {
+function selectResult(result: { app_label: string; model_name: string; id: string | number; display: string; score: number }) {
   router.push(`/${result.app_label}/${result.model_name}/${result.id}`)
   searchQuery.value = ''
   showSearchResults.value = false
@@ -137,8 +137,7 @@ onUnmounted(() => {
       <!-- Visit Site Link -->
       <a
         href="/"
-        target="_blank"
-        rel="noopener noreferrer"
+        target="_blank" rel="noopener noreferrer"
         class="px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium flex items-center gap-2"
         title="Visit the site"
       >

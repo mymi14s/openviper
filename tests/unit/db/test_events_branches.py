@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import openviper.db.events as events_module
-from openviper.db.events import _UNSET, get_dispatcher, reset_dispatcher
+from openviper.db.events import UNSET, get_dispatcher, reset_dispatcher
 
 
 def test_get_dispatcher_double_check_inside_lock_branch():
@@ -25,4 +25,4 @@ def test_get_dispatcher_double_check_inside_lock_branch():
             assert result is None
             mock_build.assert_not_called()
 
-    events_module._dispatcher_cache = _UNSET
+    events_module._dispatcher_cache = UNSET

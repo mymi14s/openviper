@@ -8,21 +8,27 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re
 import typing as t
 from enum import StrEnum
 
 from openviper.db.fields import CharField, DateTimeField, TextField
 from openviper.db.models import Model
 
-SENSITIVE_FIELDS = {
-    "password",
-    "token",
-    "secret",
-    "key",
-    "api_key",
-    "access_token",
-    "refresh_token",
-}
+SENSITIVE_FIELDS = set(
+    {
+        "password",
+        "token",
+        "secret",
+        "key",
+        "api_key",
+        "access_token",
+        "refresh_token",
+    }
+)
+
+# Compiled once at module import to avoid re-building the pattern per diff.
+_SENSITIVE_RE = re.compile(r"password|token|secret|key|api_key|access_token|refresh_token")
 
 
 class ChangeAction(StrEnum):
@@ -203,7 +209,7 @@ def compute_changes(
     """
     changes = {}
     for key in new_data:
-        if key in SENSITIVE_FIELDS or any(s in key.lower() for s in SENSITIVE_FIELDS):
+        if key in SENSITIVE_FIELDS or _SENSITIVE_RE.search(key.lower()):
             continue
 
         old_val = old_data.get(key)

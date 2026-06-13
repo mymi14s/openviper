@@ -29,7 +29,7 @@ async def test_lazy_fk_await_loads_and_caches_instance():
     fk_field.name = "owner"
     related_model = MagicMock()
     hydrated = MagicMock()
-    related_model._from_row.return_value = hydrated
+    related_model.from_row.return_value = hydrated
     fk_field.resolve_target.return_value = related_model
 
     qs = MagicMock()
@@ -38,7 +38,7 @@ async def test_lazy_fk_await_loads_and_caches_instance():
 
     instance = MagicMock()
     instance._relation_cache = {}
-    instance._set_related = lambda name, val: instance._relation_cache.__setitem__(name, val)
+    instance.set_related = lambda name, val: instance._relation_cache.__setitem__(name, val)
 
     lazy = LazyFK(fk_field, instance, 22)
 

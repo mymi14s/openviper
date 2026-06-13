@@ -40,7 +40,7 @@ def make_field(
     field.auto_now_add = auto_now_add
     field.help_text = help_text
     field.name = "test_field"
-    field._column_type = "TEXT"
+    field.column_type = "TEXT"
     field.primary_key = False
     field.unique = False
     field.db_index = False
@@ -502,7 +502,7 @@ class TestFieldSchemaEdgeCases:
         field = MagicMock()
         field.__class__.__name__ = "CharField"
         field.name = None
-        field._column_type = "TEXT"
+        field.column_type = "TEXT"
         field.primary_key = False
         field.null = False
         field.blank = False

@@ -100,7 +100,7 @@ class TestOllamaProvider:
     def test_client_lazy_init(self):
         p = OllamaProvider({"model": "llama3"})
         assert p._client is None
-        client = p._get_client()
+        client = p.get_client()
         assert client is not None
         assert p._client is client
 
@@ -146,12 +146,12 @@ class TestGrokProvider:
 
     def test_build_messages_text_only(self):
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key"})
-        msgs = p._build_messages("hello")
+        msgs = p.build_messages("hello")
         assert msgs == [{"role": "user", "content": "hello"}]
 
     def test_build_messages_with_url_image(self):
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key"})
-        msgs = p._build_messages("describe", images=[{"url": "https://example.com/img.jpg"}])
+        msgs = p.build_messages("describe", images=[{"url": "https://example.com/img.jpg"}])
         assert msgs[0]["role"] == "user"
         content = msgs[0]["content"]
         assert content[0] == {"type": "text", "text": "describe"}
@@ -159,28 +159,24 @@ class TestGrokProvider:
 
     def test_build_messages_with_base64_image(self):
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key"})
-        msgs = p._build_messages(
-            "describe", images=[{"base64": "abc123", "mime_type": "image/png"}]
-        )
+        msgs = p.build_messages("describe", images=[{"base64": "abc123", "mime_type": "image/png"}])
         content = msgs[0]["content"]
         assert "data:image/png;base64,abc123" in content[1]["image_url"]["url"]
 
     def test_build_messages_with_raw_bytes(self):
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key"})
-        msgs = p._build_messages(
-            "describe", images=[{"data": b"\x89PNG", "mime_type": "image/png"}]
-        )
+        msgs = p.build_messages("describe", images=[{"data": b"\x89PNG", "mime_type": "image/png"}])
         content = msgs[0]["content"]
         assert content[1]["type"] == "image_url"
 
     def test_build_messages_skips_unknown_image_format(self):
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key"})
-        msgs = p._build_messages("describe", images=[{"unknown_key": "value"}])
+        msgs = p.build_messages("describe", images=[{"unknown_key": "value"}])
         content = msgs[0]["content"]
         assert len(content) == 1  # only text, no image
 
     def test_build_payload(self):
-        payload = GrokProvider._build_payload(
+        payload = GrokProvider.build_payload(
             [{"role": "user", "content": "hi"}],
             model="grok-2-latest",
             temperature=0.7,
@@ -194,7 +190,7 @@ class TestGrokProvider:
 
     def test_get_headers(self):
         p = GrokProvider({"model": "grok-2-latest", "api_key": "test-key-123"})
-        headers = p._get_headers()
+        headers = p.get_headers()
         assert headers["Authorization"] == "Bearer test-key-123"
         assert headers["Content-Type"] == "application/json"
 
@@ -234,7 +230,7 @@ class TestGrokProvider:
 
 
 class TestGrokRaiseForStatus:
-    def _make_response(self, status_code, json_body=None):
+    def make_response(self, status_code, json_body=None):
         resp = MagicMock()
         resp.status_code = status_code
         resp.is_success = 200 <= status_code < 300
@@ -242,20 +238,20 @@ class TestGrokRaiseForStatus:
         return resp
 
     def test_success_no_raise(self):
-        GrokProvider._raise_for_status(self._make_response(200))
+        GrokProvider.raise_for_status(self.make_response(200))
 
     def test_401_raises_auth_error(self):
         with pytest.raises(GrokAuthError):
-            GrokProvider._raise_for_status(self._make_response(401))
+            GrokProvider.raise_for_status(self.make_response(401))
 
     def test_429_raises_rate_limit(self):
         with pytest.raises(GrokRateLimitError):
-            GrokProvider._raise_for_status(self._make_response(429))
+            GrokProvider.raise_for_status(self.make_response(429))
 
     def test_500_raises_grok_error(self):
         with pytest.raises(GrokError):
-            GrokProvider._raise_for_status(
-                self._make_response(500, {"error": {"message": "internal"}})
+            GrokProvider.raise_for_status(
+                self.make_response(500, {"error": {"message": "internal"}})
             )
 
 
@@ -266,26 +262,26 @@ class TestGrokBuildExtraParams:
     def test_reasoning_effort(self):
         p = self._provider()
         kw = {"reasoning_effort": "high"}
-        extra = p._build_extra_params(kw)
+        extra = p.build_extra_params(kw)
         assert extra["reasoning_effort"] == "high"
 
     def test_search_enabled(self):
         p = self._provider()
         kw = {"search_enabled": True}
-        extra = p._build_extra_params(kw)
+        extra = p.build_extra_params(kw)
         assert extra["search_parameters"] == {"mode": "auto"}
 
     def test_allowed_kwargs_forwarded(self):
         p = self._provider()
         kw = {"stop": ["END"], "seed": 42}
-        extra = p._build_extra_params(kw)
+        extra = p.build_extra_params(kw)
         assert extra["stop"] == ["END"]
         assert extra["seed"] == 42
 
     def test_unknown_kwargs_ignored(self):
         p = self._provider()
         kw = {"unknown_param": "value"}
-        extra = p._build_extra_params(kw)
+        extra = p.build_extra_params(kw)
         assert "unknown_param" not in extra
 
 

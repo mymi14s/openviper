@@ -52,14 +52,14 @@ class TestGetJinja2Env:
         assert result == "Hello World!"
 
     def test_raises_import_error_when_jinja2_unavailable(self):
-        original = env_module._jinja2_available
+        original = env_module.jinja2_available
         try:
-            env_module._jinja2_available = False
+            env_module.jinja2_available = False
             get_jinja2_env.cache_clear()
             with pytest.raises(ImportError, match="jinja2"):
                 get_jinja2_env(("/tmp/nonexistent_xyz",))
         finally:
-            env_module._jinja2_available = original
+            env_module.jinja2_available = original
             get_jinja2_env.cache_clear()
 
     # ------------------------------------------------------------------
@@ -97,6 +97,6 @@ class TestJinja2ImportGuard:
 
     def test_import_error_when_jinja2_missing(self):
         """get_jinja2_env raises ImportError if jinja2 is not available."""
-        with patch.object(env_module, "_jinja2_available", False):
+        with patch.object(env_module, "jinja2_available", False):
             with pytest.raises(ImportError, match="jinja2 is required"):
                 get_jinja2_env(("templates/",))

@@ -85,7 +85,6 @@ class TestMakemigrationsMoreBranches:
 
         with (
             patch("openviper.core.management.commands.makemigrations.settings") as mock_settings,
-            patch("openviper.core.management.commands.makemigrations.Model", dummy_base),
             patch(
                 "openviper.core.management.commands.makemigrations.AppResolver"
             ) as mock_resolver_cls,
@@ -154,7 +153,6 @@ class TestMakemigrationsMoreBranches:
 
         with (
             patch("openviper.core.management.commands.makemigrations.settings") as mock_settings,
-            patch("openviper.core.management.commands.makemigrations.Model", dummy_base),
             patch("openviper.core.management.commands.makemigrations.ForeignKey", FK),
             patch(
                 "openviper.core.management.commands.makemigrations.AppResolver"
@@ -196,8 +194,8 @@ class TestMakemigrationsMoreBranches:
                 return REAL_IMPORT_MODULE(name)
 
             with patch(
-                "openviper.core.management.commands.makemigrations.inspect.getmembers",
-                return_value=[("M", model_with_fk)],
+                "openviper.core.management.commands.makemigrations.discover_models_in_module",
+                return_value=[model_with_fk],
             ):
                 with patch(
                     "openviper.core.management.commands.makemigrations.importlib.import_module",
@@ -260,7 +258,7 @@ class TestMakemigrationsMoreBranches:
             mock_resolver_cls.return_value = resolver
 
             with patch(
-                "openviper.core.management.commands.makemigrations.inspect.getmembers",
+                "openviper.core.management.commands.makemigrations.discover_models_in_module",
                 return_value=[],
             ):
                 with patch(
@@ -311,7 +309,7 @@ class TestMakemigrationsMoreBranches:
             mock_resolver_cls.return_value = resolver
 
             with patch(
-                "openviper.core.management.commands.makemigrations.inspect.getmembers",
+                "openviper.core.management.commands.makemigrations.discover_models_in_module",
                 return_value=[],
             ):
                 with patch(

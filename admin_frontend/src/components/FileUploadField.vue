@@ -216,7 +216,7 @@ onUnmounted(() => {
                 <p class="text-sm font-medium text-gray-700 dark:text-gray-300 font-mono">{{ existingFilePath.split('/').pop() }}</p>
                 <a
                   :href="existingFileUrl"
-                  target="_blank"
+                  target="_blank" rel="noopener noreferrer"
                   class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
                   @click.stop
                 >

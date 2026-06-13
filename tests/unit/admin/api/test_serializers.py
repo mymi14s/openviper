@@ -318,7 +318,7 @@ class TestSerializeFieldInfo:
         field = MagicMock()
         field.__class__.__name__ = "CharField"
         field.name = "test_field"
-        field._column_type = "TEXT"
+        field.column_type = "TEXT"
         field.primary_key = False
         field.null = False
         field.blank = False

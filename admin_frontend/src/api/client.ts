@@ -155,12 +155,12 @@ function transformModelFields(model: Record<string, unknown>): ModelConfig {
 
 export const modelsApi = {
   async getModels(): Promise<ModelConfig[]> {
-    const response = await client.get<{ models: any[]; apps: any[] }>('/models/')
+    const response = await client.get<{ models: Record<string, unknown>[]; apps: { name: string; label: string; models: string[] }[] }>('/models/')
     return response.data.models.map(transformModelFields)
   },
 
   async getModel(appLabel: string, modelName: string): Promise<ModelConfig> {
-    const response = await client.get<any>(`/models/${appLabel}/${modelName}/`)
+    const response = await client.get<Record<string, unknown>>(`/models/${appLabel}/${modelName}/`)
     return transformModelFields(response.data)
   },
 
@@ -172,10 +172,10 @@ export const modelsApi = {
       per_page?: number
       search?: string
       ordering?: string
-      filters?: Record<string, any>
+      filters?: Record<string, unknown>
     } = {}
   ): Promise<PaginatedResponse<ModelInstance>> {
-    const flatParams: Record<string, any> = {
+    const flatParams: Record<string, unknown> = {
       page: params.page,
       per_page: params.per_page,
       search: params.search,
@@ -214,10 +214,10 @@ export const modelsApi = {
   async createModelInstance(
     appLabel: string,
     modelName: string,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<ModelInstance> {
     const hasFiles = Object.values(data).some(val => val instanceof File || val instanceof Blob)
-    let payload: any = data
+    let payload: FormData | Record<string, unknown> = data
 
     if (hasFiles) {
       const formData = new FormData()
@@ -245,10 +245,10 @@ export const modelsApi = {
     appLabel: string,
     modelName: string,
     id: string | number,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<ModelInstance> {
     const hasFiles = Object.values(data).some(val => val instanceof File || val instanceof Blob)
-    let payload: any = data
+    let payload: FormData | Record<string, unknown> = data
 
     if (hasFiles) {
       const formData = new FormData()
@@ -314,7 +314,7 @@ export const modelsApi = {
     appLabel: string,
     modelName: string,
     fieldName: string
-  ): Promise<Array<{ value: any; label: string }>> {
+  ): Promise<Array<{ value: string | number | boolean; label: string }>> {
     const response = await client.get(
       `/models/${appLabel}/${modelName}/field-choices/${fieldName}/`
     )
@@ -326,7 +326,7 @@ export const modelsApi = {
     modelName: string,
     query: string,
     limit: number = 20
-  ): Promise<Array<{ value: any; label: string }>> {
+  ): Promise<Array<{ value: string | number | boolean; label: string }>> {
     const response = await client.get(
       `/models/${appLabel}/${modelName}/fk-search/`,
       { params: { q: query, limit } }
@@ -347,10 +347,10 @@ export const modelsApi = {
   async updateSingleInstance(
     appLabel: string,
     modelName: string,
-    data: Record<string, any>
+    data: Record<string, unknown>
   ): Promise<ModelInstance> {
     const hasFiles = Object.values(data).some(val => val instanceof File || val instanceof Blob)
-    let payload: any = data
+    let payload: FormData | Record<string, unknown> = data
 
     if (hasFiles) {
       const formData = new FormData()

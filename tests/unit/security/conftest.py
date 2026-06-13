@@ -109,7 +109,7 @@ def override_settings(**overrides: object):
 
     saved: dict[str, object] = {}
     for key, value in overrides.items():
-        instance = object.__getattribute__(settings, "_instance")
+        instance = settings.instance
         if instance is not None:
             saved[key] = getattr(instance, key, MISSING)
             object.__setattr__(instance, key, value)
@@ -119,10 +119,9 @@ def override_settings(**overrides: object):
         yield settings
     finally:
         for key, value in saved.items():
-            instance = object.__getattribute__(settings, "_instance")
+            instance = settings.instance
             if instance is not None:
                 if value is MISSING:
-                    # Can't delete from frozen dataclass; restore default
                     pass
                 else:
                     object.__setattr__(instance, key, value)

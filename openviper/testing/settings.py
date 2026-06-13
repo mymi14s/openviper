@@ -47,11 +47,11 @@ class OpenViperTestingConfigError(RuntimeError):
 def override_openviper_settings(**overrides: object) -> Iterator[Settings]:
     """Temporarily replace OpenViper settings with dataclass overrides."""
 
-    original_configured = bool(getattr(settings, "_configured", False))
-    original_instance = t.cast("Settings | None", getattr(settings, "_instance", None))
+    original_configured = bool(getattr(settings, "configured", False))
+    original_instance = t.cast("Settings | None", getattr(settings, "instance", None))
     if original_instance is None:
-        settings._setup()
-        original_instance = t.cast("Settings", settings._instance)
+        settings.setup()
+        original_instance = t.cast("Settings", settings.instance)
 
     allowed_fields = {field.name for field in dataclasses.fields(original_instance)}
     invalid = sorted(name for name in overrides if name not in allowed_fields)
@@ -63,14 +63,14 @@ def override_openviper_settings(**overrides: object) -> Iterator[Settings]:
     replacement = copy.deepcopy(original_instance)
     for name, value in overrides.items():
         object.__setattr__(replacement, name, value)
-    object.__setattr__(settings, "_instance", replacement)
-    object.__setattr__(settings, "_configured", True)
+    settings.instance = replacement
+    settings.configured = True
     configure_logging(replacement)
     try:
         yield replacement
     finally:
-        object.__setattr__(settings, "_instance", original_instance)
-        object.__setattr__(settings, "_configured", original_configured)
+        settings.instance = original_instance
+        settings.configured = original_configured
         configure_logging(original_instance)
 
 
@@ -170,7 +170,7 @@ async def load_app(config: OpenViperTestConfig) -> OpenViper:
     if config.settings is not None:
         original_env = os.environ.get("OPENVIPER_SETTINGS_MODULE")
         os.environ["OPENVIPER_SETTINGS_MODULE"] = config.settings
-        settings._setup(force=True)
+        settings.setup(force=True)
 
     target = import_from_path(config.app)
     app_candidate = call_app_factory(target)

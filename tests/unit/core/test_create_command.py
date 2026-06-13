@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from openviper.core.management.base import CommandError
-from openviper.core.management.commands.create_command import _COMMAND_TEMPLATE, Command
+from openviper.core.management.commands.create_command import COMMAND_TEMPLATE, Command
 
 
 @pytest.fixture
@@ -210,10 +210,10 @@ class TestDirectoryOption:
 
 
 class TestCommandTemplate:
-    """Test the _COMMAND_TEMPLATE."""
+    """Test the COMMAND_TEMPLATE."""
 
     def test_command_template_format(self):
-        formatted = _COMMAND_TEMPLATE.format(command_name="testcmd")
+        formatted = COMMAND_TEMPLATE.format(command_name="testcmd")
 
         assert "testcmd management command" in formatted
         assert "class Command(BaseCommand)" in formatted
@@ -221,7 +221,7 @@ class TestCommandTemplate:
         assert "def handle(self, **options: object) -> None" in formatted
 
     def test_command_template_has_placeholder(self):
-        assert "{command_name}" in _COMMAND_TEMPLATE
+        assert "{command_name}" in COMMAND_TEMPLATE
 
 
 class TestOutputMessages:

@@ -50,8 +50,8 @@ async def test_migrate_target_app_and_target_name_filtering():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -100,8 +100,8 @@ async def test_migrate_restore_validation_error_with_ignore_errors_continues():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -286,8 +286,8 @@ async def test_migrate_verbose_true_prints_output():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -322,8 +322,8 @@ async def test_migrate_sync_content_types_exception_logged():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -624,8 +624,8 @@ async def test_migrate_target_app_skips_non_matching_app_record():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -662,8 +662,8 @@ async def test_migrate_continues_when_should_skip_forward_returns_true():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -708,8 +708,8 @@ async def test_migrate_verbose_error_logs_status_and_continues():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",
@@ -752,8 +752,8 @@ async def test_migrate_invalidates_soft_removed_cache_after_applying():
     ]
 
     with (
-        patch.object(executor, "_ensure_migration_table", new_callable=AsyncMock),
-        patch.object(executor, "_applied_migrations", new_callable=AsyncMock, return_value=set()),
+        patch.object(executor, "ensure_migration_table", new_callable=AsyncMock),
+        patch.object(executor, "applied_migrations", new_callable=AsyncMock, return_value=set()),
         patch("openviper.db.migrations.executor.discover_migrations", return_value=records),
         patch(
             "openviper.db.migrations.executor.get_engine",

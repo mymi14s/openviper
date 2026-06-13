@@ -81,7 +81,7 @@ async def test_create_instance_multipart(media_setup):
             "openviper.admin.registry.AdminRegistry.get_model_by_app_and_name",
             return_value=FileModel,
         ),
-        patch("openviper.admin.api.views.check_admin_access", return_value=True),
+        patch("openviper.admin.api.views.require_admin_access"),
         patch("openviper.admin.api.views.log_change", AsyncMock()),
         patch(
             "openviper.admin.api.views.serialize_instance_with_children",
@@ -131,7 +131,7 @@ async def test_multipart_json_parsing():
             "openviper.admin.registry.AdminRegistry.get_model_by_app_and_name",
             return_value=mock_model_cls,
         ),
-        patch("openviper.admin.api.views.check_admin_access", return_value=True),
+        patch("openviper.admin.api.views.require_admin_access"),
         patch("openviper.admin.api.views.log_change", AsyncMock()),
         patch(
             "openviper.admin.api.views.serialize_instance_with_children",

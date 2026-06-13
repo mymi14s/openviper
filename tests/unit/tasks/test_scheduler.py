@@ -39,9 +39,9 @@ class TestScheduler:
         scheduler = Scheduler()
         scheduler.start()
         try:
-            assert scheduler._thread is not None
-            assert scheduler._thread.daemon is True
-            assert scheduler._thread.name == "openviper-scheduler"
+            assert scheduler.thread is not None
+            assert scheduler.thread.daemon is True
+            assert scheduler.thread.name == "openviper-scheduler"
         finally:
             scheduler.stop()
 
@@ -50,15 +50,15 @@ class TestScheduler:
         scheduler = Scheduler()
         scheduler.start()
         scheduler.stop()
-        assert scheduler._thread is None
+        assert scheduler.thread is None
 
     def test_scheduler_start_idempotent(self) -> None:
         """Starting an already-running scheduler should be a no-op."""
         scheduler = Scheduler()
         scheduler.start()
-        first_thread = scheduler._thread
+        first_thread = scheduler.thread
         scheduler.start()
-        assert scheduler._thread is first_thread
+        assert scheduler.thread is first_thread
         scheduler.stop()
 
     @patch("openviper.tasks.scheduler.enqueue_task")

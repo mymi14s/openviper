@@ -1,3 +1,6 @@
+import type { App, Component } from 'vue'
+import type { RouteRecordRaw } from 'vue-router'
+
 // Admin types
 export interface User {
   id: number
@@ -18,7 +21,7 @@ export interface ModelField {
   readonly: boolean
   help_text?: string
   choices?: Array<{ value: string | number; label: string }>
-  default?: any
+  default?: unknown
   max_length?: number
   min_value?: number
   max_value?: number
@@ -75,7 +78,7 @@ export interface ModelConfig {
 
 export interface ModelInstance {
   id: number | string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface PaginatedResponse<T> {
@@ -97,7 +100,7 @@ export interface ChangeHistoryEntry {
   changed_by?: string
   change_time?: string
   message?: string
-  changed_fields?: Record<string, { old: any; new: any }>
+  changed_fields?: Record<string, { old: unknown; new: unknown }>
 }
 
 export interface AdminAction {
@@ -114,7 +117,7 @@ export interface DashboardStats {
 }
 
 // API response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T
   error?: string
   message?: string
@@ -143,7 +146,7 @@ export interface LoginResponse {
 
 // Form types
 export interface FormState {
-  values: Record<string, any>
+  values: Record<string, unknown>
   errors: Record<string, string>
   isDirty: boolean
   isSubmitting: boolean
@@ -153,13 +156,13 @@ export interface FormState {
 export interface AdminPlugin {
   name: string
   version: string
-  install: (app: any, options?: any) => void
-  components?: Record<string, any>
-  routes?: any[]
+  install: (app: App, options?: Record<string, unknown>) => void
+  components?: Record<string, Component>
+  routes?: RouteRecordRaw[]
   hooks?: {
     onModelLoad?: (config: ModelConfig) => void
-    onBeforeSave?: (model: string, data: any) => any
-    onAfterSave?: (model: string, data: any) => void
+    onBeforeSave?: (model: string, data: Record<string, unknown>) => Record<string, unknown>
+    onAfterSave?: (model: string, data: Record<string, unknown>) => void
     onBeforeDelete?: (model: string, id: string | number) => boolean
   }
 }
@@ -171,7 +174,7 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 export interface FilterOption {
   name: string
   type: string
-  choices: Array<{ value: any; label: string }>
+  choices: Array<{ value: string | number | boolean; label: string }>
   component?: string
 }
 
@@ -179,7 +182,7 @@ export interface FilterOption {
 export interface FilterValue {
   field: string
   operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'startswith' | 'endswith' | 'in' | 'isnull'
-  value: any
+  value: string | number | boolean | null
 }
 
 // Sort types

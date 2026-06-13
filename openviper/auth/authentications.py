@@ -120,7 +120,7 @@ class JWTAuthentication(BaseAuthentication):
             user_id_value = payload.get("sub")
             user_id = user_id_value if isinstance(user_id_value, int | str) else None
             if user_id:
-                user = await get_user_cached(user_id)
+                user = await get_user_by_id(user_id)
                 if user and user.is_active:
                     return user, {"type": "jwt"}
         except TokenExpired:
@@ -572,11 +572,12 @@ class TokenAuthentication(BaseAuthentication):
     Resolution order:
     1. Parse the ``Authorization`` header; reject anything not starting with
        ``"Token "``.
-    2. Hash the raw token and check the in-process TTL cache.
-    3. On cache miss, query the ``auth_tokens`` table; validate ``is_active``
-       and optional ``expires_at``.
-    4. Fetch the associated user via :func:`get_user_cached`.
-    5. Populate the cache and return ``(user, {"type": "token"})``.
+    2. Hash the raw token.
+    3. Query the ``auth_tokens`` table; validate ``is_active`` and optional
+       ``expires_at``. The token-to-user cache was intentionally removed so
+       revocation and deactivation take effect immediately in every process.
+    4. Fetch the associated user fresh from the database.
+    5. Return ``(user, {"type": "token"})``.
     """
 
     async def authenticate(self, request: Request) -> tuple[Authenticable, AuthPayload] | None:
@@ -589,26 +590,7 @@ class TokenAuthentication(BaseAuthentication):
             return None
 
         key_hash = hash_token(raw)
-        now_mono = time.monotonic()
 
-        # Release lock before async I/O to avoid blocking.
-        cached_user_id: int | None = None
-        lock = get_token_cache_lock()
-        async with lock:
-            cached = TOKEN_CACHE.get(key_hash)
-            if cached is not None:
-                uid, cache_expires = cached
-                if now_mono < cache_expires:
-                    cached_user_id = uid
-                else:
-                    del TOKEN_CACHE[key_hash]
-
-        if cached_user_id is not None:
-            user = await get_user_cached(cached_user_id)
-            if user and getattr(user, "is_active", True):
-                return user, {"type": "token"}
-
-        # Cache miss requires a database round-trip.
         try:
             await ensure_auth_tokens_table()
             table = get_auth_tokens_table()
@@ -626,11 +608,11 @@ class TokenAuthentication(BaseAuthentication):
                 ).one_or_none()
 
             if row is None:
-                logger.debug("Token not found in DB (hash prefix %s\u2026)", key_hash[:8])
+                logger.debug("Token not found in DB (hash prefix %s…)", key_hash[:8])
                 return None
 
             if not row.is_active:
-                logger.debug("Token is inactive (hash prefix %s\u2026)", key_hash[:8])
+                logger.debug("Token is inactive (hash prefix %s…)", key_hash[:8])
                 return None
 
             if row.expires_at is not None:
@@ -642,17 +624,13 @@ class TokenAuthentication(BaseAuthentication):
                 else:
                     now_compare = now_utc
                 if now_compare > exp:
-                    logger.debug("Token has expired (hash prefix %s\u2026)", key_hash[:8])
+                    logger.debug("Token has expired (hash prefix %s…)", key_hash[:8])
                     return None
 
             user_id: int = row.user_id
-            user = await get_user_cached(user_id)
+            user = await get_user_by_id(user_id)
             if not user or not getattr(user, "is_active", True):
                 return None
-
-            async with lock:
-                evict_token_cache_if_full(now_mono)
-                TOKEN_CACHE[key_hash] = (user_id, now_mono + TOKEN_CACHE_TTL)
 
             return user, {"type": "token"}
 
@@ -668,6 +646,17 @@ class TokenAuthentication(BaseAuthentication):
 _OAUTH2_EVENT_NAMES: frozenset[str] = frozenset({"on_success", "on_fail", "on_error", "on_initial"})
 
 _DOTTED_PATH_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)+$")
+
+# Module-level caches for OAuth2 events and resolved handlers.
+_OAUTH2_EVENTS_CACHE: dict[str, str] | None = None
+_OAUTH2_HANDLER_CACHE: dict[str, OAuth2EventHandler] = {}
+
+
+def _invalidate_oauth2_event_cache() -> None:
+    """Clear cached OAuth2 events and handlers when settings change."""
+    global _OAUTH2_EVENTS_CACHE
+    _OAUTH2_EVENTS_CACHE = None
+    _OAUTH2_HANDLER_CACHE.clear()
 
 
 class OAuth2Authentication(BaseAuthentication):
@@ -736,9 +725,14 @@ class OAuth2Authentication(BaseAuthentication):
         """Return the ``OAUTH2_EVENTS`` mapping from settings.
 
         Returns an empty dict when the setting is absent, ensuring the event
-        system degrades gracefully with no configuration required.
+        system degrades gracefully with no configuration required. The mapping
+        is cached at module level to avoid repeated settings access on every
+        authentication event.
         """
-        return dict(getattr(settings, "OAUTH2_EVENTS", {}))
+        global _OAUTH2_EVENTS_CACHE
+        if _OAUTH2_EVENTS_CACHE is None:
+            _OAUTH2_EVENTS_CACHE = dict(getattr(settings, "OAUTH2_EVENTS", {}))
+        return _OAUTH2_EVENTS_CACHE
 
     def resolve_event_handler(self, path: str) -> OAuth2EventHandler:
         """Import and return the callable at the given dotted *path*.
@@ -755,13 +749,18 @@ class OAuth2Authentication(BaseAuthentication):
             ImportError: If the module cannot be imported.
             AttributeError: If the attribute is absent from the module.
         """
+        if path in _OAUTH2_HANDLER_CACHE:
+            return _OAUTH2_HANDLER_CACHE[path]
+
         if not _DOTTED_PATH_RE.match(path):
             raise ValueError(
                 f"Invalid event handler path {path!r}. "
                 "Expected a fully-qualified dotted Python path "
                 "(e.g. 'myapp.events.oauth_success')."
             )
-        return cast("OAuth2EventHandler", import_string_uncached(path))
+        handler = cast("OAuth2EventHandler", import_string_uncached(path))
+        _OAUTH2_HANDLER_CACHE[path] = handler
+        return handler
 
     async def trigger_event(self, event_name: str, payload: AuthPayload) -> None:
         """Trigger the named OAuth2 lifecycle event with *payload*.

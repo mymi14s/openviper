@@ -130,7 +130,10 @@ class TestEndpointPermissionChecks:
                 return_value={"new_password": "test", "confirm_password": "test"}
             )
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+            with patch(
+                "openviper.admin.api.views.require_admin_access",
+                side_effect=PermissionDenied("Admin access required."),
+            ):
                 with pytest.raises(PermissionDenied, match="Admin access required"):
                     await handler(mock_request, user_id="1")
 
@@ -141,7 +144,10 @@ class TestEndpointPermissionChecks:
         if handler:
             mock_request = MagicMock()
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+            with patch(
+                "openviper.admin.api.views.require_admin_access",
+                side_effect=PermissionDenied("Admin access required."),
+            ):
                 with pytest.raises(PermissionDenied, match="Admin access required"):
                     await handler(mock_request, app_label="app", model_name="model")
 
@@ -152,7 +158,10 @@ class TestEndpointPermissionChecks:
         if handler:
             mock_request = MagicMock()
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+            with patch(
+                "openviper.admin.api.views.require_admin_access",
+                side_effect=PermissionDenied("Admin access required."),
+            ):
                 with pytest.raises(PermissionDenied, match="Admin access required"):
                     await handler(mock_request, model_name="test", field_name="status")
 
@@ -164,7 +173,10 @@ class TestEndpointPermissionChecks:
             mock_request = MagicMock()
             mock_request.form = AsyncMock(return_value={})
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=False):
+            with patch(
+                "openviper.admin.api.views.require_admin_access",
+                side_effect=PermissionDenied("Admin access required."),
+            ):
                 with pytest.raises(PermissionDenied, match="Admin access required"):
                     await handler(mock_request, model_name="test")
 
@@ -204,7 +216,7 @@ class TestFormDataJsonParsing:
             mock_instance.id = 1
             mock_model_class.objects.create = AsyncMock(return_value=mock_instance)
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+            with patch("openviper.admin.api.views.require_admin_access"):
                 with patch("openviper.admin.registry.admin.get", return_value=mock_model_admin):
                     with patch(
                         "openviper.admin.registry.admin.get_model", return_value=mock_model_class
@@ -253,7 +265,7 @@ class TestFormDataJsonParsing:
             mock_model_class._fields = {}
             mock_model_class.objects.get_or_none = AsyncMock(return_value=mock_instance)
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+            with patch("openviper.admin.api.views.require_admin_access"):
                 with patch("openviper.admin.registry.admin.get", return_value=mock_model_admin):
                     with patch(
                         "openviper.admin.registry.admin.get_model", return_value=mock_model_class
@@ -312,7 +324,7 @@ class TestUpdateViewExceptionHandling:
             mock_model_class._fields = {}
             mock_model_class.objects.get_or_none = AsyncMock(return_value=mock_instance)
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+            with patch("openviper.admin.api.views.require_admin_access"):
                 with patch("openviper.admin.registry.admin.get", return_value=mock_model_admin):
                     with patch(
                         "openviper.admin.registry.admin.get_model", return_value=mock_model_class
@@ -363,7 +375,7 @@ class TestUpdateViewExceptionHandling:
             mock_model_class._fields = {}
             mock_model_class.objects.get_or_none = AsyncMock(return_value=mock_instance)
 
-            with patch("openviper.admin.api.views.check_admin_access", return_value=True):
+            with patch("openviper.admin.api.views.require_admin_access"):
                 with patch("openviper.admin.registry.admin.get", return_value=mock_model_admin):
                     with patch(
                         "openviper.admin.registry.admin.get_model", return_value=mock_model_class

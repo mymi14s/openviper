@@ -107,10 +107,10 @@ from openviper.conf.settings import settings
 logger = logging.getLogger("openviper.db")
 
 # Sentinel distinguishing "not yet built" from "built but disabled".
-_UNSET: object = object()
+UNSET: object = object()
 _init_lock = threading.Lock()
 
-_dispatcher_cache: object = _UNSET
+_dispatcher_cache: object = UNSET
 
 # Prevent GC of background tasks and log exceptions.
 _background_tasks: set[asyncio.Task[Any]] = set()
@@ -261,12 +261,12 @@ def get_dispatcher() -> ModelEventDispatcher | None:
     """
     global _dispatcher_cache
     # Avoid lock on the hot path once the dispatcher is built.
-    if _dispatcher_cache is not _UNSET:
+    if _dispatcher_cache is not UNSET:
         return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
     with _init_lock:
         # Double-checked locking - another thread may have built while we waited.
-        if _dispatcher_cache is not _UNSET:
+        if _dispatcher_cache is not UNSET:
             return cast("ModelEventDispatcher | None", _dispatcher_cache)
 
         _dispatcher_cache = build_dispatcher()
@@ -281,7 +281,7 @@ def reset_dispatcher() -> None:
     moment.
     """
     global _dispatcher_cache
-    _dispatcher_cache = _UNSET
+    _dispatcher_cache = UNSET
 
 
 def build_dispatcher() -> ModelEventDispatcher | None:
@@ -440,7 +440,7 @@ def dispatch_decorator_handlers(
     *model_path* / *event_name*.
 
     Called both from :meth:`ModelEventDispatcher.trigger` (settings on) and
-    directly from ``Model._trigger_event`` (settings off), so decorator
+    directly from ``Model.trigger_event`` (settings off), so decorator
     handlers always fire.
     """
     event_map = _decorator_registry.get(model_path)
@@ -519,10 +519,10 @@ class _ModelEventProxy:
 
     def __getattr__(self, name: str) -> Any:
         if name in SUPPORTED_EVENTS:
-            return self._make_shortcut_decorator(name)
+            return self.make_shortcut_decorator(name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute {name!r}")
 
-    def _make_shortcut_decorator(self, event_name: str) -> Callable[[str], Any]:
+    def make_shortcut_decorator(self, event_name: str) -> Callable[[str], Any]:
         def decorator_factory(model_path: str) -> Any:
             def decorator(fn: Any) -> Any:
                 with _dec_registry_lock:

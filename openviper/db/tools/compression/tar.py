@@ -22,10 +22,6 @@ async def create_tar_gz(archive_path: Path, source_files: list[Path]) -> None:
     Raises:
         FileNotFoundError: When any source file does not exist.
     """
-    for src in source_files:
-        if not src.exists():
-            raise FileNotFoundError(f"Source file not found for archiving: {src}")
-
     create_tar_gz_sync(archive_path, source_files)
 
 
@@ -33,6 +29,8 @@ def create_tar_gz_sync(archive_path: Path, source_files: list[Path]) -> None:
     """Synchronous inner implementation of :func:`create_tar_gz`."""
     with tarfile.open(archive_path, "w:gz") as tar:
         for src in source_files:
+            if not src.exists():
+                raise FileNotFoundError(f"Source file not found for archiving: {src}")
             tar.add(src, arcname=src.name)
 
 

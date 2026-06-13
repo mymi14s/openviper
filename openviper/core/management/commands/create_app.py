@@ -6,6 +6,7 @@ import argparse
 import os
 
 from openviper.core.management.base import BaseCommand, CommandError
+from openviper.core.management.utils import validate_identifier
 
 APP_TEMPLATE: dict[str, str] = {
     "__init__.py": '"""{{ app_label }} app."""\n',
@@ -114,8 +115,7 @@ class Command(BaseCommand):
 
     def handle(self, **options) -> None:  # type: ignore[override]
         name: str = options["name"]
-        if not name.isidentifier():
-            raise CommandError(f"'{name}' is not a valid Python identifier.")
+        validate_identifier(name, "app name")
 
         base_dir = options.get("directory") or os.getcwd()
         app_dir = os.path.join(base_dir, name)

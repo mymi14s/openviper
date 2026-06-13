@@ -63,7 +63,7 @@ class DatabaseCleanupMiddleware(dramatiq_middleware.Middleware):
     def close_stale_connections(self) -> None:
         """Close idle database connections left open after task execution."""
         try:
-            for backend in backend_registry._backends.values():
+            for backend in backend_registry.backends.values():
                 if hasattr(backend, "close_idle_connections"):
                     backend.close_idle_connections()
         except Exception:
@@ -72,7 +72,7 @@ class DatabaseCleanupMiddleware(dramatiq_middleware.Middleware):
     def rollback_and_close(self) -> None:
         """Roll back uncommitted transactions and close stale connections."""
         try:
-            for backend in backend_registry._backends.values():
+            for backend in backend_registry.backends.values():
                 if hasattr(backend, "rollback"):
                     backend.rollback()
                 if hasattr(backend, "close_idle_connections"):

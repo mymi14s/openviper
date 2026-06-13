@@ -34,21 +34,21 @@ class TestDiscoverModels:
     """Test model discovery."""
 
     def test_discover_models_empty_apps(self, command, monkeypatch) -> None:
-        monkeypatch.setattr(settings, "_instance", type("Settings", (), {"INSTALLED_APPS": []})())
+        monkeypatch.setattr(settings, "instance", type("Settings", (), {"INSTALLED_APPS": []})())
 
-        models = command._discover_models()
+        models = command.discover_models()
         assert isinstance(models, dict)
 
     @patch("importlib.import_module")
     def test_discover_models_imports_app_models(self, mock_import, command, monkeypatch) -> None:
         monkeypatch.setattr(
-            settings, "_instance", type("Settings", (), {"INSTALLED_APPS": ["testapp"]})()
+            settings, "instance", type("Settings", (), {"INSTALLED_APPS": ["testapp"]})()
         )
 
         # Simulate ImportError
         mock_import.side_effect = ImportError("No module named 'testapp.models'")
 
-        models = command._discover_models()
+        models = command.discover_models()
         assert isinstance(models, dict)
 
         # Should have tried to import testapp.models
@@ -61,9 +61,9 @@ class TestDiscoverModels:
         mock_user_class = type("User", (), {"__name__": "User"})
         mock_get_user.return_value = mock_user_class
 
-        monkeypatch.setattr(settings, "_instance", type("Settings", (), {"INSTALLED_APPS": []})())
+        monkeypatch.setattr(settings, "instance", type("Settings", (), {"INSTALLED_APPS": []})())
 
-        models = command._discover_models()
+        models = command.discover_models()
 
         assert "User" in models
 
@@ -72,7 +72,7 @@ class TestBuildNamespace:
     """Test namespace building."""
 
     def test_build_namespace_includes_settings(self, command) -> None:
-        ns, model_names = command._build_namespace(include_models=False)
+        ns, model_names = command.build_namespace(include_models=False)
 
         assert "settings" in ns
         assert "OpenViper" in ns
@@ -80,17 +80,17 @@ class TestBuildNamespace:
         assert "JSONResponse" in ns
         assert "HTMLResponse" in ns
 
-    @patch.object(Command, "_discover_models")
+    @patch.object(Command, "discover_models")
     def test_build_namespace_with_models(self, mock_discover, command) -> None:
         mock_discover.return_value = {"TestModel": type("TestModel", (), {})}
 
-        ns, model_names = command._build_namespace(include_models=True)
+        ns, model_names = command.build_namespace(include_models=True)
 
         assert "TestModel" in ns
         assert "TestModel" in model_names
 
     def test_build_namespace_without_models(self, command) -> None:
-        ns, model_names = command._build_namespace(include_models=False)
+        ns, model_names = command.build_namespace(include_models=False)
 
         assert model_names == []
 
@@ -101,24 +101,24 @@ class TestBuildBanner:
     @patch("importlib.import_module")
     def test_build_banner_includes_version(self, mock_import, command, monkeypatch) -> None:
         monkeypatch.setattr(
-            settings, "_instance", type("Settings", (), {"PROJECT_NAME": "TestProject"})()
+            settings, "instance", type("Settings", (), {"PROJECT_NAME": "TestProject"})()
         )
         mock_openviper = Mock(__version__="1.0.0")
         mock_import.return_value = mock_openviper
 
-        banner = command._build_banner([])
+        banner = command.build_banner([])
 
         assert "OpenViper" in banner or "1.0.0" in banner
         assert "TestProject" in banner
 
     def test_build_banner_includes_models(self, command) -> None:
-        banner = command._build_banner(["User", "Post"])
+        banner = command.build_banner(["User", "Post"])
 
         assert "User" in banner
         assert "Post" in banner
 
     def test_build_banner_includes_tip(self, command) -> None:
-        banner = command._build_banner([])
+        banner = command.build_banner([])
 
         assert "exit()" in banner or "Ctrl-D" in banner
 
@@ -127,7 +127,7 @@ class TestHandle:
     """Test handle method."""
 
     @patch("IPython.terminal.embed.InteractiveShellEmbed")
-    @patch.object(Command, "_build_namespace")
+    @patch.object(Command, "build_namespace")
     def test_handle_starts_ipython(self, mock_namespace, mock_embed, command) -> None:
         mock_namespace.return_value = ({}, [])
 
@@ -137,7 +137,7 @@ class TestHandle:
         mock_embed.return_value.assert_called_once()
 
     @patch("IPython.terminal.embed.InteractiveConsoleEmbed")
-    @patch.object(Command, "_build_namespace")
+    @patch.object(Command, "build_namespace")
     def test_handle_with_no_models_flag(self, mock_namespace, mock_embed, command) -> None:
         mock_namespace.return_value = ({}, [])
 
@@ -148,7 +148,7 @@ class TestHandle:
         mock_embed.assert_called_once()
         mock_embed.return_value.assert_called_once()
 
-    @patch.object(Command, "_build_namespace")
+    @patch.object(Command, "build_namespace")
     def test_handle_with_command_string(self, mock_namespace, command) -> None:
         mock_namespace.return_value = ({"test_var": 42}, [])
 
@@ -157,7 +157,7 @@ class TestHandle:
 
         # Command should have been executed
 
-    @patch.object(Command, "_build_namespace")
+    @patch.object(Command, "build_namespace")
     def test_handle_command_syntax_error_gives_useful_traceback(
         self, mock_namespace, command
     ) -> None:
@@ -179,7 +179,7 @@ class TestIPythonConfig:
     """Test IPython configuration."""
 
     @patch("IPython.terminal.embed.InteractiveConsoleEmbed")
-    @patch.object(Command, "_build_namespace")
+    @patch.object(Command, "build_namespace")
     def test_handle_configures_ipython(self, mock_namespace, mock_embed, command) -> None:
         mock_namespace.return_value = ({}, [])
 
@@ -197,14 +197,14 @@ class TestEdgeCases:
         cmd = Command()
         assert cmd is not None
         assert hasattr(cmd, "handle")
-        assert hasattr(cmd, "_discover_models")
-        assert hasattr(cmd, "_build_namespace")
-        assert hasattr(cmd, "_build_banner")
+        assert hasattr(cmd, "discover_models")
+        assert hasattr(cmd, "build_namespace")
+        assert hasattr(cmd, "build_banner")
 
     def test_discover_models_with_import_error(self, command, capsys, monkeypatch) -> None:
         monkeypatch.setattr(
-            settings, "_instance", type("Settings", (), {"INSTALLED_APPS": ["nonexistent_app"]})()
+            settings, "instance", type("Settings", (), {"INSTALLED_APPS": ["nonexistent_app"]})()
         )
 
-        models = command._discover_models()
+        models = command.discover_models()
         assert isinstance(models, dict)

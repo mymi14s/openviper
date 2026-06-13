@@ -128,6 +128,11 @@ class BaseSessionStore(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def delete_user_sessions(self, user_id: int | str) -> None:
+        """Delete all sessions belonging to *user_id*."""
+        pass
+
+    @abc.abstractmethod
     async def get_user(self, session_key: str) -> Authenticable | None:
         """Retrieve the user associated with this session."""
         pass
@@ -245,6 +250,25 @@ class DatabaseSessionStore(BaseSessionStore):
         cache = get_cache()
         await cache.delete(f"{SESSION_CACHE_PREFIX}{session_key}")
         await cache.delete(f"{SESSION_USER_CACHE_PREFIX}{session_key}")
+
+    async def delete_user_sessions(self, user_id: int | str) -> None:
+        if not user_id:
+            return
+        await ensure_session_table()
+        table = get_session_table()
+        engine = await get_engine()
+        async with engine.begin() as conn:
+            result = await conn.execute(
+                sa.select(table.c.session_key).where(table.c.user_id == str(user_id))
+            )
+            keys = [row[0] for row in result.all()]
+            if keys:
+                await conn.execute(sa.delete(table).where(table.c.user_id == str(user_id)))
+
+        cache = get_cache()
+        for key in keys:
+            await cache.delete(f"{SESSION_CACHE_PREFIX}{key}")
+            await cache.delete(f"{SESSION_USER_CACHE_PREFIX}{key}")
 
     async def get_user(self, session_key: str) -> Authenticable | None:
         if not is_valid_session_key(session_key):

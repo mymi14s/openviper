@@ -30,6 +30,13 @@ start_time_var: contextvars.ContextVar[float] = contextvars.ContextVar(
     "openviper.tasks.start_time", default=0.0
 )
 
+# Per-thread event loop reused across ``upsert_task_result`` calls so the
+# SQLAlchemy async engine connections share the same event loop lifetime,
+# preventing ``RuntimeError: Event loop is closed`` on connection cleanup.
+thread_async_loop: contextvars.ContextVar[asyncio.AbstractEventLoop | None] = (
+    contextvars.ContextVar("openviper.tasks.thread_async_loop", default=None)
+)
+
 
 class DatabaseCleanupMiddleware(dramatiq_middleware.Middleware):
     """Close stale connections and roll back failed transactions after each task."""
@@ -175,7 +182,11 @@ class StateObservationMiddleware(dramatiq_middleware.Middleware):
                 loop = asyncio.get_running_loop()
                 loop.create_task(persist())
             except RuntimeError:
-                asyncio.run(persist())
+                thread_loop = thread_async_loop.get()
+                if thread_loop is None or thread_loop.is_closed():
+                    thread_loop = asyncio.new_event_loop()
+                    thread_async_loop.set(thread_loop)
+                thread_loop.run_until_complete(persist())
         except Exception:
             logger.debug(
                 "StateObservationMiddleware: skipping TaskResult persist for %s",

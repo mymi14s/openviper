@@ -280,16 +280,14 @@ class TestListCommands:
         list_commands.cache_clear()
 
     def testlist_commands(self, monkeypatch):
-        # Mock importlib.import_module to return a dummy module with __path__
         mock_module = Mock()
         mock_module.__path__ = ["path"]
         monkeypatch.setattr(
-            "openviper.core.management.importlib.import_module", lambda name: mock_module
-        )
-        # Mock pkgutil.iter_modules to return fake command modules
-        monkeypatch.setattr(
             "openviper.core.management.pkgutil.iter_modules",
             lambda path: [(None, "cmd_one", False), (None, "cmd_two", False)],
+        )
+        monkeypatch.setattr(
+            "openviper.core.management.importlib.import_module", lambda name: mock_module
         )
         result = list_commands()
         assert result == ["cmd-one", "cmd-two"]

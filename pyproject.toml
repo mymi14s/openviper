@@ -37,13 +37,13 @@ dependencies = {file = ["requirements.txt"]}
 [project.optional-dependencies]
 
 dev = [
-    "pytest==9.0.2",
-    "pytest-asyncio==1.3.0",
+    "pytest==9.1.0",
+    "pytest-asyncio==1.4.0",
     "pytest-cov==7.0.0",
     "pytest-xdist==3.8.0",
     "httpx==0.28.1",
     "black==26.1.0",
-    "isort==8.0.0",
+    "isort==8.0.1",
     "ruff==0.15.4",
     "mypy==1.19.1",
     "pylint==4.0.5",
@@ -68,11 +68,11 @@ mssql = ["aioodbc==0.5.0"]
 oracle = ["oracledb==3.4.2"]
 mariadb = ["aiomysql==0.2.0"]
 geolocation = ["shapely==2.1.2", "psycopg2-binary==2.9.11"]
-tasks = ["dramatiq==2.1.0", "croniter==6.2.2", "cron-descriptor==2.1.10"]
+tasks = ["dramatiq==2.1.0", "croniter==6.2.2", "cron-descriptor==2.1.0"]
 tasks-redis = ["openviper[tasks]", "redis==8.0.0"]
 tasks-rabbitmq = ["openviper[tasks]", "pika==1.4.0"]
 tasks-sqs = ["openviper[tasks]", "dramatiq-sqs==0.4.3", "boto3==1.43.29"]
-tasks-postgresql = ["openviper[tasks]", "dramatiq-pg==0.12.0", "psycopg2-binary==2.9.11"]
+tasks-postgresql = ["openviper[tasks]", "dramatiq-pg @ git+https://github.com/danielgatis/dramatiq-pg.git@724d86bda83c3db3fe20502f00249db9ac76039d", "psycopg2-binary==2.9.11"]
 testing = ["pytest==9.1.0", "pytest-asyncio==1.4.0", "httpx==0.28.1"]
 all = ["openviper[ai,postgres,mssql,oracle,mariadb,geolocation,tasks-redis,testing]"]
 

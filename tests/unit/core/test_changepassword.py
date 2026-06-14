@@ -6,6 +6,7 @@ import pytest
 
 from openviper.core.management.base import CommandError
 from openviper.core.management.commands.changepassword import Command
+from tests.unit.conftest import run_async_coro
 
 
 @pytest.fixture
@@ -51,7 +52,10 @@ class TestChangePasswordCommand:
 
 class TestHandleWithOptions:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
-    @patch("openviper.core.management.commands.changepassword.run_async_command")
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_with_username_and_password(
         self, mock_run_async, mock_get_user_model, command, mock_user_model
     ):
@@ -68,8 +72,19 @@ class TestHandleWithOptions:
         "openviper.core.management.utils.getpass.getpass",
         side_effect=["newpass", "newpass"],
     )
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_prompts_for_username_and_password(
-        self, mock_getpass, mock_input, mock_get_user_model, command, mock_user_model, capsys
+        self,
+        mock_run_async,
+        mock_getpass,
+        mock_input,
+        mock_get_user_model,
+        command,
+        mock_user_model,
+        capsys,
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -81,7 +96,13 @@ class TestHandleWithOptions:
 
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch("builtins.input", return_value="")
-    def test_handle_empty_username_raises_error(self, mock_input, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_empty_username_raises_error(
+        self, mock_run_async, mock_input, mock_get_user_model, command
+    ):
         mock_model = Mock()
         mock_model._fields = {"username": Mock()}
         mock_get_user_model.return_value = mock_model
@@ -94,7 +115,11 @@ class TestHandleWithOptions:
 
 class TestUserLookup:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
-    def test_handle_user_not_found(self, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_user_not_found(self, mock_run_async, mock_get_user_model, command):
         mock_model = Mock()
         mock_model._fields = {"username": Mock()}
         mock_model.objects.get_or_none = AsyncMock(return_value=None)
@@ -104,8 +129,12 @@ class TestUserLookup:
             command.handle(username="nonexistent", password="pass123")
 
     @patch("openviper.core.management.commands.changepassword.get_user_model")
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_user_found_and_password_changed(
-        self, mock_get_user_model, command, mock_user_model, capsys
+        self, mock_run_async, mock_get_user_model, command, mock_user_model, capsys
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -122,8 +151,12 @@ class TestPasswordValidation:
         "openviper.core.management.utils.getpass.getpass",
         side_effect=["pass1", "pass2", "pass3", "pass3"],
     )
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_password_mismatch_retries(
-        self, mock_getpass, mock_get_user_model, command, mock_user_model, capsys
+        self, mock_run_async, mock_getpass, mock_get_user_model, command, mock_user_model, capsys
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -137,8 +170,12 @@ class TestPasswordValidation:
         "openviper.core.management.utils.getpass.getpass",
         side_effect=["", "pass", "pass"],
     )
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_blank_password_retries(
-        self, mock_getpass, mock_get_user_model, command, mock_user_model, capsys
+        self, mock_run_async, mock_getpass, mock_get_user_model, command, mock_user_model, capsys
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -154,8 +191,12 @@ class TestPasswordValidation:
 class TestCancellation:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch("builtins.input", side_effect=KeyboardInterrupt)
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_username_prompt_cancelled(
-        self, mock_input, mock_get_user_model, command, capsys
+        self, mock_run_async, mock_input, mock_get_user_model, command, capsys
     ):
         mock_model = Mock()
         mock_model._fields = {"username": Mock()}
@@ -171,8 +212,12 @@ class TestCancellation:
         "openviper.core.management.utils.getpass.getpass",
         side_effect=KeyboardInterrupt,
     )
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_password_prompt_cancelled(
-        self, mock_getpass, mock_get_user_model, command, mock_user_model, capsys
+        self, mock_run_async, mock_getpass, mock_get_user_model, command, mock_user_model, capsys
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -185,7 +230,13 @@ class TestCancellation:
 
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch("builtins.input", side_effect=EOFError)
-    def test_handle_username_prompt_eof(self, mock_input, mock_get_user_model, command, capsys):
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_username_prompt_eof(
+        self, mock_run_async, mock_input, mock_get_user_model, command, capsys
+    ):
         mock_model = Mock()
         mock_model._fields = {"username": Mock()}
         mock_get_user_model.return_value = mock_model
@@ -198,7 +249,13 @@ class TestCancellation:
 
 class TestSuccessOutput:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
-    def test_handle_success_message(self, mock_get_user_model, command, mock_user_model, capsys):
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_success_message(
+        self, mock_run_async, mock_get_user_model, command, mock_user_model, capsys
+    ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
 
@@ -211,7 +268,13 @@ class TestSuccessOutput:
 
 class TestSetPasswordAwaited:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
-    def test_set_password_is_awaited(self, mock_get_user_model, command, mock_user_model, capsys):
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_set_password_is_awaited(
+        self, mock_run_async, mock_get_user_model, command, mock_user_model, capsys
+    ):
         """set_password must be awaited since it is async."""
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -225,7 +288,13 @@ class TestSetPasswordAwaited:
 class TestEdgeCases:
     @patch("openviper.core.management.commands.changepassword.get_user_model")
     @patch("builtins.input", return_value="")
-    def test_handle_with_empty_string_username(self, mock_input, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_with_empty_string_username(
+        self, mock_run_async, mock_input, mock_get_user_model, command
+    ):
         mock_model = Mock()
         mock_model._fields = {"username": Mock()}
         mock_get_user_model.return_value = mock_model
@@ -239,8 +308,18 @@ class TestEdgeCases:
         "openviper.core.management.utils.getpass.getpass",
         side_effect=["pass", "pass"],
     )
+    @patch(
+        "openviper.core.management.commands.changepassword.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_strips_whitespace_from_username(
-        self, mock_getpass, mock_input, mock_get_user_model, command, mock_user_model
+        self,
+        mock_run_async,
+        mock_getpass,
+        mock_input,
+        mock_get_user_model,
+        command,
+        mock_user_model,
     ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model

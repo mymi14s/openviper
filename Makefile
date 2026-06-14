@@ -77,9 +77,6 @@ test-fast: ## Run tests in parallel with xdist
 test-verbose: ## Run tests with verbose output
 	pytest $(TESTS) -v --tb=short
 
-test-cov: ## Run tests with coverage report
-	pytest $(TESTS) --cov=$(SRC) --cov-report=term-missing --cov-report=html
-
 test-unit: ## Run unit tests only
 	pytest $(TESTS)/unit
 
@@ -124,8 +121,8 @@ clean-pyc: ## Remove Python cache files
 clean-build: ## Remove build artifacts
 	rm -rf build/ dist/ *.egg-info .eggs/ openviper.egg-info/
 
-clean-test: ## Remove test & coverage artifacts
-	rm -rf .pytest_cache/ htmlcov/ .coverage .mypy_cache/ .ruff_cache/
+clean-test: ## Remove test artifacts
+	rm -rf .pytest_cache/ .mypy_cache/ .ruff_cache/
 
 clean: clean-pyc clean-build clean-test ## Remove all generated files
 

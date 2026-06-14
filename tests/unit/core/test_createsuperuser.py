@@ -10,6 +10,7 @@ from openviper.core.management.commands.createsuperuser import (
     validate_email,
     validate_username,
 )
+from tests.unit.conftest import run_async_coro
 
 
 @pytest.fixture
@@ -178,7 +179,10 @@ class TestHandleNoInput:
     """Test --no-input mode."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    @patch("openviper.core.management.commands.createsuperuser.run_async_command")
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_no_input_with_all_options(
         self, mock_run_async, mock_get_user_model, command, mock_user_model
     ):
@@ -195,7 +199,13 @@ class TestHandleNoInput:
         mock_run_async.assert_called_once()
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_handle_no_input_missing_username_raises_error(self, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_no_input_missing_username_raises_error(
+        self, mock_run_async, mock_get_user_model, command
+    ):
         with pytest.raises(CommandError) as exc_info:
             command.handle(
                 username=None,
@@ -207,7 +217,13 @@ class TestHandleNoInput:
         assert "--username, --email, and --password are required" in str(exc_info.value)
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_handle_no_input_invalid_email_raises_error(self, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_no_input_invalid_email_raises_error(
+        self, mock_run_async, mock_get_user_model, command
+    ):
         with pytest.raises(CommandError) as exc_info:
             command.handle(
                 username="admin",
@@ -226,7 +242,10 @@ class TestHandleInteractive:
     @patch.object(Command, "prompt_username")
     @patch.object(Command, "prompt_email")
     @patch.object(Command, "prompt_password")
-    @patch("openviper.core.management.commands.createsuperuser.run_async_command")
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_interactive_prompts_all_fields(
         self,
         mock_run_async,
@@ -255,7 +274,13 @@ class TestUserCreation:
     """Test user creation logic."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_handle_creates_superuser(self, mock_get_user_model, command, mock_user_model, capsys):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_creates_superuser(
+        self, mock_run_async, mock_get_user_model, command, mock_user_model, capsys
+    ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
 
@@ -267,7 +292,13 @@ class TestUserCreation:
         assert "Superuser 'admin' created successfully" in captured.out
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_handle_existing_username_raises_error(self, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_existing_username_raises_error(
+        self, mock_run_async, mock_get_user_model, command
+    ):
         mock_model = Mock()
         mock_model.objects.get_or_none = AsyncMock(return_value=Mock())
         mock_get_user_model.return_value = mock_model
@@ -278,7 +309,11 @@ class TestUserCreation:
             )
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_handle_existing_email_raises_error(self, mock_get_user_model, command):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_existing_email_raises_error(self, mock_run_async, mock_get_user_model, command):
         mock_model = Mock()
         # First call returns None (username check), second returns user (email check)
         mock_model.objects.get_or_none = AsyncMock(
@@ -298,7 +333,13 @@ class TestSuperuserAttributes:
     """Test that created user has correct superuser attributes."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_handle_sets_superuser_flags(self, mock_get_user_model, command, mock_user_model):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_handle_sets_superuser_flags(
+        self, mock_run_async, mock_get_user_model, command, mock_user_model
+    ):
         mock_model, mock_user = mock_user_model
         mock_get_user_model.return_value = mock_model
 
@@ -314,7 +355,13 @@ class TestSetPasswordAwaited:
     """Test that set_password is properly awaited (async)."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
-    def test_set_password_is_awaited(self, mock_get_user_model, command, mock_user_model, capsys):
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
+    def test_set_password_is_awaited(
+        self, mock_run_async, mock_get_user_model, command, mock_user_model, capsys
+    ):
         """set_password must be awaited since it is async."""
         mock_model, _ = mock_user_model
         mock_get_user_model.return_value = mock_model
@@ -347,8 +394,12 @@ class TestCustomUserModelSupport:
     """Test custom user models with non-standard required fields."""
 
     @patch("openviper.core.management.commands.createsuperuser.get_user_model")
+    @patch(
+        "openviper.core.management.commands.createsuperuser.run_async_command",
+        side_effect=run_async_coro,
+    )
     def test_handle_custom_model_sets_name_and_password_before_save(
-        self, mock_get_user_model, command, capsys
+        self, mock_run_async, mock_get_user_model, command, capsys
     ):
         created_users = []
 

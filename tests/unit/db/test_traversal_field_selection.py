@@ -281,10 +281,6 @@ class TestValuesTraversalWithFilters:
     """Traversal field selection combined with WHERE / ORDER BY."""
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason="Filter traversal JOIN column lookup fails; separate bug from key remapping",
-        raises=KeyError,
-    )
     async def test_traversal_with_filter(self):
         """Filter on a traversal field while selecting traversal columns."""
         qs = make_qs(filters=[{"user__username": "alice"}])

@@ -74,7 +74,7 @@ async def test_database():
     if required_tables:
         subset = sa.MetaData()
         for table in required_tables:
-            table.tometadata(subset)
+            table.to_metadata(subset)
         async with engine.begin() as conn:
             await conn.run_sync(subset.create_all)
 

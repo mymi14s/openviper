@@ -1472,12 +1472,11 @@ def build_where_clause_with_traversals(
                         traversal_from, final_table = build_traversal_joins(traversal, base_table)
                         collected_joins[key] = (traversal_from, final_table)
                         if traversal_from is not base_table:
+                            last_step = traversal.get_joins_needed()[-1]
                             from_clause = (
                                 from_clause.join(
                                     final_table,
-                                    from_clause.c[
-                                        traversal.get_joins_needed()[-1].field.column_name
-                                    ]
+                                    get_table(last_step.model_cls).c[last_step.field.column_name]
                                     == final_table.c.id,
                                     isouter=True,
                                 )
@@ -1514,12 +1513,11 @@ def build_where_clause_with_traversals(
                         traversal_from, final_table = build_traversal_joins(traversal, base_table)
                         collected_joins[key] = (traversal_from, final_table)
                         if traversal_from is not base_table:
+                            last_step = traversal.get_joins_needed()[-1]
                             from_clause = (
                                 from_clause.join(
                                     final_table,
-                                    from_clause.c[
-                                        traversal.get_joins_needed()[-1].field.column_name
-                                    ]
+                                    get_table(last_step.model_cls).c[last_step.field.column_name]
                                     == final_table.c.id,
                                     isouter=True,
                                 )

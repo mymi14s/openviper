@@ -112,13 +112,15 @@ def test_as_database_isolation_rejects_invalid_value() -> None:
 
 
 def test_import_from_path_loads_stdlib_attribute() -> None:
-    result = import_from_path("os.path:join")
+    with pytest.warns(UserWarning, match="outside project namespace"):
+        result = import_from_path("os.path:join")
 
     assert result is _osp.join
 
 
 def test_import_from_path_supports_dot_separated_path() -> None:
-    result = import_from_path("os.path.join")
+    with pytest.warns(UserWarning, match="outside project namespace"):
+        result = import_from_path("os.path.join")
 
     assert result is _osp.join
 
@@ -134,5 +136,6 @@ def test_import_from_path_raises_for_nonexistent_module() -> None:
 
 
 def test_import_from_path_raises_for_missing_attribute() -> None:
-    with pytest.raises(OpenViperTestingConfigError, match="no attribute"):
-        import_from_path("os.path:nonexistent_function")
+    with pytest.warns(UserWarning, match="outside project namespace"):
+        with pytest.raises(OpenViperTestingConfigError, match="no attribute"):
+            import_from_path("os.path:nonexistent_function")

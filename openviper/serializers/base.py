@@ -1065,7 +1065,7 @@ class ModelSerializer(Serializer, metaclass=ModelSerializerMeta):
         ``model_dump``: ``"none"`` uses ``exclude_none=True`` (for
         create), ``"unset"`` uses ``exclude_unset=True`` (for update).
         """
-        allowed_keys = set(self.model_fields) - set(self.writeonly_fields)
+        allowed_keys = set(type(self).model_fields) - set(self.writeonly_fields)
         if exclude_mode == "unset":
             data = {
                 k: v for k, v in self.model_dump(exclude_unset=True).items() if k in allowed_keys

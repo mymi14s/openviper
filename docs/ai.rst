@@ -77,6 +77,9 @@ Key Classes & Functions
 
       Return the sorted list of model IDs this provider can serve.
 
+      The result is cached on the provider instance; subsequent calls
+      return the cached list without re-parsing the configuration.
+
    .. py:method:: provider_name() -> str
 
       Return the canonical name for this provider.
@@ -145,6 +148,11 @@ Key Classes & Functions
       ``provider.supported_models()`` and maps each model ID to the provider.
       Raises :class:`~openviper.exceptions.ModelCollisionError` when
       *allow_override* is ``False`` and a model ID is already claimed.
+
+      The provider's canonical name is read outside the lock to minimize
+      critical-section time.  A module-level frozenset of known provider
+      names (OpenAI, Anthropic, Ollama, Gemini, Grok) is used for fast
+      heuristic matching when the config omits an explicit provider type.
 
    .. py:method:: register_from_module(module_path, *, allow_override=True) -> int
 

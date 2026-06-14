@@ -99,6 +99,43 @@ _UNSAFE_REGEX_CHARS: frozenset[str] = frozenset(
     }
 )
 
+_OPERATORS: frozenset[str] = frozenset(
+    {
+        "exact",
+        "ne",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "not_in",
+        "isnull",
+        "range",
+        "contains",
+        "icontains",
+        "startswith",
+        "endswith",
+        "iexact",
+        "istartswith",
+        "iendswith",
+        "regex",
+        "iregex",
+    }
+)
+
+_DATETIME_TRANSFORMS: frozenset[str] = frozenset(
+    {
+        "date",
+        "time",
+        "year",
+        "month",
+        "day",
+        "hour",
+        "minute",
+        "second",
+    }
+)
+
 
 def validate_regex_pattern(pattern: str) -> None:
     """Reject regex patterns that could cause catastrophic backtracking (ReDoS).
@@ -1047,6 +1084,30 @@ def resolve_lookup_value(v: object) -> object:
     return v
 
 
+def _apply_transform(col: sa.ColumnElement[Any], transform: str) -> sa.ColumnElement[Any]:
+    """Wrap a column with a datetime transform expression.
+
+    Raises FieldError for unknown transforms.
+    """
+    if transform == "date":
+        return sa.cast(col, sa.Date)
+    if transform == "time":
+        return sa.cast(col, sa.Time)
+    if transform == "year":
+        return sa.extract("year", col)
+    if transform == "month":
+        return sa.extract("month", col)
+    if transform == "day":
+        return sa.extract("day", col)
+    if transform == "hour":
+        return sa.extract("hour", col)
+    if transform == "minute":
+        return sa.extract("minute", col)
+    if transform == "second":
+        return sa.extract("second", col)
+    raise FieldError(f"Unsupported lookup type: '{transform}'")
+
+
 def apply_lookup(
     col: sa.ColumnElement[Any], lookup: str, value: object, field: object = None
 ) -> sa.ColumnElement[Any]:
@@ -1161,6 +1222,14 @@ def apply_lookup(
         return cast("sa.ColumnElement[Any]", sa.extract("month", col) == value)
     if lookup == "day":
         return cast("sa.ColumnElement[Any]", sa.extract("day", col) == value)
+    if lookup == "time":
+        return cast("sa.ColumnElement[Any]", sa.cast(col, sa.Time) == value)
+    if lookup == "hour":
+        return cast("sa.ColumnElement[Any]", sa.extract("hour", col) == value)
+    if lookup == "minute":
+        return cast("sa.ColumnElement[Any]", sa.extract("minute", col) == value)
+    if lookup == "second":
+        return cast("sa.ColumnElement[Any]", sa.extract("second", col) == value)
     raise FieldError(f"Unsupported lookup type: '{lookup}'")
 
 
@@ -1169,12 +1238,14 @@ def compile_single_filter(
 ) -> sa.ColumnElement[Any] | None:
     """Compile one ``field__lookup=value`` pair to a SQLAlchemy clause.
 
+    Supports chained datetime transforms: ``updated_at__date__gte=val``,
+    ``created_at__year__gt=2024``, etc.
+
     This is the legacy interface that returns only the WHERE clause.
     For traversal support with JOINs, use execute_select directly.
     """
-    parts = key.split("__", 1)
+    parts = key.split("__")
     col_name = parts[0]
-    lookup = parts[1] if len(parts) > 1 else "exact"
 
     # 'pk' is a universal alias for the primary key column.
     if col_name == "pk":
@@ -1201,7 +1272,30 @@ def compile_single_filter(
                 lookup_name = base_name
         field = model_cls._fields.get(lookup_name)
 
-    return apply_lookup(col, lookup, value, field=field)
+    # Parse transforms and final lookup operator from the __ chain.
+    remaining = parts[1:]
+    lookup = "exact"
+    transform_parts: list[str] = []
+
+    if remaining:
+        # Walk right-to-left: the last known operator is the final lookup.
+        if remaining[-1] in _OPERATORS:
+            lookup = remaining.pop()
+        elif remaining[-1] not in _DATETIME_TRANSFORMS:
+            # A single segment that is neither operator nor transform
+            # (e.g. "contains") — treat the whole tail as the lookup.
+            lookup = "__".join(remaining)
+            remaining = []
+        transform_parts = remaining
+
+    # Apply transforms to the column (left to right).
+    transformed_col: sa.ColumnElement[Any] = col
+    for t in transform_parts:
+        if t not in _DATETIME_TRANSFORMS:
+            raise FieldError(f"Unsupported lookup type: '{t}'")
+        transformed_col = _apply_transform(transformed_col, t)
+
+    return apply_lookup(transformed_col, lookup, value, field=field)
 
 
 def compile_q(table: sa.Table, q_obj: Any) -> sa.ColumnElement[Any] | None:

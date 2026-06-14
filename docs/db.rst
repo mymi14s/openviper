@@ -506,9 +506,14 @@ All fields accept a common set of base arguments: ``primary_key``,
    * - ``BinaryField``
      - Raw binary data (``BYTEA`` / ``BLOB``).
    * - ``FileField(upload_to="uploads/", max_size=None)``
-     - File upload; stores path relative to ``MEDIA_ROOT``.
+     - File upload; stores path relative to ``MEDIA_ROOT``.  Content is
+       validated against declared MIME type via magic-number signatures.
    * - ``ImageField``
-     - ``FileField`` with image content-type validation.
+     - ``FileField`` with image content-type validation and structural
+       magic-number verification.
+* - ``HTMLField``
+     - HTML content with XSS sanitization via *nh3* (or ``html.escape``
+       fallback).  Configurable allowed tags, attributes, and URL schemes.
    * - ``ForeignKey(to, on_delete="CASCADE", related_name=None)``
      - Many-to-one relationship.  FK column is ``{name}_id``.
        ``on_delete``: ``"CASCADE"``, ``"PROTECT"``, ``"SET_NULL"``,
@@ -1090,8 +1095,10 @@ Supported migration operations:
   dangerous patterns to prevent statement injection.
 - ``RemoveConstraint`` - remove a previously-added ``CHECK`` or ``UNIQUE``
   constraint.
-- ``RunSQL`` - execute arbitrary forward/backward SQL.  **Warning:** raw
-  SQL is not sanitised - never interpolate untrusted input.
+- ``RunSQL`` - execute arbitrary forward/backward SQL with optional
+  bound parameters (``params``, ``reverse_params``).  **Warning:** raw
+  SQL is not sanitised - never interpolate untrusted input; use the
+  parameter dictionaries instead.
 
 Soft-removed columns are tracked so that model validation skips them until
 a subsequent migration drops them entirely.

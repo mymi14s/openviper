@@ -263,7 +263,8 @@ The ``headers`` dict may include any additional response headers.
    (a Jinja2 template name) and *context* for template rendering.
 
    **Security:** Template names are validated against path traversal
-   (``..``, ``/``, ``\``, Windows absolute paths).  The current request
+   (``..``, ``/``, ``\``, Windows absolute paths) and percent-encoded
+   traversal sequences such as ``%2e%2e``.  The current request
    is auto-injected into the context when available.
 
 .. py:class:: PlainTextResponse(content: str | None = None, status_code: int = 200, headers: dict[str, str] | None = None)
@@ -279,8 +280,10 @@ The ``headers`` dict may include any additional response headers.
 
    - CR/LF injection (``\r`` / ``\n``)
    - Protocol-relative URLs (``//``)
-   - Path traversal sequences (``..``)
+   - Path traversal sequences (``..`` and percent-encoded ``%2e%2e``)
+   - Encoded backslashes (``%5c``) and literal backslashes
    - Disallowed URL schemes (only ``http`` and ``https`` allowed)
+   - Userinfo components (``user:pass@host``)
 
    Namespaced routes (``"namespace:route_name"``) are resolved via the
    active router.

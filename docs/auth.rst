@@ -844,7 +844,8 @@ Token Refresh
 
 .. code-block:: python
 
-    from openviper.auth.jwt import decode_refresh_token, create_access_token
+    from openviper.auth.jwt import decode_refresh_token, create_access_token, create_refresh_token
+    from openviper.auth.token_blocklist import is_token_revoked, revoke_token
     from openviper.exceptions import TokenExpired, AuthenticationFailed
 
     @router.post("/auth/refresh")
@@ -854,8 +855,27 @@ Token Refresh
             claims = decode_refresh_token(body["refresh"])
         except (TokenExpired, AuthenticationFailed) as exc:
             return JSONResponse({"error": str(exc)}, status_code=401)
-        new_access = create_access_token(claims["sub"])
-        return JSONResponse({"access": new_access})
+
+        jti = claims.get("jti")
+        if jti and await is_token_revoked(jti):
+            return JSONResponse({"error": "Refresh token has been revoked"}, status_code=401)
+
+        user_id = claims["sub"]
+        # Rotate refresh token: revoke the used token and issue a new one.
+        expires_at = ...  # determine from claims["exp"]
+        if jti:
+            await revoke_token(jti, "refresh", user_id, expires_at)
+        new_refresh = create_refresh_token(user_id)
+
+        new_access = create_access_token(user_id)
+        return JSONResponse({"access": new_access, "refresh": new_refresh})
+
+.. note::
+
+   The refresh endpoint now rotates the refresh token on each use.  The old
+   token's ``jti`` is added to the revocation blocklist, and a new refresh
+   token is returned.  This limits the window of opportunity for a stolen
+   refresh token.
 
 Session Login & Logout
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -1557,7 +1577,8 @@ Google OAuth2 - Authentication Flow
 
 1. Browser visits ``/auth/google`` → :class:`~openviper.auth.views.oauth2.GoogleOAuthInitView`
    generates a CSRF ``state`` token, stores it in a short-lived ``HttpOnly`` cookie
-   (``oauth2_state``, 10 minutes), and redirects to Google.
+   (``oauth2_state``, 10 minutes) with the ``Secure`` flag set on HTTPS, and
+   redirects to Google.
 2. Google redirects to ``/auth/google/callback`` with ``?code=…&state=…``.
 3. :class:`~openviper.auth.views.oauth2.GoogleOAuthCallbackView` validates the ``state``
    cookie, exchanges the code for an access token, and fetches userinfo from Google.

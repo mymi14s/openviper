@@ -10,6 +10,7 @@ import mimetypes
 import os
 import shutil
 import stat as stat_module
+import typing as t
 import urllib.parse
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -251,7 +252,8 @@ class StaticFilesMiddleware:
         """Stat a candidate file, returning the result or None if not found."""
         path_str = str(candidate)
         try:
-            return await aiofiles.os.stat(path_str)
+            result = await aiofiles.os.stat(path_str)
+            return t.cast("os.stat_result", result)
         except FileNotFoundError:
             return None
 

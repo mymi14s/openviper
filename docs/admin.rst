@@ -765,6 +765,14 @@ staff or superuser JWT.
      - POST
      - Change another user's password (superuser only).  Rate-limited (5 req/min).
 
+.. note::
+
+   Both password-change endpoints rotate the session after a successful
+   change.  All other sessions for the affected user are invalidated, and
+   a new session cookie is issued for the current request.  This prevents
+   session fixation and limits the window of opportunity for stolen session
+   cookies.
+
 **Config and dashboard:**
 
 .. list-table::

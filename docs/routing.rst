@@ -167,8 +167,9 @@ Path Security
 .. py:function:: openviper.routing.sanitize_request_path(path) -> str
 
    Sanitize and normalize a request path before routing.  Rejects null
-   bytes, encoded slashes (``%2F``, ``%5C%2F``), and directory traversal
-   (``..`` segments).  Collapses consecutive slashes.  Raises
+   bytes, encoded slashes (``%2F``, ``%5C%2F``), directory traversal
+   (``..`` segments), and percent-encoded traversal sequences such as
+   ``%2e%2e`` (encoded dots).  Collapses consecutive slashes.  Raises
    :class:`PathSecurityError` on malicious input.
 
 .. py:function:: openviper.routing.router.normalize_path(path) -> str

@@ -292,6 +292,9 @@ API Reference
 
       Return all cache keys, optionally filtered by *prefix*.  Default
       returns ``[]``; backends that can enumerate keys should override.
+      The in-memory implementation performs a single-pass sweep: expired
+      entries are evicted and matching keys are collected in one iteration
+      over the data store.
 
 ``openviper.cache.memory``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

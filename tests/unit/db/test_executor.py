@@ -15,6 +15,7 @@ from openviper.db.exceptions import DatabaseAliasNotFoundError
 from openviper.db.executor import (
     _TRAVERSAL_FAILURE,
     SOFT_REMOVED_CACHE,
+    _apply_transform,
     _bypass_permissions,
     ann_expr_as_sa,
     apply_lookup,
@@ -455,6 +456,98 @@ class TestApplyLookup:
         compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper() or "day" in compiled.lower()
 
+    def test_time(self):
+        dt_table = make_table("dt_t", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "time", datetime.time(10, 30))
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper() or "TIME" in compiled.upper()
+
+    def test_hour(self):
+        dt_table = make_table("dt_h", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "hour", 10)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "hour" in compiled.lower()
+
+    def test_minute(self):
+        dt_table = make_table("dt_min", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "minute", 30)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "minute" in compiled.lower()
+
+    def test_second(self):
+        dt_table = make_table("dt_s", created=sa.DateTime())
+        col = dt_table.c["created"]
+        clause = apply_lookup(col, "second", 45)
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or "second" in compiled.lower()
+
+
+class TestApplyTransform:
+    def test_date_transform(self):
+        dt_table = make_table("tr_dt", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "date")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper()
+
+    def test_time_transform(self):
+        dt_table = make_table("tr_tm", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "time")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper()
+
+    def test_year_transform(self):
+        dt_table = make_table("tr_yr", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "year")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_month_transform(self):
+        dt_table = make_table("tr_mon", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "month")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_day_transform(self):
+        dt_table = make_table("tr_day", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "day")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_hour_transform(self):
+        dt_table = make_table("tr_hr", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "hour")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_minute_transform(self):
+        dt_table = make_table("tr_min", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "minute")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_second_transform(self):
+        dt_table = make_table("tr_sec", created=sa.DateTime())
+        col = dt_table.c["created"]
+        result = _apply_transform(col, "second")
+        compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_unknown_transform_raises_field_error(self):
+        dt_table = make_table("tr_unk", created=sa.DateTime())
+        col = dt_table.c["created"]
+        with pytest.raises(FieldError, match="Unsupported lookup type"):
+            _apply_transform(col, "bogus")
+
 
 class TestApplyLookupEdgeCases:
     """Smoke and edge-case tests for all lookup operators."""
@@ -728,6 +821,82 @@ class TestCompileSingleFilter:
             sa.Column("author_id", sa.Integer),
         )
         clause = compile_single_filter(table, "author", 5)
+        assert clause is not None
+
+
+class TestCompileSingleFilterChainedTransforms:
+    """Tests for chained datetime transform lookups (field__transform__op)."""
+
+    def setup_method(self):
+        meta = sa.MetaData()
+        self.table = sa.Table(
+            "dt_posts",
+            meta,
+            sa.Column("id", sa.Integer, primary_key=True),
+            sa.Column("title", sa.String(200)),
+            sa.Column("created_at", sa.DateTime),
+        )
+
+    def test_date_transform_exact(self):
+        clause = compile_single_filter(self.table, "created_at__date", datetime.date(2026, 4, 19))
+        assert clause is not None
+
+    def test_date_transform_gte(self):
+        clause = compile_single_filter(
+            self.table, "created_at__date__gte", datetime.date(2026, 4, 19)
+        )
+        assert clause is not None
+
+    def test_date_transform_lt(self):
+        clause = compile_single_filter(
+            self.table, "created_at__date__lt", datetime.date(2026, 4, 19)
+        )
+        assert clause is not None
+
+    def test_year_transform_gt(self):
+        clause = compile_single_filter(self.table, "created_at__year__gt", 2024)
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper() or ">" in compiled
+
+    def test_month_transform_exact(self):
+        clause = compile_single_filter(self.table, "created_at__month", 4)
+        assert clause is not None
+
+    def test_day_transform_lte(self):
+        clause = compile_single_filter(self.table, "created_at__day__lte", 15)
+        assert clause is not None
+
+    def test_hour_transform_gte(self):
+        clause = compile_single_filter(self.table, "created_at__hour__gte", 12)
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "EXTRACT" in compiled.upper()
+
+    def test_minute_transform_lt(self):
+        clause = compile_single_filter(self.table, "created_at__minute__lt", 30)
+        assert clause is not None
+
+    def test_second_transform_exact(self):
+        clause = compile_single_filter(self.table, "created_at__second", 0)
+        assert clause is not None
+
+    def test_time_transform_gte(self):
+        clause = compile_single_filter(self.table, "created_at__time__gte", datetime.time(10, 0))
+        assert clause is not None
+        compiled = str(clause.compile(compile_kwargs={"literal_binds": True}))
+        assert "CAST" in compiled.upper()
+
+    def test_unknown_transform_raises_error(self):
+        with pytest.raises(FieldError):
+            compile_single_filter(self.table, "created_at__bogus__gt", 1)
+
+    def test_preserves_standard_lookups(self):
+        clause = compile_single_filter(self.table, "title__contains", "hello")
+        assert clause is not None
+
+    def test_preserves_standard_gt(self):
+        clause = compile_single_filter(self.table, "created_at__gt", "2026-01-01")
         assert clause is not None
 
 

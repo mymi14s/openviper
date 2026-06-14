@@ -1710,6 +1710,33 @@ class MigrationExecutor:
                     raise
                 continue
 
+        # ── Filter out deferred FK stmts for tables dropped in later migrations ──
+        dropped_tables: set[str] = set()
+        for record in all_migrations:
+            key = (record.app, record.name)
+            if key in applied:
+                continue
+            for op in record.operations:
+                if isinstance(op, DropTable):
+                    dropped_tables.add(op.table_name)
+
+        if dropped_tables:
+            fk_table_pattern = re.compile(
+                r'ALTER TABLE\s+"?(\w+)"?\s+ADD\s+CONSTRAINT', re.IGNORECASE
+            )
+            filtered: list[str] = []
+            for fk_stmt in deferred_fk_stmts:
+                m = fk_table_pattern.search(fk_stmt)
+                if m and m.group(1) in dropped_tables:
+                    logger.debug(
+                        "Skipping deferred FK for dropped table '%s': %s",
+                        m.group(1),
+                        fk_stmt,
+                    )
+                else:
+                    filtered.append(fk_stmt)
+            deferred_fk_stmts = filtered
+
         for fk_stmt in deferred_fk_stmts:
             try:
                 async with engine.begin() as conn:

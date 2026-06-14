@@ -7,6 +7,8 @@ process lifetime.
 
 from __future__ import annotations
 
+import contextlib
+import importlib
 import typing as t
 
 import dramatiq
@@ -49,11 +51,9 @@ try:
 except ImportError:
     psycopg2 = None
 
-prometheus_client: t.Any
-try:
-    import prometheus_client as prometheus_client
-except ImportError:
-    prometheus_client = None
+prometheus_client: t.Any = None
+with contextlib.suppress(ImportError):
+    prometheus_client = importlib.import_module("prometheus_client")
 
 try:
     from dramatiq.broker import default_middleware as dramatiq_defaults

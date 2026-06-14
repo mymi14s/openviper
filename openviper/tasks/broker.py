@@ -52,7 +52,7 @@ except ImportError:
 try:
     import prometheus_client as prometheus_client
 except ImportError:
-    prometheus_client = None  # type: ignore[assignment]
+    prometheus_client = None  # type: ignore
 
 try:
     from dramatiq.broker import default_middleware as dramatiq_defaults

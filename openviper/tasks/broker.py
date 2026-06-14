@@ -49,10 +49,11 @@ try:
 except ImportError:
     psycopg2 = None
 
+prometheus_client: t.Any
 try:
     import prometheus_client as prometheus_client
 except ImportError:
-    prometheus_client = None  # type: ignore
+    prometheus_client = None
 
 try:
     from dramatiq.broker import default_middleware as dramatiq_defaults

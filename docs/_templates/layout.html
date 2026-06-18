@@ -1,0 +1,6 @@
+{# Extend the RTD theme layout to inject the version variable for the banner JS. #}
+{% extends "!layout.html" %}
+
+{% block extrahead %}
+    <script>window.OPENVIPER_VERSION = "{{ openviper_version }}";</script>
+{% endblock %}

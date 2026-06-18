@@ -27,7 +27,7 @@ dynamic = ["dependencies"]
 
 [project.urls]
 Homepage = "https://github.com/mymi14s/openviper"
-Documentation = "https://mymi14s.github.io/openviper"
+Documentation = "https://mymi14s.github.io/openviper/latest"
 Repository = "https://github.com/mymi14s/openviper"
 Issues = "https://github.com/mymi14s/openviper/issues"
 

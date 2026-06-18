@@ -38,7 +38,7 @@ extensions = [
     "sphinx.ext.githubpages",
 ]
 
-templates_path = []
+templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "_templates"]
 
 # autodoc settings
@@ -77,6 +77,10 @@ intersphinx_mapping = {
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
+# Inject version banner CSS and JS on every page.
+html_css_files = ["version_banner.css"]
+html_js_files = ["version_banner.js"]
+
 html_theme_options = {
     "logo_only": False,
     "prev_next_buttons_location": "bottom",
@@ -95,6 +99,7 @@ html_context = {
     "github_repo": "openviper",
     "github_version": "main",
     "conf_py_path": "/docs",
+    "openviper_version": _project_version,
 }
 
 # -- Options for todo extension ----------------------------------------------

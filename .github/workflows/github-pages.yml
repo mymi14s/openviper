@@ -13,6 +13,14 @@ on:
       - requirements-dev.txt
       - .github/workflows/github-pages.yml
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Publish PyPI
+    types:
+      - completed
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
@@ -27,6 +35,7 @@ jobs:
   build:
     name: Build Docs
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     env:
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
     steps:
@@ -34,6 +43,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ github.token }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,13 +56,47 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[docs,ai,postgres,geolocation,tasks]"
 
+      - name: Extract project version
+        id: version
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Project version: $VERSION"
+
       - name: Build documentation
         run: make docs
+
+      - name: Prepare versioned Pages artifact
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PAGES_DIR="$(mktemp -d)"
+
+          # Try to fetch existing gh-pages content to preserve prior versions.
+          git fetch origin gh-pages --depth=1 2>/dev/null || true
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git worktree add --detach --no-checkout "$PAGES_DIR" origin/gh-pages
+            (cd "$PAGES_DIR" && git checkout origin/gh-pages -- . 2>/dev/null || true)
+            rm -rf "$PAGES_DIR/.git"
+          fi
+
+          # Remove any existing directory for this version so we get a clean replace.
+          rm -rf "$PAGES_DIR/$VERSION"
+          mkdir -p "$PAGES_DIR/$VERSION"
+          cp -r docs/_build/html/. "$PAGES_DIR/$VERSION/"
+
+          # Create or update the "latest" copy pointing to the newest version.
+          rm -rf "$PAGES_DIR/latest"
+          cp -r docs/_build/html/. "$PAGES_DIR/latest/"
+
+          # Generate the root index page listing all available versions.
+          python docs/generate_version_index.py "$PAGES_DIR"
+
+          echo "PAGES_DIR=$PAGES_DIR" >> "$GITHUB_ENV"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/_build/html
+          path: ${{ env.PAGES_DIR }}
 
   deploy:
     name: Deploy Docs

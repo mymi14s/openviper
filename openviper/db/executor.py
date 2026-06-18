@@ -768,6 +768,26 @@ _AUTH_TABLE_PLURALIZATION: dict[str, str] = {
 }
 
 
+def resolve_configured_user_table() -> str:
+    """Return the table name of the configured user model.
+
+    Falls back to ``auth_users`` when the default User model is active
+    or when a custom model cannot be resolved.
+    """
+    user_model_path = getattr(settings, "USER_MODEL", None)
+    if not user_model_path or user_model_path == "openviper.auth.models.User":
+        return "auth_users"
+    try:
+        from openviper.utils.importlib import import_string
+        user_cls = import_string(user_model_path)
+        table_name = getattr(user_cls, "_table_name", None)
+        if table_name:
+            return str(table_name)
+    except (ImportError, AttributeError):
+        logger.debug("Custom user model %s could not be resolved", user_model_path)
+    return "auth_users"
+
+
 def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) -> str:
     """Resolve the target table name for a ForeignKey or OneToOneField.
 
@@ -829,9 +849,9 @@ def resolve_fk_table_name(field: ForeignKey | OneToOneField, model_cls: type) ->
         model_snake = camel_to_snake(model_name)
 
         if model_name == "get_user_model" and "auth" in parts:
-            return "auth_users"
+            return resolve_configured_user_table()
         if model_name == "User" and "auth" in parts:
-            return "auth_users"
+            return resolve_configured_user_table()
         related = f"{app_name}_{model_snake}".lower()
         return _AUTH_TABLE_PLURALIZATION.get(related, related)
 
@@ -1084,7 +1104,7 @@ def resolve_lookup_value(v: object) -> object:
     return v
 
 
-def _apply_transform(col: sa.ColumnElement[Any], transform: str) -> sa.ColumnElement[Any]:
+def apply_transform(col: sa.ColumnElement[Any], transform: str) -> sa.ColumnElement[Any]:
     """Wrap a column with a datetime transform expression.
 
     Raises FieldError for unknown transforms.
@@ -1112,7 +1132,13 @@ def apply_lookup(
     col: sa.ColumnElement[Any], lookup: str, value: object, field: object = None
 ) -> sa.ColumnElement[Any]:
     """Apply a lookup operator to a column."""
-    if field is not None:
+    if is_f_like(value):
+        f_table = getattr(col, "table", None)
+        if f_table is not None:
+            sa_expr = f_expr_as_sa(f_table, value)
+            if sa_expr is not None:
+                value = sa_expr
+    elif field is not None:
         try:
             if lookup in ("in", "not_in") and isinstance(value, (list, tuple)):
                 value = [field.to_db(v) for v in value]
@@ -1283,7 +1309,7 @@ def compile_single_filter(
             lookup = remaining.pop()
         elif remaining[-1] not in _DATETIME_TRANSFORMS:
             # A single segment that is neither operator nor transform
-            # (e.g. "contains") — treat the whole tail as the lookup.
+            # (e.g. "contains") - treat the whole tail as the lookup.
             lookup = "__".join(remaining)
             remaining = []
         transform_parts = remaining
@@ -1293,7 +1319,7 @@ def compile_single_filter(
     for t in transform_parts:
         if t not in _DATETIME_TRANSFORMS:
             raise FieldError(f"Unsupported lookup type: '{t}'")
-        transformed_col = _apply_transform(transformed_col, t)
+        transformed_col = apply_transform(transformed_col, t)
 
     return apply_lookup(transformed_col, lookup, value, field=field)
 
@@ -1503,6 +1529,7 @@ def build_where_clause_with_traversals(
             parts.append(fallback_clause)
 
     for excludes in exclude_dicts:
+        exclude_clauses: list[sa.ColumnElement[Any]] = []
         for key, value in excludes.items():
             try:
                 traversal = cached_traversal_lookup(key, model_cls)
@@ -1528,7 +1555,7 @@ def build_where_clause_with_traversals(
                     col = final_table.c[traversal.final_field.column_name]
                     clause = apply_lookup(col, "", value, field=traversal.final_field)
                     if clause is not None:
-                        parts.append(sa.not_(clause))
+                        exclude_clauses.append(clause)
                     continue
             except FieldError:
                 pass
@@ -1541,7 +1568,10 @@ def build_where_clause_with_traversals(
                     f" does not exist on {model_cls.__name__}."
                     f" Available fields: {available}"
                 )
-            parts.append(sa.not_(fallback_exclude))
+            exclude_clauses.append(fallback_exclude)
+        if exclude_clauses:
+            grouped = sa.and_(*exclude_clauses) if len(exclude_clauses) > 1 else exclude_clauses[0]
+            parts.append(sa.not_(grouped))
 
     for q_obj in q_filters:
         from_clause_box: list[sa.FromClause] = [from_clause]

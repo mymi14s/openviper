@@ -468,7 +468,7 @@ def get_user_model_class() -> type[object]:
     if user_model != "openviper.auth.models.User":
         try:
             return cast("type[object]", import_string(user_model))
-        except ImportError, AttributeError:
+        except (ImportError, AttributeError):
             pass
     return User
 

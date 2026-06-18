@@ -35,7 +35,7 @@ class Command(BaseCommand):
             if not username:
                 try:
                     username = input("Username: ").strip()
-                except EOFError, KeyboardInterrupt:
+                except (EOFError, KeyboardInterrupt):
                     self.stdout("\nOperation cancelled.")
                     return
 

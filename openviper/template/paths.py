@@ -77,7 +77,7 @@ def get_app_dir(app_label: str) -> str | None:
     """
     try:
         mod = importlib.import_module(app_label)
-    except ImportError, AttributeError:
+    except (ImportError, AttributeError):
         return None
     if not (hasattr(mod, "__file__") and mod.__file__):
         return None

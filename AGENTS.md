@@ -83,7 +83,6 @@ AI agents must proactively implement protections against the following framework
 ## 6. Formatting & Validation Pipeline
 
 All generated or refactored code must pass standard programmatic linting checks cleanly without requiring developer intervention. Ensure code satisfies:
-* **Black:** Standard deterministic formatting profiles.
 * **Ruff:** Security (`S`), Bugbear (`B`), and Asynchronous (`ASYNC`) checking rules enabled.
 * **MyPy:** Full strict type checking compliance.
 * **Pylint & Flake8:** Clean evaluations without legacy warnings.

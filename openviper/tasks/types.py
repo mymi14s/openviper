@@ -60,12 +60,12 @@ class TaskMessageProxy:
         except Exception:
             cfg = {}
 
-        backend_url = cfg.get("backend_url", "")
-        if not backend_url:
+        backend_url_raw = cfg.get("backend_url") or ""
+        if not backend_url_raw:
             raise ResultsBackendDisabledError(
                 "No results backend configured. "
                 "Set TASKS['backend_url'] to enable result retrieval."
             )
 
-        tracker = TaskResultTracker(backend_url=str(backend_url))
+        tracker = TaskResultTracker(backend_url=t.cast("str", backend_url_raw))
         return tracker.get_result(self, block=block, timeout=timeout)

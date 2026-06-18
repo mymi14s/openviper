@@ -109,13 +109,12 @@ class ProviderRegistry:
         Returns the total number of provider instances registered.
         Raises ValueError if *plugin_dir* contains path traversal sequences.
         """
-        plugin_dir = os.path.realpath(plugin_dir)
-
-        # Reject path traversal in the resolved directory path.
         if ".." in plugin_dir.split(os.sep):
             raise ValueError(
                 f"ProviderRegistry.load_plugins: path traversal in plugin_dir: {plugin_dir!r}"
             )
+
+        plugin_dir = os.path.realpath(plugin_dir)
 
         if not os.path.isdir(plugin_dir):
             logger.warning("ProviderRegistry.load_plugins: %r is not a directory.", plugin_dir)
@@ -278,7 +277,7 @@ def resolve_provider_class(provider_type: str) -> type[AIProvider] | None:
         module_path, cls_name = path.rsplit(".", 1)
         mod = importlib.import_module(module_path)
         return getattr(mod, cls_name)
-    except ImportError, AttributeError:
+    except (ImportError, AttributeError):
         return None
 
 

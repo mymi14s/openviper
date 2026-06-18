@@ -6,13 +6,15 @@ for writes, and deserialises raw driver values to Point instances.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+from typing import TYPE_CHECKING, cast
 
 from openviper.contrib.fields.geolocation.geometry import Point
 from openviper.contrib.fields.geolocation.utils import point_from_wkb_hex
 
 if TYPE_CHECKING:
     from openviper.contrib.fields.geolocation.fields import PointField
+    from openviper.contrib.fields.geolocation.types import GeoJSONObject
 
 
 class BaseGeoBackend:
@@ -92,7 +94,26 @@ class FallbackTextBackend(BaseGeoBackend):
             return None
         if isinstance(raw, Point):
             return raw
-        return Point.from_wkt(str(raw).strip(), srid=srid)
+        if isinstance(raw, dict):
+            return Point.from_geojson(cast("GeoJSONObject", raw), srid=srid)
+        if isinstance(raw, str):
+            stripped = raw.strip()
+            if stripped.upper().startswith("SRID="):
+                srid_part, _, wkt_part = stripped.partition(";")
+                try:
+                    parsed_srid = int(srid_part.split("=", 1)[1].strip())
+                except (ValueError, IndexError):
+                    parsed_srid = srid
+                return Point.from_wkt(wkt_part, srid=parsed_srid)
+            if stripped.upper().startswith("POINT"):
+                return Point.from_wkt(stripped, srid=srid)
+            if stripped.startswith("{"):
+                try:
+                    data = json.loads(stripped)
+                except json.JSONDecodeError:
+                    return None
+                return Point.from_geojson(cast("GeoJSONObject", data), srid=srid)
+        return None
 
 
 BACKEND_REGISTRY: dict[str, BaseGeoBackend] = {

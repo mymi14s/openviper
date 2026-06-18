@@ -81,7 +81,7 @@ class DatabaseCache(BaseCache):
             await cls.objects.filter(key=key).delete()
             return default
         result = deserialize_cache_value(entry.value, key)
-        return result if result is not entry.value else default
+        return result
 
     async def set(self, key: str, value: t.Any, ttl: int | None = None) -> None:  # noqa: ANN401
         """Store a value in the cache with an optional TTL."""

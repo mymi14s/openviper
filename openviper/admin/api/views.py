@@ -902,7 +902,7 @@ def get_admin_router() -> Router:
         if not check_model_permission(request, model_class, "view"):
             try:
                 page = max(1, int(request.query_params.get("page", 1)))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 page = 1
             per_page = resolve_per_page(
                 request.query_params.get("per_page"),
@@ -964,7 +964,7 @@ def get_admin_router() -> Router:
 
             try:
                 page = max(1, int(request.query_params.get("page", 1)))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 page = 1
             page_size = resolve_per_page(
                 request.query_params.get("per_page"),
@@ -1072,7 +1072,7 @@ def get_admin_router() -> Router:
 
         try:
             page = max(1, int(request.query_params.get("page", 1)))
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             page = 1
         page_size = resolve_per_page(
             request.query_params.get("per_page"),
@@ -1783,7 +1783,7 @@ def get_admin_router() -> Router:
         if not check_model_permission(request, model_class, "view"):
             try:
                 page = max(1, int(request.query_params.get("page", 1)))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 page = 1
             per_page = resolve_per_page(
                 request.query_params.get("per_page"),
@@ -1839,7 +1839,7 @@ def get_admin_router() -> Router:
 
         try:
             page = max(1, int(request.query_params.get("page", 1)))
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             page = 1
         page_size = resolve_per_page(
             request.query_params.get("per_page"),
@@ -2267,7 +2267,7 @@ def get_admin_router() -> Router:
         query = request.query_params.get("q", "").strip()
         try:
             limit = min(max(int(request.query_params.get("limit", 20)), 1), 100)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             limit = 20
 
         qs = model_class.objects.all()

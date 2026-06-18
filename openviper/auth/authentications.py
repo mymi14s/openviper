@@ -652,7 +652,7 @@ _OAUTH2_EVENTS_CACHE: dict[str, str] | None = None
 _OAUTH2_HANDLER_CACHE: dict[str, OAuth2EventHandler] = {}
 
 
-def _invalidate_oauth2_event_cache() -> None:
+def invalidate_oauth2_event_cache() -> None:
     """Clear cached OAuth2 events and handlers when settings change."""
     global _OAUTH2_EVENTS_CACHE
     _OAUTH2_EVENTS_CACHE = None

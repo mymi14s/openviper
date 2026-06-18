@@ -110,7 +110,7 @@ def compute_template_search_paths(
                 app_templates = app_dir / "templates"
                 if app_templates.is_dir():
                     search_paths.append(str(app_templates))
-        except ImportError, AttributeError:
+        except (ImportError, AttributeError):
             continue
     return tuple(search_paths)
 
@@ -330,7 +330,7 @@ class HTMLResponse(Response):
                 req = current_request.get()
                 if req is not None:
                     context = {**context, "request": req}
-            except LookupError, ValueError:
+            except (LookupError, ValueError):
                 logger.debug(
                     "Failed to inject current request into template context", exc_info=True
                 )
@@ -521,7 +521,7 @@ class FileResponse(Response):
                 if int(fstat.st_mtime) <= int(ims_ts):
                     await send_complete_response(send, 304, self._headers.raw)
                     return
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 pass
 
         # Range request - partial content (RFC 7233).
@@ -549,7 +549,7 @@ class FileResponse(Response):
                     return
                 range_end = min(range_end, file_size - 1)
                 is_partial = True
-            except ValueError, IndexError:
+            except (ValueError, IndexError):
                 pass
 
         content_length = range_end - range_start + 1

@@ -120,13 +120,15 @@ class BoundedDict(OrderedDict):
                 return
             if len(self) >= self._maxsize:
                 evict_count = max(1, self._maxsize // 4)
-                for _ in range(evict_count):
+                for _ in range(min(evict_count, len(self))):
                     self.popitem(last=False)
             dict.__setitem__(self, key, value)
 
     def __getitem__(self, key: object) -> object:
         with self._lock:
-            return super().__getitem__(key)
+            value = super().__getitem__(key)
+            self.move_to_end(key)
+            return value
 
 
 # SQL injection patterns for constraint names.
@@ -297,7 +299,7 @@ def cast_to_pk_type(model_class: type[Model], value: object) -> object:
     if pk_field and hasattr(pk_field, "to_python"):
         try:
             return pk_field.to_python(value)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             return value
 
     return value

@@ -159,7 +159,7 @@ class GrokProvider(AIProvider):
         try:
             raw_msg = response.json().get("error", {}).get("message", "")
             detail = str(raw_msg)[:200] if raw_msg else f"HTTP {status}"
-        except ValueError, KeyError:
+        except (ValueError, KeyError):
             detail = f"HTTP {status}"
         if status == 401:
             raise GrokAuthError("Grok authentication failed (401). Check your API key.")

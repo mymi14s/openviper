@@ -63,15 +63,21 @@ def sanitize_relative_path(relative: str) -> str | None:
     """Neutralize path traversal, encoded slashes, and null bytes.
 
     Applies percent-decoding, rejects null bytes, encoded slashes,
-    and any path component equal to ``..``.  Returns the cleaned
-    relative path or ``None`` if the path is unsafe.
+    absolute paths, Windows backslash traversal, and any path
+    component equal to ``..``.  Returns the cleaned relative path
+    or ``None`` if the path is unsafe.
     """
     decoded = urllib.parse.unquote(relative)
     if any(c in decoded for c in FORBIDDEN_PATH_CHARS):
         return None
     if "%2f" in relative.lower() or "%5c" in relative.lower():
         return None
-    parts = Path(decoded).parts
+    if decoded.startswith("/") or decoded.startswith("\\"):
+        return None
+    if "..\\" in decoded or "..\\" in relative:
+        return None
+    normalized = decoded.replace("\\", "/")
+    parts = Path(normalized).parts
     if ".." in parts:
         return None
     return decoded
@@ -244,7 +250,7 @@ class StaticFilesMiddleware:
                     return False
                 if parent.is_symlink():
                     return True
-        except OSError, PermissionError:
+        except (OSError, PermissionError):
             return True
         return False
 
@@ -483,9 +489,11 @@ def parse_range(
         ``"ignore"`` - multi-range, unknown unit, or parse error; serve 200.
         ``"unsatisfiable"`` - valid but start is at or beyond EOF; respond 416.
     """
+    if range_header is None:
+        return None
     try:
         value = range_header.decode("ascii")
-    except UnicodeDecodeError, ValueError:
+    except (UnicodeDecodeError, ValueError):
         return "ignore"
 
     if not value.startswith("bytes="):
@@ -509,8 +517,9 @@ def parse_suffix_range(
     file_size: int,
 ) -> tuple[int, int] | Literal["ignore", "unsatisfiable"]:
     """Parse a suffix range like ``bytes=-500``."""
+    num_str = spec.lstrip("-")
     try:
-        suffix = int(spec[1:])
+        suffix = int(num_str)
     except ValueError:
         return "ignore"
     if suffix <= 0:
@@ -527,8 +536,9 @@ def parse_open_ended_range(
     file_size: int,
 ) -> tuple[int, int] | Literal["ignore", "unsatisfiable"]:
     """Parse an open-ended range like ``bytes=500-``."""
+    num_str = spec.rstrip("-")
     try:
-        start = int(spec[:-1])
+        start = int(num_str)
     except ValueError:
         return "ignore"
     if start >= file_size:

@@ -60,7 +60,7 @@ class Command(BaseCommand):
         for app_name in resolved_apps:
             try:
                 importlib.import_module(f"{app_name}.models")
-            except ImportError, ModuleNotFoundError:
+            except (ImportError, ModuleNotFoundError):
                 continue
 
         check_primary_keys()

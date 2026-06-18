@@ -2987,7 +2987,9 @@ class Model(metaclass=ModelMeta):
     async def refresh_from_db(self) -> None:
         """Reload all fields from the database."""
         updated = await self.__class__.objects.get(id=self.pk)
-        for name in self._fields:
+        for name, field in self._fields.items():
+            if isinstance(field, ManyToManyField):
+                continue
             setattr(self, name, getattr(updated, name))
         self._previous_state = self.snapshot()
 

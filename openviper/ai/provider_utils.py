@@ -35,7 +35,7 @@ def clamp_temperature(value: object, *, max_temp: float = 2.0) -> float | None:
         return None
     try:
         t = float(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
     return max(0.0, min(max_temp, t))
 

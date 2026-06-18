@@ -41,7 +41,7 @@ _UTC_ZONE = zoneinfo.ZoneInfo("UTC")
 logger = logging.getLogger(__name__)
 
 
-def _detect_content_type(content: bytes) -> str | None:
+def detect_content_type(content: bytes) -> str | None:
     """Return a MIME type based on magic numbers, or None if unknown."""
     if content.startswith(bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])):
         return "image/png"
@@ -604,7 +604,7 @@ class ForeignKey(Field):
                     resolved = res()
                     if isinstance(resolved, type):
                         return resolved
-            except ImportError, AttributeError:
+            except (ImportError, AttributeError):
                 pass
 
         # Use the live ModelMeta reference so test fixtures that replace
@@ -1453,7 +1453,7 @@ class FileField(CharField):
         executable content under a benign MIME type or extension.
         """
         ext = os.path.splitext(filename)[1].lstrip(".").lower()
-        detected = _detect_content_type(content)
+        detected = detect_content_type(content)
         if detected is None:
             return
         allowed = {declared.lower()} if declared else set()

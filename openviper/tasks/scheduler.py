@@ -104,7 +104,7 @@ class Scheduler:
             if cron is not None:
                 try:
                     next_cron_fire[name] = compute_next_cron_fire(cron, now_dt)
-                except ImportError, ValueError:
+                except (ImportError, ValueError):
                     logger.exception(
                         "Failed to compute initial fire time for '%s' "
                         "with cron '%s' - skipping schedule",
@@ -138,7 +138,7 @@ class Scheduler:
                             last_fired[name] = now
                         try:
                             next_cron_fire[name] = compute_next_cron_fire(cron, now_dt)
-                        except ImportError, ValueError:
+                        except (ImportError, ValueError):
                             logger.exception(
                                 "Failed to compute next fire time for '%s' "
                                 "with cron '%s' - deactivating schedule",

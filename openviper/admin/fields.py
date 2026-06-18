@@ -263,7 +263,7 @@ def get_field_schema(field: Field) -> dict[str, t.Any]:
                         module_path = f"{parts[0]}.models"
                         module = importlib.import_module(module_path)
                         resolved_model = getattr(module, model_name, None)
-                    except ImportError, AttributeError:
+                    except (ImportError, AttributeError):
                         logger.debug("Could not import %s.models.%s", parts[0], model_name)
 
                     if resolved_model is None and len(parts) >= 3:
@@ -271,7 +271,7 @@ def get_field_schema(field: Field) -> dict[str, t.Any]:
                             module_path = ".".join(parts[:-1])
                             module = importlib.import_module(module_path)
                             resolved_model = getattr(module, model_name, None)
-                        except ImportError, AttributeError:
+                        except (ImportError, AttributeError):
                             logger.debug("Could not import %s.%s", ".".join(parts[:-1]), model_name)
                     app_name = getattr(
                         resolved_model,

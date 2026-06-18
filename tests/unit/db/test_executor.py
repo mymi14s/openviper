@@ -15,10 +15,10 @@ from openviper.db.exceptions import DatabaseAliasNotFoundError
 from openviper.db.executor import (
     _TRAVERSAL_FAILURE,
     SOFT_REMOVED_CACHE,
-    _apply_transform,
     _bypass_permissions,
     ann_expr_as_sa,
     apply_lookup,
+    apply_transform,
     build_traversal_joins,
     build_where_clause,
     build_where_clause_with_traversals,
@@ -489,56 +489,56 @@ class TestApplyTransform:
     def test_date_transform(self):
         dt_table = make_table("tr_dt", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "date")
+        result = apply_transform(col, "date")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "CAST" in compiled.upper()
 
     def test_time_transform(self):
         dt_table = make_table("tr_tm", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "time")
+        result = apply_transform(col, "time")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "CAST" in compiled.upper()
 
     def test_year_transform(self):
         dt_table = make_table("tr_yr", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "year")
+        result = apply_transform(col, "year")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper()
 
     def test_month_transform(self):
         dt_table = make_table("tr_mon", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "month")
+        result = apply_transform(col, "month")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper()
 
     def test_day_transform(self):
         dt_table = make_table("tr_day", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "day")
+        result = apply_transform(col, "day")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper()
 
     def test_hour_transform(self):
         dt_table = make_table("tr_hr", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "hour")
+        result = apply_transform(col, "hour")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper()
 
     def test_minute_transform(self):
         dt_table = make_table("tr_min", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "minute")
+        result = apply_transform(col, "minute")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper()
 
     def test_second_transform(self):
         dt_table = make_table("tr_sec", created=sa.DateTime())
         col = dt_table.c["created"]
-        result = _apply_transform(col, "second")
+        result = apply_transform(col, "second")
         compiled = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "EXTRACT" in compiled.upper()
 
@@ -546,7 +546,7 @@ class TestApplyTransform:
         dt_table = make_table("tr_unk", created=sa.DateTime())
         col = dt_table.c["created"]
         with pytest.raises(FieldError, match="Unsupported lookup type"):
-            _apply_transform(col, "bogus")
+            apply_transform(col, "bogus")
 
 
 class TestApplyLookupEdgeCases:

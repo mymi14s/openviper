@@ -36,17 +36,13 @@ install-pre-commit: ## Install pre-commit hooks
 
 # ── Formatting ──────────────────────────────────────────────────────────────
 .PHONY: format format-check format-ruff
-format: format-ruff ## Auto-format code with ruff, black & isort
-	black $(ALL)
-	isort $(ALL)
+format: format-ruff ## Auto-format code with ruff
 
 format-ruff: ## Auto-fix lint issues with ruff
 	ruff check --fix $(SRC)
 
 format-check: ## Check formatting without making changes
 	ruff format --check $(SRC)
-	black --check --diff $(ALL)
-	isort --check-only --diff $(ALL)
 
 # ── Linting ─────────────────────────────────────────────────────────────────
 .PHONY: lint lint-ruff lint-flake8 lint-pylint

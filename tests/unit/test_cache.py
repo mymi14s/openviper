@@ -378,7 +378,7 @@ class TestDatabaseCacheOperations:
         assert result == "test_value"
 
     async def test_get_fallback_when_orjson_fails(self):
-        """get() returns default value when orjson.loads() raises a ValueError."""
+        """get() returns the raw value when orjson.loads() raises a ValueError."""
         cache, fake_cls = self._patched_cache()
 
         fake_entry = MagicMock()
@@ -394,7 +394,7 @@ class TestDatabaseCacheOperations:
             mock_orjson.loads.side_effect = ValueError("Parse error")
             result = await cache.get("test_key")
 
-        assert result is None
+        assert result == "plain_text"
 
     async def test_set_with_ttl_postgresql(self):
         """set() uses PostgreSQL upsert when dialect is postgresql."""

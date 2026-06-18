@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
-# Ensure the openviper package is importable from the repo root
-sys.path.insert(0, "/home/claude")
+# Ensure the openviper package is importable from the repo root.
+# Derived from this file's location so the path is portable across machines.
+_REPO_ROOT = str(Path(__file__).resolve().parent.parent)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 # Remove OPENVIPER_SETTINGS_MODULE if it points to a non-existent module
 # (e.g. a project-specific settings module that isn't installed in this env).

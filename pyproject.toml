@@ -41,8 +41,6 @@ dev = [
     "pytest-asyncio==1.4.0",
     "pytest-xdist==3.8.0",
     "httpx==0.28.1",
-    "black==26.1.0",
-    "isort==8.0.1",
     "ruff==0.15.4",
     "mypy==1.19.1",
     "pylint==4.0.5",
@@ -136,6 +134,9 @@ ignore = [
     "S104", "S105", "S106", "S107", "S108", "S301", "S603", # test fixture literals
     "ASYNC109", "ASYNC240", # async test fakes mirror production call signatures
     "B904", # tests intentionally exercise implicit exception context
+    "TC001", # test handlers need runtime-resolvable type annotations
+    "PT006", # parametrize first arg as string is the common pytest idiom
+    "PT018", # composite assertions are intentional in integration tests
 ]
 # __init__ modules: re-exports are intentional
 "openviper/**/__init__.py" = ["F401"]
@@ -199,27 +200,6 @@ ignore = [
 "openviper/tasks/models.py" = ["S110"]
 "openviper/tasks/worker.py" = ["S110"]
 
-# ── Black ───────────────────────────────────────────────────────────────────
-[tool.black]
-line-length = 100
-target-version = ["py314"]
-
-# ── isort ───────────────────────────────────────────────────────────────────
-[tool.isort]
-profile = "black"
-line_length = 100
-known_first_party = ["openviper"]
-known_third_party = [
-    "click", "pydantic", "sqlalchemy", "uvicorn", "httpx",
-    "openai", "anthropic", "aiofiles", "jinja2", "dramatiq",
-]
-sections = [
-    "FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER",
-]
-skip_glob = ["*/migrations/*"]
-force_single_line = false
-combine_as_imports = true
-
 # ── Pylint ──────────────────────────────────────────────────────────────────
 [tool.pylint.main]
 load-plugins = []
@@ -233,7 +213,7 @@ disable = [
     "R0903",  # too-few-public-methods
     "R0801",  # duplicate-code
     "W0511",  # fixme
-    "C0301",  # line-too-long (handled by black)
+    "C0301",  # line-too-long (handled by ruff)
     "W0223",  # abstract-method
     "R0401",  # cyclic-import (managed with lazy imports)
     "E0401",  # import-error (optional deps)

@@ -35,7 +35,7 @@ Unsure where to begin contributing to OpenViper? You can start by looking throug
 
 ### Python Styleguide
 
-All Python code is formatted with `black` and linted with `ruff`.
+All Python code is formatted with `ruff` and linted with `ruff` and `flake8`.
 
 Key conventions (see `AGENTS.md` for full details):
 

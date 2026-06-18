@@ -306,7 +306,7 @@ def detect_serializer_from_source(handler: RouteHandler) -> type | None:
 
     try:
         source = inspect.getsource(handler)
-    except OSError, TypeError:
+    except (OSError, TypeError):
         SERIALIZER_NONE_SET.add(handler)
         return None
 
@@ -382,7 +382,7 @@ def extract_json_from_docstring(doc: str | None, header: str) -> dict[str, Any] 
 
     try:
         obj, _ = json.JSONDecoder().raw_decode(doc, brace_idx)
-    except json.JSONDecodeError, ValueError:
+    except (json.JSONDecodeError, ValueError):
         return None
 
     if not isinstance(obj, dict):

@@ -173,7 +173,10 @@ class AdminRegistry:
             importlib.import_module(admin_module_name)
             logger.debug("Loaded admin module from %s", app_name)
         except ImportError as e:
-            spec = importlib.util.find_spec(admin_module_name)
+            try:
+                spec = importlib.util.find_spec(admin_module_name)
+            except ModuleNotFoundError:
+                spec = None
             if spec is not None:
                 # The module exists but a transitive dependency failed.
                 logger.critical("Failed to import admin.py from %s: %s", app_name, e)

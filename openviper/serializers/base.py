@@ -411,8 +411,21 @@ class Serializer(BaseModel):
         partial_cls: type[T] = create_model(
             f"Partial{cls.__name__}",
             __base__=cls,
+            __config__=ConfigDict(
+                from_attributes=True,
+                populate_by_name=True,
+                validate_default=False,
+                arbitrary_types_allowed=True,
+            ),
             **fields_spec,
         )
+        after_validators = {
+            name: dec
+            for name, dec in partial_cls.__pydantic_decorators__.model_validators.items()
+            if dec.info.mode == "after"
+        }
+        for name in after_validators:
+            partial_cls.__pydantic_decorators__.model_validators.pop(name, None)
         PARTIAL_CLASSES[cls] = partial_cls
         return partial_cls
 

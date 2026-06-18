@@ -174,7 +174,7 @@ class Command(BaseCommand):
                     original_restart(self_reloader)
 
                 cls.restart = patched_restart  # type: ignore[method-assign]
-            except ImportError, AttributeError:
+            except (ImportError, AttributeError):
                 pass
 
         uvicorn.run(

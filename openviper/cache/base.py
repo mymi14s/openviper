@@ -22,7 +22,7 @@ def deserialize_cache_value(raw: bytes | str, key: str) -> Any:
     """
     try:
         return orjson.loads(raw)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         logger.debug("Failed to deserialize cached value for key %r", key, exc_info=True)
         return raw
 

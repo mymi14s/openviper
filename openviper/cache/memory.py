@@ -103,7 +103,7 @@ class InMemoryCache(BaseCache):
         async with self._lock:
             now = time.time()
             result: list[str] = []
-            for key, (_, exp) in self._data.items():
+            for key, (_, exp) in list(self._data.items()):
                 if exp is not None and now >= exp:
                     del self._data[key]
                 elif not prefix or key.startswith(prefix):

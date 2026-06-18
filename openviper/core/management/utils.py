@@ -118,7 +118,7 @@ def prompt_password(
                 cmd.stderr(cmd.style_error("Passwords do not match. Try again."))
                 continue
             return password
-    except EOFError, KeyboardInterrupt:
+    except (EOFError, KeyboardInterrupt):
         cmd.stdout("\nOperation cancelled.")
         raise CommandError("Operation cancelled.") from None
 

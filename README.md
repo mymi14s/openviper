@@ -80,7 +80,7 @@ pip install openviper[all]               # Everything
 Development extras:
 
 ```bash
-pip install openviper[dev]          # pytest, black, ruff, mypy, pylint, pre-commit, ...
+pip install openviper[dev]          # pytest, ruff, mypy, pylint, pre-commit, ...
 pip install openviper[docs]         # sphinx, sphinx-rtd-theme, sphinxcontrib-httpdomain
 ```
 

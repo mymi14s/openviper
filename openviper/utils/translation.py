@@ -42,7 +42,7 @@ def get_translation_object(language: str) -> gettext_module.NullTranslations:
                 fallback=True,
             )
             translations_cache[language] = translation
-        except OSError, ValueError:
+        except (OSError, ValueError):
             translations_cache[language] = gettext_module.NullTranslations()
 
     return translations_cache[language]

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # OpenViper Quality Check Script
-# Runs ruff, mypy, black, and flake8 to ensure code quality.
+# Runs ruff, mypy, and flake8 to ensure code quality.
 
 SRC="openviper"
 PASS=0
@@ -25,8 +25,7 @@ echo ""
 run_check "Ruff (lint)"       ruff check "${SRC}"
 run_check "Ruff (format)"    ruff format --check "${SRC}"
 run_check "Mypy"             mypy -p "${SRC}"
-run_check "Black"             black --check "${SRC}"
-run_check "Flake8"            flake8 "${SRC}"
+run_check "Flake8"           flake8 "${SRC}"
 
 echo ""
 echo "--- Summary ---"

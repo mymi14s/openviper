@@ -86,7 +86,7 @@ class ArrayField(Field):
         if isinstance(value, str):
             try:
                 parsed = json.loads(value)
-            except json.JSONDecodeError, TypeError:
+            except (json.JSONDecodeError, TypeError):
                 return None
             if isinstance(parsed, list):
                 return [self.base_field.to_python(item) for item in parsed]

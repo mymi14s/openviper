@@ -159,13 +159,13 @@ class Command(BaseCommand):
                 try:
                     mod = importlib.import_module(f"{app_name}.models")
                     model_classes.extend(discover_models_in_module(mod))
-                except ImportError, ModuleNotFoundError:
+                except (ImportError, ModuleNotFoundError):
                     try:
                         sys.path.insert(0, app_path)
                         qualified_name = f"{app_name}.models"
                         mod = importlib.import_module(qualified_name)
                         model_classes.extend(discover_models_in_module(mod))
-                    except ImportError, ModuleNotFoundError:
+                    except (ImportError, ModuleNotFoundError):
                         pass
                     finally:
                         if app_path in sys.path:

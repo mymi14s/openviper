@@ -85,7 +85,7 @@ Additional extras for contributing to OpenViper or building documentation:
      - Installs
    * - ``dev``
      - ``pip install openviper[dev]``
-     - ``pytest``, ``pytest-asyncio``, ``pytest-cov``, ``pytest-xdist``, ``httpx``, ``black``, ``isort``, ``ruff``, ``mypy``, ``pylint``, ``flake8``, ``radon``, ``bandit``, ``safety``, ``pre-commit``
+     - ``pytest``, ``pytest-asyncio``, ``pytest-xdist``, ``httpx``, ``ruff``, ``mypy``, ``pylint``, ``flake8``, ``radon``, ``bandit``, ``safety``, ``pre-commit``
    * - ``docs``
      - ``pip install openviper[docs]``
      - ``sphinx``, ``sphinx-rtd-theme``, ``sphinxcontrib-httpdomain``

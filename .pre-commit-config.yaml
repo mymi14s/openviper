@@ -22,15 +22,9 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.4
     hooks:
-      # ruff lint with autofix - also handles import sorting (replaces isort)
+      # ruff lint with autofix - also handles import sorting
       - id: ruff
         args: ["--fix", "--line-length=100"]
-
-  - repo: https://github.com/psf/black
-    rev: 26.1.0
-    hooks:
-      - id: black
-        args: ["--line-length=100", "--workers=1"]
 
   # ── Linting ────────────────────────────────────────────────────────────
   - repo: https://github.com/pycqa/flake8

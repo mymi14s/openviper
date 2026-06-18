@@ -79,7 +79,7 @@ async def check_password(raw_password: str, hashed_password: str) -> bool:
         encoded_b = hashed_password[len("bcrypt$") :].encode("utf-8")
         try:
             return bcrypt.checkpw(raw_password.encode("utf-8"), encoded_b)
-        except ValueError, Exception:
+        except Exception:
             return False
 
     # Keep deterministic hashes available for test settings.

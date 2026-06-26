@@ -1,0 +1,49 @@
+# Docker Compose for fx (root-layout single-file app)
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage: docker compose up
+#
+# Notes:
+#   - PostgreSQL database stored in a named volume for persistence.
+#   - No background tasks (no Redis needed).
+
+services:
+  web:
+    build:
+      context: ../../
+      dockerfile: examples/fx/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      DEBUG: 0
+      SECRET_KEY: "dev-only-insecure-key"
+      OPENVIPER_SETTINGS_MODULE: "settings"
+      DATABASE_URL: "postgresql+asyncpg://fx:fx@db:5432/fx"
+    command: |
+      sh -c "
+        openviper viperctl migrate .
+        openviper run app --host 0.0.0.0 --port 8000 --reload
+      "
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: fx
+      POSTGRES_USER: fx
+      POSTGRES_PASSWORD: fx
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fx -d fx"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

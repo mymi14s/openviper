@@ -1,0 +1,35 @@
+{
+  "model": "ProductSummary",
+  "app": "chat",
+  "table_name": "chat_product_summary",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "UUID",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    },
+    {
+      "name": "product_id",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "summary",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

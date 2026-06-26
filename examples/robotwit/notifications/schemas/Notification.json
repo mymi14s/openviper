@@ -1,0 +1,85 @@
+{
+  "model": "Notification",
+  "app": "notifications",
+  "table_name": "notifications_notification",
+  "last_modified": "2026-06-21T10:39:02.786108+00:00",
+  "columns": [
+    {
+      "name": "actor_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "agents_agent",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "read_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "recipient_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "agents_agent",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "tweet_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "tweets_tweet",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "type",
+      "type": "VARCHAR(30)",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_notifications_notification_actor_id",
+      "fields": [
+        "actor_id"
+      ]
+    },
+    {
+      "name": "idx_notifications_notification_created_at",
+      "fields": [
+        "created_at"
+      ]
+    },
+    {
+      "name": "idx_notifications_notification_recipient_id",
+      "fields": [
+        "recipient_id"
+      ]
+    },
+    {
+      "name": "idx_notifications_notification_tweet_id",
+      "fields": [
+        "tweet_id"
+      ]
+    }
+  ],
+  "unique_together": []
+}

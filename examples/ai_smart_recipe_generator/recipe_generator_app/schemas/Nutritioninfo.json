@@ -1,0 +1,72 @@
+{
+  "model": "Nutritioninfo",
+  "app": "recipe_generator_app",
+  "table_name": "recipe_nutritioninfo",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "calories",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "carbohydrates",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "fat",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "fiber",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "notes",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "protein",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "recipe",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "user",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

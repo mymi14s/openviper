@@ -1,0 +1,32 @@
+{
+  "model": "Cart",
+  "app": "cart",
+  "table_name": "cart_cart",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "UUID",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    },
+    {
+      "name": "user_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "unique": true,
+      "target_table": "users_user",
+      "on_delete": "CASCADE",
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

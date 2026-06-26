@@ -1,0 +1,39 @@
+{
+  "model": "Item",
+  "app": "cart",
+  "table_name": "cart_item",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "cart_id",
+      "type": "UUID",
+      "nullable": false,
+      "target_table": "cart_cart",
+      "on_delete": "CASCADE",
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "UUID",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    },
+    {
+      "name": "product_id",
+      "type": "UUID",
+      "nullable": false,
+      "target_table": "products_product",
+      "on_delete": "CASCADE",
+      "default": null
+    },
+    {
+      "name": "quantity",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 1
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

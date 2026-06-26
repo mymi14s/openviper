@@ -1,0 +1,75 @@
+# ────────────────────────────────────────────────────────────────────────────
+# OpenViper - Pre-commit hooks
+# Run `pre-commit install` once; hooks then fire automatically on every commit.
+# To run manually: pre-commit run --all-files
+# ────────────────────────────────────────────────────────────────────────────
+repos:
+  # ── General ────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+        exclude: ^examples/.*\.(map|min\.js|min\.css|json)$
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # ── Auto-formatting (runs first, rewrites files in place) ──────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      # ruff lint with autofix - also handles import sorting
+      - id: ruff
+        args: ["--fix", "--line-length=100"]
+
+  # ── Linting ────────────────────────────────────────────────────────────
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=100", "--extend-ignore=E203,W503,E501", "--jobs=1"]
+
+  # ── Security ──────────────────────────────────────────────────────────
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        args: ["-r", "openviper", "-q", "-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
+        pass_filenames: false
+
+  # ── Type checking ─────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: .venv/bin/mypy
+        args: ["--ignore-missing-imports"]
+        language: system
+        types: [python]
+        files: ^openviper/
+
+  # ── Testing ──────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: test-unit
+        name: test-unit
+        entry: .venv/bin/pytest
+        args: ["tests/unit", "-v"]
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]
+
+      - id: test-integration
+        name: test-integration
+        entry: .venv/bin/pytest
+        args: ["tests/integration", "-v"]
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]

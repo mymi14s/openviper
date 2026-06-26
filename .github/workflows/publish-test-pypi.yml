@@ -1,0 +1,102 @@
+name: Publish TestPyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sanity:
+    name: Sanity
+    uses: ./.github/workflows/sanity.yml
+    secrets: inherit
+
+  build-frontend:
+    name: Build Admin Frontend
+    runs-on: ubuntu-latest
+    needs: sanity
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: yarn
+          cache-dependency-path: admin_frontend/yarn.lock
+
+      - name: Install frontend dependencies
+        working-directory: admin_frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend assets
+        working-directory: admin_frontend
+        run: yarn build
+
+      - name: Verify static assets
+        run: |
+          if [ ! -f openviper/admin/static/admin/index.html ]; then
+            echo "ERROR: Frontend build did not produce expected static assets."
+            echo "Expected: openviper/admin/static/admin/index.html"
+            ls -R openviper/admin/static/ 2>/dev/null || echo "Directory openviper/admin/static/ does not exist."
+            exit 1
+          fi
+          echo "Frontend static assets verified successfully."
+
+      - name: Upload frontend assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-assets
+          path: openviper/admin/static/
+          retention-days: 1
+
+  publish:
+    name: Build And Publish To TestPyPI
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/openviper/
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Download frontend assets
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-assets
+          path: openviper/admin/static/
+
+      - name: Verify static assets present
+        run: |
+          if [ ! -f openviper/admin/static/admin/index.html ]; then
+            echo "ERROR: Frontend static assets missing after download."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install build backend
+        run: python -m pip install --upgrade pip build
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/

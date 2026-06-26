@@ -1,0 +1,51 @@
+{
+  "model": "RolePermission",
+  "app": "auth",
+  "table_name": "auth_role_permissions",
+  "last_modified": "2026-06-22T22:14:22.846427+00:00",
+  "columns": [
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "permission_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "auth_permissions",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "role_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "auth_roles",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_auth_role_permissions_permission_id",
+      "fields": [
+        "permission_id"
+      ]
+    },
+    {
+      "name": "idx_auth_role_permissions_role_id",
+      "fields": [
+        "role_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

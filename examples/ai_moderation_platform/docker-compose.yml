@@ -1,0 +1,164 @@
+# Docker Compose for ai_moderation_platform
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage: docker compose up
+#
+# Brings up:
+#   - web      (OpenViper ASGI server - runs migrations + collectstatic first)
+#   - worker   (Dramatiq worker + scheduler, consumes Redis broker)
+#   - db       (MariaDB database)
+#   - redis    (task broker + result backend)
+#   - nginx    (reverse proxy + static/media serving)
+
+x-common-env: &common-env
+  DEBUG: 0
+  SECRET_KEY: "dev-only-insecure-key"
+  OPENVIPER_SETTINGS_MODULE: "ai_moderation_platform.settings"
+  DATABASE_URL: "mariadb+aiomysql://moderation:moderation@db:3306/moderation"
+  REDIS_URL: "redis://redis:6379/0"
+  REDIS_BACKEND_URL: "redis://redis:6379/1"
+  GEMINI_API_KEY: "dummy-gemini-key"
+  STATIC_ROOT: "/app/static"
+  MEDIA_ROOT: "/app/media"
+
+services:
+  web:
+    build:
+      context: ../../
+      dockerfile: examples/ai_moderation_platform/Dockerfile
+    environment:
+      <<: *common-env
+    volumes:
+      - .:/app
+      - static_data:/app/static
+      - media_data:/app/media
+      - logs_data:/app/logs
+    expose:
+      - "8000"
+    command: |
+      sh -c "
+        until python viperctl.py migrate; do
+          echo 'migrate failed, retrying in 5s...'; sleep 5;
+        done
+        python viperctl.py collectstatic --no-input
+        python -m uvicorn ai_moderation_platform.asgi:app --host 0.0.0.0 --port 8000 --reload
+      "
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  worker:
+    build:
+      context: ../../
+      dockerfile: examples/ai_moderation_platform/Dockerfile
+    environment:
+      <<: *common-env
+    volumes:
+      - .:/app
+      - logs_data:/app/logs
+    command: |
+      sh -c "
+        python viperctl.py start-worker
+      "
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - static_data:/usr/share/nginx/staticfiles:ro
+      - media_data:/usr/share/nginx/media:ro
+    configs:
+      - source: nginx_conf
+        target: /etc/nginx/conf.d/default.conf
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: moderation
+      MARIADB_USER: moderation
+      MARIADB_PASSWORD: moderation
+      MARIADB_ROOT_PASSWORD: rootpass
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u moderation -pmoderation moderation || mariadb-admin ping -h localhost -u root -prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+configs:
+  nginx_conf:
+    content: |
+      server {
+          listen 80;
+          server_name _;
+          location /static/ {
+              alias /usr/share/nginx/staticfiles/;
+              expires 1y;
+              add_header Cache-Control "public, immutable";
+              access_log off;
+              gzip on;
+              gzip_types text/css application/javascript application/json image/svg+xml;
+          }
+          location /media/ {
+              alias /usr/share/nginx/media/;
+              expires 7d;
+              add_header Cache-Control "public";
+              access_log off;
+          }
+          location = /admin {
+              return 301 /admin/;
+          }
+          location / {
+              proxy_pass http://web:8000;
+              proxy_set_header Host              $$host;
+              proxy_set_header X-Real-IP         $$remote_addr;
+              proxy_set_header X-Forwarded-For   $$proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $$scheme;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade    $$http_upgrade;
+              proxy_set_header Connection "upgrade";
+              proxy_read_timeout  300s;
+              proxy_send_timeout  300s;
+              proxy_connect_timeout 10s;
+          }
+          location /nginx-health {
+              access_log off;
+              return 200 "healthy\n";
+              add_header Content-Type text/plain;
+          }
+      }
+
+volumes:
+  mariadb_data:
+  redis_data:
+  static_data:
+  media_data:
+  logs_data:

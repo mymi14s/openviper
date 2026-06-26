@@ -1,0 +1,91 @@
+{
+  "model": "ModerationLog",
+  "app": "moderation",
+  "table_name": "moderation_log",
+  "last_modified": "2026-06-25T20:29:03.389828+00:00",
+  "columns": [
+    {
+      "name": "approved",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "classification",
+      "type": "VARCHAR(20)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "REAL",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "content_type",
+      "type": "VARCHAR(50)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "moderator_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "users_user",
+      "on_delete": "SET NULL"
+    },
+    {
+      "name": "object_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "reason",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "reviewed",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "reviewed_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_moderation_log_moderator_id",
+      "fields": [
+        "moderator_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

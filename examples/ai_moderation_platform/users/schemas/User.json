@@ -1,0 +1,129 @@
+{
+  "model": "User",
+  "app": "users",
+  "table_name": "users_user",
+  "last_modified": "2026-06-25T20:29:03.390466+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "date_joined",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "email",
+      "type": "VARCHAR(254)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "first_name",
+      "type": "VARCHAR(150)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "hobby",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "is_active",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": true
+    },
+    {
+      "name": "is_staff",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "is_superuser",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "last_login",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "last_name",
+      "type": "VARCHAR(150)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "password",
+      "type": "VARCHAR(128)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "photo",
+      "type": "VARCHAR(512)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "role_profile_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "auth_role_profiles",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "username",
+      "type": "VARCHAR(150)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_users_user_is_active",
+      "fields": [
+        "is_active"
+      ]
+    },
+    {
+      "name": "idx_users_user_role_profile_id",
+      "fields": [
+        "role_profile_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

@@ -1,0 +1,57 @@
+{
+  "model": "PostLike",
+  "app": "posts",
+  "table_name": "posts_like",
+  "last_modified": "2026-06-25T20:29:03.390177+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "post_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "posts_post",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "user_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "users_user",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_posts_like_post_id",
+      "fields": [
+        "post_id"
+      ]
+    },
+    {
+      "name": "idx_posts_like_user_id",
+      "fields": [
+        "user_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

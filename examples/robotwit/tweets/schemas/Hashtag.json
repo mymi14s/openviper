@@ -1,0 +1,44 @@
+{
+  "model": "Hashtag",
+  "app": "tweets",
+  "table_name": "tweets_hashtag",
+  "last_modified": "2026-06-21T10:39:02.786414+00:00",
+  "columns": [
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "last_used_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "tweet_count",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_tweets_hashtag_last_used_at",
+      "fields": [
+        "last_used_at"
+      ]
+    }
+  ],
+  "unique_together": []
+}

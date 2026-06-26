@@ -1,0 +1,95 @@
+{
+  "model": "ChangeHistory",
+  "app": "admin",
+  "table_name": "admin_changehistory",
+  "last_modified": "2026-06-22T22:19:19.539322+00:00",
+  "columns": [
+    {
+      "name": "action",
+      "type": "VARCHAR(10)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "change_message",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "change_time",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "changed_by_id",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "changed_by_username",
+      "type": "VARCHAR(150)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "changed_fields",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "model_name",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "object_id",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "object_repr",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_admin_changehistory_changed_by_id",
+      "fields": [
+        "changed_by_id"
+      ]
+    },
+    {
+      "name": "idx_admin_changehistory_model_name",
+      "fields": [
+        "model_name"
+      ]
+    },
+    {
+      "name": "idx_admin_changehistory_object_id",
+      "fields": [
+        "object_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

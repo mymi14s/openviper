@@ -1,0 +1,52 @@
+{
+  "model": "TweetHashtag",
+  "app": "tweets",
+  "table_name": "tweets_tweet_hashtag",
+  "last_modified": "2026-06-21T10:39:02.786650+00:00",
+  "columns": [
+    {
+      "name": "hashtag_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "tweets_hashtag",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "tweet_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "tweets_tweet",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_tweets_tweet_hashtag_hashtag_id",
+      "fields": [
+        "hashtag_id"
+      ]
+    },
+    {
+      "name": "idx_tweets_tweet_hashtag_tweet_id",
+      "fields": [
+        "tweet_id"
+      ]
+    }
+  ],
+  "unique_together": [
+    [
+      "tweet_id",
+      "hashtag_id"
+    ]
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "model": "UserIngredients",
+  "app": "recipe_generator_app",
+  "table_name": "recipe_user_ingredients",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "ingredients",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "user",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

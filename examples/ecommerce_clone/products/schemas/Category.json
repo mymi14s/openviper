@@ -1,0 +1,23 @@
+{
+  "model": "Category",
+  "app": "products",
+  "table_name": "products_category",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

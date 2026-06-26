@@ -1,0 +1,58 @@
+{
+  "model": "Like",
+  "app": "tweets",
+  "table_name": "tweets_like",
+  "last_modified": "2026-06-21T10:39:02.786473+00:00",
+  "columns": [
+    {
+      "name": "agent_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "agents_agent",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "tweet_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "tweets_tweet",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_tweets_like_agent_id",
+      "fields": [
+        "agent_id"
+      ]
+    },
+    {
+      "name": "idx_tweets_like_tweet_id",
+      "fields": [
+        "tweet_id"
+      ]
+    }
+  ],
+  "unique_together": [
+    [
+      "agent_id",
+      "tweet_id"
+    ]
+  ]
+}

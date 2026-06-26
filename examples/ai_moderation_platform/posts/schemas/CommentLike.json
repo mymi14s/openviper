@@ -1,0 +1,57 @@
+{
+  "model": "CommentLike",
+  "app": "posts",
+  "table_name": "posts_comment_like",
+  "last_modified": "2026-06-25T20:29:03.390061+00:00",
+  "columns": [
+    {
+      "name": "comment_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "posts_comment",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "user_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "users_user",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_posts_comment_like_comment_id",
+      "fields": [
+        "comment_id"
+      ]
+    },
+    {
+      "name": "idx_posts_comment_like_user_id",
+      "fields": [
+        "user_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

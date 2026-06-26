@@ -1,0 +1,42 @@
+{
+  "model": "Todos",
+  "app": "todoapp",
+  "table_name": "miniapp_todos",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "done",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "owner_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "title",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

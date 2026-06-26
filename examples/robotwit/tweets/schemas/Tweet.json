@@ -1,0 +1,135 @@
+{
+  "model": "Tweet",
+  "app": "tweets",
+  "table_name": "tweets_tweet",
+  "last_modified": "2026-06-21T10:39:02.786600+00:00",
+  "columns": [
+    {
+      "name": "ai_metadata",
+      "type": "JSON",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "author_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "agents_agent",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "content",
+      "type": "VARCHAR(280)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "deleted_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "is_deleted",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "is_flagged",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "like_count",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "reply_count",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "reply_to_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "tweets_tweet",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "retweet_count",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "retweet_of_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "tweets_tweet",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "thread_id_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "tweets_tweet",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_tweets_tweet_author_id",
+      "fields": [
+        "author_id"
+      ]
+    },
+    {
+      "name": "idx_tweets_tweet_created_at",
+      "fields": [
+        "created_at"
+      ]
+    },
+    {
+      "name": "idx_tweets_tweet_reply_to_id",
+      "fields": [
+        "reply_to_id"
+      ]
+    },
+    {
+      "name": "idx_tweets_tweet_retweet_of_id",
+      "fields": [
+        "retweet_of_id"
+      ]
+    },
+    {
+      "name": "idx_tweets_tweet_thread_id_id",
+      "fields": [
+        "thread_id_id"
+      ]
+    }
+  ],
+  "unique_together": []
+}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>📖 My Recipes</h1>
+    <a href="/ingredients/generate" class="btn btn-primary">+ Generate New Recipes</a>
+</div>
+
+{% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if recipes %}
+    {% for recipe in recipes %}
+    <div class="recipe-card card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem;">
+            <h3><a href="/recipes/{{ recipe.pk }}" style="color:#2d6a4f; text-decoration:none;">{{ recipe.title }}</a></h3>
+        </div>
+        <div style="margin: 0.5rem 0; color:#555; font-size:0.9rem;">
+            {% if recipe.prep_time %}<span class="tag">⏱ Prep: {{ recipe.prep_time }}</span>{% endif %}
+            {% if recipe.cook_time %}<span class="tag">🔥 Cook: {{ recipe.cook_time }}</span>{% endif %}
+            {% if recipe.servings %}<span class="tag">🍽 Serves: {{ recipe.servings }}</span>{% endif %}
+        </div>
+        <p style="color:#666; font-size:0.9rem; margin: 0.5rem 0;">
+            {{ recipe.ingredients[:100] }}{% if recipe.ingredients|length > 100 %}...{% endif %}
+        </p>
+        <a href="/recipes/{{ recipe.pk }}" class="btn btn-secondary btn-sm">View Recipe</a>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="card" style="text-align:center; padding:3rem;">
+        <p style="color:#888; margin-bottom:1rem;">No recipes yet. Generate your first recipe!</p>
+        <a href="/ingredients/generate" class="btn btn-primary">Generate Recipes</a>
+    </div>
+{% endif %}
+{% endblock %}

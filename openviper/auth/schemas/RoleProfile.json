@@ -1,0 +1,47 @@
+{
+  "model": "RoleProfile",
+  "app": "auth",
+  "table_name": "auth_role_profiles",
+  "last_modified": "2026-06-22T22:14:22.846581+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "description",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

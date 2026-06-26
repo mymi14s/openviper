@@ -1,0 +1,158 @@
+name: Sanity
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    name: Pre-commit
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-postgresql,tasks-rabbitmq,tasks-sqs]"
+
+      - name: Run pre-commit
+        env:
+          SKIP: test-unit,test-integration
+        run: |
+          .venv/bin/pre-commit run --all-files --show-diff-on-failure
+          git diff --exit-code
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: pre-commit
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-postgresql,tasks-rabbitmq,tasks-sqs]"
+
+      - name: Run unit tests
+        run: .venv/bin/pytest tests/unit -v
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-postgresql,tasks-rabbitmq,tasks-sqs]"
+
+      - name: Run integration tests
+        run: .venv/bin/pytest tests/integration -v
+
+  build-frontend:
+    name: Build Admin Frontend
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: yarn
+          cache-dependency-path: admin_frontend/yarn.lock
+
+      - name: Install frontend dependencies
+        working-directory: admin_frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Build frontend assets
+        working-directory: admin_frontend
+        run: yarn build
+
+      - name: Verify static assets
+        run: |
+          if [ ! -f openviper/admin/static/admin/index.html ]; then
+            echo "ERROR: Frontend build did not produce expected static assets."
+            echo "Expected: openviper/admin/static/admin/index.html"
+            ls -R openviper/admin/static/ 2>/dev/null || echo "Directory openviper/admin/static/ does not exist."
+            exit 1
+          fi
+          echo "Frontend static assets verified successfully."
+
+      - name: Upload frontend assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-assets
+          path: openviper/admin/static/
+          retention-days: 1
+
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    needs: [pre-commit, unit-tests, integration-tests, build-frontend]
+    if: always()
+    steps:
+      - name: Evaluate workflow results
+        run: |
+          results="${{ needs.pre-commit.result }},${{ needs.unit-tests.result }},${{ needs.integration-tests.result }},${{ needs.build-frontend.result }}"
+          echo "Job results: $results"
+          for result in $(echo "$results" | tr ',' ' '); do
+            if [ "$result" != "success" ]; then
+              echo "Workflow failed: at least one job did not succeed."
+              exit 1
+            fi
+          done
+          echo "All jobs succeeded."

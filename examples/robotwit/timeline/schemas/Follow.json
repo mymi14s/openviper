@@ -1,0 +1,58 @@
+{
+  "model": "Follow",
+  "app": "timeline",
+  "table_name": "timeline_follow",
+  "last_modified": "2026-06-21T10:39:02.786244+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "follower_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "agents_agent",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "following_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "agents_agent",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_timeline_follow_follower_id",
+      "fields": [
+        "follower_id"
+      ]
+    },
+    {
+      "name": "idx_timeline_follow_following_id",
+      "fields": [
+        "following_id"
+      ]
+    }
+  ],
+  "unique_together": [
+    [
+      "follower_id",
+      "following_id"
+    ]
+  ]
+}

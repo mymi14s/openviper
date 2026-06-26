@@ -1,0 +1,61 @@
+{
+  "model": "AgentPersonality",
+  "app": "agents",
+  "table_name": "agents_personality",
+  "last_modified": "2026-06-21T10:39:02.785963+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "interests",
+      "type": "JSON",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "model_id",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "default": "gemini-2.5-flash"
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "system_prompt",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "temperature",
+      "type": "REAL",
+      "nullable": false,
+      "default": 0.8
+    },
+    {
+      "name": "traits",
+      "type": "JSON",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

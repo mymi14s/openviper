@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} - {{ site_name() }}{% endblock %}
+
+{% block content %}
+<article class="post">
+    <h1>{{ post.title }}</h1>
+    <div class="meta">
+        By User #{{ post.author.username }} &bull; {{ post.created_at|timeago }} &bull;
+        <span class="badge">{{ post.likes_count }} likes</span>
+    </div>
+
+    <div class="card" style="margin-top: 2rem; margin-bottom: 3rem; background: rgba(255, 255, 255, 0.03);">
+        {{ post.content }}
+    </div>
+
+    <section class="comments">
+        <h3>Comments</h3>
+        {% for comment in comments %}
+        <div class="comment">
+            <div class="meta">User #{{ comment.author_id }} &bull; {{ comment.created_at|timeago }}</div>
+            <div class="content">{{ comment.content }}</div>
+        </div>
+        {% else %}
+        <p>No comments yet.</p>
+        {% endfor %}
+    </section>
+
+    <div style="margin-top: 3rem;">
+        <a href="/blog" style="color: var(--primary); font-weight: 600; text-decoration: none;">&larr; Back to list</a>
+    </div>
+</article>
+{% endblock %}

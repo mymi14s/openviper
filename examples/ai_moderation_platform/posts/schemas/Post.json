@@ -1,0 +1,85 @@
+{
+  "model": "Post",
+  "app": "posts",
+  "table_name": "posts_post",
+  "last_modified": "2026-06-25T20:29:03.390126+00:00",
+  "columns": [
+    {
+      "name": "author_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "users_user",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "comments_count",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": 0
+    },
+    {
+      "name": "content",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "extra",
+      "type": "JSON",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "is_hidden",
+      "type": "BOOLEAN",
+      "nullable": true,
+      "default": false
+    },
+    {
+      "name": "likes_count",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": 0
+    },
+    {
+      "name": "title",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_posts_post_author_id",
+      "fields": [
+        "author_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

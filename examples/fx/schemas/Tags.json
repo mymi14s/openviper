@@ -1,0 +1,30 @@
+{
+  "model": "Tags",
+  "app": "fx",
+  "table_name": "fx_tags",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "color",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": "#3b82f6"
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

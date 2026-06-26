@@ -1,0 +1,75 @@
+{
+  "model": "ContentTypePermission",
+  "app": "auth",
+  "table_name": "auth_content_type_permissions",
+  "last_modified": "2026-06-22T22:14:22.845100+00:00",
+  "columns": [
+    {
+      "name": "can_create",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "can_delete",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "can_read",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "can_update",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "content_type_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "auth_content_types",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "role_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "auth_roles",
+      "on_delete": "CASCADE"
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_auth_content_type_permissions_content_type_id",
+      "fields": [
+        "content_type_id"
+      ]
+    },
+    {
+      "name": "idx_auth_content_type_permissions_role_id",
+      "fields": [
+        "role_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

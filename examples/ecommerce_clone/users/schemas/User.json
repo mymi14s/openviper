@@ -1,0 +1,118 @@
+{
+  "model": "User",
+  "app": "users",
+  "table_name": "users_user",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "address",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "country",
+      "type": "CHAR",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "date_joined",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "email",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "first_name",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "is_active",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": true
+    },
+    {
+      "name": "is_staff",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "is_superuser",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "last_login",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "last_name",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "password",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "role_profile_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "target_table": "auth_role_profiles",
+      "on_delete": "CASCADE",
+      "default": null
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "username",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

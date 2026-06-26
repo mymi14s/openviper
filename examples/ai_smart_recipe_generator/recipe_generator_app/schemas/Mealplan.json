@@ -1,0 +1,48 @@
+{
+  "model": "Mealplan",
+  "app": "recipe_generator_app",
+  "table_name": "recipe_mealplan",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "plan_data",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "title",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "user",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "week_start",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

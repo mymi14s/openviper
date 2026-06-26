@@ -1,0 +1,350 @@
+[build-system]
+requires = ["setuptools==68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openviper"
+version = "0.1.1"
+description = "A production-ready, high-performance, async-first Python web framework."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.14"
+authors = [{ name = "E.A" }]
+keywords = ["web", "framework", "asgi", "async", "api"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/mymi14s/openviper"
+Documentation = "https://mymi14s.github.io/openviper/latest"
+Repository = "https://github.com/mymi14s/openviper"
+Issues = "https://github.com/mymi14s/openviper/issues"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.optional-dependencies]
+
+dev = [
+    "pytest==9.1.0",
+    "pytest-asyncio==1.4.0",
+    "pytest-xdist==3.8.0",
+    "httpx==0.28.1",
+    "ruff==0.15.4",
+    "mypy==1.19.1",
+    "pylint==4.0.5",
+    "flake8==7.3.0",
+    "radon==6.0.1",
+    "bandit==1.9.4",
+    "safety==3.7.0",
+    "pre-commit==4.5.1",
+]
+docs = [
+    "sphinx==9.1.0",
+    "sphinx-rtd-theme==3.1.0",
+    "sphinxcontrib-httpdomain==2.0.0",
+]
+ai = [
+    "openai==2.29.0",
+    "anthropic==0.85.0",
+    "google-genai==1.68.0",
+]
+postgres = ["asyncpg==0.31.0", "psycopg2-binary==2.9.11"]
+mssql = ["aioodbc==0.5.0"]
+oracle = ["oracledb==3.4.2"]
+mariadb = ["aiomysql==0.2.0"]
+geolocation = ["shapely==2.1.2", "psycopg2-binary==2.9.11"]
+currencies = ["py-moneyed==3.0", "babel==2.17.0"]
+tasks = ["dramatiq==2.2.0", "croniter==6.2.2", "cron-descriptor==2.1.0"]
+tasks-redis = ["openviper[tasks]", "redis==8.0.0"]
+tasks-rabbitmq = ["openviper[tasks]", "pika==1.4.0"]
+tasks-sqs = ["openviper[tasks]", "dramatiq-sqs==0.4.3", "boto3==1.43.29"]
+tasks-postgresql = ["openviper[tasks]", "dramatiq-pg @ git+https://github.com/danielgatis/dramatiq-pg.git@724d86bda83c3db3fe20502f00249db9ac76039d", "psycopg2-binary==2.9.11"]
+testing = ["pytest==9.1.0", "pytest-asyncio==1.4.0", "httpx==0.28.1"]
+all = ["openviper[ai,postgres,mssql,oracle,mariadb,geolocation,tasks-redis,testing]"]
+
+[project.scripts]
+openviper = "openviper.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "openviper*",
+]
+exclude = [
+    "examples*",
+    "tests*",
+    "admin_frontend*",
+    ".github*",
+    "dist*",
+    "build*",
+    "*.egg-info*",
+    "htmlcov*",
+    ".pytest_cache*",
+]
+
+[tool.setuptools.package-data]
+openviper = [
+    "admin/static/**/*",
+    "admin/static/assets/**/*",
+    "admin/schemas/*.json",
+    "auth/schemas/*.json",
+    "tasks/schemas/*.json",
+]
+
+# ── Ruff ────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PT", "SIM", "TCH", "S", "ASYNC"]
+ignore = [
+    "B008",   # do not perform function call in default args (framework patterns)
+    "N818",   # exception name should end with Error
+    "TC003",  # move stdlib import into TYPE_CHECKING block
+    "ARG001", # unused function argument (common in ASGI receive/send/scope handlers)
+    "SLF001", # private member accessed (framework internals legitimately access _attrs)
+    "BLE001", # blind exception (intentional resilience in middleware/event dispatch)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Examples: demo seed data uses random for non-crypto purposes
+"examples/**" = [
+    "S311",   # standard pseudo-random generators used for demo seed data
+]
+# Example tests: pytest assertions are the test API
+"examples/**/tests/**" = ["S101"]
+# Tests: relaxed naming, assert statements, optional typing, private access
+"tests/**" = [
+    "S101",   # use of assert
+    "SIM117", # use a single with statement
+    "N806", "N803", "N802", "N801", "N817", "N814",  # naming conventions
+    "ARG002", # unused method argument (fixtures, hooks)
+    "A001", "A002",  # shadowing builtins in test helpers/fixtures
+    "UP007", "UP045", # Optional[X] / Union in tests that exercise those types
+    "F401",   # unused import (some test modules re-export for conftest)
+    "S104", "S105", "S106", "S107", "S108", "S301", "S603", # test fixture literals
+    "ASYNC109", "ASYNC240", # async test fakes mirror production call signatures
+    "B904", # tests intentionally exercise implicit exception context
+    "TC001", # test handlers need runtime-resolvable type annotations
+    "PT006", # parametrize first arg as string is the common pytest idiom
+    "PT018", # composite assertions are intentional in integration tests
+]
+# __init__ modules: re-exports are intentional
+"openviper/**/__init__.py" = ["F401"]
+"tests/**/__init__.py"     = ["F401"]
+# Factories: star import re-export pattern, runtime type usage
+"tests/factories/**" = ["F403", "F405", "TC002"]
+# Migration files: dynamic imports, non-standard patterns
+"openviper/**/migrations/**" = ["E402", "F401", "N806"]
+# Example apps: settings bootstrap must run before framework imports
+"examples/fx/app.py" = ["E402"]
+"examples/todoapp/app.py" = ["E402"]
+"examples/todoapp/create_admin.py" = ["E402"]
+# DB models: re-exports TraversalLookup/TraversalStep for backward compatibility
+"openviper/db/models.py" = ["F401"]
+# DB fields: deferred class imports use PascalCase local names to avoid circular deps
+"openviper/db/fields.py" = ["N806", "ASYNC240"]
+# Country data file: inherently long lines for structured data records
+"openviper/contrib/countries/data.py" = ["E501"]
+# Testing helpers: assert is the purpose of these modules
+"openviper/testing/*.py" = ["S101"]
+# CLI: subprocess used for management commands with trusted input; chmod for project scaffold
+"openviper/cli.py" = ["S603", "S103", "S310"]
+# Security validation: hardcoded URLs are validation targets, not real connections
+"openviper/ai/security.py" = ["S104"]
+# Auth token helpers: token_type identifiers are not passwords
+"openviper/auth/jwt.py" = ["S106"]
+# DB executor: parameterized SQL with _quote_identifier() is safe
+"openviper/db/executor.py" = ["S608"]
+# DB connection: parameterized SQL with _quote_identifier() is safe
+"openviper/db/connection.py" = ["S608"]
+# Admin views: parameterized SQL, token_type identifiers, PascalCase for model lookups
+"openviper/admin/api/views.py" = ["S608", "S106", "N806"]
+# Admin options: model lookups use PascalCase local names
+"openviper/admin/auth_admin.py" = ["N806"]
+# Admin options: lru_cache on method is intentional for model metadata caching
+"openviper/admin/options.py" = ["B019"]
+# Management commands: subprocess for test runner and worker; input() for interactive CLI
+"openviper/core/management/commands/test.py" = ["S603"]
+"openviper/core/management/commands/start_worker.py" = ["S603"]
+"openviper/core/management/commands/changepassword.py" = ["ASYNC250"]
+"openviper/core/management/commands/console.py" = ["S110"]
+"openviper/core/management/commands/start_server.py" = ["S110"]
+# DB migrations: parameterized SQL with _quote_identifier() is safe
+"openviper/db/migrations/executor.py" = ["S608", "S110"]
+"openviper/db/migrations/alembic_sql.py" = ["S608"]
+# DB tools: async path operations for backup/restore
+"openviper/db/tools/backup/mariadb.py" = ["ASYNC240"]
+"openviper/db/tools/compression/tar.py" = ["ASYNC240"]
+"openviper/db/tools/utils/async_process.py" = ["ASYNC109"]
+# Testing plugin: pytest import is runtime-required for pytest_plugins entry point
+"openviper/testing/plugin.py" = ["TC002"]
+# Email attachments: async path operations and file:// URL validation
+"openviper/core/email/attachments.py" = ["ASYNC240", "S310"]
+# Middleware: min/max shadow builtins for rate limiter config
+"openviper/middleware/ratelimit.py" = ["A002"]
+# Storage: async path operations for file storage backends
+"openviper/storage/base.py" = ["ASYNC240"]
+# Logging: try-except-pass is intentional resilience
+"openviper/utils/logging.py" = ["S110"]
+# Tasks logging: A002 shadow for 'logging' module-level
+"openviper/tasks/log.py" = ["A002"]
+# Tasks broker/models/worker: third-party Dramatiq patterns
+"openviper/tasks/db_broker.py" = ["S110"]
+"openviper/tasks/models.py" = ["S110"]
+"openviper/tasks/worker.py" = ["S110"]
+
+# ── Pylint ──────────────────────────────────────────────────────────────────
+[tool.pylint.main]
+load-plugins = []
+ignore = ["migrations", "__pycache__", ".venv"]
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114",  # missing-module-docstring (handled by ruff D)
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0801",  # duplicate-code
+    "W0511",  # fixme
+    "C0301",  # line-too-long (handled by ruff)
+    "W0223",  # abstract-method
+    "R0401",  # cyclic-import (managed with lazy imports)
+    "E0401",  # import-error (optional deps)
+    "C0209",  # consider-using-f-string
+    "W0613",  # unused-argument (common in ASGI handlers)
+    # Framework-level patterns: intentional or false positives
+    "W0212",  # protected-access: ORM/framework internals access _private APIs
+    "C0415",  # import-outside-toplevel: lazy imports used for circular-import avoidance
+    "W0603",  # global-statement: module-level singletons (broker, engine, etc.)
+    "W1203",  # logging-fstring-interpolation: style preference
+    "W0221",  # arguments-differ: ORM metaclass/mixin patterns
+    "E1101",  # no-member: dynamic attributes on ORM models, orjson C extension, sa.func
+    "E1102",  # not-callable: sa.func.count/sa.func.now are callable but pylint can't see it
+    "E0203",  # access-member-before-definition: cached properties set in __init__ after use
+    "W0718",  # broad-exception-caught: intentional in ASGI middleware for resilience
+    "C0103",  # invalid-name: private/module-level vars (_engine, _console) follow own convention
+    "W0201",  # attribute-defined-outside-init: ORM model fields set by metaclass
+    "W0107",  # unnecessary-pass: sometimes needed for abstract stubs
+    "W0611",  # unused-import: some re-exports are intentional in __init__ modules
+    "W0621",  # redefined-outer-name: common in decorators and view functions
+    "W0622",  # redefined-builtin: intentional when re-exporting OVPermissionError as PermissionError
+    "W0231",  # super-init-not-called: some Response subclasses intentionally skip parent __init__
+    "W0237",  # arguments-renamed: Serializer.validate uses 'data' vs base 'value' intentionally
+    "W0135",  # contextmanager-generator-missing-cleanup: stream generators don't need cleanup
+    "W0404",  # reimported: intentional re-import with alias in migration commands
+    "C0302",  # too-many-lines: admin/views.py, db/models.py, db/executor.py are intentionally large
+    "W0246",  # useless-parent-delegation: some __init__ delegates kept for type-checker clarity
+    "W0222",  # signature-differs: metaclass __new__ signature differs from base intentionally
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.design]
+max-args = 12
+max-positional-arguments = 12
+max-attributes = 100
+max-locals = 55
+max-returns = 25
+max-branches = 65
+max-statements = 800
+max-public-methods = 30
+max-nested-blocks = 8
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "v", "e", "f", "x", "T", "db", "pk", "qs", "mw", "fn"]
+
+# ── Bandit ──────────────────────────────────────────────────────────────────
+[tool.bandit]
+# Skip tests that produce false positives for intentional framework patterns.
+# Each skip is documented in openviper/SECURITY.md and inline where applied.
+skips = [
+    "B101",  # assert_used - used as internal invariant checks
+    "B102",  # exec_used - exec() in console management command (pre-compiled code)
+    "B103",  # set_bad_file_permissions - chmod 0o755 on project scaffold executables
+    "B104",  # hardcoded_bind_all_interfaces - appears in validation checks, not binds
+    "B105",  # hardcoded_password_string - OAuth URLs, setting keys, empty defaults
+    "B106",  # hardcoded_password_funcarg - token_type='access'/'refresh' are identifiers
+    "B107",  # hardcoded_password_default - CSRF empty secret forces config from settings
+    "B110",  # try_except_pass - intentional resilience (never let X break Y)
+    "B112",  # try_except_continue - intentional in static-file directory walk
+    "B310",  # urllib_urlopen - validated URL schemes in email attachments
+    "B404",  # import_subprocess - subprocess used in CLI management commands
+    "B603",  # subprocess_without_console - CLI args built internally with trusted input
+    "B608",  # hardcoded_sql_expressions - identifiers quoted via _quote_identifier()
+]
+exclude_dirs = ["tests", "examples", "docs", "admin_frontend"]
+
+# ── MyPy ────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+check_untyped_defs = true
+disable_error_code = ["attr-defined", "import-untyped"]
+exclude = [
+    "tests/",
+    "docs/",
+    "admin_frontend*",
+    "examples*",
+    ".*",
+]
+
+# Admin and AI modules rely on the ORM's dynamic descriptor typing which mypy
+# cannot verify without bespoke type stubs. Errors here are false positives.
+[[tool.mypy.overrides]]
+module = [
+    "openviper.app",
+    "openviper.admin.*",
+    "openviper.ai.*",
+    "openviper.apps.lifecycle",
+    "openviper.auth.decorators",
+    "openviper.auth.middleware",
+    "openviper.serializers.*",
+    "openviper.auth.backends",
+    "openviper.auth.migrations.*",
+    "openviper.auth.views.base_login",
+    "openviper.auth.views.logout",
+    "openviper.auth.views.me",
+    "openviper.db.migrations.*",
+    "openviper.db.tools.utils.metadata",
+    "openviper.http.permissions",
+    "openviper.core.flexible_adapter",
+    "openviper.core.management.commands.*",
+    "openviper.middleware.ratelimit",
+    "openviper.openapi.schema",
+    "openviper.contrib.fields.currencies.*",
+]
+ignore_errors = true
+
+# ── Pytest ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = ""
+filterwarnings = [
+    # ai_registry is a deprecated shim; pytest introspection triggers the warning
+    "ignore:ai_registry is deprecated:DeprecationWarning",
+    # Python 3.14 importlib SQLite bytecode cache leaves connections open at GC time
+    "ignore:unclosed database:ResourceWarning",
+    # google.genai uses deprecated _UnionGenericAlias (Python 3.17 removal)
+    "ignore::DeprecationWarning:google.genai",
+    # dramatiq_pg uses renamed ConnectionError (will be removed in dramatiq v3)
+    "ignore:.*ConnectionError.*renamed.*BrokerConnectionError:DeprecationWarning:dramatiq_pg",
+]

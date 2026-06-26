@@ -1,0 +1,362 @@
+"""OpenViper CLI - global ``openviper`` command.
+
+Provides project scaffolding commands separate from the per-project
+management interface.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import click
+
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+
+    console: Console | None = Console()
+    has_rich = True
+except ImportError:
+    console = None
+    has_rich = False
+
+import uvicorn
+
+import openviper
+from openviper.conf.settings import generate_secret_key
+from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import get_banner
+from openviper.utils.logging import get_uvicorn_log_config
+from openviper.viperctl import viperctl as viperctl_cmd
+
+
+def display(msg: str, style: str = "") -> None:
+    if has_rich and console:
+        console.print(msg, style=style or None)
+    else:
+        print(msg)
+
+
+@click.group()
+@click.version_option(package_name="openviper", prog_name="openviper")
+def cli() -> None:
+    """OpenViper web framework CLI."""
+
+
+VIPERCTL_PY_TEMPLATE = '''\
+#!/usr/bin/env python
+"""OpenViper viperctl.py for {project_name}."""
+
+import sys
+from openviper.core.management import execute_from_command_line
+
+def main() -> None:
+    execute_from_command_line(sys.argv)
+
+if __name__ == "__main__":
+    main()
+
+'''
+
+SETTINGS_TEMPLATE = '''\
+"""Settings for {project_name}."""
+from __future__ import annotations
+
+import dataclasses
+import os
+
+from openviper.conf.types import ConfigMap
+from openviper.conf.settings import Settings
+
+@dataclasses.dataclass(frozen=True)
+class ProjectSettings(Settings):
+    PROJECT_NAME: str = "{project_name}"
+    DEBUG: bool = True
+    DATABASES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {{
+            "default": {{
+                "BACKEND": "openviper.db.backends.DefaultDatabaseBackend",
+                "OPTIONS": {{
+                    "URL": "sqlite+aiosqlite:///db.sqlite3",
+                    "ECHO": False,
+                    "POOL_SIZE": 5,
+                    "MAX_OVERFLOW": 10,
+                    "POOL_RECYCLE": 3600,
+                }},
+            }},
+            "ROUTERS": [],
+            "ROUTING": {{}},
+        }}
+    )
+    CACHES: ConfigMap = dataclasses.field(
+        default_factory=lambda: {{
+            "default": {{
+                "BACKEND": "openviper.cache.InMemoryCache",
+                "OPTIONS": {{
+                    "ttl": 300,
+                }},
+            }},
+        }}
+    )
+    ADMIN_SETTINGS: ConfigMap = dataclasses.field(
+        default_factory=lambda: {{
+            "title": "{project_name} Admin",
+            "header_title": "{project_name}",
+            "footer_title": "{project_name} Admin",
+        }},
+    )
+    SECRET_KEY: str = "{secret_key}"
+    INSTALLED_APPS: tuple[str, ...] = (
+        "openviper.auth",
+        "openviper.admin",
+    )
+    MIDDLEWARE: tuple[str, ...] = (
+        "openviper.middleware.security.SecurityMiddleware",
+        "openviper.middleware.cors.CORSMiddleware",
+        "openviper.auth.session.middleware.SessionMiddleware",
+        "openviper.middleware.auth.AuthenticationMiddleware",
+        "openviper.admin.middleware.AdminMiddleware",
+    )
+    ALLOWED_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1")
+    STATIC_ROOT: str = os.environ.get("STATIC_ROOT", "static")
+    STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
+    MEDIA_ROOT: str = os.environ.get("MEDIA_ROOT", "media")
+    MEDIA_URL: str = os.environ.get("MEDIA_URL", "/media/")
+'''
+
+ASGI_TEMPLATE = '''\
+
+"""ASGI application for {project_name}."""
+
+from __future__ import annotations
+
+import os
+import sys
+
+import openviper
+from openviper.app import OpenViper
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault("OPENVIPER_SETTINGS_MODULE", "{project_name}.settings")
+
+
+app = OpenViper()
+
+'''
+
+ROUTES_TEMPLATE = '''\
+"""Top-level routes for {project_name}."""
+
+from openviper.admin import get_admin_site
+
+from {project_name}.views import router as root_router
+
+route_paths = [
+    ("/admin", get_admin_site()),
+    ("/root", root_router)
+]
+'''
+
+VIEWS_TEMPLATE = '''
+"""Views for {project_name}."""
+
+from openviper.http.response import HTMLResponse, JSONResponse
+from openviper.routing import Router
+
+async def home(request):
+    context = {{
+        "title": "Welcome to {project_name}",
+        "project_name": "{project_name}",
+        "message": "Your OpenViper project is running successfully."
+    }}
+    return HTMLResponse(template="home.html", context=context)
+
+async def api_index(request):
+    if request.method == "GET":
+        return JSONResponse({{"message": "Welcome to {project_name} API!", "status": "success"}})
+    elif request.method == "POST":
+        return JSONResponse({{"message": "Data received", "status": "success", "method": "POST"}})
+    return JSONResponse({{"error": "Method not allowed", "status": "error"}}, status_code=405)
+
+router = Router()
+router.add("/home", home, namespace="home-view")
+router.add("/api", api_index, namespace="api-view", methods=["GET", "POST"])
+'''
+
+HOME_TEMPLATE_HTML = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #333; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to {{ project_name }}!</h1>
+    <p>{{ message }}</p>
+    <ul>
+        <li><a href="/api">API Endpoint</a></li>
+        <li><a href="/admin">Admin Panel</a></li>
+    </ul>
+</body>
+</html>
+"""
+
+PROJECT_INIT_TEMPLATE = '"""{project_name} project."""\n'
+
+GITIGNORE_TEMPLATE = """\
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+db.sqlite3
+*.log
+.DS_Store
+"""
+
+
+@cli.command("create-project")
+@click.argument("name")
+@click.option("--directory", "-d", default=None, help="Parent directory (default: CWD)")
+def create_project(name: str, directory: str | None) -> None:
+    """Scaffold a new OpenViper project called NAME."""
+    if not name.isidentifier():
+        click.echo(f"Error: '{name}' is not a valid Python identifier.", err=True)
+        sys.exit(1)
+
+    base = Path(directory) if directory else Path.cwd()
+    project_root = base / name
+
+    if project_root.exists():
+        click.echo(f"Error: '{project_root}' already exists.", err=True)
+        sys.exit(1)
+
+    secret_key = generate_secret_key()
+    ctx = {"project_name": name, "secret_key": secret_key}
+
+    (project_root / name).mkdir(parents=True)
+
+    def write(path: Path, content: str) -> None:
+        path.write_text(content.format(**ctx))
+
+    write(project_root / "viperctl.py", VIPERCTL_PY_TEMPLATE)
+    os.chmod(project_root / "viperctl.py", 0o755)
+    write(project_root / name / "__init__.py", PROJECT_INIT_TEMPLATE)
+    write(project_root / name / "settings.py", SETTINGS_TEMPLATE)
+    write(project_root / name / "asgi.py", ASGI_TEMPLATE)
+    write(project_root / name / "routes.py", ROUTES_TEMPLATE)
+    write(project_root / name / "views.py", VIEWS_TEMPLATE)
+    write(project_root / ".gitignore", GITIGNORE_TEMPLATE)
+    (project_root / "static").mkdir()
+    (project_root / "templates").mkdir()
+    (project_root / "templates" / "home.html").write_text(HOME_TEMPLATE_HTML)
+    (project_root / "tests").mkdir()
+    (project_root / "tests" / "__init__.py").write_text("# Test package\n\n")
+
+    if has_rich and console:
+        console.print(
+            Panel.fit(
+                f"[bold green]Project '{name}' created![/bold green]\n\n"
+                f"  [cyan]cd {name}[/cyan]\n"
+                f"  [cyan]python viperctl.py start-server[/cyan]",
+                title="OpenViper",
+            )
+        )
+    else:
+        click.echo(f"Project '{name}' created at {project_root}")
+        click.echo(f"  cd {name}")
+        click.echo("  python viperctl.py start-server")
+
+    click.echo(
+        "\nWARNING: The generated SECRET_KEY is for development only. "
+        "Set the SECRET_KEY environment variable to a cryptographically "
+        "random value in production."
+    )
+
+
+@cli.command("create-app")
+@click.argument("name")
+@click.option("--directory", "-d", default=None, help="Target directory (default: CWD)")
+def create_app(name: str, directory: str | None) -> None:
+    """Scaffold a new app inside an existing OpenViper project."""
+    args = [sys.executable, "viperctl.py", "create-app", name]
+    if directory:
+        args += ["--directory", directory]
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        click.echo(f"Error: {result.stderr.strip()}", err=True)
+        sys.exit(result.returncode)
+
+
+@cli.command("run")
+@click.argument("target")
+@click.option("--host", "-h", default="127.0.0.1", show_default=True, help="Bind host.")
+@click.option("--port", "-p", default=8000, show_default=True, type=int, help="Bind port.")
+@click.option(
+    "--reload/--no-reload",
+    default=True,
+    help="Enable/disable auto-reload on file changes (default: --reload).",
+)
+@click.option(
+    "--workers",
+    "-w",
+    default=1,
+    show_default=True,
+    type=int,
+    help="Number of worker processes (ignored when --reload is set).",
+)
+def run_cmd(target: str, host: str, port: int, reload: bool, workers: int) -> None:
+    """Run an OpenViper application with uvicorn.
+
+    TARGET is the module (or module:attr) that contains the application:
+
+    \b
+      openviper run app
+      openviper run app.py
+      openviper run myproject.asgi:app
+    """
+    if target.endswith(".py"):
+        target = target[:-3]
+
+    if ":" in target:
+        module_str, attr_str = target.split(":", 1)
+    else:
+        module_str, attr_str = target, "app"
+
+    cwd = str(Path.cwd())
+    if cwd not in set(sys.path):
+        sys.path.insert(0, cwd)
+
+    get_banner(BaseCommand(), host, port)
+    uvicorn.run(
+        f"{module_str}:{attr_str}",
+        host=host,
+        port=port,
+        reload=reload,
+        workers=1 if reload else workers,
+        log_config=get_uvicorn_log_config(),
+    )
+
+
+@cli.command("version")
+def version_cmd() -> None:
+    """Print OpenViper version."""
+
+    click.echo(f"OpenViper {openviper.__version__}")
+
+
+cli.add_command(viperctl_cmd)
+
+if __name__ == "__main__":
+    cli()

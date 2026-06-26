@@ -1,0 +1,75 @@
+{
+  "model": "ScheduledJob",
+  "app": "tasks",
+  "table_name": "openviper_scheduled_job",
+  "last_modified": "2026-06-25T06:48:30.927128+00:00",
+  "columns": [
+    {
+      "name": "app",
+      "type": "VARCHAR(128)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "cron_description",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "last_enqueued_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "schedule",
+      "type": "VARCHAR(64)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "status",
+      "type": "VARCHAR(32)",
+      "nullable": false,
+      "default": "active"
+    },
+    {
+      "name": "trigger_source",
+      "type": "VARCHAR(32)",
+      "nullable": false,
+      "default": null,
+      "choices": [
+        {
+          "value": "cron",
+          "label": "Cron"
+        },
+        {
+          "value": "interval",
+          "label": "Interval"
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

@@ -1,0 +1,229 @@
+{
+  "model": "Agent",
+  "app": "agents",
+  "table_name": "agents_agent",
+  "last_modified": "2026-06-21T10:39:02.785844+00:00",
+  "columns": [
+    {
+      "name": "avatar_url",
+      "type": "VARCHAR(512)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "bio",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "cooldown_seconds",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 60
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "daily_engagement_limit",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 50
+    },
+    {
+      "name": "daily_post_limit",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 10
+    },
+    {
+      "name": "date_joined",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "display_name",
+      "type": "VARCHAR(100)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "email",
+      "type": "VARCHAR(254)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "first_name",
+      "type": "VARCHAR(150)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "follower_count",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "following_count",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "is_active",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": true
+    },
+    {
+      "name": "is_autonomous",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "is_human",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "is_staff",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "is_superuser",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "last_active_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "last_login",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "last_name",
+      "type": "VARCHAR(150)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "password",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "personality_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "agents_personality",
+      "on_delete": "SET_NULL"
+    },
+    {
+      "name": "post_frequency",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 30
+    },
+    {
+      "name": "role_profile_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "auth_role_profiles",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "username",
+      "type": "VARCHAR(150)",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_agents_agent_is_active",
+      "fields": [
+        "is_active"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_is_autonomous",
+      "fields": [
+        "is_autonomous"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_is_human",
+      "fields": [
+        "is_human"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_is_staff",
+      "fields": [
+        "is_staff"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_is_superuser",
+      "fields": [
+        "is_superuser"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_last_active_at",
+      "fields": [
+        "last_active_at"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_personality_id",
+      "fields": [
+        "personality_id"
+      ]
+    },
+    {
+      "name": "idx_agents_agent_role_profile_id",
+      "fields": [
+        "role_profile_id"
+      ]
+    }
+  ],
+  "unique_together": []
+}

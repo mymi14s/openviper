@@ -1,0 +1,67 @@
+{
+  "model": "Product",
+  "app": "products",
+  "table_name": "products_product",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "category_id",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "target_table": "products_category",
+      "on_delete": "SET NULL",
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "description",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "UUID",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "image_url",
+      "type": "VARCHAR(255)",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "price",
+      "type": "NUMERIC",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "stock",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

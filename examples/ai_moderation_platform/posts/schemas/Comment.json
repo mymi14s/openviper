@@ -1,0 +1,95 @@
+{
+  "model": "Comment",
+  "app": "posts",
+  "table_name": "posts_comment",
+  "last_modified": "2026-06-25T20:29:03.389989+00:00",
+  "columns": [
+    {
+      "name": "author_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "users_user",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "content",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "is_hidden",
+      "type": "BOOLEAN",
+      "nullable": false,
+      "default": false
+    },
+    {
+      "name": "likes_count",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": 0
+    },
+    {
+      "name": "parent_comment_id",
+      "type": "INTEGER",
+      "nullable": true,
+      "default": null,
+      "target_table": "posts_comment",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "post_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "posts_post",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_posts_comment_author_id",
+      "fields": [
+        "author_id"
+      ]
+    },
+    {
+      "name": "idx_posts_comment_parent_comment_id",
+      "fields": [
+        "parent_comment_id"
+      ]
+    },
+    {
+      "name": "idx_posts_comment_post_id",
+      "fields": [
+        "post_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

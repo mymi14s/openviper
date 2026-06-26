@@ -1,0 +1,51 @@
+{
+  "model": "Review",
+  "app": "reviews",
+  "table_name": "reviews_review",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "comment",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "UUID",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    },
+    {
+      "name": "product_id",
+      "type": "UUID",
+      "nullable": false,
+      "target_table": "products_product",
+      "on_delete": "CASCADE",
+      "default": null
+    },
+    {
+      "name": "rating",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "user_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "target_table": "users_user",
+      "on_delete": "CASCADE",
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

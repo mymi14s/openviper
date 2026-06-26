@@ -1,0 +1,115 @@
+{
+  "model": "TaskResult",
+  "app": "tasks",
+  "table_name": "openviper_task_result",
+  "last_modified": "2026-06-25T06:48:30.926818+00:00",
+  "columns": [
+    {
+      "name": "actor_name",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "arguments",
+      "type": "JSON",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "duration_ms",
+      "type": "BIGINT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "error_traceback",
+      "type": "TEXT",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "message_id",
+      "type": "UUID",
+      "nullable": false,
+      "unique": true,
+      "default": null
+    },
+    {
+      "name": "queue",
+      "type": "VARCHAR(64)",
+      "nullable": false,
+      "default": "default"
+    },
+    {
+      "name": "retries",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "return_value",
+      "type": "JSON",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "status",
+      "type": "VARCHAR(16)",
+      "nullable": false,
+      "default": "pending",
+      "choices": [
+        {
+          "value": "pending",
+          "label": "Pending"
+        },
+        {
+          "value": "running",
+          "label": "Running"
+        },
+        {
+          "value": "success",
+          "label": "Success"
+        },
+        {
+          "value": "failure",
+          "label": "Failure"
+        },
+        {
+          "value": "skipped",
+          "label": "Skipped"
+        },
+        {
+          "value": "dead",
+          "label": "Dead"
+        }
+      ]
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

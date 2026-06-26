@@ -1,0 +1,34 @@
+{
+  "model": "ContentType",
+  "app": "auth",
+  "table_name": "auth_content_types",
+  "last_modified": "2026-06-22T22:14:22.844377+00:00",
+  "columns": [
+    {
+      "name": "app_label",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "model",
+      "type": "VARCHAR(100)",
+      "nullable": false,
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

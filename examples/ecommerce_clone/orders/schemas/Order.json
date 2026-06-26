@@ -1,0 +1,49 @@
+{
+  "model": "Order",
+  "app": "orders",
+  "table_name": "orders_order",
+  "last_modified": "2026-06-20T08:58:15.419199+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "UUID",
+      "nullable": false,
+      "primary_key": true,
+      "default": null
+    },
+    {
+      "name": "shipping_address",
+      "type": "TEXT",
+      "nullable": false,
+      "default": null
+    },
+    {
+      "name": "status",
+      "type": "VARCHAR(255)",
+      "nullable": false,
+      "default": "pending"
+    },
+    {
+      "name": "total_price",
+      "type": "NUMERIC",
+      "nullable": false,
+      "default": 0
+    },
+    {
+      "name": "user_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "target_table": "users_user",
+      "on_delete": "CASCADE",
+      "default": null
+    }
+  ],
+  "indexes": [],
+  "unique_together": []
+}

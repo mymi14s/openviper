@@ -1,0 +1,20 @@
+# Docker Compose for flexible (minimal single-file app)
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage: docker compose up
+#
+# Notes:
+#   - Stateless in-memory example - no database or Redis required.
+#   - User data lives in process memory and resets on restart.
+
+services:
+  web:
+    build:
+      context: ../../
+      dockerfile: examples/flexible/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      DEBUG: 0
+    command: ["openviper", "run", "app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

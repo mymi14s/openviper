@@ -1,0 +1,63 @@
+{
+  "model": "RoleProfileDetail",
+  "app": "auth",
+  "table_name": "auth_role_profile_details",
+  "last_modified": "2026-06-22T22:14:22.846861+00:00",
+  "columns": [
+    {
+      "name": "created_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    },
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "primary_key": true,
+      "autoincrement": true,
+      "default": null
+    },
+    {
+      "name": "role_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "auth_roles",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "role_profile_id",
+      "type": "INTEGER",
+      "nullable": false,
+      "default": null,
+      "target_table": "auth_role_profiles",
+      "on_delete": "CASCADE"
+    },
+    {
+      "name": "updated_at",
+      "type": "DATETIME",
+      "nullable": true,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_auth_role_profile_details_role_id",
+      "fields": [
+        "role_id"
+      ]
+    },
+    {
+      "name": "idx_auth_role_profile_details_role_profile_id",
+      "fields": [
+        "role_profile_id"
+      ]
+    }
+  ],
+  "unique_together": [],
+  "index_together": [],
+  "constraints": [],
+  "single": false,
+  "managed": true
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import datetime
 import functools
 import hashlib
 import logging
@@ -47,6 +48,7 @@ from openviper.db.constants import (
     FIELD_MISSING_RE,
     FIELD_NAME_EXTRACT_RE,
     MAX_REGEX_LENGTH,
+    MSSQL,
     OPERATORS,
     SAFE_TABLE_NAME_RE,
     SENSITIVE_FIELD_NAMES,
@@ -848,6 +850,48 @@ def rebuild_all_tables_from_registry() -> None:
 model_registry.rebuild_all_tables_callback = rebuild_all_tables_from_registry
 
 
+class DialectAwareDateTime(sa.types.TypeDecorator[datetime.datetime]):
+    """Timezone-aware DateTime that adapts binding to SQL Server.
+
+    SQL Server stores datetimes as naive ``DATETIME2`` and rejects values
+    carrying a UTC offset.  For that dialect, aware datetimes are converted
+    to UTC and stripped of ``tzinfo`` before binding; on read, naive values
+    are tagged as UTC so application code sees consistent aware datetimes.
+    All other dialects retain native ``timestamptz`` semantics.
+    """
+
+    impl = sa.DateTime
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: sa.Dialect) -> sa.types.TypeEngine[Any]:
+        if dialect.name == MSSQL:
+            return dialect.type_descriptor(sa.DateTime())
+        return dialect.type_descriptor(sa.DateTime(timezone=True))
+
+    def process_bind_param(
+        self, value: datetime.datetime | None, dialect: sa.Dialect,
+    ) -> datetime.datetime | None:
+        if (
+            value is not None
+            and dialect.name == MSSQL
+            and value.tzinfo is not None
+        ):
+            return value.astimezone(datetime.UTC).replace(tzinfo=None)
+        return value
+
+    def process_result_value(
+        self, value: datetime.datetime | None, dialect: sa.Dialect,
+    ) -> datetime.datetime | None:
+        if (
+            value is not None
+            and dialect.name == MSSQL
+            and value.tzinfo is None
+            and settings.USE_TZ
+        ):
+            return value.replace(tzinfo=datetime.UTC)
+        return value
+
+
 def sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if hasattr(field, "get_sa_type"):
         return cast("sa.types.TypeEngine[Any]", field.get_sa_type())
@@ -882,7 +926,7 @@ def sa_type(field: Any) -> sa.types.TypeEngine[Any]:
     if isinstance(field, BooleanField):
         return sa.Boolean()
     if isinstance(field, DateTimeField):
-        return sa.DateTime(timezone=True)
+        return DialectAwareDateTime()
     if isinstance(field, DateField):
         return sa.Date()
     if isinstance(field, TimeField):

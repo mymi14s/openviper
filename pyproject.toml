@@ -70,7 +70,7 @@ tasks = ["dramatiq==2.2.0", "croniter==6.2.2", "cron-descriptor==2.1.0"]
 tasks-redis = ["openviper[tasks]", "redis==8.0.0"]
 tasks-rabbitmq = ["openviper[tasks]", "pika==1.4.0"]
 tasks-sqs = ["openviper[tasks]", "dramatiq-sqs==0.4.3", "boto3==1.43.29"]
-tasks-postgresql = ["openviper[tasks]", "dramatiq-pg @ git+https://github.com/danielgatis/dramatiq-pg.git@724d86bda83c3db3fe20502f00249db9ac76039d", "psycopg2-binary==2.9.11"]
+tasks-postgresql = ["openviper[tasks]", "dramatiq-pg==dramatiq-pg", "psycopg2-binary==2.9.11"]
 testing = ["pytest==9.1.0", "pytest-asyncio==1.4.0", "httpx==0.28.1"]
 all = ["openviper[ai,postgres,mssql,oracle,mariadb,geolocation,tasks-redis,testing]"]
 
@@ -92,6 +92,7 @@ exclude = [
     "*.egg-info*",
     "htmlcov*",
     ".pytest_cache*",
+    ".flake8",
 ]
 
 [tool.setuptools.package-data]

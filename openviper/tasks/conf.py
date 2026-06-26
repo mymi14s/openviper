@@ -25,8 +25,8 @@ def validate_tasks_config(cfg: dict[str, t.Any]) -> None:
         errors.append("TASKS['enabled'] must be 0 or 1")
 
     broker = cfg.get("broker", "redis")
-    if broker not in ("redis", "rabbitmq", "sqs", "postgresql", "stub"):
-        errors.append("TASKS['broker'] must be 'redis', 'rabbitmq', 'sqs', 'postgresql', or 'stub'")
+    if broker not in ("redis", "rabbitmq", "sqs", "stub"):
+        errors.append("TASKS['broker'] must be 'redis', 'rabbitmq', 'sqs', or 'stub'")
 
     if enabled == 1 and not cfg.get("broker_url") and broker != "stub":
         errors.append("TASKS['broker_url'] is required when enabled == 1")

@@ -41,16 +41,6 @@ try:
 except ImportError:
     dramatiq_sqs = None
 
-try:
-    from dramatiq_pg import PostgresBroker
-except ImportError:
-    PostgresBroker = None
-
-try:
-    import psycopg2.pool
-except ImportError:
-    psycopg2 = None
-
 prometheus_client: t.Any = None
 with contextlib.suppress(ImportError):
     prometheus_client = importlib.import_module("prometheus_client")
@@ -67,7 +57,7 @@ except ImportError:
 
 BROKER_INSTANCE: Broker | None = None
 
-SUPPORTED_BROKERS = frozenset({"redis", "rabbitmq", "sqs", "postgresql", "stub"})
+SUPPORTED_BROKERS = frozenset({"redis", "rabbitmq", "sqs", "stub"})
 
 
 def default_middleware() -> list:
@@ -105,9 +95,6 @@ def get_broker() -> Broker:
         broker = create_rabbitmq_broker(broker_url, cfg)
     elif broker_type == "sqs":
         broker = create_sqs_broker(cfg)
-    elif broker_type == "postgresql":
-        require_broker_url(broker_type, broker_url)
-        broker = create_postgresql_broker(broker_url, cfg)
     elif broker_type == "stub":
         broker = create_stub_broker(cfg)
     else:
@@ -176,23 +163,6 @@ def create_sqs_broker(cfg: ConfigMap) -> Broker:
     kwargs["middleware"] = default_middleware() + user_middleware
 
     return register_broker(dramatiq_sqs.SQSBroker(**kwargs))
-
-
-def create_postgresql_broker(url: str, cfg: ConfigMap) -> Broker:
-    """Create a PostgresBroker from *url*."""
-    if PostgresBroker is None or psycopg2 is None:
-        raise OpenViperTasksConfigurationError(
-            [
-                "dramatiq-pg or psycopg2 is not installed. "
-                "Install with: pip install 'openviper[tasks-postgresql]'"
-            ]
-        )
-    pool = psycopg2.pool.ThreadedConnectionPool(
-        minconn=cfg.get("pg_min_connections", 2),
-        maxconn=cfg.get("pg_max_connections", 10),
-        dsn=url,
-    )
-    return register_broker(PostgresBroker(pool, middleware=default_middleware()))
 
 
 def create_stub_broker(cfg: ConfigMap) -> Broker:

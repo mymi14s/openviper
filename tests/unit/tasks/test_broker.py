@@ -32,12 +32,6 @@ class TestGetBroker:
             with pytest.raises(OpenViperTasksConfigurationError, match="broker_url"):
                 get_broker()
 
-    def test_missing_broker_url_raises_for_postgresql(self) -> None:
-        with patch("openviper.tasks.broker.settings") as mock_settings:
-            mock_settings.TASKS = {"enabled": 1, "broker": "postgresql", "broker_url": ""}
-            with pytest.raises(OpenViperTasksConfigurationError, match="broker_url"):
-                get_broker()
-
     def test_unsupported_broker_type_raises(self) -> None:
         with patch("openviper.tasks.broker.settings") as mock_settings:
             mock_settings.TASKS = {
@@ -49,7 +43,7 @@ class TestGetBroker:
                 get_broker()
 
     def test_supported_brokers_contains_all_types(self) -> None:
-        assert {"redis", "rabbitmq", "sqs", "postgresql", "stub"} == SUPPORTED_BROKERS
+        assert {"redis", "rabbitmq", "sqs", "stub"} == SUPPORTED_BROKERS
 
     def test_stub_broker_creates_successfully(self) -> None:
         with patch("openviper.tasks.broker.settings") as mock_settings:
@@ -102,16 +96,5 @@ class TestGetBroker:
         with patch("openviper.tasks.broker.settings") as mock_settings:
             mock_settings.TASKS = {"enabled": 1, "broker": "sqs"}
             with patch("openviper.tasks.broker.dramatiq_sqs", None):
-                with pytest.raises(OpenViperTasksConfigurationError, match="not installed"):
-                    get_broker()
-
-    def test_postgresql_broker_missing_package_raises(self) -> None:
-        with patch("openviper.tasks.broker.settings") as mock_settings:
-            mock_settings.TASKS = {
-                "enabled": 1,
-                "broker": "postgresql",
-                "broker_url": "postgresql://localhost/mydb",
-            }
-            with patch("openviper.tasks.broker.PostgresBroker", None):
                 with pytest.raises(OpenViperTasksConfigurationError, match="not installed"):
                     get_broker()

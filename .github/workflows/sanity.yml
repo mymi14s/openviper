@@ -34,7 +34,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-postgresql,tasks-rabbitmq,tasks-sqs]"
+          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-rabbitmq,tasks-sqs]"
 
       - name: Run pre-commit
         env:
@@ -65,7 +65,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-postgresql,tasks-rabbitmq,tasks-sqs]"
+          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-rabbitmq,tasks-sqs]"
 
       - name: Run unit tests
         run: .venv/bin/pytest tests/unit -v
@@ -92,7 +92,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
-          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-postgresql,tasks-rabbitmq,tasks-sqs]"
+          .venv/bin/python -m pip install -e ".[dev,docs,ai,postgres,geolocation,tasks,tasks-redis,tasks-rabbitmq,tasks-sqs]"
 
       - name: Run integration tests
         run: .venv/bin/pytest tests/integration -v

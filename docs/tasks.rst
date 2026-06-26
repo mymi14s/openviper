@@ -30,12 +30,9 @@ then choose a broker-specific extra for your message broker:
    # Amazon SQS broker
    pip install 'openviper[tasks-sqs]'
 
-   # PostgreSQL broker
-   pip install 'openviper[tasks-postgresql]'
-
 The ``tasks`` extra installs ``dramatiq``, ``croniter``, and
 ``cron-descriptor``.  The broker extras add the corresponding driver
-(``redis``, ``pika``, ``dramatiq-sqs``/``boto3``, or ``dramatiq-pg``/``psycopg2-binary``).
+(``redis``, ``pika``, or ``dramatiq-sqs``/``boto3``).
 For testing, use ``"stub"`` as the broker - no extra packages are needed.
 
 Configuration
@@ -86,7 +83,7 @@ Configuration reference
 Key                        Type          Description
 =========================  ============  ========================================
 enabled                    int           ``1`` to enable, ``0`` to disable
-broker                     str           ``"redis"`` (default), ``"rabbitmq"``, ``"sqs"``, ``"postgresql"``, or ``"stub"``
+broker                     str           ``"redis"`` (default), ``"rabbitmq"``, ``"sqs"``, or ``"stub"``
 broker_url                 str           Required when enabled (not required for SQS or stub)
 backend_url                str           Optional: results backend URL
 sqs_namespace              str           SQS namespace (default ``"openviper"``)

@@ -6,8 +6,8 @@ import dataclasses
 import os
 from datetime import timedelta
 
-from openviper.conf.types import ConfigMap
 from openviper.conf.settings import Settings
+from openviper.conf.types import ConfigMap
 
 
 @dataclasses.dataclass(frozen=True)

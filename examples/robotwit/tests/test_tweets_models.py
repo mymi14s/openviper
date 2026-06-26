@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agents.models import Agent
 from tweets.models import Bookmark, Hashtag, Like, Tweet
 

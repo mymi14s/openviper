@@ -42,7 +42,6 @@ from openviper.db.constants import (
     DIALECT_TYPE_MAP,
     MIGRATION_TABLE_NAME,
     MSSQL,
-    PG_NEEDS_USING,
     POSTGRESQL,
     SOFT_REMOVED_TABLE_NAME,
     SQLITE,

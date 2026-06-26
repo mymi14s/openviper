@@ -8,8 +8,6 @@ import typing as t
 
 logger = logging.getLogger("openviper.realtime")
 
-if t.TYPE_CHECKING:
-    pass
 
 
 class EventBus:

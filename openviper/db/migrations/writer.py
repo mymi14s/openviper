@@ -7,7 +7,6 @@ import contextlib
 import copy
 import re
 import sys
-import typing as t
 from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast

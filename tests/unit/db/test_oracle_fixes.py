@@ -14,6 +14,8 @@ Covers:
 
 from __future__ import annotations
 
+import json
+import uuid as uuid_mod
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -23,9 +25,6 @@ from openviper.db.connection import get_metadata
 from openviper.db.fields import CharField, ForeignKey, IntegerField
 from openviper.db.migrations.alembic_sql import DialectSQL
 from openviper.db.models import Model, Q, QuerySet
-
-import json
-import uuid as uuid_mod
 
 try:
     from sqlalchemy.dialects.oracle.oracledb import (

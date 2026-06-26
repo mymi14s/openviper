@@ -19,9 +19,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import openviper.tasks.logging as log_mod
+from openviper.core.management.commands.start_worker import Command
 from openviper.tasks.broker import get_broker, reset_broker
 from openviper.tasks.conf import resolve_tasks_config, validate_tasks_config
 from openviper.tasks.decorators import actor
+from openviper.tasks.discovery import discover_tasks
 from openviper.tasks.exceptions import (
     OpenViperTasksConfigurationError,
     OpenViperTasksError,
@@ -33,17 +36,14 @@ from openviper.tasks.middleware import (
     StateObservationMiddleware,
     UnifiedContextLogger,
     get_trace_id,
+    trace_id_var,
 )
 from openviper.tasks.periodic import parse_interval, periodic
 from openviper.tasks.registry import Registry
+from openviper.tasks.runner import run
 from openviper.tasks.scheduler import Scheduler, compute_next_cron_fire
 from openviper.tasks.types import TaskMessageProxy
 from openviper.utils.logging import ConcurrentRotatingFileHandler
-from openviper.core.management.commands.start_worker import Command
-from openviper.tasks.discovery import discover_tasks
-from openviper.tasks.middleware import trace_id_var
-from openviper.tasks.runner import run
-import openviper.tasks.logging as log_mod
 
 
 @pytest.fixture(autouse=True)

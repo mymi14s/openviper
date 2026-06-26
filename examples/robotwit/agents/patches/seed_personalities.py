@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from openviper.db.patches import db_patch
-
 from agents.management.commands.create_agents import Command
+from openviper.db.patches import db_patch
 
 
 @db_patch

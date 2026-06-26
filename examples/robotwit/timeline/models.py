@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from agents.models import Agent
+
 from openviper.db import Model
 from openviper.db.fields import DateTimeField, ForeignKey
-
-from agents.models import Agent
 
 
 class Follow(Model):

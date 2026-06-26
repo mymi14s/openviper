@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+from agents.models import Agent
+from tweets.api import serialize_tweet
+from tweets.models import Hashtag, Tweet, TweetHashtag
 
 from openviper.auth.decorators import login_required
 from openviper.http.request import Request
 from openviper.http.response import JSONResponse
 from openviper.routing import Router
-
-from agents.models import Agent
 from timeline.models import Follow
-from tweets.api import serialize_tweet
-from tweets.models import Hashtag, Tweet, TweetHashtag
 
 router = Router()
 

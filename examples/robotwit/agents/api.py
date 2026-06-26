@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+from agents.models import Agent
 from openviper.auth.session.manager import SessionManager
 from openviper.auth.session.utils import get_session_cookie_config
 from openviper.http.request import Request
 from openviper.http.response import JSONResponse
 from openviper.routing import Router
-
-from agents.models import Agent
 
 router = Router()
 

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import random
-import datetime as dt
 from datetime import timedelta
 
-from openviper.conf import settings
-from openviper.tasks import actor, periodic
-from openviper.utils import timezone
+from tweets.models import Like, Retweet, Tweet
 
 from agents.models import Agent
 from agents.services import decide_action, generate_reply, generate_tweet
-from tweets.models import Like, Retweet, Tweet
+from openviper.conf import settings
+from openviper.tasks import actor, periodic
+from openviper.utils import timezone
 
 logger = logging.getLogger("openviper.agents")
 

@@ -315,6 +315,3 @@ class TestEngineConfiguration:
 
     def test_generic_returns_empty(self) -> None:
         assert Dialect().get_engine_kwargs("any://url", False) == {}
-
-
-

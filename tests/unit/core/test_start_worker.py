@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
 from unittest.mock import MagicMock, patch
 
-import builtins
 import pytest
 
 from openviper.core.management.commands.start_worker import Command

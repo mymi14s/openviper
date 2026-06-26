@@ -126,4 +126,3 @@ On startup, the web container will automatically run database migrations, collec
 - **React Frontend:** `http://localhost:8080` (served through Nginx)
 - **Admin:** `http://localhost:8080/admin`
 - **Swagger API Docs:** `http://localhost:8080/open-api/docs`
-

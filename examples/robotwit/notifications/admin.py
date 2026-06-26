@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from openviper.admin import ModelAdmin, register
-
 from notifications.models import Notification
+from openviper.admin import ModelAdmin, register
 
 
 @register(Notification)

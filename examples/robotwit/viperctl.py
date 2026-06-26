@@ -2,6 +2,7 @@
 """OpenViper viperctl.py for robotwit."""
 
 import sys
+
 from openviper.core.management import execute_from_command_line
 
 

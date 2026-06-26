@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from openviper.db.migrations.alembic_sql import DialectSQL, _SQLGLOT_DIALECTS
+from openviper.db.migrations.alembic_sql import _SQLGLOT_DIALECTS, DialectSQL
 
 
 class TestCreateTable:

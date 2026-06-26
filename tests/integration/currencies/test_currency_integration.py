@@ -5,15 +5,14 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import Numeric
+from sqlalchemy.types import String
 
 from openviper.contrib.fields.currencies import CurrencyField, Money
 from openviper.contrib.fields.currencies.field import CurrencyCodeField, get_currency_field_name
 from openviper.db.executor import build_table
 from openviper.db.fields import CharField, DecimalField
 from openviper.db.models import Model
-from sqlalchemy import Numeric
-from sqlalchemy.types import String
-
 from openviper.db.schemas.detect import detect_column_changes
 
 

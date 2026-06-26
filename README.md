@@ -72,7 +72,6 @@ pip install openviper[tasks]             # Dramatiq 2.1+ task queue, Croniter
 pip install openviper[tasks-redis]       # Redis broker for Dramatiq tasks
 pip install openviper[tasks-rabbitmq]    # RabbitMQ broker for Dramatiq
 pip install openviper[tasks-sqs]          # Amazon SQS broker for Dramatiq
-pip install openviper[tasks-postgresql]   # PostgreSQL broker for Dramatiq
 pip install openviper[geolocation]       # PostGIS + shapely
 pip install openviper[currencies]        # py-moneyed + babel for CurrencyField
 pip install openviper[testing]           # pytest, httpx, pytest-asyncio

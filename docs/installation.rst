@@ -61,10 +61,7 @@ OpenViper ships optional feature sets as pip extras:
    * - ``tasks-sqs``
      - ``pip install openviper[tasks-sqs]``
      - ``tasks`` + ``dramatiq-sqs``, ``boto3``
-   * - ``tasks-postgresql``
-     - ``pip install openviper[tasks-postgresql]``
-     - ``tasks`` + ``dramatiq-pg``, ``psycopg2-binary``
-   * - ``testing``
+    * - ``testing``
      - ``pip install openviper[testing]``
      - ``pytest``, ``pytest-asyncio``, ``httpx``
    * - ``all``
@@ -354,43 +351,6 @@ Configure in ``settings.py``:
    SQS uses AWS credentials configured via the standard ``boto3``
    credential chain (environment variables, IAM roles, etc.).  Set
    ``sqs_endpoint_url`` to use with ElasticMQ for local development.
-
-PostgreSQL
-~~~~~~~~~~
-
-Install the PostgreSQL extra:
-
-.. code-block:: bash
-
-   pip install 'openviper[tasks-postgresql]'
-
-Configure in ``settings.py``:
-
-.. code-block:: python
-
-   TASKS: dict[str, Any] = dataclasses.field(
-       default_factory=lambda: {
-           "enabled": 1,
-           "broker": "postgresql",
-           "broker_url": "postgresql://user:pass@localhost:5432/mydb",
-           "pg_min_connections": 2,
-           "pg_max_connections": 10,
-           "backend_url": "",
-           "logging": {
-               "level": "INFO",
-               "file": {
-                   "log_dir": "logs",
-                   "file_name": "tasks.log",
-                   "log_format": "json",
-                   "max_size": 10,
-               },
-               "database": {
-                   "task": 1,
-                   "periodic": 1,
-               },
-           },
-        }
-    )
 
 Stub (Testing)
 ~~~~~~~~~~~~~~

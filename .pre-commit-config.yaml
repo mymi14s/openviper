@@ -3,6 +3,7 @@
 # Run `pre-commit install` once; hooks then fire automatically on every commit.
 # To run manually: pre-commit run --all-files
 # ────────────────────────────────────────────────────────────────────────────
+exclude: ^examples/robotwit/(static|templates)/
 repos:
   # ── General ────────────────────────────────────────────────────────────
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -25,13 +26,6 @@ repos:
       # ruff lint with autofix - also handles import sorting
       - id: ruff
         args: ["--fix", "--line-length=100"]
-
-  # ── Linting ────────────────────────────────────────────────────────────
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.3.0
-    hooks:
-      - id: flake8
-        args: ["--max-line-length=100", "--extend-ignore=E203,W503,E501", "--jobs=1"]
 
   # ── Security ──────────────────────────────────────────────────────────
   - repo: https://github.com/PyCQA/bandit

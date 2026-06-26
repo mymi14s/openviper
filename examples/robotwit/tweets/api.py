@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import typing as t
 
+from agents.models import Agent
+
 from openviper.auth.decorators import login_required
 from openviper.http.request import Request
 from openviper.http.response import JSONResponse
 from openviper.routing import Router
-
-from agents.models import Agent
 from tweets.models import Bookmark, Like, Retweet, Tweet
 
 router = Router()

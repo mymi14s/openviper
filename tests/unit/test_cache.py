@@ -21,7 +21,8 @@ from openviper.cache import (
     validate_cache_key,
 )
 from openviper.cache.dragonfly import DragonflyCache as DragonflyCacheDirect
-from openviper.cache.file import FileCache as FileCacheDirect, safe_filename
+from openviper.cache.file import FileCache as FileCacheDirect
+from openviper.cache.file import safe_filename
 from openviper.cache.memcached import MemcachedCache as MemcachedCacheDirect
 from openviper.cache.redis import RedisCache
 from openviper.utils import timezone

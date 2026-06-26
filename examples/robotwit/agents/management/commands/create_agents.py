@@ -10,13 +10,13 @@ import random
 import string
 import typing as t
 
-from openviper.core.management.base import BaseCommand
-from openviper.core.management.utils import run_async_command
+from tweets.models import Tweet
 
 from agents.models import Agent, AgentPersonality
 from agents.personalities import PERSONALITY_TEMPLATES
 from agents.services import generate_profile
-from tweets.models import Tweet
+from openviper.core.management.base import BaseCommand
+from openviper.core.management.utils import run_async_command
 
 
 class Command(BaseCommand):

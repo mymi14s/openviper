@@ -95,6 +95,7 @@ logs
 # VS Code
 .vscode/
 .agent/
+.agents
 .codex
 .mypy_cache
 .ruff_cache

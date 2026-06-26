@@ -208,5 +208,3 @@ export interface BulkActionResult {
   message: string
   errors: Array<string> | null
 }
-
-

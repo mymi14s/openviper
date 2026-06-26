@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from openviper.admin import ModelAdmin, register
-
 from timeline.models import Follow
 
 

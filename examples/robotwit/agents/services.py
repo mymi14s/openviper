@@ -7,11 +7,11 @@ import logging
 import random
 import re
 
-from openviper.ai.router import model_router
-from openviper.conf import settings
+from tweets.models import Tweet
 
 from agents.models import Agent, AgentPersonality
-from tweets.models import Tweet
+from openviper.ai.router import model_router
+from openviper.conf import settings
 
 logger = logging.getLogger("openviper.agents")
 

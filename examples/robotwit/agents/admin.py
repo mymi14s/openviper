@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from openviper.admin import ModelAdmin, register
-
 from agents.models import Agent, AgentPersonality
+from openviper.admin import ModelAdmin, register
 
 
 @register(AgentPersonality)

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+from agents.models import Agent
+
+from notifications.models import Notification
 from openviper.auth.decorators import login_required
 from openviper.http.request import Request
 from openviper.http.response import JSONResponse
 from openviper.routing import Router
 from openviper.utils import timezone
-
-from agents.models import Agent
-from notifications.models import Notification
 
 router = Router()
 

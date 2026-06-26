@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from openviper.http.types import ASGIReceive, ASGIScope, ASGISend
 from openviper.middleware.base import BaseMiddleware
-
 from realtime.consumers import websocket_application
 
 

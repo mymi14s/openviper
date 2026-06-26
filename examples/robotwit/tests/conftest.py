@@ -19,11 +19,11 @@ os.environ["DEBUG"] = "1"
 sys.path.insert(0, str(ROBOTWIT_DIR))
 
 # Import all models so they register in metadata
-from agents.models import Agent  # noqa: E402
 import agents.models  # noqa: E402, F401
 import notifications.models  # noqa: E402, F401
 import timeline.models  # noqa: E402, F401
 import tweets.models  # noqa: E402, F401
+from agents.models import Agent  # noqa: E402
 
 # Clear the build_table cache so FK references to the custom user model
 # (Agent/agents_agent) are resolved correctly instead of falling back to auth_users.
@@ -52,7 +52,10 @@ for _key, _model_cls in list(model_registry.registry.items()):
             )
 
 # Register migration/soft-delete tables so they get created too.
-from openviper.db.migrations.executor import get_migration_table, get_soft_removed_table  # noqa: E402
+from openviper.db.migrations.executor import (  # noqa: E402
+    get_migration_table,
+    get_soft_removed_table,
+)
 
 get_migration_table()
 get_soft_removed_table()

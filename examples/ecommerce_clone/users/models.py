@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from openviper.auth.models import AbstractUser as BaseUser
 from openviper.contrib.countries import CountryField
+
+from openviper.auth.models import AbstractUser as BaseUser
 from openviper.db import fields
 
 

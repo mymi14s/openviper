@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from moneyed import Currency
 
 from openviper.contrib.fields.currencies import (
     CurrencyField,
@@ -20,8 +21,6 @@ from openviper.contrib.fields.currencies import (
 from openviper.contrib.fields.currencies.money import DEFAULT_DECIMAL_PLACES, currency_symbol_cache
 from openviper.db.fields import CharField
 from openviper.db.models import Model
-
-from moneyed import Currency
 
 
 class TestValidateCurrency:

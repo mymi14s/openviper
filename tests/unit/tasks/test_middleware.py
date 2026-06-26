@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import contextvars
 from unittest.mock import MagicMock, patch
 
-import contextvars
 import pytest
 
 from openviper.tasks.middleware import (

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agents.models import Agent
 from notifications.models import Notification
 from tweets.models import Tweet

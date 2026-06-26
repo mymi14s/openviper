@@ -125,7 +125,7 @@ ignore = [
     "S311",   # standard pseudo-random generators used for demo seed data
 ]
 # Example tests: pytest assertions are the test API
-"examples/**/tests/**" = ["S101"]
+"examples/**/tests/**" = ["S101", "S105"]
 # Tests: relaxed naming, assert statements, optional typing, private access
 "tests/**" = [
     "S101",   # use of assert
@@ -138,7 +138,7 @@ ignore = [
     "S104", "S105", "S106", "S107", "S108", "S301", "S603", # test fixture literals
     "ASYNC109", "ASYNC240", # async test fakes mirror production call signatures
     "B904", # tests intentionally exercise implicit exception context
-    "TC001", # test handlers need runtime-resolvable type annotations
+    "TC001", "TC002", # test handlers need runtime-resolvable type annotations
     "PT006", # parametrize first arg as string is the common pytest idiom
     "PT018", # composite assertions are intentional in integration tests
 ]
@@ -153,6 +153,14 @@ ignore = [
 "examples/fx/app.py" = ["E402"]
 "examples/todoapp/app.py" = ["E402"]
 "examples/todoapp/create_admin.py" = ["E402"]
+# robotwit example: runtime imports in view functions
+"examples/robotwit/agents/api.py" = ["TC001"]
+"examples/robotwit/agents/services.py" = ["TC002"]
+"examples/robotwit/notifications/api.py" = ["TC001"]
+"examples/robotwit/realtime/middleware.py" = ["TC001"]
+"examples/robotwit/robotwit/settings.py" = ["TC001"]
+"examples/robotwit/timeline/api.py" = ["TC001"]
+"examples/robotwit/tweets/api.py" = ["TC001"]
 # DB models: re-exports TraversalLookup/TraversalStep for backward compatibility
 "openviper/db/models.py" = ["F401"]
 # DB fields: deferred class imports use PascalCase local names to avoid circular deps
@@ -322,7 +330,14 @@ module = [
     "openviper.auth.views.base_login",
     "openviper.auth.views.logout",
     "openviper.auth.views.me",
+    "openviper.auth.views.jwt_refresh",
     "openviper.db.migrations.*",
+    "openviper.db.backends.sqlalchemy",
+    "openviper.db.connection",
+    "openviper.db.models",
+    "openviper.db.schemas.introspect",
+    "openviper.db.schemas.json_writer",
+    "openviper.tasks.periodic",
     "openviper.db.tools.utils.metadata",
     "openviper.http.permissions",
     "openviper.core.flexible_adapter",
